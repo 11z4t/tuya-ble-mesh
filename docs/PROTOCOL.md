@@ -111,15 +111,89 @@ data only after a successful pairing/provisioning handshake.
 
 ---
 
-## 6. Next Steps (Provisioning)
+## 6. Provisioning Attempt (2026-03-01)
 
-Based on the confirmed proprietary Tuya mesh variant:
+Attempted local provisioning using `scripts/provision_attempt.py` with default
+mesh credentials (name `out_of_mesh`, password `123456`).
 
-1. Write default mesh name (`out_of_mesh`) + password (`123456`) to
-   pairing characteristic (1913)
-2. Subscribe to command notify characteristic (1911) for responses
-3. Upon success, assign new mesh credentials
-4. Monitor with `sniff.py` in parallel for packet capture
+### Procedure
 
-Key reference: [python-awox-mesh-light](https://github.com/Leiaz/python-awox-mesh-light)
-uses a similar Telink-based proprietary mesh protocol with name/password auth.
+1. Factory reset device via Shelly power cycle
+2. Scan and connect (succeeded after power cycle)
+3. Read characteristic state before write
+4. Write pairing data (32 bytes) to characteristic 1913
+5. Subscribe to notifications on 1911
+6. Wait for response
+
+### Results
+
+| Step | Outcome |
+|------|---------|
+| Scan | Found `out_of_mesh` at RSSI -43 dBm |
+| Connect | Succeeded (MTU: 23) |
+| Read 1911 | 1 byte (read succeeded) |
+| Read 1913 | 16 bytes (read succeeded) |
+| Read 1914 | 20 bytes (read succeeded) |
+| Write 1913 | **Failed** — `BleakDBusError` |
+| Subscribe 1911 | **Failed** — `EOFError` (device disconnected) |
+| Notifications | 0 received |
+
+### Failure Analysis
+
+**Write failure (1913):** The pairing characteristic has `write-without-response`
+property. The 32-byte payload (16-byte name + 16-byte password, null-padded)
+exceeded the characteristic's value size or MTU constraints. BlueZ rejected
+the write via D-Bus.
+
+**Subscribe failure (1911):** The device dropped the BLE connection after
+the failed write attempt. The `start_notify` call encountered an `EOFError`
+because the D-Bus connection to BlueZ reported the device as disconnected.
+
+### Hypotheses
+
+1. **Payload format incorrect:** The credentials may need AES encryption
+   before writing (reference: `python-awox-mesh-light` encrypts with a
+   session key derived from random + device data).
+2. **Payload too large:** The characteristic reads as 16 bytes, suggesting
+   the write should also be 16 bytes. The name and password may be written
+   separately or combined differently.
+3. **Missing handshake:** The Telink mesh protocol may require a multi-step
+   handshake (random exchange → session key → encrypted credentials) rather
+   than a single plaintext write.
+4. **Cloud dependency:** The device may require a cloud-derived token for
+   provisioning. This is the highest-risk scenario.
+
+### Key Observation
+
+The `python-awox-mesh-light` project (Telink mesh, same UUID base) uses a
+3-step pairing handshake:
+
+1. **Random exchange:** Host sends 8 random bytes to 1913, device responds
+   with 8 random bytes on 1911
+2. **Session key derivation:** Both sides derive a session key from the
+   random values + mesh name + mesh password via AES-ECB
+3. **Encrypted credential write:** Mesh credentials encrypted with session
+   key, then written to 1913
+
+This explains both failures: the device expected encrypted data, not
+plaintext, so it rejected the write and dropped the connection.
+
+---
+
+## 7. Next Steps
+
+Based on the provisioning failure analysis:
+
+1. **Study `python-awox-mesh-light` pairing flow** — Implement the 3-step
+   random exchange + session key + encrypted credential handshake
+2. **Capture Tuya app pairing** with `sniff.py` — Compare our handshake
+   attempt with the official app's GATT writes
+3. **Implement crypto module** — AES-ECB key derivation from random values
+   + mesh name + password (to be placed in `lib/tuya_ble_mesh/crypto.py`)
+4. **Retry provisioning** — With proper encrypted handshake
+
+Key references:
+- [python-awox-mesh-light](https://github.com/Leiaz/python-awox-mesh-light)
+  — Telink mesh pairing with AES session key
+- [retsimx/tlsr8266_mesh](https://github.com/retsimx/tlsr8266_mesh)
+  — Reverse-engineered Tuya mesh firmware (Ghidra)
