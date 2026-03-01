@@ -31,4 +31,4 @@ markers = [
 exclude_dirs = ["tests"]
 
 [tool.detect-secrets]
-exclude_files = '\.git/.*'
+exclude_files = '(\.git/.*|strings\.json|translations/.*\.json)'
