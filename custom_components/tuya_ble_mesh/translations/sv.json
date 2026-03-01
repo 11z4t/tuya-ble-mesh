@@ -1,0 +1,25 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Tuya BLE Mesh-enhet",
+        "description": "Ange BLE MAC-adress och mesh-uppgifter.",
+        "data": {
+          "mac_address": "MAC-adress",
+          "mesh_name": "Mesh-namn",
+          "mesh_password": "Mesh-l\u00f6senord"
+        }
+      },
+      "confirm": {
+        "title": "Bekr\u00e4fta enhet",
+        "description": "Hittade {name}. Ange mesh-uppgifter f\u00f6r att ansluta."
+      }
+    },
+    "error": {
+      "invalid_mac": "Ogiltigt MAC-adressformat (f\u00f6rv\u00e4ntat XX:XX:XX:XX:XX:XX)"
+    },
+    "abort": {
+      "already_configured": "Enheten \u00e4r redan konfigurerad"
+    }
+  }
+}
