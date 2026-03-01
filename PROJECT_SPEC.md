@@ -123,15 +123,15 @@ See `docs/ARCHITECTURE.md` for full details.
 
 ### 5.2 GATT Services
 
-The device is expected to expose these BLE services (to be confirmed
-during Phase 1):
+Confirmed via GATT enumeration on 2026-03-01 (see `docs/PROTOCOL.md`):
 
 | Service | UUID | Role |
 |---------|------|------|
-| Mesh Provisioning | `0x1827` | Provisioning (SIG Mesh) |
-| Mesh Proxy | `0x1828` | Post-provisioning communication (SIG Mesh) |
-| Device Information | `0x180A` | Firmware, manufacturer, model |
-| Tuya Custom | `...1910` | Proprietary variant (if not SIG Mesh) |
+| Generic Access Profile | `0x1800` | Device name, appearance |
+| Tuya Custom (Telink) | `00010203-...-0d1910` | Proprietary mesh service |
+| Device Information | `0x180A` | Firmware (1.6), model, manufacturer |
+
+**Not present:** SIG Mesh Provisioning (0x1827), SIG Mesh Proxy (0x1828).
 
 ### 5.3 Data Points (DPs)
 
@@ -174,15 +174,15 @@ See `docs/DOMAIN.md` section 10 for the full investigation plan.
 - [x] Project documentation (ARCHITECTURE, SECURITY, DOMAIN, TESTING, DECISIONS)
 - [x] Validation pipeline (`scripts/run-checks.sh`, `pyproject.toml`) — all 7 checks passing
 
-### Phase 1: Protocol Research
+### Phase 1: Protocol Research (in progress)
 
-- [ ] Connect to device and enumerate GATT services/characteristics
-- [ ] Determine mesh variant (SIG Mesh vs proprietary)
-- [ ] Capture and decode advertising data format
-- [ ] Read Device Information Service (firmware, chipset)
-- [ ] Attempt local provisioning
-- [ ] If cloud required: MITM Tuya app, extract mesh keys
-- [ ] Document all findings in `docs/DOMAIN.md`
+- [x] Connect to device and enumerate GATT services/characteristics
+- [x] Determine mesh variant (SIG Mesh vs proprietary) — **Tuya Proprietary (Telink)**
+- [x] Capture and decode advertising data format
+- [x] Read Device Information Service (firmware, chipset) — **FW 1.6, Telink**
+- [x] Attempt local provisioning — plaintext write failed, encrypted handshake needed
+- [ ] If cloud required: MITM Tuya app, extract mesh keys — likely not needed
+- [x] Document all findings in `docs/DOMAIN.md` and `docs/PROTOCOL.md`
 - [ ] Implement `lib/tuya_ble_mesh/protocol.py` with verified protocol
 
 ### Phase 2: Core Library
