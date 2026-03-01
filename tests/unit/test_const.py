@@ -37,6 +37,12 @@ from tuya_ble_mesh.const import (
     SIG_MESH_PROXY_SERVICE,
     TARGET_DEVICE_MAC,
     TARGET_DEVICE_MODEL,
+    TELINK_BASE_UUID_PREFIX,
+    TELINK_CHAR_COMMAND,
+    TELINK_CHAR_COMMAND_RX,
+    TELINK_CHAR_OTA,
+    TELINK_CHAR_PAIRING,
+    TELINK_CUSTOM_SERVICE,
     TUYA_CHAR_COMMAND_RX,
     TUYA_CHAR_COMMAND_TX,
     TUYA_CHAR_OTA,
@@ -84,19 +90,31 @@ class TestUUIDFormat:
         TUYA_CHAR_COMMAND_RX,
         TUYA_CHAR_PAIRING,
         TUYA_CHAR_OTA,
+        TELINK_CUSTOM_SERVICE,
+        TELINK_CHAR_COMMAND,
+        TELINK_CHAR_COMMAND_RX,
+        TELINK_CHAR_PAIRING,
+        TELINK_CHAR_OTA,
     ]
 
     def test_all_uuids_are_valid_128bit(self) -> None:
         for uuid in self.ALL_UUIDS:
             assert UUID_RE.match(uuid), f"Invalid UUID format: {uuid}"
 
-    def test_all_uuids_use_bt_sig_base(self) -> None:
-        """All UUIDs use the standard Bluetooth SIG base."""
-        for uuid in self.ALL_UUIDS:
-            # Bytes 5-16 should be the BT SIG base suffix
+    def test_bt_sig_uuids_use_standard_base(self) -> None:
+        """BT SIG-based UUIDs use the standard base. Telink UUIDs use their own."""
+        bt_sig_uuids = [u for u in self.ALL_UUIDS if not u.startswith(TELINK_BASE_UUID_PREFIX)]
+        for uuid in bt_sig_uuids:
             assert uuid.endswith("-0000-1000-8000-00805f9b34fb"), (
                 f"UUID does not use BT SIG base: {uuid}"
             )
+
+    def test_telink_uuids_use_telink_base(self) -> None:
+        """Telink UUIDs use the Telink-specific base."""
+        telink_uuids = [u for u in self.ALL_UUIDS if u.startswith(TELINK_BASE_UUID_PREFIX)]
+        assert len(telink_uuids) == 5
+        for uuid in telink_uuids:
+            assert uuid.startswith(TELINK_BASE_UUID_PREFIX)
 
     def test_bt_base_uuid_fmt_produces_valid_uuid(self) -> None:
         result = BT_BASE_UUID_FMT.format(0xFE07)

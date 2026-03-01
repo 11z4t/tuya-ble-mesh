@@ -35,6 +35,7 @@ from tuya_ble_mesh.const import (
     SIG_MESH_PROVISIONING_SERVICE,
     SIG_MESH_PROXY_SERVICE,
     TARGET_DEVICE_MAC,
+    TUYA_CHAR_SUFFIX_SERVICE,
     TUYA_CUSTOM_SERVICE,
 )
 from tuya_ble_mesh.exceptions import (
@@ -60,18 +61,25 @@ DIS_NAMES: dict[str, str] = {
 def classify_mesh_variant(service_uuids: list[str]) -> str:
     """Classify the mesh variant based on discovered GATT service UUIDs.
 
+    Detects Tuya proprietary services by either exact UUID match or by
+    suffix matching (the Telink BLE stack uses a non-standard base UUID
+    ``00010203-0405-0607-0809-0a0b0c0dXXXX`` with the same 1910-1914 suffixes).
+
     Args:
         service_uuids: List of 128-bit UUID strings (lowercase) from GATT discovery.
 
     Returns:
         "sig_mesh" if SIG Mesh Provisioning or Proxy service is found,
-        "tuya_proprietary" if Tuya custom service is found,
+        "tuya_proprietary" if Tuya custom service (any base) is found,
         "unknown" if neither is found.
     """
     has_sig = (
         SIG_MESH_PROVISIONING_SERVICE in service_uuids or SIG_MESH_PROXY_SERVICE in service_uuids
     )
-    has_tuya = TUYA_CUSTOM_SERVICE in service_uuids
+    # Match Tuya custom service by exact UUID or by suffix (Telink base UUID)
+    has_tuya = TUYA_CUSTOM_SERVICE in service_uuids or any(
+        uuid.endswith(TUYA_CHAR_SUFFIX_SERVICE) for uuid in service_uuids
+    )
 
     if has_sig and has_tuya:
         # Both present — prefer SIG Mesh (better documented)
@@ -521,8 +529,10 @@ def main() -> None:
         print("Make sure the device is powered on and in range.")
         print("Try running: python scripts/factory_reset.py")
         sys.exit(1)
-    except BLETimeoutError as exc:
-        print(f"\nError: {exc}")
+    except (BLETimeoutError, TimeoutError) as exc:
+        print(f"\nError: Connection timed out — {exc}")
+        print("The device may not accept GATT connections in this state.")
+        print("Try: python scripts/factory_reset.py  (to reset to pairing mode)")
         sys.exit(1)
     except KeyboardInterrupt:
         print("\nScan interrupted.")
