@@ -25,7 +25,7 @@ from tuya_ble_mesh.power import ShellyPowerController
 
 **Why:** The library must be usable outside HA — in scripts, tests, and
 standalone tools. HA-specific code belongs exclusively in
-`custom_components/malmbergs_bt/`.
+`custom_components/tuya_ble_mesh/`.
 
 ### S3: BLE Byte Parsing in protocol.py Only
 
@@ -181,7 +181,7 @@ terminal during normal operation.
 │  scripts/                                   │  CLI tools (scan, sniff, power_cycle)
 │  Uses lib/ directly. No HA dependency.      │
 ├─────────────────────────────────────────────┤
-│  custom_components/malmbergs_bt/            │  Home Assistant integration wrapper
+│  custom_components/tuya_ble_mesh/            │  Home Assistant integration wrapper
 │  Imports from lib/. Adapts to HA platform.  │
 ├─────────────────────────────────────────────┤
 │  lib/tuya_ble_mesh/                         │  Standalone BLE mesh library
@@ -218,7 +218,7 @@ terminal during normal operation.
 | `power_cycle.py` | Power cycle device via Shelly, optional BLE verification |
 | `factory_reset.py` | Rapid power cycling for Malmbergs factory reset |
 
-### custom_components/malmbergs_bt/
+### custom_components/tuya_ble_mesh/
 
 HA integration wrapper. Planned — will expose devices as HA light entities.
 
