@@ -14,7 +14,7 @@ from bleak import BleakScanner
 # Add lib/ to path for imports
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent / "lib"))
 
-from tuya_ble_mesh.power import (  # noqa: E402
+from tuya_ble_mesh.power import (
     PowerControlError,
     ShellyPowerController,
 )
@@ -97,7 +97,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    print(f"\n  Malmbergs BT Lab — Power Cycle")
+    print("\n  Malmbergs BT Lab — Power Cycle")
     result = asyncio.run(run(args.host, args.off_time, args.verify))
     print(f"\n  Result: {'OK' if result else 'FAIL'}")
     sys.exit(0 if result else 1)
