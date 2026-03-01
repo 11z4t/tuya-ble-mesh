@@ -172,6 +172,7 @@ See `docs/DOMAIN.md` section 10 for the full investigation plan.
 - [x] Factory reset via rapid power cycling (`scripts/factory_reset.py`)
 - [x] Unit test framework with mocked I/O (`tests/unit/test_power.py`)
 - [x] Project documentation (ARCHITECTURE, SECURITY, DOMAIN, TESTING, DECISIONS)
+- [x] Validation pipeline (`scripts/run-checks.sh`, `pyproject.toml`) — all 7 checks passing
 
 ### Phase 1: Protocol Research
 
