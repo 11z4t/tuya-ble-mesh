@@ -27,17 +27,22 @@ The 16-bit suffix pattern (1910-1914) matches documented Tuya characteristics.
 
 | Role | UUID Suffix | Full UUID | Properties | Bytes Read |
 |------|-------------|-----------|------------|------------|
-| Command (notify+write) | 1911 | `...0d1911` | read, write, notify | 1 |
-| Command RX | 1912 | `...0d1912` | read, write-without-response, write | 16 |
-| Pairing | 1913 | `...0d1913` | read, write-without-response | 16 |
-| OTA / Status | 1914 | `...0d1914` | read, write | 20 |
+| Status / Notify | 1911 | `...0d1911` | read, write, notify | 1 |
+| Command TX | 1912 | `...0d1912` | read, write-without-response, write | 16 |
+| OTA | 1913 | `...0d1913` | read, write-without-response | 16 |
+| Pairing | 1914 | `...0d1914` | read, write | 20 |
 
 **Key observations:**
-- Characteristic 1911 has `notify` — this is the response/data channel
+- Characteristic 1911 has `notify` — this is the status/response channel
 - Characteristic 1912 has `write-without-response` — this is the command TX channel
-- Characteristic 1913 is the pairing channel (write mesh name + password here)
-- Characteristic 1914 likely status/OTA (20 bytes readable, may contain device info)
-- The 1911 properties differ from documentation (notify is on 1911, not 1912)
+- Characteristic 1914 is the **pairing** channel (write pair packet, read response)
+- Characteristic 1913 is OTA firmware update (write-without-response for data chunks)
+
+**CORRECTION (2026-03-01):** Phase 1 initially labeled 1913 as "Pairing" and
+1914 as "OTA/Status". Reference analysis of `python-awox-mesh-light` (same
+Telink chipset) confirmed the roles are swapped: **1914 = Pairing, 1913 = OTA**.
+Evidence: pairing requires write-with-response + read (matching 1914 properties),
+while OTA uses write-without-response for streaming chunks (matching 1913).
 
 ### Service 3: Device Information Service (0x180A)
 
@@ -163,37 +168,189 @@ because the D-Bus connection to BlueZ reported the device as disconnected.
 4. **Cloud dependency:** The device may require a cloud-derived token for
    provisioning. This is the highest-risk scenario.
 
-### Key Observation
+### Root Cause
 
-The `python-awox-mesh-light` project (Telink mesh, same UUID base) uses a
-3-step pairing handshake:
-
-1. **Random exchange:** Host sends 8 random bytes to 1913, device responds
-   with 8 random bytes on 1911
-2. **Session key derivation:** Both sides derive a session key from the
-   random values + mesh name + mesh password via AES-ECB
-3. **Encrypted credential write:** Mesh credentials encrypted with session
-   key, then written to 1913
-
-This explains both failures: the device expected encrypted data, not
-plaintext, so it rejected the write and dropped the connection.
+**We wrote to the wrong characteristic.** The provisioning attempt targeted
+1913 (OTA), not 1914 (Pairing). Additionally, the payload was unencrypted
+plaintext, but the protocol requires an encrypted 3-step handshake. See
+section 7 below.
 
 ---
 
-## 7. Next Steps
+## 7. Reference Analysis — python-awox-mesh-light
 
-Based on the provisioning failure analysis:
+Studied the [python-awox-mesh-light](https://github.com/fsaris/python-awox-mesh-light)
+repository (MIT license, Copyright 2017 Leiaz). This project implements the
+same Telink BLE mesh protocol for AwoX/Eglo lights. The protocol is identical
+at the GATT and crypto layer — same UUID base, same AES operations, same
+packet formats.
 
-1. **Study `python-awox-mesh-light` pairing flow** — Implement the 3-step
-   random exchange + session key + encrypted credential handshake
-2. **Capture Tuya app pairing** with `sniff.py` — Compare our handshake
-   attempt with the official app's GATT writes
-3. **Implement crypto module** — AES-ECB key derivation from random values
-   + mesh name + password (to be placed in `lib/tuya_ble_mesh/crypto.py`)
-4. **Retry provisioning** — With proper encrypted handshake
+### 7.1 Characteristic Role Mapping (Corrected)
+
+| UUID Suffix | awox Constant | Role | Properties |
+|-------------|---------------|------|------------|
+| 1911 | `STATUS_CHAR_UUID` | Status/notify (receive data) | notify, write (`0x01` to enable) |
+| 1912 | `COMMAND_CHAR_UUID` | Command TX (send encrypted commands) | write-without-response |
+| 1913 | `OTA_CHAR_UUID` | OTA firmware update | write-without-response |
+| 1914 | `PAIR_CHAR_UUID` | Pairing handshake | write + read |
+
+### 7.2 Three-Step Pairing Handshake
+
+```
+Controller                              Device ("out_of_mesh")
+    |                                        |
+    |  Step 1: Pair packet to 1914           |
+    |  [0x0C][8B random][8B encrypted proof] |
+    |--------------------------------------->|
+    |                                        |
+    |  Step 2: Read response from 1914       |
+    |  [0x0D][8B device random] = success    |
+    |  [0x0E] = auth failure                 |
+    |<---------------------------------------|
+    |                                        |
+    |  [Derive session key locally]          |
+    |  AES-ECB(key=name^pass, pt=rand||rand) |
+    |                                        |
+    |  Enable notifications on 1911:         |
+    |  write 0x01 to 1911                    |
+    |--------------------------------------->|
+    |                                        |
+    |  Step 3: Set mesh credentials via 1914 |
+    |  [0x04][encrypted new name]            |
+    |  [0x05][encrypted new password]        |
+    |  [0x06][encrypted new LTK]             |
+    |--------------------------------------->|
+    |                                        |
+    |  Read confirmation from 1914           |
+    |  [0x07] = success                      |
+    |<---------------------------------------|
+```
+
+### 7.3 Pair Packet Construction (Step 1)
+
+```
+make_pair_packet(mesh_name, mesh_password, session_random):
+  1. Pad name to 16 bytes (null-padded)
+  2. Pad password to 16 bytes (null-padded)
+  3. XOR name with password → name_pass (16 bytes)
+  4. Pad session_random to 16 bytes (used as AES key)
+  5. Encrypt: AES-ECB(key=session_random_padded, plaintext=name_pass)
+  6. Packet: [0x0C] + session_random[0:8] + encrypted[0:8]
+  Total: 17 bytes
+```
+
+### 7.4 Session Key Derivation (Step 2)
+
+```
+make_session_key(mesh_name, mesh_password, client_random, device_random):
+  1. Concatenate: client_random[8] + device_random[8] → combined[16]
+  2. Pad name to 16 bytes, pad password to 16 bytes
+  3. XOR name with password → name_pass (16 bytes)
+  4. Encrypt: AES-ECB(key=name_pass, plaintext=combined)
+  Result: 16-byte session key
+```
+
+### 7.5 AES-ECB with Telink Byte Reversal
+
+All AES operations use a Telink-specific convention: **both key and plaintext
+are byte-reversed before AES-ECB, and the ciphertext is byte-reversed after.**
+This is characteristic of Telink semiconductor's little-endian AES implementation.
+
+```python
+# Telink AES-ECB (from python-awox-mesh-light)
+def encrypt(key, value):
+    k = bytearray(key); k.reverse()
+    v = bytearray(value.ljust(16, b'\x00')); v.reverse()
+    cipher = AES.new(bytes(k), AES.MODE_ECB)
+    result = bytearray(cipher.encrypt(bytes(v)))
+    result.reverse()
+    return result
+```
+
+This is NOT standard AES-ECB. The byte reversal is required for
+interoperability with Telink BLE mesh firmware.
+
+### 7.6 Command Packet Format (20 bytes)
+
+After pairing, encrypted commands are sent to characteristic 1912:
+
+```
+[3B seq][2B MAC][15B encrypted payload]
+
+Unencrypted payload (15 bytes):
+[2B dest_id LE][1B command][0x60][0x01][data...][padding to 15B]
+```
+
+Nonce construction (8 bytes):
+```
+[4B reversed MAC prefix][0x01][3B random sequence]
+```
+
+Encryption uses manual CTR mode + CBC-MAC (effectively AES-CCM) built on
+top of the Telink AES-ECB primitive. The CBC-MAC is truncated to 2 bytes.
+
+### 7.7 Command Codes (Telink Mesh)
+
+| Command | Code | Data | Description |
+|---------|------|------|-------------|
+| Power | `0xD0` | `0x01`/`0x00` | On / Off |
+| Color | `0xE2` | `0x04, R, G, B` | Set RGB color |
+| White brightness | `0xF1` | 1 byte (1–0x7F) | Brightness (1–127) |
+| White temperature | `0xF0` | 1 byte (0–0x7F) | Color temp (0–127) |
+| Color brightness | `0xF2` | 1 byte (0x0A–0x64) | Color brightness |
+| Mesh address | `0xE0` | 2B LE uint16 | Set mesh ID |
+| Mesh reset | `0xE3` | `0x00` | Factory reset |
+| Mesh group | `0xD7` | 3 bytes | Set mesh group |
+| Light mode | `0x33` | 1 byte | Set mode |
+
+These are **Telink mesh** command codes, NOT standard Tuya DP commands.
+The Malmbergs device may use these directly, or Tuya may layer its own
+DP protocol on top. To be verified during provisioning.
+
+### 7.8 Status Message Format
+
+Decrypted status notifications (from 1911) contain:
+
+| Offset | Size | Field |
+|--------|------|-------|
+| 3 | 1B | Mesh ID |
+| 12 | 1B | Mode (1=white-on, 2=white-off, 3=color-on) |
+| 13 | 1B | White brightness (1–0x7F) |
+| 14 | 1B | White temperature (0–0x7F) |
+| 15 | 1B | Color brightness |
+| 16–18 | 3B | R, G, B |
+
+### 7.9 Key Differences: AwoX vs Tuya/Malmbergs
+
+| Aspect | AwoX/Eglo | Tuya/Malmbergs |
+|--------|-----------|----------------|
+| Default mesh name | `"unpaired"` | `"out_of_mesh"` |
+| Default password | `"1234"` | `"123456"` |
+| UUID base | Telink (identical) | Telink (identical) |
+| AES convention | Byte-reversed ECB | Byte-reversed ECB (assumed) |
+| Command codes | Telink standard | Telink standard (assumed) |
+| Cloud dependency | None | Unknown (likely none) |
+| DP layer | None (raw Telink) | Possibly Tuya DP on top |
+
+### 7.10 License
+
+MIT license (Copyright 2017 Leiaz). Safe to use as reference. Our
+implementation will be independently written based on the protocol
+understanding gained from this analysis.
+
+---
+
+## 8. Next Steps
+
+1. **Fix UUID mapping** in `const.py`: swap 1913 (OTA) and 1914 (Pairing)
+2. **Implement `crypto.py`**: Telink AES-ECB with byte reversal, session
+   key derivation, CTR + CBC-MAC
+3. **Implement `protocol.py`**: Pair packet, command packet, status decode
+4. **Implement `provisioner.py`**: 3-step handshake targeting char 1914
+5. **Retry provisioning** with corrected characteristic and encrypted packets
 
 Key references:
-- [python-awox-mesh-light](https://github.com/Leiaz/python-awox-mesh-light)
-  — Telink mesh pairing with AES session key
+- [python-awox-mesh-light](https://github.com/fsaris/python-awox-mesh-light)
+  — MIT license, Telink mesh pairing + commands
 - [retsimx/tlsr8266_mesh](https://github.com/retsimx/tlsr8266_mesh)
   — Reverse-engineered Tuya mesh firmware (Ghidra)
