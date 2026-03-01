@@ -1,0 +1,25 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Tuya BLE Mesh Device",
+        "description": "Enter the BLE MAC address and mesh credentials.",
+        "data": {
+          "mac_address": "MAC Address",
+          "mesh_name": "Mesh Name",
+          "mesh_password": "Mesh Password"
+        }
+      },
+      "confirm": {
+        "title": "Confirm Device",
+        "description": "Found {name}. Enter mesh credentials to connect."
+      }
+    },
+    "error": {
+      "invalid_mac": "Invalid MAC address format (expected XX:XX:XX:XX:XX:XX)"
+    },
+    "abort": {
+      "already_configured": "This device is already configured"
+    }
+  }
+}
