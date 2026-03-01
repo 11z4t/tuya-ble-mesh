@@ -1,37 +1,63 @@
-"""BLE exception hierarchy for Tuya BLE Mesh operations.
+"""Exception hierarchy for Malmbergs BT / Tuya BLE Mesh.
 
-Each exception carries a descriptive message. Callers can catch the
-base ``BLEError`` for general handling or specific subclasses for
-targeted recovery.
+All exceptions inherit from ``MalmbergsBTError``. Callers can catch the
+base class for broad handling or specific subclasses for targeted recovery.
 
 SECURITY: Exception messages MUST NEVER contain secret material
 (keys, passwords, tokens). Use length/type descriptions only.
 """
 
 
-class BLEError(Exception):
-    """Base exception for all BLE operations."""
+class MalmbergsBTError(Exception):
+    """Base exception for all Malmbergs BT operations."""
 
 
-class BLEConnectionError(BLEError):
+class ConnectionError(MalmbergsBTError):
     """Failed to establish or maintain a BLE connection."""
 
 
-class BLEDeviceNotFoundError(BLEError):
+class DeviceNotFoundError(MalmbergsBTError):
     """Target BLE device was not discovered during scanning."""
 
 
-class BLEServiceError(BLEError):
-    """Expected GATT service not found on the device."""
-
-
-class BLECharacteristicError(BLEError):
-    """Failed to read, write, or interact with a GATT characteristic."""
-
-
-class BLETimeoutError(BLEError):
+class TimeoutError(MalmbergsBTError):
     """BLE operation exceeded the allowed time limit."""
 
 
-class BLENotificationError(BLEError):
-    """Failed to subscribe to or receive GATT notifications."""
+class ProvisioningError(MalmbergsBTError):
+    """Provisioning handshake failed."""
+
+
+class ProtocolError(MalmbergsBTError):
+    """Wire-level protocol violation."""
+
+
+class MalformedPacketError(ProtocolError):
+    """Received packet failed structural validation."""
+
+
+class CryptoError(MalmbergsBTError):
+    """Cryptographic operation failed."""
+
+
+class AuthenticationError(CryptoError):
+    """Mesh authentication (session key / pair proof) failed."""
+
+
+class SecretAccessError(MalmbergsBTError):
+    """Failed to read or write a secret via 1Password."""
+
+
+class PowerControlError(MalmbergsBTError):
+    """Shelly power control operation failed."""
+
+
+# --- Backward-compatible aliases (used by Phase 1 scripts) ---
+
+BLEError = MalmbergsBTError
+BLEConnectionError = ConnectionError
+BLEDeviceNotFoundError = DeviceNotFoundError
+BLETimeoutError = TimeoutError
+BLEServiceError = ProtocolError
+BLECharacteristicError = ProtocolError
+BLENotificationError = ConnectionError
