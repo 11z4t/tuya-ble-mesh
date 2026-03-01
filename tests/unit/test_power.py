@@ -1,9 +1,8 @@
 """Unit tests for ShellyPowerController."""
 
-import asyncio
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -11,12 +10,10 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
 from tuya_ble_mesh.power import (
-    PowerControlError,
     ShellyCommandError,
     ShellyPowerController,
     ShellyUnreachableError,
 )
-
 
 # --- Helpers ---
 
@@ -78,9 +75,7 @@ class TestDetectGeneration:
     @pytest.mark.asyncio
     async def test_gen2_detection(self) -> None:
         ctrl = ShellyPowerController("192.168.1.50")
-        mock_resp = make_mock_response(
-            json_data={"gen": 2, "type": "SHPLG-S", "mac": "AABBCC"}
-        )
+        mock_resp = make_mock_response(json_data={"gen": 2, "type": "SHPLG-S", "mac": "AABBCC"})
         mock_session = make_mock_session([mock_resp])
         ctrl._session = mock_session
 
@@ -104,9 +99,7 @@ class TestPowerOn:
         ctrl = ShellyPowerController("192.168.1.50")
         ctrl._generation = 1
 
-        mock_resp = make_mock_response(
-            json_data={"ison": True, "has_timer": False}
-        )
+        mock_resp = make_mock_response(json_data={"ison": True, "has_timer": False})
         mock_session = make_mock_session([mock_resp])
         ctrl._session = mock_session
 
@@ -118,9 +111,7 @@ class TestPowerOn:
         ctrl = ShellyPowerController("192.168.1.50")
         ctrl._generation = 2
 
-        mock_resp = make_mock_response(
-            json_data={"was_on": False}
-        )
+        mock_resp = make_mock_response(json_data={"was_on": False})
         mock_session = make_mock_session([mock_resp])
         ctrl._session = mock_session
 
@@ -136,9 +127,7 @@ class TestPowerOff:
         ctrl = ShellyPowerController("192.168.1.50")
         ctrl._generation = 1
 
-        mock_resp = make_mock_response(
-            json_data={"ison": False, "has_timer": False}
-        )
+        mock_resp = make_mock_response(json_data={"ison": False, "has_timer": False})
         mock_session = make_mock_session([mock_resp])
         ctrl._session = mock_session
 
@@ -206,9 +195,7 @@ class TestFactoryReset:
         mock_session = make_mock_session(responses)
         ctrl._session = mock_session
 
-        result = await ctrl.factory_reset_cycle(
-            cycles=3, interval=0.01
-        )
+        result = await ctrl.factory_reset_cycle(cycles=3, interval=0.01)
         assert result is True
 
 
@@ -218,9 +205,7 @@ class TestIsReachable:
     @pytest.mark.asyncio
     async def test_reachable(self) -> None:
         ctrl = ShellyPowerController("192.168.1.50")
-        mock_resp = make_mock_response(
-            json_data={"type": "SHPLG-S"}
-        )
+        mock_resp = make_mock_response(json_data={"type": "SHPLG-S"})
         mock_session = make_mock_session([mock_resp])
         ctrl._session = mock_session
 
@@ -233,9 +218,7 @@ class TestIsReachable:
 
         mock_session = MagicMock()
         mock_get = MagicMock()
-        mock_get.__aenter__ = AsyncMock(
-            side_effect=aiohttp.ClientError("Connection refused")
-        )
+        mock_get.__aenter__ = AsyncMock(side_effect=aiohttp.ClientError("Connection refused"))
         mock_get.__aexit__ = AsyncMock(return_value=False)
         mock_session.get = MagicMock(return_value=mock_get)
         mock_session.closed = False
@@ -268,9 +251,7 @@ class TestErrorHandling:
 
         mock_session = MagicMock()
         mock_get = MagicMock()
-        mock_get.__aenter__ = AsyncMock(
-            side_effect=aiohttp.ClientError("refused")
-        )
+        mock_get.__aenter__ = AsyncMock(side_effect=aiohttp.ClientError("refused"))
         mock_get.__aexit__ = AsyncMock(return_value=False)
         mock_session.get = MagicMock(return_value=mock_get)
         mock_session.closed = False
