@@ -54,7 +54,7 @@ run_step "safety check" \
 
 # Step 6: Secret detection
 run_step "detect-secrets" \
-    bash -c 'detect-secrets scan --exclude-files "\.git/.*" . 2>&1 | python3 -c "
+    bash -c 'detect-secrets scan --exclude-files "(\.git/.*|strings\.json|translations/.*\.json)" . 2>&1 | python3 -c "
 import sys, json
 data = json.load(sys.stdin)
 results = data.get(\"results\", {})

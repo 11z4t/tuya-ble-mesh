@@ -80,14 +80,14 @@ class TestUserStep:
             {
                 CONF_MAC_ADDRESS: "DC:23:4D:21:43:A5",
                 CONF_MESH_NAME: "my_mesh",
-                CONF_MESH_PASSWORD: "my_pass",
+                CONF_MESH_PASSWORD: "my_pass",  # pragma: allowlist secret
             }
         )
 
         assert result["type"] == "create_entry"
         assert result["data"][CONF_MAC_ADDRESS] == "DC:23:4D:21:43:A5"
         assert result["data"][CONF_MESH_NAME] == "my_mesh"
-        assert result["data"][CONF_MESH_PASSWORD] == "my_pass"
+        assert result["data"][CONF_MESH_PASSWORD] == "my_pass"  # pragma: allowlist secret
 
     @pytest.mark.asyncio
     async def test_user_step_invalid_mac_shows_error(self) -> None:
@@ -149,7 +149,7 @@ class TestConfirmStep:
         }
 
         result = await flow.async_step_confirm(
-            {CONF_MESH_NAME: "my_mesh", CONF_MESH_PASSWORD: "pass123"}
+            {CONF_MESH_NAME: "my_mesh", CONF_MESH_PASSWORD: "pass123"}  # pragma: allowlist secret
         )
 
         assert result["type"] == "create_entry"
