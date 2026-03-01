@@ -115,7 +115,7 @@ class TestSecurityVerification:
     @pytest.mark.asyncio
     async def test_no_plaintext_secrets_in_output(self) -> None:
         """Verify that secret values never appear anywhere in the diagnostics output."""
-        secret_mesh = "super_secret_mesh_name"
+        secret_mesh = "super_secret_mesh_name"  # pragma: allowlist secret
         secret_pass = "ultra_secret_password_123"  # pragma: allowlist secret
         entry = make_mock_entry(
             mesh_name=secret_mesh,
