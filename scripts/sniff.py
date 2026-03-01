@@ -16,7 +16,6 @@ import pathlib
 import struct
 import sys
 from datetime import datetime
-from typing import Optional
 
 import serial
 
@@ -121,7 +120,7 @@ def build_packet(packet_type: int, payload: bytes = b"") -> bytes:
     return header + payload
 
 
-def parse_packet_header(data: bytes) -> Optional[tuple[int, int, int, int, bytes]]:
+def parse_packet_header(data: bytes) -> tuple[int, int, int, int, bytes] | None:
     """Parse nRF Sniffer packet header.
 
     Returns (header_len, payload_len, proto_ver, packet_type, payload)
@@ -129,9 +128,7 @@ def parse_packet_header(data: bytes) -> Optional[tuple[int, int, int, int, bytes
     """
     if len(data) < 6:
         return None
-    header_len, payload_len, proto_ver, pkt_counter, pkt_type = struct.unpack(
-        "<BBBHB", data[:6]
-    )
+    header_len, payload_len, proto_ver, _pkt_counter, pkt_type = struct.unpack("<BBBHB", data[:6])
     payload = data[header_len : header_len + payload_len]
     return header_len, payload_len, proto_ver, pkt_type, payload
 
@@ -145,9 +142,7 @@ def detect_sniffer_port() -> str:
         ports = sorted(pathlib.Path("/dev").glob(pattern))
         if ports:
             return str(ports[0])
-    raise SnifferNotFoundError(
-        "No serial sniffer found. Check /dev/ttyUSB* or /dev/ttyACM*"
-    )
+    raise SnifferNotFoundError("No serial sniffer found. Check /dev/ttyUSB* or /dev/ttyACM*")
 
 
 class SnifferReader:
@@ -156,7 +151,7 @@ class SnifferReader:
     def __init__(self, port: str, baudrate: int = SNIFFER_BAUDRATE) -> None:
         self._port = port
         self._baudrate = baudrate
-        self._serial: Optional[serial.Serial] = None
+        self._serial: serial.Serial | None = None
         self._running = False
         self._packet_count = 0
 
@@ -235,7 +230,7 @@ class SnifferReader:
     async def read_packets(
         self,
         duration: float = 0,
-        output_file: Optional[str] = None,
+        output_file: str | None = None,
     ) -> None:
         """Read and display sniffed BLE packets.
 
@@ -313,7 +308,7 @@ class SnifferReader:
         if len(payload) < 10:
             return
 
-        flags = payload[0]
+        _flags = payload[0]  # reserved for future filtering
         channel = payload[1]
         # RSSI is signed byte
         rssi = struct.unpack("b", payload[2:3])[0]
@@ -349,15 +344,15 @@ class SnifferReader:
 async def run_sniffer(
     port: str,
     duration: float = 0,
-    output_file: Optional[str] = None,
+    output_file: str | None = None,
 ) -> None:
     """Main sniffer flow."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("  Malmbergs BT Lab — Passive BLE Sniffer")
     print(f"  Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"  Port: {port}")
     print(f"  Duration: {'indefinite' if duration == 0 else f'{duration}s'}")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     reader = SnifferReader(port)
     await reader.open()
@@ -388,23 +383,27 @@ def main() -> None:
         description="Passive BLE sniffer via Adafruit nRF51822 (serial)",
     )
     parser.add_argument(
-        "-p", "--port",
+        "-p",
+        "--port",
         default=None,
         help="Serial port (default: auto-detect /dev/ttyUSB*)",
     )
     parser.add_argument(
-        "-d", "--duration",
+        "-d",
+        "--duration",
         type=float,
         default=0,
         help="Scan duration in seconds (default: 0 = indefinite)",
     )
     parser.add_argument(
-        "-o", "--output",
+        "-o",
+        "--output",
         default=None,
         help="Output file for raw packet logging",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable debug logging",
     )

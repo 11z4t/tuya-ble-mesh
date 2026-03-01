@@ -9,7 +9,7 @@ Shelly auth credentials (if enabled) must go in 1Password.
 
 import asyncio
 import logging
-from typing import Any, Optional
+from typing import Any
 
 import aiohttp
 
@@ -40,8 +40,8 @@ class ShellyPowerController:
     def __init__(self, host: str, timeout: float = 10.0) -> None:
         self._host = host
         self._timeout = aiohttp.ClientTimeout(total=timeout)
-        self._session: Optional[aiohttp.ClientSession] = None
-        self._generation: Optional[int] = None
+        self._session: aiohttp.ClientSession | None = None
+        self._generation: int | None = None
 
     @property
     def host(self) -> str:
@@ -66,14 +66,10 @@ class ShellyPowerController:
         try:
             async with session.get(url) as resp:
                 if resp.status != 200:
-                    raise ShellyCommandError(
-                        f"HTTP {resp.status} from {path}"
-                    )
+                    raise ShellyCommandError(f"HTTP {resp.status} from {path}")
                 return await resp.json(content_type=None)  # type: ignore[no-any-return]
         except aiohttp.ClientError as exc:
-            raise ShellyUnreachableError(
-                f"Cannot reach Shelly at {self._host}: {exc}"
-            ) from exc
+            raise ShellyUnreachableError(f"Cannot reach Shelly at {self._host}: {exc}") from exc
 
     async def detect_generation(self) -> int:
         """Auto-detect Shelly generation (1 or 2) via /shelly endpoint."""
@@ -146,9 +142,7 @@ class ShellyPowerController:
 
         Malmbergs devices factory reset when power cycled 3-5 times quickly.
         """
-        _LOGGER.info(
-            "Factory reset: %d cycles, %.1fs interval", cycles, interval
-        )
+        _LOGGER.info("Factory reset: %d cycles, %.1fs interval", cycles, interval)
 
         for i in range(cycles):
             _LOGGER.info("Cycle %d/%d: OFF", i + 1, cycles)

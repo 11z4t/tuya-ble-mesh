@@ -5,10 +5,10 @@ import asyncio
 import pathlib
 import sys
 from datetime import datetime
+
 from bleak import BleakScanner
 from bleak.backends.device import BLEDevice
 from bleak.backends.scanner import AdvertisementData
-
 
 TUYA_SERVICE_UUID = "0000fe07-0000-1000-8000-00805f9b34fb"
 TUYA_MESH_NAMES = ["out_of_mesh", "tymesh"]
@@ -62,31 +62,27 @@ def is_tuya_device(device: BLEDevice, adv: AdvertisementData) -> bool:
             return True
 
     # Check service UUIDs
-    if TUYA_SERVICE_UUID in (adv.service_uuids or []):
-        return True
-
-    return False
+    return TUYA_SERVICE_UUID in (adv.service_uuids or [])
 
 
 async def scan(duration: int = 15) -> None:
     """Scan for BLE devices and highlight Tuya/Malmbergs devices."""
-    print(f"\n{'='*60}")
-    print(f"  Malmbergs BT Lab — BLE Scanner")
+    print(f"\n{'=' * 60}")
+    print("  Malmbergs BT Lab — BLE Scanner")
     print(f"  Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"  Duration: {duration}s")
-    print(f"{'='*60}\n")
+    print(f"{'=' * 60}\n")
 
     await print_hardware_info()
 
     tuya_devices = []
-    other_devices = []
 
     def callback(device: BLEDevice, adv: AdvertisementData):
         if is_tuya_device(device, adv):
             tuya_devices.append((device, adv))
 
     scanner = BleakScanner(detection_callback=callback)
-    
+
     print("Scanning...")
     await scanner.start()
     await asyncio.sleep(duration)
