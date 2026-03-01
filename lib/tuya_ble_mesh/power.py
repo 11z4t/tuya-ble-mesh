@@ -13,14 +13,12 @@ from typing import Any
 
 import aiohttp
 
+from tuya_ble_mesh.exceptions import PowerControlError
+
 _LOGGER = logging.getLogger(__name__)
 
 
 # --- Custom exceptions ---
-
-
-class PowerControlError(Exception):
-    """Base exception for power control operations."""
 
 
 class ShellyUnreachableError(PowerControlError):
