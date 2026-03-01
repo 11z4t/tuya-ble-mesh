@@ -14,7 +14,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
-from tuya_ble_mesh.exceptions import MalmbergsBTError
+from tuya_ble_mesh.exceptions import TuyaBLEMeshError
 from tuya_ble_mesh.protocol import (
     decode_command_packet,
     decode_dp_value,
@@ -24,8 +24,8 @@ from tuya_ble_mesh.protocol import (
     parse_pair_response,
 )
 
-# All protocol exceptions inherit from MalmbergsBTError
-_ALLOWED_EXCEPTIONS = (MalmbergsBTError,)
+# All protocol exceptions inherit from TuyaBLEMeshError
+_ALLOWED_EXCEPTIONS = (TuyaBLEMeshError,)
 
 # Fixed test key and MAC for decode functions that need crypto
 _FUZZ_KEY = b"\x00" * 16

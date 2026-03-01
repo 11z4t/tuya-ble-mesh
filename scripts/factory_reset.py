@@ -93,7 +93,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    print("\n  Malmbergs BT Lab — Factory Reset")
+    print("\n  Tuya BLE Mesh Lab — Factory Reset")
     result = asyncio.run(run(args.host, args.cycles, args.interval))
     print(f"\n  Result: {'OK' if result else 'FAIL'}")
     sys.exit(0 if result else 1)
