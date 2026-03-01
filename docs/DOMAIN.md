@@ -192,19 +192,38 @@ Timeout: 30 seconds standard, 90 seconds for bulk provisioning.
 3. Assign new mesh name and password to join the target network
 4. Device restarts with new identity
 
+### Provisioning Status
+
+**Plaintext credential write failed.** The device rejected a raw
+mesh name + password write to characteristic 1913 (BleakDBusError).
+The device then dropped the BLE connection.
+
+Analysis of the `python-awox-mesh-light` project (same Telink UUID base)
+reveals that Telink mesh pairing requires a 3-step encrypted handshake,
+not a plaintext write:
+
+1. Random exchange (8 bytes each way)
+2. Session key derivation via AES-ECB from random values + mesh name + password
+3. Encrypted credential write to 1913
+
+**Status: Partially resolved** — Local provisioning appears possible
+(no evidence of cloud dependency so far), but requires implementing
+the encrypted handshake protocol. See `docs/PROTOCOL.md` section 6–7.
+
 ### Critical Unknown: Cloud Dependency
 
 **Does local provisioning require a Tuya Cloud token?**
 
-This is the highest-risk unknown. Possible outcomes:
-
 | Scenario | Impact | Mitigation |
 |----------|--------|------------|
-| Fully local provisioning | Ideal — no cloud needed | Implement standard SIG provisioner |
+| Fully local provisioning with encrypted handshake | Ideal — no cloud needed | Implement AES session key handshake |
 | Cloud token required for key exchange | Blocker for cloud-free goal | MITM Tuya app to extract keys |
-| Keys derived locally during ECDH | Good — keys stay local | Capture and store in 1Password |
+| Keys derived locally during AES-ECB | Good — keys stay local | Capture and store in 1Password |
 
-**Status: Unknown** — Phase 1 priority.
+**Status: Likely local** — The Telink mesh protocol (as implemented by
+AwoX/Eglo devices using the same UUID base) supports fully local
+provisioning. No cloud token evidence found. Needs verification by
+implementing the encrypted handshake and retrying.
 
 ---
 
@@ -392,18 +411,18 @@ Open-source projects relevant to understanding Tuya BLE Mesh:
 
 ## 10. Phase 1 Investigation Plan
 
-These unknowns must be resolved before protocol implementation can begin:
+Status of unknowns as of 2026-03-01:
 
-| # | Question | Method | Risk |
-|---|----------|--------|------|
-| 1 | SIG Mesh or proprietary Tuya Mesh? | GATT service enumeration after connecting | Low |
-| 2 | Does provisioning require cloud token? | Attempt local provisioning, analyze failure | High |
-| 3 | Are encryption keys cloud-derived? | Analyze provisioning key exchange | High |
-| 4 | Exact GATT services and characteristics? | `bleak` service discovery | Low |
-| 5 | Which DPs does this device support? | Send DP queries after provisioning | Low |
-| 6 | What is the advertising data format? | Passive sniff + decode | Low |
-| 7 | Mesh category bytes for this device? | Parse advertising data | Low |
-| 8 | Chipset and firmware version? | Read Device Information Service (0x180A) | Low |
+| # | Question | Method | Status |
+|---|----------|--------|--------|
+| 1 | SIG Mesh or proprietary Tuya Mesh? | GATT service enumeration | **Resolved:** Tuya Proprietary (Telink) |
+| 2 | Does provisioning require cloud token? | Attempt local provisioning | **Likely no** — Telink mesh supports local auth |
+| 3 | Are encryption keys cloud-derived? | Analyze provisioning key exchange | **Likely no** — AES-ECB from mesh name + password |
+| 4 | Exact GATT services and characteristics? | `bleak` service discovery | **Resolved:** 3 services, Telink UUIDs |
+| 5 | Which DPs does this device support? | Send DP queries after provisioning | **Pending** — provisioning not yet successful |
+| 6 | What is the advertising data format? | Passive sniff + decode | **Resolved:** name + manufacturer data |
+| 7 | Mesh category bytes for this device? | Parse advertising data | **Pending** — not in advertisement data |
+| 8 | Chipset and firmware version? | Read Device Information Service (0x180A) | **Resolved:** Telink, firmware 1.6 |
 
 ### Investigation Tools
 
