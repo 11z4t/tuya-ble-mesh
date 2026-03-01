@@ -196,7 +196,7 @@ See `docs/DOMAIN.md` section 10 for the full investigation plan.
 
 ### Phase 3: HA Integration
 
-- [ ] Implement `custom_components/malmbergs_bt/` — HA integration
+- [ ] Implement `custom_components/tuya_ble_mesh/` — HA integration
 - [ ] Config flow: discover and add devices
 - [ ] Light platform: on/off, brightness, color temperature
 - [ ] Connection management: auto-reconnect on HA restart
@@ -218,7 +218,7 @@ See `docs/DOMAIN.md` section 10 for the full investigation plan.
 ### Planned Files
 
 ```
-custom_components/malmbergs_bt/
+custom_components/tuya_ble_mesh/
 ├── __init__.py          # Integration setup, config entry
 ├── manifest.json        # HACS metadata, dependencies
 ├── config_flow.py       # Discovery and configuration UI
