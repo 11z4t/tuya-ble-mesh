@@ -8,7 +8,7 @@ PLATFORMS: list[str] = ["light", "sensor"]
 
 # Config entry data keys
 CONF_MESH_NAME = "mesh_name"
-CONF_MESH_PASSWORD = "mesh_password"
+CONF_MESH_PASSWORD = "mesh_password"  # pragma: allowlist secret
 CONF_MAC_ADDRESS = "mac_address"
 
 # Brightness mapping: device 1-127 ↔ HA 1-255
