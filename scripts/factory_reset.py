@@ -14,7 +14,7 @@ from bleak import BleakScanner
 # Add lib/ to path for imports
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent / "lib"))
 
-from tuya_ble_mesh.power import (  # noqa: E402
+from tuya_ble_mesh.power import (
     PowerControlError,
     ShellyPowerController,
 )
@@ -45,9 +45,7 @@ async def run(host: str, cycles: int, interval: float) -> bool:
             return False
 
         print(f"  Factory reset: {cycles} cycles, {interval}s interval...")
-        success = await controller.factory_reset_cycle(
-            cycles=cycles, interval=interval
-        )
+        success = await controller.factory_reset_cycle(cycles=cycles, interval=interval)
 
         if not success:
             print("  FAIL: Factory reset cycle failed")
@@ -95,7 +93,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    print(f"\n  Malmbergs BT Lab — Factory Reset")
+    print("\n  Malmbergs BT Lab — Factory Reset")
     result = asyncio.run(run(args.host, args.cycles, args.interval))
     print(f"\n  Result: {'OK' if result else 'FAIL'}")
     sys.exit(0 if result else 1)
