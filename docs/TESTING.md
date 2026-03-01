@@ -1,4 +1,4 @@
-# Testing — Malmbergs BT
+# Testing — Tuya BLE Mesh
 
 ## Overview
 
@@ -19,10 +19,26 @@ tests/
 ├── __init__.py
 ├── unit/                    # Fast, isolated, no hardware
 │   ├── __init__.py
-│   └── test_power.py        ← implemented (21 tests)
+│   ├── test_power.py        ← lib/ tests (21 tests)
+│   ├── test_exceptions.py
+│   ├── test_protocol.py
+│   ├── test_crypto.py
+│   ├── test_secrets.py
+│   ├── test_scanner.py
+│   ├── test_mesh.py
+│   ├── test_provisioner.py
+│   ├── test_command.py
+│   ├── test_ha_const.py     ← HA integration tests
+│   ├── test_ha_init.py
+│   ├── test_ha_coordinator.py
+│   ├── test_ha_config_flow.py
+│   ├── test_ha_light.py
+│   ├── test_ha_sensor.py
+│   └── test_ha_diagnostics.py
 ├── integration/             # Requires hardware / network
 │   └── __init__.py
-└── security/                # Secret leak detection (planned)
+└── security/                # Input fuzzing, secret leak detection
+    └── test_input_fuzzing.py
 ```
 
 ### Unit Tests (`tests/unit/`)
@@ -39,8 +55,9 @@ tests/
 - Skipped automatically when hardware is unavailable
 - Use `pytest.mark.integration` marker
 
-### Security Tests (`tests/security/`, planned)
+### Security Tests (`tests/security/`)
 
+- Input fuzzing with malformed data (implemented)
 - Verify no secret values in log output
 - Verify no hardcoded credentials
 - Verify exception messages don't leak secrets
@@ -137,6 +154,21 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 from tuya_ble_mesh.power import ShellyPowerController
 ```
 
+### HA Integration Path Setup
+
+Tests that import from `custom_components/tuya_ble_mesh/` add the
+project root to sys.path:
+
+```python
+import sys
+from pathlib import Path
+
+_ROOT = str(Path(__file__).resolve().parent.parent.parent)
+sys.path.insert(0, _ROOT)
+
+from custom_components.tuya_ble_mesh.const import DOMAIN  # noqa: E402
+```
+
 ### Type Hints
 
 All test functions and helpers must have type hints (rule S6):
@@ -175,6 +207,24 @@ result = await ctrl.power_cycle(off_seconds=0.01)
 | TestClose | 2 | Close with session, close without session |
 | TestGetStatus | 3 | Gen1 status, is_on true, is_on false |
 | **Total** | **21** | |
+
+### HA Integration Tests (implemented)
+
+| Test File | Classes | Cases | What It Covers |
+|-----------|---------|-------|----------------|
+| `test_ha_const.py` | 3 | ~15 | DOMAIN, PLATFORMS, config keys, mapping constants |
+| `test_ha_init.py` | 2 | ~9 | async_setup_entry, async_unload_entry, sys.path, cleanup |
+| `test_ha_coordinator.py` | 4 | ~17 | State init, listener add/remove, status updates, reconnect |
+| `test_ha_config_flow.py` | 4 | ~13 | MAC validation, user step, bluetooth discovery, confirm step |
+| `test_ha_light.py` | 5 | ~28 | Properties, brightness mapping, color temp mapping, roundtrips, lifecycle |
+| `test_ha_sensor.py` | 3 | ~10 | RSSI sensor, firmware sensor, lifecycle |
+| `test_ha_diagnostics.py` | 3 | ~9 | Redaction, security verification, no plaintext leaks |
+
+**HA test patterns:**
+- Import via `custom_components.tuya_ble_mesh.*` (project root on sys.path)
+- Duck-typed entities — no HA base class, all HA types under TYPE_CHECKING
+- Mock coordinators with `TuyaBLEMeshDeviceState` dataclass
+- Lifecycle tests verify listener registration and cleanup
 
 ### protocol.py — BLE Protocol (planned)
 

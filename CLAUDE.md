@@ -103,7 +103,7 @@ Fully local control via Tuya BLE Mesh. No cloud dependency.
 
 ### Code Structure
 - `lib/tuya_ble_mesh/` — Standalone BLE mesh library
-- `custom_components/malmbergs_bt/` — HA integration wrapper
+- `custom_components/tuya_ble_mesh/` — HA integration wrapper
 - `tests/` — Unit + integration + security tests
 - `profiles/` — Device YAML profiles
 
