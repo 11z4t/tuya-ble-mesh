@@ -1,7 +1,7 @@
 # Domain Knowledge — Tuya BLE Mesh
 
 This document captures protocol knowledge for the Tuya BLE Mesh ecosystem
-as it applies to Malmbergs BT Smart devices. It is a living document —
+as it applies to Tuya BLE Mesh devices (including Malmbergs BT Smart). It is a living document —
 update it as reverse engineering and testing reveal new facts.
 
 Confidence levels: **Confirmed** (verified on our hardware), **Expected**
