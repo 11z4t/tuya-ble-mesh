@@ -57,19 +57,61 @@ TUYA_CHAR_OTA = "00001914-0000-1000-8000-00805f9b34fb"
 # --- Telink-based Tuya GATT Service (Confirmed on Malmbergs 9952126) ---
 # Telink BLE mesh uses a custom base UUID: 00010203-0405-0607-0809-0a0b0c0dXXXX
 # Same suffix pattern (1910-1914), different base from BT SIG standard.
+# Role mapping confirmed via python-awox-mesh-light reference analysis.
 TELINK_BASE_UUID_PREFIX = "00010203-0405-0607-0809-0a0b0c0d"
 TELINK_CUSTOM_SERVICE = "00010203-0405-0607-0809-0a0b0c0d1910"
-TELINK_CHAR_COMMAND = "00010203-0405-0607-0809-0a0b0c0d1911"
-TELINK_CHAR_COMMAND_RX = "00010203-0405-0607-0809-0a0b0c0d1912"
-TELINK_CHAR_PAIRING = "00010203-0405-0607-0809-0a0b0c0d1913"
-TELINK_CHAR_OTA = "00010203-0405-0607-0809-0a0b0c0d1914"
+TELINK_CHAR_STATUS = "00010203-0405-0607-0809-0a0b0c0d1911"  # notify + write(enable)
+TELINK_CHAR_COMMAND = "00010203-0405-0607-0809-0a0b0c0d1912"  # write-without-response
+TELINK_CHAR_OTA = "00010203-0405-0607-0809-0a0b0c0d1913"  # write-without-response
+TELINK_CHAR_PAIRING = "00010203-0405-0607-0809-0a0b0c0d1914"  # write + read
 
-# Short ID suffix used to identify Tuya custom characteristics
+# Short ID suffix used to identify Telink mesh characteristics
 TUYA_CHAR_SUFFIX_SERVICE = "1910"
-TUYA_CHAR_SUFFIX_COMMAND = "1911"
-TUYA_CHAR_SUFFIX_RX = "1912"
-TUYA_CHAR_SUFFIX_PAIRING = "1913"
-TUYA_CHAR_SUFFIX_OTA = "1914"
+TUYA_CHAR_SUFFIX_STATUS = "1911"
+TUYA_CHAR_SUFFIX_COMMAND = "1912"
+TUYA_CHAR_SUFFIX_OTA = "1913"
+TUYA_CHAR_SUFFIX_PAIRING = "1914"
+
+# --- Telink Mesh Pairing Opcodes ---
+# Prefix bytes for pair characteristic (1914) read/write operations.
+PAIR_OPCODE_REQUEST = 0x0C  # Controller → device: pair request
+PAIR_OPCODE_SUCCESS = 0x0D  # Device → controller: pair accepted
+PAIR_OPCODE_FAILURE = 0x0E  # Device → controller: auth failure
+PAIR_OPCODE_SET_NAME = 0x04  # Controller → device: set new mesh name
+PAIR_OPCODE_SET_PASS = 0x05  # Controller → device: set new mesh password
+PAIR_OPCODE_SET_LTK = 0x06  # Controller → device: set long-term key
+PAIR_OPCODE_SET_OK = 0x07  # Device → controller: credentials accepted
+
+# --- Telink Mesh Command Codes ---
+# Sent as the command byte in encrypted command packets via char 1912.
+TELINK_CMD_POWER = 0xD0
+TELINK_CMD_LIGHT_MODE = 0x33
+TELINK_CMD_COLOR = 0xE2
+TELINK_CMD_WHITE_TEMP = 0xF0
+TELINK_CMD_WHITE_BRIGHTNESS = 0xF1
+TELINK_CMD_COLOR_BRIGHTNESS = 0xF2
+TELINK_CMD_MESH_ADDRESS = 0xE0
+TELINK_CMD_MESH_RESET = 0xE3
+TELINK_CMD_MESH_GROUP = 0xD7
+TELINK_CMD_PRESET = 0xC8
+TELINK_CMD_SEQ_COLOR_DURATION = 0xF5
+TELINK_CMD_SEQ_FADE_DURATION = 0xF6
+TELINK_CMD_TIME = 0xE4
+TELINK_CMD_ALARMS = 0xE5
+
+# Telink command packet fixed bytes (vendor/application identifier)
+TELINK_VENDOR_ID = bytes([0x60, 0x01])
+
+# --- Telink Mesh Status Offsets ---
+# Byte offsets within a decrypted status notification from char 1911.
+STATUS_OFFSET_MESH_ID = 3
+STATUS_OFFSET_MODE = 12
+STATUS_OFFSET_WHITE_BRIGHTNESS = 13
+STATUS_OFFSET_WHITE_TEMP = 14
+STATUS_OFFSET_COLOR_BRIGHTNESS = 15
+STATUS_OFFSET_RED = 16
+STATUS_OFFSET_GREEN = 17
+STATUS_OFFSET_BLUE = 18
 
 # --- Tuya Vendor Model (SIG Mesh) ---
 
