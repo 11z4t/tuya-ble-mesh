@@ -10,8 +10,10 @@ from bleak import BleakScanner
 from bleak.backends.device import BLEDevice
 from bleak.backends.scanner import AdvertisementData
 
-TUYA_SERVICE_UUID = "0000fe07-0000-1000-8000-00805f9b34fb"
-TUYA_MESH_NAMES = ["out_of_mesh", "tymesh"]
+# Add lib/ to path for imports
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "lib"))
+
+from tuya_ble_mesh.const import TUYA_MESH_NAME_PATTERNS, TUYA_MESH_SERVICE_UUID
 
 
 def detect_serial_sniffers() -> list[str]:
@@ -57,12 +59,12 @@ def is_tuya_device(device: BLEDevice, adv: AdvertisementData) -> bool:
     name = device.name or ""
 
     # Check name patterns
-    for pattern in TUYA_MESH_NAMES:
+    for pattern in TUYA_MESH_NAME_PATTERNS:
         if name.lower().startswith(pattern.lower()):
             return True
 
     # Check service UUIDs
-    return TUYA_SERVICE_UUID in (adv.service_uuids or [])
+    return TUYA_MESH_SERVICE_UUID in (adv.service_uuids or [])
 
 
 async def scan(duration: int = 15) -> None:
