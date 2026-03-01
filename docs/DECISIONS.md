@@ -14,7 +14,7 @@ a decision needs to be revisited (see CLAUDE.md "When Stuck" step 4).
 ### Decision
 
 Separate the project into a standalone library (`lib/tuya_ble_mesh/`)
-and a Home Assistant integration wrapper (`custom_components/malmbergs_bt/`).
+and a Home Assistant integration wrapper (`custom_components/tuya_ble_mesh/`).
 
 ### Context
 

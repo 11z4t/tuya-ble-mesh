@@ -1,4 +1,4 @@
-# Security — Malmbergs BT
+# Security — Tuya BLE Mesh
 
 ## Section 0: Security Rules
 
