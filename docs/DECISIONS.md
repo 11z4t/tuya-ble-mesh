@@ -310,6 +310,56 @@ different from traditional development where terminal output is local.
 
 ---
 
+## ADR-010: Mesh Variant — Tuya Proprietary (Telink-based)
+
+**Date:** 2026-03-01
+**Status:** Accepted
+
+### Decision
+
+Target the Tuya Proprietary Mesh protocol with Telink-based GATT UUIDs
+for the Malmbergs LED Driver 9952126. Do not implement SIG Mesh provisioning.
+
+### Context
+
+The device could use either SIG Mesh (standard Bluetooth Mesh) or Tuya's
+proprietary mesh protocol. The provisioning flow, encryption, and command
+protocol differ significantly between the two variants. We needed to
+determine which variant before implementing the protocol layer.
+
+### Evidence
+
+GATT enumeration on 2026-03-01 confirmed:
+
+- **No** SIG Mesh Provisioning Service (0x1827) present
+- **No** SIG Mesh Proxy Service (0x1828) present
+- Tuya custom service present using Telink UUID base
+  (`00010203-0405-0607-0809-0a0b0c0d1910`)
+- Characteristic pattern matches documented Tuya proprietary mesh (1910–1914)
+- Device advertises as `out_of_mesh` (proprietary mesh default name)
+- No 0xFE07 service UUID in advertising data
+- Device Information: firmware 1.6, product ID "model id 123"
+
+### Alternatives Considered
+
+1. **SIG Mesh implementation** — Would use `bluetooth_mesh` library with
+   PB-GATT provisioning. Rejected: the device does not expose SIG Mesh
+   services, so this path is not available.
+2. **Dual implementation** — Support both variants. Rejected: unnecessary
+   complexity when the hardware clearly uses one variant. Can be revisited
+   if other Malmbergs devices use SIG Mesh.
+
+### Rationale
+
+- Hardware evidence is unambiguous — only proprietary Tuya services present
+- Reference implementations exist for the same Telink UUID base
+  (`python-awox-mesh-light`, `retsimx/tlsr8266_mesh`)
+- Simpler than SIG Mesh (no ECDH, no NetKey/AppKey hierarchy)
+- The `classify_mesh_variant()` function in `explore_device.py` detects
+  both variants, so future SIG Mesh devices can be identified if needed
+
+---
+
 ## Template
 
 Use this template when adding new decisions:
