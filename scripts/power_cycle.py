@@ -97,7 +97,7 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    print("\n  Malmbergs BT Lab — Power Cycle")
+    print("\n  Tuya BLE Mesh Lab — Power Cycle")
     result = asyncio.run(run(args.host, args.off_time, args.verify))
     print(f"\n  Result: {'OK' if result else 'FAIL'}")
     sys.exit(0 if result else 1)

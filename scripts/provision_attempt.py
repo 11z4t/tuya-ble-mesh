@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Provisioning attempt for Malmbergs / Tuya BLE Mesh devices.
+"""Provisioning attempt for Tuya BLE Mesh devices.
 
 Confirmed: The Malmbergs LED Driver 9952126 uses the Tuya Proprietary
 Mesh protocol with Telink-based GATT UUIDs. This script attempts
@@ -94,7 +94,7 @@ async def provision(args: argparse.Namespace) -> None:
     scan_time = datetime.now().isoformat(timespec="seconds")
 
     print(f"\n{'=' * 60}")
-    print("  Malmbergs BT — Provisioning Attempt")
+    print("  Tuya BLE Mesh — Provisioning Attempt")
     print(f"  Target: {args.mac}")
     print("  Variant: tuya_proprietary (Telink)")
     print(f"  Started: {scan_time}")
