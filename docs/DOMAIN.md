@@ -40,8 +40,9 @@ our device uses is a Phase 1 priority.
 2. Check advertising data structure (see section 3)
 3. Attempt standard SIG provisioning and observe response
 
-**Status: Unknown** — Must be determined via GATT service enumeration of
-the Malmbergs LED Driver.
+**Status: Confirmed** — GATT enumeration (2026-03-01) shows Tuya Proprietary
+Mesh with Telink-based UUIDs. No SIG Mesh services (0x1827, 0x1828) found.
+See `docs/PROTOCOL.md` for full findings.
 
 ---
 
@@ -55,10 +56,12 @@ the Malmbergs LED Driver.
 | Model | 9952126 | Confirmed |
 | MAC address | DC:23:4D:21:43:A5 | Confirmed |
 | Tuya category | `dj` (light) | Expected |
+| Mesh variant | Tuya Proprietary (Telink-based) | Confirmed |
 | Mesh category | `0x1012` (CW) or `0x1015` (RGBCW) | Unknown |
 | Capabilities | Dimming, color temperature | Expected |
-| Chipset | Likely Telink TLSR825x or BK3431Q | Unknown |
-| Firmware | Unknown | Unknown |
+| Chipset | Telink (confirmed via UUID base) | Confirmed |
+| Firmware | 1.6 | Confirmed |
+| Tuya Product ID | "model id 123" | Confirmed |
 
 ### Device States
 
@@ -116,17 +119,21 @@ Characteristics for proxy service:
 
 ### Tuya Custom GATT Service (Proprietary Variant)
 
-If the device uses the proprietary Tuya mesh, it may expose:
+The device exposes a proprietary Tuya service using the **Telink BLE base UUID**
+(`00010203-0405-0607-0809-0a0b0c0dXXXX`) instead of the standard BT SIG base:
 
-| UUID Suffix | Role |
-|-------------|------|
-| `...1910` | Custom Tuya Service |
-| `...1911` | Command TX (write commands to device) |
-| `...1912` | Command RX (receive notifications) |
-| `...1913` | Pairing (provisioning handshake) |
-| `...1914` | Status / OTA (must be ignored for OTA) |
+| UUID Suffix | Full UUID | Role | Properties |
+|-------------|-----------|------|------------|
+| `1910` | `00010203-...-0d1910` | Custom Tuya Service | — |
+| `1911` | `00010203-...-0d1911` | Command (notify channel) | read, write, notify |
+| `1912` | `00010203-...-0d1912` | Command RX | read, write, write-without-response |
+| `1913` | `00010203-...-0d1913` | Pairing | read, write-without-response |
+| `1914` | `00010203-...-0d1914` | Status / OTA | read, write |
 
-**Status: Expected** — Needs verification via GATT enumeration.
+**Note:** The notify capability is on characteristic 1911 (not 1912 as some
+documentation suggests). This means 1911 is the response/data channel.
+
+**Status: Confirmed** — Verified via GATT enumeration on 2026-03-01.
 
 ### Device UUID Structure (SIG Mesh, 16 bytes)
 
