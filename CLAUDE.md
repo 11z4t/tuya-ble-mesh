@@ -1,4 +1,4 @@
-# Malmbergs BT — Claude Code Project Context
+# Tuya BLE Mesh — Claude Code Project Context
 
 > ⛔ **STOP. READ THIS ENTIRE FILE BEFORE WRITING ANY CODE.**
 > This file defines the rules you MUST follow. Violations are not
@@ -91,7 +91,7 @@ ANY failure → fix before committing.
 
 ## PROJECT OVERVIEW
 
-HACS-compatible HA integration for Malmbergs BT Smart devices.
+HACS-compatible HA integration for Tuya BLE Mesh devices (including Malmbergs BT Smart).
 Fully local control via Tuya BLE Mesh. No cloud dependency.
 
 ### Key Documentation
