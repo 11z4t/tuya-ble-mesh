@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""GATT service explorer for Malmbergs / Tuya BLE Mesh devices.
+"""GATT service explorer for Tuya BLE Mesh devices.
 
 Connects to a BLE device, enumerates all GATT services and characteristics,
 reads Device Information, listens for notifications, and classifies the
@@ -405,7 +405,7 @@ async def explore(args: argparse.Namespace) -> None:
 
     # Step 1: Find device
     print(f"\n{'=' * 60}")
-    print("  Malmbergs BT — GATT Service Explorer")
+    print("  Tuya BLE Mesh — GATT Service Explorer")
     print(f"  Target: {args.mac}")
     print(f"  Started: {scan_time}")
     print(f"{'=' * 60}\n")

@@ -1,4 +1,4 @@
-"""1Password secrets manager for Malmbergs BT.
+"""1Password secrets manager for Tuya BLE Mesh.
 
 This is the ONLY module that accesses secrets (Rule S10).
 All secret access goes through the ``SecretsManager`` class,

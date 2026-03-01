@@ -1,4 +1,4 @@
-"""Tuya BLE Mesh library for Malmbergs BT Smart devices.
+"""Tuya BLE Mesh library for local BLE mesh device control.
 
 Fully local BLE mesh control — no cloud dependency.
 
@@ -36,6 +36,7 @@ from tuya_ble_mesh.exceptions import (
     ProvisioningError,
     SecretAccessError,
     TimeoutError,
+    TuyaBLEMeshError,
 )
 from tuya_ble_mesh.provisioner import provision
 from tuya_ble_mesh.scanner import (
@@ -59,6 +60,7 @@ __all__ = [
     "ProvisioningError",
     "SecretAccessError",
     "TimeoutError",
+    "TuyaBLEMeshError",
     "find_device_by_mac",
     "load_profile",
     "load_profile_by_model",

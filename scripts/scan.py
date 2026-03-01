@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Quick BLE scanner for Malmbergs / Tuya BLE Mesh devices."""
+"""Quick BLE scanner for Tuya BLE Mesh devices."""
 
 import asyncio
 import pathlib
@@ -70,7 +70,7 @@ def is_tuya_device(device: BLEDevice, adv: AdvertisementData) -> bool:
 async def scan(duration: int = 15) -> None:
     """Scan for BLE devices and highlight Tuya/Malmbergs devices."""
     print(f"\n{'=' * 60}")
-    print("  Malmbergs BT Lab — BLE Scanner")
+    print("  Tuya BLE Mesh Lab — BLE Scanner")
     print(f"  Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"  Duration: {duration}s")
     print(f"{'=' * 60}\n")
