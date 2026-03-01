@@ -1,4 +1,4 @@
-# Setup Status — Malmbergs BT Lab
+# Setup Status — Tuya BLE Mesh Lab
 
 Generated: 2026-03-01
 
