@@ -1,4 +1,4 @@
-# Project Specification — Malmbergs BT
+# Project Specification — Tuya BLE Mesh
 
 ## 1. Goal
 
@@ -194,14 +194,20 @@ See `docs/DOMAIN.md` section 10 for the full investigation plan.
 - [ ] CLI tool: `scripts/mesh_control.py` — standalone light control
 - [ ] Verify AC-1 through AC-5 work via CLI (no HA yet)
 
-### Phase 3: HA Integration
+### Phase 3: HA Integration (in progress)
 
-- [ ] Implement `custom_components/tuya_ble_mesh/` — HA integration
-- [ ] Config flow: discover and add devices
-- [ ] Light platform: on/off, brightness, color temperature
-- [ ] Connection management: auto-reconnect on HA restart
-- [ ] HACS manifest and repository structure
-- [ ] Verify AC-6, AC-7
+- [x] Rename product from "Malmbergs BT" to "Tuya BLE Mesh"
+- [x] HA integration manifest and constants (`manifest.json`, `const.py`)
+- [x] Integration setup and teardown (`__init__.py`)
+- [x] Push-based coordinator for BLE device lifecycle (`coordinator.py`)
+- [x] Config flow: bluetooth discovery + manual setup (`config_flow.py`)
+- [x] Light platform: on/off, brightness, color temperature (`light.py`)
+- [x] Sensor entities: RSSI and firmware version (`sensor.py`)
+- [x] Diagnostics with secret redaction (`diagnostics.py`)
+- [x] SVG placeholder icon (`icon.svg`)
+- [x] HACS manifest (`hacs.json`)
+- [x] Translations: English (`strings.json`), Swedish (`translations/sv.json`)
+- [ ] Verify AC-6, AC-7 against running HA instance
 
 ### Phase 4: Polish
 

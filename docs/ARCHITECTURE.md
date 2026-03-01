@@ -1,4 +1,4 @@
-# Architecture — Malmbergs BT
+# Architecture — Tuya BLE Mesh
 
 ## Section 0: Structural Rules
 
@@ -15,7 +15,7 @@ CLAUDE.md contains a summary; this is the authoritative reference.
 
 # FORBIDDEN:
 from homeassistant.core import HomeAssistant
-from custom_components.malmbergs_bt import something
+from custom_components.tuya_ble_mesh import something
 
 # ALLOWED:
 import asyncio
@@ -220,7 +220,19 @@ terminal during normal operation.
 
 ### custom_components/tuya_ble_mesh/
 
-HA integration wrapper. Planned — will expose devices as HA light entities.
+| Module | Status | Responsibility |
+|--------|--------|----------------|
+| `__init__.py` | Implemented | Integration setup (`async_setup_entry`/`async_unload_entry`), `sys.path` for lib/ |
+| `const.py` | Implemented | DOMAIN, PLATFORMS, config keys, brightness/color temp mapping constants |
+| `manifest.json` | Implemented | HACS metadata, bluetooth discovery patterns, dependencies |
+| `config_flow.py` | Implemented | Bluetooth discovery + manual setup, MAC validation |
+| `coordinator.py` | Implemented | Push-based BLE device lifecycle (NOT DataUpdateCoordinator) |
+| `light.py` | Implemented | Light entity — on/off, brightness, color temp (duck-typed) |
+| `sensor.py` | Implemented | RSSI (dBm) + firmware version sensors (duck-typed) |
+| `diagnostics.py` | Implemented | Config entry diagnostics with mesh_name/mesh_password redaction |
+| `icon.svg` | Implemented | SVG placeholder icon with "TBM" text |
+| `strings.json` | Implemented | English UI strings |
+| `translations/sv.json` | Implemented | Swedish translation |
 
 ### tests/
 
@@ -228,37 +240,40 @@ HA integration wrapper. Planned — will expose devices as HA light entities.
 |-----------|---------|
 | `tests/unit/` | Fast, isolated tests with mocked I/O |
 | `tests/integration/` | Tests against real hardware (Shelly, BLE) |
-| `tests/security/` | Planned — secret leak detection, bandit checks |
+| `tests/security/` | Implemented — input fuzzing, secret leak detection |
 
 ---
 
 ## Exception Hierarchy
 
-Each module defines its own exception tree rooted in a base exception.
-This pattern is demonstrated by `power.py` and `sniff.py`:
+All module exceptions inherit from `TuyaBLEMeshError` (the project-wide
+base exception). Each module adds its own subtree:
 
 ```
-PowerControlError (base)
-├── ShellyUnreachableError
-└── ShellyCommandError
-
-SnifferError (base)
-├── SnifferNotFoundError
-├── SnifferProtocolError
-└── SnifferTimeoutError
-
-MeshError (base, planned)
-├── MeshConnectionError
-├── MeshProvisionError
-└── MeshCommandError
-
-CryptoError (base, planned)
-├── KeyDerivationError
-└── DecryptionError
-
-SecretsError (base, planned)
-├── SecretNotFoundError
-└── VaultAccessError
+TuyaBLEMeshError (project-wide base)
+├── PowerControlError
+│   ├── ShellyUnreachableError
+│   └── ShellyCommandError
+├── SnifferError
+│   ├── SnifferNotFoundError
+│   ├── SnifferProtocolError
+│   └── SnifferTimeoutError
+├── MeshError
+│   ├── MeshConnectionError
+│   ├── MeshProvisionError
+│   └── MeshCommandError
+├── CryptoError
+│   ├── KeyDerivationError
+│   └── DecryptionError
+├── SecretsError
+│   ├── SecretNotFoundError
+│   └── VaultAccessError
+├── ProtocolError
+│   ├── InvalidPacketError
+│   └── ChecksumError
+└── ScanError
+    ├── AdapterNotFoundError
+    └── ScanTimeoutError
 ```
 
 Callers catch the base exception for general handling or specific subclasses

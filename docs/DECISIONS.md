@@ -1,4 +1,4 @@
-# Architectural Decisions — Malmbergs BT
+# Architectural Decisions — Tuya BLE Mesh
 
 This log records key decisions, their rationale, and alternatives
 considered. New entries go at the bottom. Use this when stuck or when
@@ -357,6 +357,104 @@ GATT enumeration on 2026-03-01 confirmed:
 - Simpler than SIG Mesh (no ECDH, no NetKey/AppKey hierarchy)
 - The `classify_mesh_variant()` function in `explore_device.py` detects
   both variants, so future SIG Mesh devices can be identified if needed
+
+---
+
+## ADR-011: Rename Product to Tuya BLE Mesh
+
+**Date:** 2026-03-02
+**Status:** Accepted
+
+### Decision
+
+Rename the product from "Malmbergs BT" to "Tuya BLE Mesh" throughout
+the codebase. The base exception class becomes `TuyaBLEMeshError` with
+a backward-compat alias `MalmbergsBTError`. The 1Password vault name
+`malmbergs-bt` is kept unchanged.
+
+### Context
+
+The integration supports all Tuya/Telink-based BLE mesh devices, not
+just Malmbergs products. The old name was too narrow and could confuse
+users expecting broader device support.
+
+### Alternatives Considered
+
+1. **Keep Malmbergs name** — Simpler but misleading for non-Malmbergs users.
+2. **Rename everything including vault** — Breaking change for 1Password
+   references. The vault name is an implementation detail with no user impact.
+
+### Rationale
+
+- Broader appeal and accuracy
+- Backward-compat alias prevents breakage for any existing consumers
+- 1Password vault name is internal; renaming adds risk with no benefit
+
+---
+
+## ADR-012: sys.path.insert for lib/ Imports in HA Component
+
+**Date:** 2026-03-02
+**Status:** Accepted
+
+### Decision
+
+The HA integration uses `sys.path.insert(0, lib_dir)` in `__init__.py`
+to make `lib/tuya_ble_mesh/` importable at runtime, rather than
+installing it as a pip package.
+
+### Context
+
+The standalone library (`lib/tuya_ble_mesh/`) must be importable from
+both `custom_components/` and `scripts/` without HA installed. The
+library is not published to PyPI.
+
+### Alternatives Considered
+
+1. **pip install -e lib/** — Works but requires manual install step and
+   creates coupling to pip/venv state.
+2. **Symlink** — Fragile across operating systems and git.
+3. **Copy lib/ into custom_components/** — Duplicates code, violates DRY.
+
+### Rationale
+
+- Same pattern already used by test files
+- No packaging overhead
+- Works identically in dev, CI, and HA runtime
+- Guarded with `if _LIB_DIR not in sys.path` to avoid duplicates
+
+---
+
+## ADR-013: Push-Based Coordinator (Not DataUpdateCoordinator)
+
+**Date:** 2026-03-02
+**Status:** Accepted
+
+### Decision
+
+The coordinator (`TuyaBLEMeshCoordinator`) is push-based with a
+listener pattern, NOT a subclass of HA's `DataUpdateCoordinator`.
+
+### Context
+
+BLE mesh devices send state updates via GATT notifications. Polling
+would add unnecessary BLE traffic and latency. The coordinator receives
+notifications and dispatches to registered listeners.
+
+### Alternatives Considered
+
+1. **DataUpdateCoordinator** — HA's built-in polling coordinator. Adds
+   unnecessary poll intervals for a push-based protocol. Would require
+   HA dependency at import time, violating duck-typed entity design.
+2. **Direct entity updates** — Each entity subscribes to BLE directly.
+   Duplicates connection logic and makes lifecycle harder to manage.
+
+### Rationale
+
+- BLE notifications are inherently push-based
+- No HA runtime dependency (duck-typed, HA types under TYPE_CHECKING)
+- Reconnect with exponential backoff (5s to 300s) handles disconnects
+- Listener pattern cleanly separates coordinator from entity lifecycle
 
 ---
 
