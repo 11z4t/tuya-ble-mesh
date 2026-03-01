@@ -35,9 +35,9 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "lib"))
 
 from tuya_ble_mesh.const import (
     TARGET_DEVICE_MAC,
-    TELINK_CHAR_COMMAND,
     TELINK_CHAR_OTA,
     TELINK_CHAR_PAIRING,
+    TELINK_CHAR_STATUS,
     TUYA_MESH_DEFAULT_NAME,
     TUYA_MESH_DEFAULT_PASSWORD,
 )
@@ -109,7 +109,7 @@ async def provision(args: argparse.Namespace) -> None:
     if args.dry_run:
         print("\n[DRY RUN] Would connect and attempt provisioning.")
         print(f"  Pairing char: {TELINK_CHAR_PAIRING}")
-        print(f"  Notify char: {TELINK_CHAR_COMMAND}")
+        print(f"  Notify char: {TELINK_CHAR_STATUS}")
         print(f"  Mesh name: {TUYA_MESH_DEFAULT_NAME}")
         print("  Password: [REDACTED, length: 6]")
         print("\nDry run complete. Use --no-dry-run to actually attempt provisioning.")
@@ -129,7 +129,7 @@ async def provision(args: argparse.Namespace) -> None:
         # Step 3: Read current state of characteristics (length only)
         print("\nReading characteristic state before provisioning...")
         for char_uuid, label in [
-            (TELINK_CHAR_COMMAND, "Command (1911)"),
+            (TELINK_CHAR_STATUS, "Status (1911)"),
             (TELINK_CHAR_PAIRING, "Pairing (1913)"),
             (TELINK_CHAR_OTA, "OTA/Status (1914)"),
         ]:
@@ -179,9 +179,9 @@ async def provision(args: argparse.Namespace) -> None:
             _LOGGER.info("Pairing write failed: %s", type(exc).__name__)
 
         # Step 6: Subscribe to notifications (after write)
-        print(f"\nSubscribing to notifications on {TELINK_CHAR_COMMAND}...")
+        print(f"\nSubscribing to notifications on {TELINK_CHAR_STATUS}...")
         try:
-            await client.start_notify(TELINK_CHAR_COMMAND, notification_handler)
+            await client.start_notify(TELINK_CHAR_STATUS, notification_handler)
             notify_subscribed = True
             print("  Subscribed.")
         except Exception as exc:
@@ -196,7 +196,7 @@ async def provision(args: argparse.Namespace) -> None:
         # Step 8: Read characteristics after provisioning attempt
         print("\nReading characteristic state after provisioning attempt...")
         for char_uuid, label in [
-            (TELINK_CHAR_COMMAND, "Command (1911)"),
+            (TELINK_CHAR_STATUS, "Status (1911)"),
             (TELINK_CHAR_PAIRING, "Pairing (1913)"),
             (TELINK_CHAR_OTA, "OTA/Status (1914)"),
         ]:
@@ -209,7 +209,7 @@ async def provision(args: argparse.Namespace) -> None:
         # Unsubscribe
         if notify_subscribed:
             with contextlib.suppress(Exception):
-                await client.stop_notify(TELINK_CHAR_COMMAND)
+                await client.stop_notify(TELINK_CHAR_STATUS)
 
     # Step 8: Summary
     print(f"\n{'=' * 60}")
