@@ -14,6 +14,7 @@ from explore_device import classify_mesh_variant, format_report
 from tuya_ble_mesh.const import (
     SIG_MESH_PROVISIONING_SERVICE,
     SIG_MESH_PROXY_SERVICE,
+    TELINK_CUSTOM_SERVICE,
     TUYA_CUSTOM_SERVICE,
     TUYA_MESH_SERVICE_UUID,
 )
@@ -47,6 +48,15 @@ class TestClassifyMeshVariant:
 
     def test_sig_mesh_both_provisioning_and_proxy(self) -> None:
         uuids = [SIG_MESH_PROVISIONING_SERVICE, SIG_MESH_PROXY_SERVICE]
+        assert classify_mesh_variant(uuids) == "sig_mesh"
+
+    def test_telink_uuid_detected_as_tuya_proprietary(self) -> None:
+        """Telink-based devices use a different UUID base but same suffixes."""
+        uuids = [TELINK_CUSTOM_SERVICE]
+        assert classify_mesh_variant(uuids) == "tuya_proprietary"
+
+    def test_telink_uuid_with_sig_prefers_sig(self) -> None:
+        uuids = [SIG_MESH_PROVISIONING_SERVICE, TELINK_CUSTOM_SERVICE]
         assert classify_mesh_variant(uuids) == "sig_mesh"
 
 
