@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Malmbergs BT — Full validation pipeline.
+# Tuya BLE Mesh — Full validation pipeline.
 # ALL checks must pass before committing. No exceptions.
 #
 # Usage: bash scripts/run-checks.sh
@@ -29,7 +29,7 @@ run_step() {
 }
 
 printf "╔══════════════════════════════════════════╗\n"
-printf "║  Malmbergs BT — Validation Pipeline      ║\n"
+printf "║  Tuya BLE Mesh — Validation Pipeline      ║\n"
 printf "╚══════════════════════════════════════════╝\n"
 
 # Step 1: Lint

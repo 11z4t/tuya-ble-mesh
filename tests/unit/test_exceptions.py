@@ -1,4 +1,4 @@
-"""Unit tests for the Malmbergs BT exception hierarchy."""
+"""Unit tests for the Tuya BLE Mesh exception hierarchy."""
 
 import sys
 from pathlib import Path
@@ -23,16 +23,17 @@ from tuya_ble_mesh.exceptions import (
     ProvisioningError,
     SecretAccessError,
     TimeoutError,
+    TuyaBLEMeshError,
 )
 
 # --- Inheritance tests ---
 
 
 class TestInheritance:
-    """All exceptions inherit from MalmbergsBTError and Exception."""
+    """All exceptions inherit from TuyaBLEMeshError and Exception."""
 
     def test_base_is_exception(self) -> None:
-        assert issubclass(MalmbergsBTError, Exception)
+        assert issubclass(TuyaBLEMeshError, Exception)
 
     @pytest.mark.parametrize(
         "exc_cls",
@@ -48,20 +49,20 @@ class TestInheritance:
         ],
     )
     def test_direct_subclass_inherits_from_base(self, exc_cls: type) -> None:
-        assert issubclass(exc_cls, MalmbergsBTError)
+        assert issubclass(exc_cls, TuyaBLEMeshError)
 
     def test_malformed_packet_inherits_from_protocol_error(self) -> None:
         assert issubclass(MalformedPacketError, ProtocolError)
-        assert issubclass(MalformedPacketError, MalmbergsBTError)
+        assert issubclass(MalformedPacketError, TuyaBLEMeshError)
 
     def test_authentication_inherits_from_crypto_error(self) -> None:
         assert issubclass(AuthenticationError, CryptoError)
-        assert issubclass(AuthenticationError, MalmbergsBTError)
+        assert issubclass(AuthenticationError, TuyaBLEMeshError)
 
     def test_subclass_count(self) -> None:
         direct = [
             cls
-            for cls in MalmbergsBTError.__subclasses__()
+            for cls in TuyaBLEMeshError.__subclasses__()
             if cls.__module__ == "tuya_ble_mesh.exceptions"
         ]
         assert len(direct) == 8
@@ -76,7 +77,7 @@ class TestMessageFormatting:
     @pytest.mark.parametrize(
         ("exc_cls", "msg"),
         [
-            (MalmbergsBTError, "base error"),
+            (TuyaBLEMeshError, "base error"),
             (ConnectionError, "connection lost"),
             (DeviceNotFoundError, "DC:23:4D:21:43:A5 not found"),
             (TimeoutError, "scan timed out after 15s"),
@@ -113,7 +114,7 @@ class TestCatchSemantics:
             SecretAccessError,
             PowerControlError,
         ]:
-            with pytest.raises(MalmbergsBTError):
+            with pytest.raises(TuyaBLEMeshError):
                 raise exc_cls("test")
 
     def test_catch_protocol_catches_malformed(self) -> None:
@@ -148,7 +149,7 @@ class TestCatchSemantics:
     )
     def test_isinstance_check(self, exc_cls: type) -> None:
         exc = exc_cls("test")
-        assert isinstance(exc, MalmbergsBTError)
+        assert isinstance(exc, TuyaBLEMeshError)
         assert isinstance(exc, Exception)
 
 
@@ -156,10 +157,13 @@ class TestCatchSemantics:
 
 
 class TestBackwardCompatibility:
-    """Phase 1 scripts use BLE* names which are now aliases."""
+    """Phase 1 BLE* and Phase 2 MalmbergsBTError names are aliases."""
 
-    def test_ble_error_is_malmbergs_bt_error(self) -> None:
-        assert BLEError is MalmbergsBTError
+    def test_malmbergs_bt_error_is_tuya_ble_mesh_error(self) -> None:
+        assert MalmbergsBTError is TuyaBLEMeshError
+
+    def test_ble_error_is_tuya_ble_mesh_error(self) -> None:
+        assert BLEError is TuyaBLEMeshError
 
     def test_ble_connection_error_is_connection_error(self) -> None:
         assert BLEConnectionError is ConnectionError
@@ -174,6 +178,10 @@ class TestBackwardCompatibility:
         with pytest.raises(BLEError):
             raise ConnectionError("test")
 
-    def test_catch_new_name_catches_alias_raise(self) -> None:
+    def test_catch_malmbergs_alias_catches_new_name(self) -> None:
         with pytest.raises(MalmbergsBTError):
+            raise ConnectionError("test")
+
+    def test_catch_new_name_catches_alias_raise(self) -> None:
+        with pytest.raises(TuyaBLEMeshError):
             raise BLEDeviceNotFoundError("test")

@@ -348,7 +348,7 @@ async def run_sniffer(
 ) -> None:
     """Main sniffer flow."""
     print(f"\n{'=' * 60}")
-    print("  Malmbergs BT Lab — Passive BLE Sniffer")
+    print("  Tuya BLE Mesh Lab — Passive BLE Sniffer")
     print(f"  Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print(f"  Port: {port}")
     print(f"  Duration: {'indefinite' if duration == 0 else f'{duration}s'}")

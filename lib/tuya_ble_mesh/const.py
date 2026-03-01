@@ -1,4 +1,4 @@
-"""BLE Mesh constants for Tuya / Malmbergs BT Smart devices.
+"""BLE Mesh constants for Tuya BLE Mesh devices.
 
 UUIDs, opcodes, DP types, mesh categories, and device defaults.
 All 128-bit UUIDs are lowercase strings matching bleak conventions.

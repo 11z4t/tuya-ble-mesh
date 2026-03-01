@@ -1,6 +1,6 @@
-"""Exception hierarchy for Malmbergs BT / Tuya BLE Mesh.
+"""Exception hierarchy for Tuya BLE Mesh.
 
-All exceptions inherit from ``MalmbergsBTError``. Callers can catch the
+All exceptions inherit from ``TuyaBLEMeshError``. Callers can catch the
 base class for broad handling or specific subclasses for targeted recovery.
 
 SECURITY: Exception messages MUST NEVER contain secret material
@@ -8,27 +8,27 @@ SECURITY: Exception messages MUST NEVER contain secret material
 """
 
 
-class MalmbergsBTError(Exception):
-    """Base exception for all Malmbergs BT operations."""
+class TuyaBLEMeshError(Exception):
+    """Base exception for all Tuya BLE Mesh operations."""
 
 
-class ConnectionError(MalmbergsBTError):
+class ConnectionError(TuyaBLEMeshError):
     """Failed to establish or maintain a BLE connection."""
 
 
-class DeviceNotFoundError(MalmbergsBTError):
+class DeviceNotFoundError(TuyaBLEMeshError):
     """Target BLE device was not discovered during scanning."""
 
 
-class TimeoutError(MalmbergsBTError):
+class TimeoutError(TuyaBLEMeshError):
     """BLE operation exceeded the allowed time limit."""
 
 
-class ProvisioningError(MalmbergsBTError):
+class ProvisioningError(TuyaBLEMeshError):
     """Provisioning handshake failed."""
 
 
-class ProtocolError(MalmbergsBTError):
+class ProtocolError(TuyaBLEMeshError):
     """Wire-level protocol violation."""
 
 
@@ -36,7 +36,7 @@ class MalformedPacketError(ProtocolError):
     """Received packet failed structural validation."""
 
 
-class CryptoError(MalmbergsBTError):
+class CryptoError(TuyaBLEMeshError):
     """Cryptographic operation failed."""
 
 
@@ -44,17 +44,21 @@ class AuthenticationError(CryptoError):
     """Mesh authentication (session key / pair proof) failed."""
 
 
-class SecretAccessError(MalmbergsBTError):
+class SecretAccessError(TuyaBLEMeshError):
     """Failed to read or write a secret via 1Password."""
 
 
-class PowerControlError(MalmbergsBTError):
+class PowerControlError(TuyaBLEMeshError):
     """Shelly power control operation failed."""
 
 
-# --- Backward-compatible aliases (used by Phase 1 scripts) ---
+# --- Backward-compatible aliases ---
 
-BLEError = MalmbergsBTError
+# Phase 2 → Phase 3 rename
+MalmbergsBTError = TuyaBLEMeshError
+
+# Phase 1 legacy aliases
+BLEError = TuyaBLEMeshError
 BLEConnectionError = ConnectionError
 BLEDeviceNotFoundError = DeviceNotFoundError
 BLETimeoutError = TimeoutError
