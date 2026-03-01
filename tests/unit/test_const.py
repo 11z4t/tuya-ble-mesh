@@ -39,9 +39,9 @@ from tuya_ble_mesh.const import (
     TARGET_DEVICE_MODEL,
     TELINK_BASE_UUID_PREFIX,
     TELINK_CHAR_COMMAND,
-    TELINK_CHAR_COMMAND_RX,
     TELINK_CHAR_OTA,
     TELINK_CHAR_PAIRING,
+    TELINK_CHAR_STATUS,
     TELINK_CUSTOM_SERVICE,
     TUYA_CHAR_COMMAND_RX,
     TUYA_CHAR_COMMAND_TX,
@@ -91,10 +91,10 @@ class TestUUIDFormat:
         TUYA_CHAR_PAIRING,
         TUYA_CHAR_OTA,
         TELINK_CUSTOM_SERVICE,
+        TELINK_CHAR_STATUS,
         TELINK_CHAR_COMMAND,
-        TELINK_CHAR_COMMAND_RX,
-        TELINK_CHAR_PAIRING,
         TELINK_CHAR_OTA,
+        TELINK_CHAR_PAIRING,
     ]
 
     def test_all_uuids_are_valid_128bit(self) -> None:
