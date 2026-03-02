@@ -1,0 +1,17 @@
+name: "Malmbergs Smart Plug"
+model: "9917072"
+category: "cz"
+mesh_category: 0x0010  # Smart plug (estimated)
+capabilities:
+  - power
+data_points:
+  1:
+    name: "power"
+    type: "boolean"
+    description: "On/Off"
+telink_commands:
+  power:
+    opcode: 0xD0
+    params_on: [0x01]
+    params_off: [0x00]
+# NOTE: Estimated profile — validate against real hardware
