@@ -13,12 +13,14 @@ _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
 sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
+from custom_components.tuya_ble_mesh.const import DOMAIN  # noqa: E402
 from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     TuyaBLEMeshDeviceState,
 )
 from custom_components.tuya_ble_mesh.sensor import (  # noqa: E402
     TuyaBLEMeshFirmwareSensor,
     TuyaBLEMeshRSSISensor,
+    async_setup_entry,
 )
 
 
@@ -165,3 +167,53 @@ class TestSensorLifecycle:
         await sensor.async_will_remove_from_hass()
 
         remove_fn.assert_called_once()
+
+
+class TestSensorPlatformSetup:
+    """Test async_setup_entry for the sensor platform."""
+
+    @pytest.mark.asyncio
+    async def test_setup_entry_creates_two_sensors(self) -> None:
+        coord = make_mock_coordinator()
+        hass = MagicMock()
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        entry = MagicMock()
+        entry.entry_id = "entry1"
+        add_entities = MagicMock()
+
+        await async_setup_entry(hass, entry, add_entities)
+
+        add_entities.assert_called_once()
+        entities = add_entities.call_args[0][0]
+        assert len(entities) == 2
+
+    @pytest.mark.asyncio
+    async def test_setup_entry_creates_rssi_and_firmware(self) -> None:
+        coord = make_mock_coordinator()
+        hass = MagicMock()
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        entry = MagicMock()
+        entry.entry_id = "entry1"
+        add_entities = MagicMock()
+
+        await async_setup_entry(hass, entry, add_entities)
+
+        entities = add_entities.call_args[0][0]
+        types = {type(e) for e in entities}
+        assert TuyaBLEMeshRSSISensor in types
+        assert TuyaBLEMeshFirmwareSensor in types
+
+    @pytest.mark.asyncio
+    async def test_setup_entry_uses_coordinator_from_hass_data(self) -> None:
+        coord = make_mock_coordinator()
+        hass = MagicMock()
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        entry = MagicMock()
+        entry.entry_id = "entry1"
+        add_entities = MagicMock()
+
+        await async_setup_entry(hass, entry, add_entities)
+
+        entities = add_entities.call_args[0][0]
+        for entity in entities:
+            assert entity._coordinator is coord
