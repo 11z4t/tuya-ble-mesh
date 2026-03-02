@@ -22,12 +22,11 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from bleak import BleakClient
+from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
 
 from tuya_ble_mesh.const import (
     TELINK_CHAR_COMMAND,
-    TELINK_CHAR_STATUS,
     TELINK_CMD_COLOR,
     TELINK_CMD_COLOR_BRIGHTNESS,
     TELINK_CMD_LIGHT_MODE,
@@ -184,8 +183,23 @@ class MeshDevice:
         _LOGGER.info("Connecting to %s", self._address)
 
         try:
-            self._client = BleakClient(self._address, timeout=timeout)
+            # Scan for the BLEDevice object first — passing the
+            # BLEDevice (not a raw MAC string) ensures BlueZ has the
+            # device in its D-Bus cache, which improves connection
+            # reliability for Telink mesh devices.
+            ble_device = await BleakScanner.find_device_by_address(
+                self._address,
+                timeout=timeout,
+            )
+            if ble_device is None:
+                msg = f"Device {self._address} not found in BLE scan"
+                raise ConnectionError(msg)
+
+            self._client = BleakClient(ble_device, timeout=timeout)
             await self._client.connect()
+        except ConnectionError:
+            self._client = None
+            raise
         except Exception as exc:
             self._client = None
             msg = f"Failed to connect to {self._address}"
@@ -198,11 +212,15 @@ class MeshDevice:
             msg = f"Provisioning failed for {self._address}"
             raise ConnectionError(msg) from exc
 
-        # Subscribe to status notifications
-        try:
-            await self._client.start_notify(TELINK_CHAR_STATUS, self._handle_notification)
-        except Exception:
-            _LOGGER.warning("Could not subscribe to notifications", exc_info=True)
+        # Notification subscription: provision() already called
+        # enable_notifications() which writes 0x01 to char 1911.
+        # Telink devices don't support standard CCCD-based notification
+        # subscription (bleak's start_notify), which causes EOFError on
+        # the D-Bus connection and kills the BleakClient. Instead, we
+        # rely on the direct write done by the provisioner.
+        #
+        # TODO: Implement notification handling via raw characteristic
+        # reads or BlueZ PropertiesChanged signals if needed.
 
         self._connected = True
         _LOGGER.info("Connected and provisioned: %s", self._address)
