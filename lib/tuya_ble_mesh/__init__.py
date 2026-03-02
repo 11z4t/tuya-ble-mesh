@@ -24,7 +24,7 @@ Modules:
 """
 
 from tuya_ble_mesh.device import MeshDevice
-from tuya_ble_mesh.dps import DeviceProfile, load_profile, load_profile_by_model
+from tuya_ble_mesh.dps import DeviceProfile, list_profiles, load_profile, load_profile_by_model
 from tuya_ble_mesh.exceptions import (
     AuthenticationError,
     ConnectionError,
@@ -38,6 +38,8 @@ from tuya_ble_mesh.exceptions import (
     TimeoutError,
     TuyaBLEMeshError,
 )
+from tuya_ble_mesh.power import ShellyPowerController
+from tuya_ble_mesh.protocol import StatusResponse
 from tuya_ble_mesh.provisioner import provision
 from tuya_ble_mesh.scanner import (
     DiscoveredDevice,
@@ -59,9 +61,12 @@ __all__ = [
     "ProtocolError",
     "ProvisioningError",
     "SecretAccessError",
+    "ShellyPowerController",
+    "StatusResponse",
     "TimeoutError",
     "TuyaBLEMeshError",
     "find_device_by_mac",
+    "list_profiles",
     "load_profile",
     "load_profile_by_model",
     "provision",
