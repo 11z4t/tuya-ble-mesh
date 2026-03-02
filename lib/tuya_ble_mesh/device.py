@@ -54,6 +54,10 @@ MESH_ADDRESS_ALL = 0xFFFF
 # Sequence counter wraps at 24 bits
 _MAX_SEQUENCE = 0xFFFFFF
 
+# Default connection retries — Telink devices often need 2-3 attempts
+# because BlueZ 5.82 aborts GATT discovery on first connect.
+_DEFAULT_CONNECT_RETRIES = 5
+
 # Status callback type
 StatusCallback = Callable[[StatusResponse], Any]
 
@@ -167,14 +171,24 @@ class MeshDevice:
             except Exception:
                 _LOGGER.warning("Status callback error", exc_info=True)
 
-    async def connect(self, timeout: float = 30.0) -> None:
+    async def connect(
+        self,
+        timeout: float = 30.0,
+        max_retries: int = _DEFAULT_CONNECT_RETRIES,
+    ) -> None:
         """Connect to the BLE device and provision (pair).
 
+        Uses a retry loop with BlueZ cache clearing between attempts
+        to work around the ``le-connection-abort-by-local`` error that
+        Telink mesh devices trigger during GATT service discovery.
+
         Args:
-            timeout: Connection timeout in seconds.
+            timeout: Connection timeout in seconds per attempt.
+            max_retries: Maximum connection attempts (default 5).
 
         Raises:
-            ConnectionError: If connection or provisioning fails.
+            ConnectionError: If connection or provisioning fails
+                after all retries.
         """
         if self._connected:
             _LOGGER.debug("Already connected to %s", self._address)
@@ -182,31 +196,17 @@ class MeshDevice:
 
         _LOGGER.info("Connecting to %s", self._address)
 
+        await self._connect_with_retry(timeout, max_retries)
+        if self._client is None:  # pragma: no cover — guaranteed by _connect_with_retry
+            msg = "BLE client not set after connect"
+            raise ConnectionError(msg)
+
         try:
-            # Scan for the BLEDevice object first — passing the
-            # BLEDevice (not a raw MAC string) ensures BlueZ has the
-            # device in its D-Bus cache, which improves connection
-            # reliability for Telink mesh devices.
-            ble_device = await BleakScanner.find_device_by_address(
-                self._address,
-                timeout=timeout,
+            self._session_key = await provision(
+                self._client,
+                self._mesh_name,
+                self._mesh_password,
             )
-            if ble_device is None:
-                msg = f"Device {self._address} not found in BLE scan"
-                raise ConnectionError(msg)
-
-            self._client = BleakClient(ble_device, timeout=timeout)
-            await self._client.connect()
-        except ConnectionError:
-            self._client = None
-            raise
-        except Exception as exc:
-            self._client = None
-            msg = f"Failed to connect to {self._address}"
-            raise ConnectionError(msg) from exc
-
-        try:
-            self._session_key = await provision(self._client, self._mesh_name, self._mesh_password)
         except Exception as exc:
             await self._safe_disconnect()
             msg = f"Provisioning failed for {self._address}"
@@ -218,12 +218,89 @@ class MeshDevice:
         # subscription (bleak's start_notify), which causes EOFError on
         # the D-Bus connection and kills the BleakClient. Instead, we
         # rely on the direct write done by the provisioner.
-        #
-        # TODO: Implement notification handling via raw characteristic
-        # reads or BlueZ PropertiesChanged signals if needed.
 
         self._connected = True
         _LOGGER.info("Connected and provisioned: %s", self._address)
+
+    async def _connect_with_retry(
+        self,
+        timeout: float,
+        max_retries: int,
+    ) -> None:
+        """Connect to the BLE device with retry logic.
+
+        Telink mesh devices cause BlueZ to abort during GATT service
+        discovery (``le-connection-abort-by-local``).  This method
+        retries with increasing back-off and clears stale BlueZ state
+        between attempts.
+
+        Args:
+            timeout: Per-attempt connection timeout.
+            max_retries: Maximum number of attempts.
+
+        Raises:
+            ConnectionError: After all retries are exhausted.
+        """
+        last_exc: Exception | None = None
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                # Keep the scanner running during connect — this
+                # significantly reduces le-connection-abort-by-local
+                # errors on BlueZ 5.82.
+                ble_device = await BleakScanner.find_device_by_address(
+                    self._address,
+                    timeout=timeout,
+                )
+                if ble_device is None:
+                    msg = f"Device {self._address} not found in BLE scan"
+                    raise ConnectionError(msg)
+
+                self._client = BleakClient(ble_device, timeout=timeout)
+                await self._client.connect()
+                _LOGGER.info(
+                    "BLE connected on attempt %d/%d",
+                    attempt,
+                    max_retries,
+                )
+                return
+            except ConnectionError:
+                self._client = None
+                raise
+            except Exception as exc:
+                last_exc = exc
+                self._client = None
+                backoff = min(2.0 * attempt, 8.0)
+                _LOGGER.warning(
+                    "Connect attempt %d/%d failed, retrying in %.1fs",
+                    attempt,
+                    max_retries,
+                    backoff,
+                )
+                # Clear stale BlueZ D-Bus state for this device
+                await self._clear_bluez_device()
+                await asyncio.sleep(backoff)
+
+        msg = f"Failed to connect to {self._address} after {max_retries} attempts"
+        raise ConnectionError(msg) from last_exc
+
+    async def _clear_bluez_device(self) -> None:
+        """Remove the device from BlueZ D-Bus cache.
+
+        Clears stale GATT state that causes
+        ``le-connection-abort-by-local`` on retry.
+        """
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "bluetoothctl",
+                "remove",
+                self._address,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await asyncio.wait_for(proc.wait(), timeout=5.0)
+        except Exception:
+            _LOGGER.debug("bluetoothctl remove failed (ignored)", exc_info=True)
 
     async def disconnect(self) -> None:
         """Disconnect from the BLE device."""
