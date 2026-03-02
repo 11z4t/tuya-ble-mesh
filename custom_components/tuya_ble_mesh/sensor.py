@@ -8,10 +8,40 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from custom_components.tuya_ble_mesh.const import DOMAIN
+
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
+
     from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
 
+    AddEntitiesCallback = Callable[..., None]
+
 _LOGGER = logging.getLogger(__name__)
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up Tuya BLE Mesh sensor entities from a config entry.
+
+    Args:
+        hass: Home Assistant instance.
+        entry: Config entry being set up.
+        async_add_entities: Callback to register new entities.
+    """
+    coordinator: TuyaBLEMeshCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    async_add_entities(
+        [
+            TuyaBLEMeshRSSISensor(coordinator, entry.entry_id),
+            TuyaBLEMeshFirmwareSensor(coordinator, entry.entry_id),
+        ]
+    )
 
 
 class TuyaBLEMeshRSSISensor:

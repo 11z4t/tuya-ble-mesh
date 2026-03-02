@@ -13,12 +13,14 @@ _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
 sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
+from custom_components.tuya_ble_mesh.const import DOMAIN  # noqa: E402
 from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     TuyaBLEMeshDeviceState,
 )
 from custom_components.tuya_ble_mesh.light import (  # noqa: E402
     COLOR_MODE_COLOR_TEMP,
     TuyaBLEMeshLight,
+    async_setup_entry,
     brightness_to_device,
     brightness_to_ha,
     color_temp_to_device,
@@ -289,3 +291,37 @@ class TestLightLifecycle:
         await light.async_will_remove_from_hass()
 
         remove_fn.assert_called_once()
+
+
+class TestLightPlatformSetup:
+    """Test async_setup_entry for the light platform."""
+
+    @pytest.mark.asyncio
+    async def test_setup_entry_creates_one_light(self) -> None:
+        coord = make_mock_coordinator()
+        hass = MagicMock()
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        entry = MagicMock()
+        entry.entry_id = "entry1"
+        add_entities = MagicMock()
+
+        await async_setup_entry(hass, entry, add_entities)
+
+        add_entities.assert_called_once()
+        entities = add_entities.call_args[0][0]
+        assert len(entities) == 1
+        assert isinstance(entities[0], TuyaBLEMeshLight)
+
+    @pytest.mark.asyncio
+    async def test_setup_entry_uses_coordinator_from_hass_data(self) -> None:
+        coord = make_mock_coordinator()
+        hass = MagicMock()
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        entry = MagicMock()
+        entry.entry_id = "entry1"
+        add_entities = MagicMock()
+
+        await async_setup_entry(hass, entry, add_entities)
+
+        entities = add_entities.call_args[0][0]
+        assert entities[0]._coordinator is coord
