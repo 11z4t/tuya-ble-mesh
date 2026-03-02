@@ -28,6 +28,7 @@ from tuya_ble_mesh.const import (
     TELINK_CMD_POWER,
     TELINK_VENDOR_ID,
 )
+from tuya_ble_mesh.crypto import crypt_payload, make_checksum
 from tuya_ble_mesh.exceptions import (
     AuthenticationError,
     MalformedPacketError,
@@ -41,6 +42,7 @@ from tuya_ble_mesh.protocol import (
     PairResponse,
     StatusResponse,
     build_nonce,
+    build_notification_nonce,
     decode_command_packet,
     decode_dp_value,
     decode_dps_response,
@@ -217,26 +219,109 @@ class TestCommandPacketRoundtrip:
         assert packet[5:] != payload
 
 
+# --- build_notification_nonce ---
+
+
+class TestBuildNotificationNonce:
+    """Test notification nonce construction."""
+
+    def test_output_is_8_bytes(self) -> None:
+        header = b"\x01\x02\x03\xaa\xbb"
+        nonce = build_notification_nonce(TEST_MAC, header)
+        assert len(nonce) == 8
+
+    def test_uses_3_reversed_mac_bytes(self) -> None:
+        header = b"\x00" * 5
+        nonce = build_notification_nonce(TEST_MAC, header)
+        # Reversed MAC: A5, 43, 21, 4D, 23, DC → first 3: A5, 43, 21
+        assert nonce[:3] == bytes([0xA5, 0x43, 0x21])
+
+    def test_uses_5_header_bytes(self) -> None:
+        header = b"\x01\x02\x03\xaa\xbb"
+        nonce = build_notification_nonce(TEST_MAC, header)
+        assert nonce[3:] == header
+
+    def test_wrong_mac_length(self) -> None:
+        with pytest.raises(ProtocolError, match="6 bytes"):
+            build_notification_nonce(b"\x00" * 4, b"\x00" * 5)
+
+    def test_header_too_short(self) -> None:
+        with pytest.raises(ProtocolError, match="raw_header"):
+            build_notification_nonce(TEST_MAC, b"\x00" * 4)
+
+    def test_differs_from_command_nonce(self) -> None:
+        """Notification nonce uses different format from command nonce."""
+        seq = 42
+        cmd_nonce = build_nonce(TEST_MAC, seq)
+        header = seq.to_bytes(3, "little") + b"\x00\x00"
+        notif_nonce = build_notification_nonce(TEST_MAC, header)
+        assert cmd_nonce != notif_nonce
+
+
 # --- decrypt_notification ---
+
+
+def _build_notification_packet(
+    key: bytes,
+    mac_bytes: bytes,
+    sequence: int,
+    payload: bytes,
+) -> bytes:
+    """Build a notification packet encrypted with notification nonce.
+
+    This helper simulates what a real device would send. The notification
+    nonce format ``[rev_mac[:3]][packet[:5]]`` creates a circular dependency:
+    the tag (checksum) bytes are part of the nonce used to compute the tag.
+
+    We solve this by brute-forcing the 2-byte tag space (max 65536 candidates)
+    to find a self-consistent value where::
+
+        tag == make_checksum(key, nonce_with_tag, payload)[:2]
+    """
+    seq_bytes = sequence.to_bytes(3, "little")
+
+    for tag_int in range(0x10000):
+        tag = struct.pack(">H", tag_int)
+        header = seq_bytes + tag
+        nonce = build_notification_nonce(mac_bytes, header)
+        computed = make_checksum(key, nonce, payload)[:2]
+        if computed == tag:
+            encrypted = crypt_payload(key, nonce, payload)
+            return header + encrypted
+
+    msg = "No self-consistent tag found"
+    raise AssertionError(msg)
 
 
 class TestDecryptNotification:
     """Test notification decryption."""
 
-    def test_roundtrip_with_command_packet(self) -> None:
-        """A command packet encrypted by us can be decrypted as notification."""
-        packet = encode_command_packet(TEST_KEY, TEST_MAC, 42, 1, TELINK_CMD_POWER, b"\x01")
+    def test_roundtrip_with_notification_nonce(self) -> None:
+        """A notification encrypted with notification nonce decrypts correctly."""
+        payload = bytearray(15)
+        payload[0] = 0x01  # dest low
+        payload[2] = TELINK_CMD_POWER
+        payload[3:5] = TELINK_VENDOR_ID
+        payload[5] = 0x01  # power on param
+
+        packet = _build_notification_packet(TEST_KEY, TEST_MAC, 42, bytes(payload))
         decrypted = decrypt_notification(TEST_KEY, TEST_MAC, packet)
         assert len(decrypted) == COMMAND_PACKET_SIZE
-        # Sequence preserved
+        # Sequence preserved in header bytes 0-2
         assert int.from_bytes(decrypted[:3], "little") == 42
+        # Payload starts after 5-byte header (3B seq + 2B tag)
+        # payload[0] = dest_id low at decrypted[5]
+        assert decrypted[5] == 0x01
+        # payload[2] = opcode at decrypted[7]
+        assert decrypted[7] == TELINK_CMD_POWER
 
     def test_too_short_raises(self) -> None:
         with pytest.raises(MalformedPacketError, match="too short"):
             decrypt_notification(TEST_KEY, TEST_MAC, b"\x00" * 5)
 
     def test_wrong_key_fails(self) -> None:
-        packet = encode_command_packet(TEST_KEY, TEST_MAC, 1, 1, TELINK_CMD_POWER, b"\x01")
+        payload = b"\x00" * 15
+        packet = _build_notification_packet(TEST_KEY, TEST_MAC, 1, payload)
         with pytest.raises(AuthenticationError):
             decrypt_notification(b"\xcd" * 16, TEST_MAC, packet)
 

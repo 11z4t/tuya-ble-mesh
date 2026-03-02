@@ -9,7 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
 from tuya_ble_mesh.const import TELINK_CHAR_COMMAND
-from tuya_ble_mesh.device import MESH_ADDRESS_ALL, MeshDevice
+from tuya_ble_mesh.device import MESH_ADDRESS_ALL, MESH_ADDRESS_DEFAULT, MeshDevice
 from tuya_ble_mesh.exceptions import (
     ConnectionError,
     ProtocolError,
@@ -50,7 +50,11 @@ class TestConstruction:
 
     def test_default_mesh_id(self) -> None:
         device = _make_device()
-        assert device.mesh_id == MESH_ADDRESS_ALL
+        assert device.mesh_id == MESH_ADDRESS_DEFAULT
+
+    def test_broadcast_mesh_id(self) -> None:
+        device = _make_device(mesh_id=MESH_ADDRESS_ALL)
+        assert device.mesh_id == 0xFFFF
 
     def test_custom_mesh_id(self) -> None:
         device = _make_device(mesh_id=42)

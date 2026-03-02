@@ -143,6 +143,11 @@ async def enable_notifications(client: BleakClient) -> None:
     Writes 0x01 to the status characteristic to enable unsolicited
     status notifications from the device.
 
+    NOTE: Telink BLE mesh devices do NOT support standard CCCD-based
+    notification subscription (bleak's start_notify). Calling start_notify
+    triggers an EOFError on the BlueZ D-Bus connection, which kills the
+    entire BleakClient. Confirmed on BlueZ 5.82 and 5.83.
+
     Args:
         client: Connected and paired BleakClient.
     """
