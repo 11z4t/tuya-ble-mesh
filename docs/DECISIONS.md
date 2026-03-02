@@ -458,6 +458,76 @@ notifications and dispatches to registered listeners.
 
 ---
 
+## ADR-014: HA Integration Wiring via Runtime Imports
+
+**Date:** 2026-03-02
+**Status:** Accepted
+
+### Decision
+
+The HA `__init__.py` creates a real `MeshDevice` and
+`TuyaBLEMeshCoordinator` at runtime using deferred imports
+(after `sys.path.insert`). Config entry data (MAC, mesh name,
+mesh password) is passed to `MeshDevice.__init__()`.
+
+### Context
+
+Phase 3 left `async_setup_entry` as a stub storing an empty dict.
+Phase 4 needs to wire the HA layer to the real lib/ modules for
+hardware validation.
+
+### Alternatives Considered
+
+1. **Import at module level** — Would fail if lib/ path isn't set up
+   first. Deferred import inside the function is safer and matches
+   the `TYPE_CHECKING` pattern used elsewhere.
+2. **Factory function in lib/** — Adds unnecessary abstraction layer
+   when `MeshDevice.__init__()` already takes the right parameters.
+
+### Rationale
+
+- Deferred import keeps module-level imports clean
+- Config entry data maps directly to MeshDevice constructor args
+- Coordinator is stored in `hass.data[DOMAIN][entry_id]["coordinator"]`
+  for platform modules to access
+- Rule S1 preserved: lib/ never imports HA
+
+---
+
+## ADR-015: Hardware Tests in tests/hardware/ (Not in CI)
+
+**Date:** 2026-03-02
+**Status:** Accepted
+
+### Decision
+
+Hardware validation tests live in `tests/hardware/` and are run
+manually by the operator. They are NOT included in the CI pipeline
+(`scripts/run-checks.sh` runs only `tests/unit/`).
+
+### Context
+
+Hardware tests require real BLE devices, a Shelly power plug, and
+visual confirmation (is the light on?). They cannot run in CI.
+
+### Alternatives Considered
+
+1. **Skip markers in unit tests** — Mix hardware and unit tests in
+   `tests/unit/` with skip markers. Rejected: clutters the unit test
+   directory and risks accidental CI execution.
+2. **Separate CI job with hardware** — Requires a dedicated test
+   runner with BLE hardware. Premature for a single-developer project.
+
+### Rationale
+
+- Clean separation: `tests/unit/` for CI, `tests/hardware/` for lab
+- Skip logic via `requires_bluetooth` marker (hci0 availability check)
+- Ordered test files (01–06) for logical progression
+- `scripts/hw_validate.py` for quick standalone validation
+- Results logged in `docs/HARDWARE_TEST_LOG.md`
+
+---
+
 ## Template
 
 Use this template when adding new decisions:
