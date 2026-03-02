@@ -16,6 +16,7 @@ from custom_components.tuya_ble_mesh.const import (
     DEVICE_BRIGHTNESS_MIN,
     DEVICE_COLOR_TEMP_MAX,
     DEVICE_COLOR_TEMP_MIN,
+    DOMAIN,
     HA_BRIGHTNESS_MAX,
     HA_BRIGHTNESS_MIN,
     HA_MIRED_MAX,
@@ -23,7 +24,14 @@ from custom_components.tuya_ble_mesh.const import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from homeassistant.config_entries import ConfigEntry
+    from homeassistant.core import HomeAssistant
+
     from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
+
+    AddEntitiesCallback = Callable[..., None]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -105,6 +113,22 @@ def color_temp_to_device(mired_value: int) -> int:
         * (DEVICE_COLOR_TEMP_MAX - DEVICE_COLOR_TEMP_MIN)
         / (HA_MIRED_MAX - HA_MIRED_MIN)
     )
+
+
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
+    """Set up Tuya BLE Mesh light entities from a config entry.
+
+    Args:
+        hass: Home Assistant instance.
+        entry: Config entry being set up.
+        async_add_entities: Callback to register new entities.
+    """
+    coordinator: TuyaBLEMeshCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    async_add_entities([TuyaBLEMeshLight(coordinator, entry.entry_id)])
 
 
 class TuyaBLEMeshLight:
