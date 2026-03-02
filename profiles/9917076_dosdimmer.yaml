@@ -1,0 +1,26 @@
+name: "Malmbergs Dosdimmer"
+model: "9917076"
+category: "dj"
+mesh_category: 0x1011  # White brightness only (estimated)
+capabilities:
+  - power
+  - white_brightness
+data_points:
+  1:
+    name: "power"
+    type: "boolean"
+    description: "On/Off"
+  3:
+    name: "brightness"
+    type: "value"
+    range: [1, 127]
+    description: "White brightness (1-127)"
+telink_commands:
+  power:
+    opcode: 0xD0
+    params_on: [0x01]
+    params_off: [0x00]
+  white_brightness:
+    opcode: 0xF1
+    param_range: [1, 127]
+# NOTE: Estimated profile — validate against real hardware
