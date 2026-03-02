@@ -35,6 +35,14 @@ tests/
 │   ├── test_ha_light.py
 │   ├── test_ha_sensor.py
 │   └── test_ha_diagnostics.py
+├── hardware/                # Manual hardware validation (NOT in CI)
+│   ├── conftest.py          ← fixtures, target MAC, skip logic
+│   ├── test_01_scan.py
+│   ├── test_02_connect.py
+│   ├── test_03_provision.py
+│   ├── test_04_commands.py
+│   ├── test_05_reconnect.py
+│   └── test_06_coordinator.py
 ├── integration/             # Requires hardware / network
 │   └── __init__.py
 └── security/                # Input fuzzing, secret leak detection
@@ -385,3 +393,47 @@ Checklist for adding tests to a new module:
 8. Keep timing parameters short (0.01s instead of 5.0s)
 9. Test both success and failure paths
 10. Test that errors raise the correct custom exception (rule S7)
+
+---
+
+## Hardware Tests
+
+Hardware tests validate the full stack against real BLE devices.
+They are in `tests/hardware/` and are **NOT** part of the CI pipeline.
+
+### Running Hardware Tests
+
+```bash
+# All hardware tests (requires BLE device powered on)
+pytest tests/hardware/ -v -s
+
+# Individual test files (ordered progression)
+pytest tests/hardware/test_01_scan.py -v -s
+pytest tests/hardware/test_02_connect.py -v -s
+pytest tests/hardware/test_03_provision.py -v -s
+pytest tests/hardware/test_04_commands.py -v -s
+pytest tests/hardware/test_05_reconnect.py -v -s
+pytest tests/hardware/test_06_coordinator.py -v -s
+
+# Standalone validation (no pytest needed)
+python scripts/hw_validate.py --mac DC:23:4D:21:43:A5
+```
+
+### Prerequisites
+
+- Bluetooth adapter (hci0) must be UP RUNNING
+- Target device must be powered on and in range
+- For reconnect tests: Shelly Plug S at 192.168.1.50
+- Default credentials: `out_of_mesh` / `123456`
+
+### Visual Verification
+
+Tests that modify device state print `VERIFY:` lines. The
+operator must visually confirm the device responds correctly.
+Record results in `docs/HARDWARE_TEST_LOG.md`.
+
+### Skip Logic
+
+Tests are skipped automatically if Bluetooth is unavailable.
+The `requires_bluetooth` marker in `conftest.py` checks for
+an active hci0 adapter.
