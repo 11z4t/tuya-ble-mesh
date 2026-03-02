@@ -48,8 +48,11 @@ from tuya_ble_mesh.scanner import mac_to_bytes
 
 _LOGGER = logging.getLogger(__name__)
 
-# Mesh address 0xFFFF = broadcast to all devices
+# Mesh address for broadcast to all devices
 MESH_ADDRESS_ALL = 0xFFFF
+
+# Default mesh address for unprovisioned devices (not yet assigned)
+MESH_ADDRESS_DEFAULT = 0
 
 # Sequence counter wraps at 24 bits
 _MAX_SEQUENCE = 0xFFFFFF
@@ -75,7 +78,7 @@ class MeshDevice:
         mesh_name: bytes,
         mesh_password: bytes,
         *,
-        mesh_id: int = MESH_ADDRESS_ALL,
+        mesh_id: int = MESH_ADDRESS_DEFAULT,
     ) -> None:
         """Initialize a mesh device interface.
 
@@ -83,7 +86,7 @@ class MeshDevice:
             address: BLE MAC address (e.g. ``DC:23:4D:21:43:A5``).
             mesh_name: Mesh network name (e.g. ``b"out_of_mesh"``).
             mesh_password: Mesh network password (e.g. ``b"123456"``).
-            mesh_id: Target mesh address for commands (0xFFFF = broadcast).
+            mesh_id: Target mesh address for commands (0 = unprovisioned default).
         """
         self._address = address.upper()
         self._mesh_name = mesh_name
@@ -211,13 +214,6 @@ class MeshDevice:
             await self._safe_disconnect()
             msg = f"Provisioning failed for {self._address}"
             raise ConnectionError(msg) from exc
-
-        # Notification subscription: provision() already called
-        # enable_notifications() which writes 0x01 to char 1911.
-        # Telink devices don't support standard CCCD-based notification
-        # subscription (bleak's start_notify), which causes EOFError on
-        # the D-Bus connection and kills the BleakClient. Instead, we
-        # rely on the direct write done by the provisioner.
 
         self._connected = True
         _LOGGER.info("Connected and provisioned: %s", self._address)
