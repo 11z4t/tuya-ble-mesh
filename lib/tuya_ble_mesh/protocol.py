@@ -103,10 +103,18 @@ class PairResponse:
 def build_nonce(mac_bytes: bytes, sequence: int) -> bytes:
     """Build the 8-byte nonce for command encryption.
 
-    Nonce format: [MAC_rev[0:4]][0x01][seq_lo][seq_mid][seq_hi]
+    Nonce format: ``[MAC_rev[0:4]][0x01][seq_lo][seq_mid][seq_hi]``
 
     The MAC bytes are reversed (Telink little-endian convention), then
     the first 4 bytes of the reversed MAC form the nonce prefix.
+
+    SECURITY NOTE — nonce predictability:
+    Both the MAC (public BLE advertisement) and the sequence counter
+    (incrementing from 0) are deterministic. This is acceptable because
+    CTR+CBC-MAC (AES-CCM) does NOT require nonce secrecy — only
+    uniqueness within a session. The 24-bit counter supports 16M packets
+    before wrapping; sessions reset on BLE reconnect so reuse across
+    sessions uses a fresh session key.
 
     Args:
         mac_bytes: 6-byte BLE MAC address in standard order.
@@ -284,6 +292,12 @@ def build_notification_nonce(mac_bytes: bytes, raw_header: bytes) -> bytes:
     The first 5 bytes (counter + header_extra) form part of the nonce.
     Bytes [3:5] contain additional unencrypted data (e.g. source mesh ID).
     The 2-byte checksum is at bytes [5:7], NOT at [3:5].
+
+    SECURITY NOTE — nonce predictability:
+    The header bytes (counter + header_extra) are unencrypted and
+    observable by any BLE listener. This is acceptable: AES-CCM
+    requires nonce uniqueness, not secrecy. The 3-byte counter provides
+    uniqueness within a session; session key changes on reconnect.
 
     Args:
         mac_bytes: 6-byte BLE MAC address in standard order.
