@@ -196,6 +196,9 @@ class BLEConnection:
         """Connect to BLE device with retry + BlueZ cache clearing."""
         last_exc: Exception | None = None
 
+        # Proactive cleanup — clear stale BlueZ cache from previous sessions
+        await self._clear_bluez_device()
+
         for attempt in range(1, max_retries + 1):
             try:
                 ble_device = await BleakScanner.find_device_by_address(
@@ -217,14 +220,15 @@ class BLEConnection:
             except ConnectionError:
                 self._client = None
                 raise
-            except Exception as exc:
-                last_exc = exc
+            except (Exception, asyncio.CancelledError) as exc:
+                last_exc = exc if isinstance(exc, Exception) else Exception(str(exc))
                 self._client = None
                 backoff = min(2.0 * attempt, 8.0)
                 _LOGGER.warning(
-                    "Connect attempt %d/%d failed, retrying in %.1fs",
+                    "Connect attempt %d/%d failed (%s), retrying in %.1fs",
                     attempt,
                     max_retries,
+                    type(exc).__name__,
                     backoff,
                 )
                 await self._clear_bluez_device()
