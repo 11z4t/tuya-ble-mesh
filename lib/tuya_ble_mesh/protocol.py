@@ -134,6 +134,8 @@ def encode_command_payload(
     dest_id: int,
     opcode: int,
     params: bytes,
+    *,
+    vendor_id: bytes = TELINK_VENDOR_ID,
 ) -> bytes:
     """Build the 15-byte unencrypted command payload.
 
@@ -143,10 +145,14 @@ def encode_command_payload(
         dest_id: Destination mesh address (0..0xFFFF).
         opcode: Telink command code (e.g. 0xD0 for power).
         params: Command parameters (max 10 bytes).
+        vendor_id: 2-byte vendor identifier (default: TELINK_VENDOR_ID).
 
     Returns:
         15-byte payload ready for encryption.
     """
+    if len(vendor_id) != 2:
+        msg = f"vendor_id must be 2 bytes, got {len(vendor_id)}"
+        raise ProtocolError(msg)
     if not 0 <= dest_id <= 0xFFFF:
         msg = f"dest_id must be 0..0xFFFF, got {dest_id}"
         raise ProtocolError(msg)
@@ -158,7 +164,7 @@ def encode_command_payload(
         raise ProtocolError(msg)
 
     payload = struct.pack("<HB", dest_id, opcode)
-    payload += TELINK_VENDOR_ID
+    payload += vendor_id
     payload += params
     payload += b"\x00" * (PAYLOAD_SIZE - len(payload))
     return payload
@@ -171,6 +177,8 @@ def encode_command_packet(
     dest_id: int,
     opcode: int,
     params: bytes,
+    *,
+    vendor_id: bytes = TELINK_VENDOR_ID,
 ) -> bytes:
     """Build a complete 20-byte encrypted command packet.
 
@@ -183,6 +191,7 @@ def encode_command_packet(
         dest_id: Destination mesh address.
         opcode: Telink command code.
         params: Command parameters.
+        vendor_id: 2-byte vendor identifier (default: TELINK_VENDOR_ID).
 
     Returns:
         20-byte encrypted command packet.
@@ -190,7 +199,7 @@ def encode_command_packet(
     seq_bytes = sequence.to_bytes(3, "little")
     nonce = build_nonce(mac_bytes, sequence)
 
-    payload = encode_command_payload(dest_id, opcode, params)
+    payload = encode_command_payload(dest_id, opcode, params, vendor_id=vendor_id)
 
     # CBC-MAC on plaintext, then CTR encrypt
     checksum = make_checksum(key, nonce, payload)
