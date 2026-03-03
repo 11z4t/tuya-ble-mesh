@@ -7,10 +7,17 @@ SECURITY: Key material is NEVER logged, printed, or included in
 exception messages. Only lengths and operation names are safe to log.
 
 JUSTIFICATION for AES-ECB: Telink BLE Mesh uses AES-128-ECB for
-single-block operations (session key derivation, pair proof). This is
-a single-block operation where ECB == raw AES. CTR mode and CBC-MAC
-are constructed manually on top of ECB to implement AES-CCM, matching
-the Telink SDK and python-awox-mesh-light reference implementation.
+single-block operations (session key derivation, pair proof). For a
+single 16-byte block, ECB is identical to raw AES — the well-known
+ECB weakness (identical blocks → identical ciphertext) only applies
+when multiple blocks are encrypted, which never happens here.
+
+Higher-level confidentiality uses CTR mode and CBC-MAC, both manually
+constructed on top of single-block AES-ECB to implement AES-CCM. This
+matches the Telink SDK and python-awox-mesh-light reference.
+
+ECB is used ONLY in telink_aes_encrypt() — a single-block primitive.
+It is NEVER called directly with multi-block user data.
 """
 
 import hmac
@@ -25,6 +32,7 @@ from tuya_ble_mesh.exceptions import AuthenticationError, CryptoError
 _AES_BLOCK_SIZE = 16
 _SESSION_RANDOM_SIZE = 8
 _MAC_SIZE = 2  # Truncated CBC-MAC
+_MAX_CTR_BLOCKS = 256  # Counter byte[0] wraps at 256 → max 4096 bytes payload
 
 
 def _validate_key(key: bytes) -> None:
@@ -181,6 +189,12 @@ def crypt_payload(key: bytes, nonce: bytes, payload: bytes) -> bytes:
 
     CTR mode is symmetric: the same function encrypts and decrypts.
 
+    SECURITY LIMIT: The counter is a single byte (byte[0] of the counter
+    block), supporting at most 256 AES blocks = 4096 bytes of payload.
+    Beyond that the counter wraps, repeating the keystream — which would
+    break CTR mode confidentiality. Current Telink mesh packets are
+    max ~15 bytes, so this limit is safe.
+
     Args:
         key: 16-byte encryption key.
         nonce: 8-byte nonce (padded to 15 bytes for counter block).
@@ -188,8 +202,19 @@ def crypt_payload(key: bytes, nonce: bytes, payload: bytes) -> bytes:
 
     Returns:
         Encrypted or decrypted data (same length as payload).
+
+    Raises:
+        CryptoError: If payload exceeds the single-byte counter limit.
     """
     _validate_key(key)
+    blocks_needed = (len(payload) + _AES_BLOCK_SIZE - 1) // _AES_BLOCK_SIZE
+    if blocks_needed > _MAX_CTR_BLOCKS:
+        msg = (
+            f"Payload too large for single-byte CTR counter: "
+            f"{len(payload)} bytes ({blocks_needed} blocks, max {_MAX_CTR_BLOCKS})"
+        )
+        raise CryptoError(msg)
+
     base = bytearray(b"\x00" + nonce)
     base = bytearray(_pad_to_block(bytes(base)))
     result = bytearray()
