@@ -98,6 +98,8 @@ TELINK_CMD_SEQ_COLOR_DURATION = 0xF5
 TELINK_CMD_SEQ_FADE_DURATION = 0xF6
 TELINK_CMD_TIME = 0xE4
 TELINK_CMD_ALARMS = 0xE5
+TELINK_CMD_DP_WRITE = 0xD2  # Compact DP write (confirmed from HCI snoop)
+TELINK_CMD_STATUS_QUERY = 0xDA  # Status query (param 0x10)
 
 # Telink command packet fixed bytes (vendor/application identifier)
 # Confirmed from HCI snoop capture of Malmbergs BLE app (2026-03-03):
@@ -195,6 +197,11 @@ TUYA_VENDOR_MODEL_ID = 0x07D00004
 # Documented Tuya public defaults for unprovisioned devices.
 # These are NOT secrets — they are published in Tuya developer documentation
 # and advertised openly by unprovisioned devices.
+# --- Compact DP IDs (Telink BLE Mesh, confirmed from HCI snoop) ---
+# These are the dp_id values used in 0xD2 compact DP format.
+COMPACT_DP_POWER = 121  # Power on/off (dp_type=value, 0=OFF 1=ON)
+COMPACT_DP_BRIGHTNESS = 122  # Brightness 1-100% (dp_type=value)
+
 TUYA_MESH_DEFAULT_NAME = "out_of_mesh"
 TUYA_MESH_DEFAULT_PASSWORD = "123456"  # nosec B105 — documented public default
 

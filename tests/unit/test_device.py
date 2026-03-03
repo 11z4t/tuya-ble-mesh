@@ -119,7 +119,13 @@ class TestConnect:
         mock_client.connect = AsyncMock()
         mock_client.start_notify = AsyncMock()
 
+        mock_ble_device = MagicMock()
+
         with (
+            patch(
+                "tuya_ble_mesh.device.BleakScanner.find_device_by_address",
+                return_value=mock_ble_device,
+            ),
             patch("tuya_ble_mesh.device.BleakClient", return_value=mock_client),
             patch(
                 "tuya_ble_mesh.device.provision",
@@ -143,7 +149,13 @@ class TestConnect:
         mock_client = AsyncMock()
         mock_client.connect = AsyncMock(side_effect=OSError("BLE fail"))
 
+        mock_ble_device = MagicMock()
+
         with (
+            patch(
+                "tuya_ble_mesh.device.BleakScanner.find_device_by_address",
+                return_value=mock_ble_device,
+            ),
             patch("tuya_ble_mesh.device.BleakClient", return_value=mock_client),
             pytest.raises(ConnectionError, match="Failed to connect"),
         ):
@@ -159,7 +171,13 @@ class TestConnect:
         mock_client.connect = AsyncMock()
         mock_client.disconnect = AsyncMock()
 
+        mock_ble_device = MagicMock()
+
         with (
+            patch(
+                "tuya_ble_mesh.device.BleakScanner.find_device_by_address",
+                return_value=mock_ble_device,
+            ),
             patch("tuya_ble_mesh.device.BleakClient", return_value=mock_client),
             patch(
                 "tuya_ble_mesh.device.provision",
@@ -199,7 +217,13 @@ class TestContextManager:
         mock_client.disconnect = AsyncMock()
         mock_client.start_notify = AsyncMock()
 
+        mock_ble_device = MagicMock()
+
         with (
+            patch(
+                "tuya_ble_mesh.device.BleakScanner.find_device_by_address",
+                return_value=mock_ble_device,
+            ),
             patch("tuya_ble_mesh.device.BleakClient", return_value=mock_client),
             patch(
                 "tuya_ble_mesh.device.provision",
