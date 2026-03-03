@@ -19,31 +19,38 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
 from collections.abc import Callable
 from typing import Any
 
-from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
 
+from tuya_ble_mesh.connection import BLEConnection
 from tuya_ble_mesh.const import (
-    TELINK_CHAR_COMMAND,
+    COMPACT_DP_BRIGHTNESS,
+    COMPACT_DP_POWER,
+    DP_TYPE_VALUE,
     TELINK_CMD_COLOR,
     TELINK_CMD_COLOR_BRIGHTNESS,
+    TELINK_CMD_DP_WRITE,
     TELINK_CMD_LIGHT_MODE,
     TELINK_CMD_MESH_ADDRESS,
     TELINK_CMD_MESH_RESET,
-    TELINK_CMD_POWER,
-    TELINK_CMD_WHITE_BRIGHTNESS,
     TELINK_CMD_WHITE_TEMP,
 )
-from tuya_ble_mesh.exceptions import ConnectionError, ProtocolError
+from tuya_ble_mesh.exceptions import (
+    CommandExpiredError,
+    CommandQueueFullError,
+    DisconnectedError,
+    ProtocolError,
+)
 from tuya_ble_mesh.protocol import (
     StatusResponse,
     decode_status,
     decrypt_notification,
     encode_command_packet,
+    encode_compact_dp,
 )
-from tuya_ble_mesh.provisioner import provision
 from tuya_ble_mesh.scanner import mac_to_bytes
 
 _LOGGER = logging.getLogger(__name__)
@@ -54,22 +61,42 @@ MESH_ADDRESS_ALL = 0xFFFF
 # Default mesh address for unprovisioned devices (not yet assigned)
 MESH_ADDRESS_DEFAULT = 0
 
-# Sequence counter wraps at 24 bits
-_MAX_SEQUENCE = 0xFFFFFF
-
-# Default connection retries — Telink devices often need 2-3 attempts
-# because BlueZ 5.82 aborts GATT discovery on first connect.
-_DEFAULT_CONNECT_RETRIES = 5
+# Command queue limits
+_QUEUE_MAX_SIZE = 32
+_COMMAND_TTL = 60.0  # seconds
 
 # Status callback type
 StatusCallback = Callable[[StatusResponse], Any]
+
+# Disconnect callback type
+DisconnectCallback = Callable[[], Any]
+
+
+class _QueuedCommand:
+    """A command waiting in the queue."""
+
+    __slots__ = ("created_at", "dest_id", "future", "opcode", "params")
+
+    def __init__(
+        self,
+        opcode: int,
+        params: bytes,
+        dest_id: int,
+        future: asyncio.Future[None],
+    ) -> None:
+        self.opcode = opcode
+        self.params = params
+        self.dest_id = dest_id
+        self.created_at = time.monotonic()
+        self.future = future
 
 
 class MeshDevice:
     """High-level interface to a Telink BLE mesh device.
 
-    Manages connection, provisioning, command sending, and status
-    notification handling.
+    Composes BLEConnection for transport. Provides command queue with
+    TTL, high-level commands (0xD2 compact DP), and status notification
+    dispatch.
     """
 
     def __init__(
@@ -89,15 +116,13 @@ class MeshDevice:
             mesh_id: Target mesh address for commands (0 = unprovisioned default).
         """
         self._address = address.upper()
-        self._mesh_name = mesh_name
-        self._mesh_password = mesh_password
         self._mesh_id = mesh_id
         self._mac_bytes = mac_to_bytes(address)
-        self._client: BleakClient | None = None
-        self._session_key: bytes | None = None
-        self._sequence: int = 0
+        self._conn = BLEConnection(address, mesh_name, mesh_password)
         self._status_callbacks: list[StatusCallback] = []
-        self._connected = False
+        self._disconnect_callbacks: list[DisconnectCallback] = []
+        self._queue: list[_QueuedCommand] = []
+        self._conn.register_disconnect_callback(self._on_disconnect)
 
     @property
     def address(self) -> str:
@@ -120,42 +145,38 @@ class MeshDevice:
     @property
     def is_connected(self) -> bool:
         """Return True if the device is connected and provisioned."""
-        return self._connected and self._session_key is not None
+        return self._conn.is_ready
 
-    def _next_sequence(self) -> int:
-        """Get the next sequence number (24-bit, wrapping)."""
-        seq = self._sequence
-        self._sequence = (self._sequence + 1) & _MAX_SEQUENCE
-        return seq
+    @property
+    def connection(self) -> BLEConnection:
+        """Return the underlying BLE connection."""
+        return self._conn
 
     def register_status_callback(self, callback: StatusCallback) -> None:
-        """Register a callback for status notifications.
-
-        Args:
-            callback: Called with a StatusResponse when the device
-                sends a status update via characteristic 1911.
-        """
+        """Register a callback for status notifications."""
         self._status_callbacks.append(callback)
 
     def unregister_status_callback(self, callback: StatusCallback) -> None:
-        """Remove a previously registered status callback.
-
-        Args:
-            callback: The callback to remove.
-        """
+        """Remove a previously registered status callback."""
         self._status_callbacks.remove(callback)
 
-    def _handle_notification(self, _sender: BleakGATTCharacteristic, data: bytearray) -> None:
-        """Handle a raw BLE notification from characteristic 1911.
+    def register_disconnect_callback(self, callback: DisconnectCallback) -> None:
+        """Register a callback for disconnect events."""
+        self._disconnect_callbacks.append(callback)
 
-        Decrypts the notification and dispatches to registered callbacks.
-        """
-        if self._session_key is None:
+    def unregister_disconnect_callback(self, callback: DisconnectCallback) -> None:
+        """Remove a previously registered disconnect callback."""
+        self._disconnect_callbacks.remove(callback)
+
+    def _handle_notification(self, _sender: BleakGATTCharacteristic, data: bytearray) -> None:
+        """Handle a raw BLE notification from characteristic 1911."""
+        key = self._conn.session_key
+        if key is None:
             _LOGGER.warning("Notification received but no session key")
             return
 
         try:
-            decrypted = decrypt_notification(self._session_key, self._mac_bytes, bytes(data))
+            decrypted = decrypt_notification(key, self._mac_bytes, bytes(data))
             status = decode_status(decrypted)
         except Exception:
             _LOGGER.warning("Failed to decode notification (%d bytes)", len(data), exc_info=True)
@@ -174,149 +195,37 @@ class MeshDevice:
             except Exception:
                 _LOGGER.warning("Status callback error", exc_info=True)
 
+    def _on_disconnect(self) -> None:
+        """Handle disconnect from BLEConnection."""
+        _LOGGER.warning("Device disconnected: %s", self._address)
+        for callback in self._disconnect_callbacks:
+            try:
+                callback()
+            except Exception:
+                _LOGGER.warning("Disconnect callback error", exc_info=True)
+
     async def connect(
         self,
         timeout: float = 30.0,
-        max_retries: int = _DEFAULT_CONNECT_RETRIES,
+        max_retries: int = 5,
     ) -> None:
         """Connect to the BLE device and provision (pair).
 
-        Uses a retry loop with BlueZ cache clearing between attempts
-        to work around the ``le-connection-abort-by-local`` error that
-        Telink mesh devices trigger during GATT service discovery.
+        After connecting, drains any queued commands.
 
         Args:
             timeout: Connection timeout in seconds per attempt.
-            max_retries: Maximum connection attempts (default 5).
+            max_retries: Maximum connection attempts.
 
         Raises:
-            ConnectionError: If connection or provisioning fails
-                after all retries.
+            ConnectionError: If connection or provisioning fails.
         """
-        if self._connected:
-            _LOGGER.debug("Already connected to %s", self._address)
-            return
-
-        _LOGGER.info("Connecting to %s", self._address)
-
-        await self._connect_with_retry(timeout, max_retries)
-        if self._client is None:  # pragma: no cover — guaranteed by _connect_with_retry
-            msg = "BLE client not set after connect"
-            raise ConnectionError(msg)
-
-        try:
-            self._session_key = await provision(
-                self._client,
-                self._mesh_name,
-                self._mesh_password,
-            )
-        except Exception as exc:
-            await self._safe_disconnect()
-            msg = f"Provisioning failed for {self._address}"
-            raise ConnectionError(msg) from exc
-
-        self._connected = True
-        _LOGGER.info("Connected and provisioned: %s", self._address)
-
-    async def _connect_with_retry(
-        self,
-        timeout: float,
-        max_retries: int,
-    ) -> None:
-        """Connect to the BLE device with retry logic.
-
-        Telink mesh devices cause BlueZ to abort during GATT service
-        discovery (``le-connection-abort-by-local``).  This method
-        retries with increasing back-off and clears stale BlueZ state
-        between attempts.
-
-        Args:
-            timeout: Per-attempt connection timeout.
-            max_retries: Maximum number of attempts.
-
-        Raises:
-            ConnectionError: After all retries are exhausted.
-        """
-        last_exc: Exception | None = None
-
-        for attempt in range(1, max_retries + 1):
-            try:
-                # Keep the scanner running during connect — this
-                # significantly reduces le-connection-abort-by-local
-                # errors on BlueZ 5.82.
-                ble_device = await BleakScanner.find_device_by_address(
-                    self._address,
-                    timeout=timeout,
-                )
-                if ble_device is None:
-                    msg = f"Device {self._address} not found in BLE scan"
-                    raise ConnectionError(msg)
-
-                self._client = BleakClient(ble_device, timeout=timeout)
-                await self._client.connect()
-                _LOGGER.info(
-                    "BLE connected on attempt %d/%d",
-                    attempt,
-                    max_retries,
-                )
-                return
-            except ConnectionError:
-                self._client = None
-                raise
-            except Exception as exc:
-                last_exc = exc
-                self._client = None
-                backoff = min(2.0 * attempt, 8.0)
-                _LOGGER.warning(
-                    "Connect attempt %d/%d failed, retrying in %.1fs",
-                    attempt,
-                    max_retries,
-                    backoff,
-                )
-                # Clear stale BlueZ D-Bus state for this device
-                await self._clear_bluez_device()
-                await asyncio.sleep(backoff)
-
-        msg = f"Failed to connect to {self._address} after {max_retries} attempts"
-        raise ConnectionError(msg) from last_exc
-
-    async def _clear_bluez_device(self) -> None:
-        """Remove the device from BlueZ D-Bus cache.
-
-        Clears stale GATT state that causes
-        ``le-connection-abort-by-local`` on retry.
-        """
-        try:
-            proc = await asyncio.create_subprocess_exec(
-                "bluetoothctl",
-                "remove",
-                self._address,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            await asyncio.wait_for(proc.wait(), timeout=5.0)
-        except Exception:
-            _LOGGER.debug("bluetoothctl remove failed (ignored)", exc_info=True)
+        await self._conn.connect(timeout=timeout, max_retries=max_retries)
+        await self._drain_queue()
 
     async def disconnect(self) -> None:
         """Disconnect from the BLE device."""
-        if not self._connected:
-            return
-
-        _LOGGER.info("Disconnecting from %s", self._address)
-        await self._safe_disconnect()
-        _LOGGER.info("Disconnected: %s", self._address)
-
-    async def _safe_disconnect(self) -> None:
-        """Disconnect without raising exceptions."""
-        self._connected = False
-        self._session_key = None
-        if self._client is not None:
-            try:
-                await self._client.disconnect()
-            except Exception:
-                _LOGGER.debug("Disconnect error (ignored)", exc_info=True)
-            self._client = None
+        await self._conn.disconnect()
 
     async def send_command(
         self,
@@ -327,26 +236,39 @@ class MeshDevice:
     ) -> None:
         """Send an encrypted command to the device.
 
+        If the device is connected, sends immediately. Otherwise,
+        queues the command for sending on reconnect.
+
         Args:
-            opcode: Telink command code (e.g. 0xD0 for power).
+            opcode: Telink command code.
             params: Command parameters.
             dest_id: Target mesh address (defaults to self.mesh_id).
 
         Raises:
-            ConnectionError: If not connected.
+            CommandQueueFullError: If queue is full and device is not connected.
+            DisconnectedError: If send fails and device disconnects.
         """
-        if not self.is_connected or self._client is None or self._session_key is None:
-            msg = "Not connected"
-            raise ConnectionError(msg)
-
         target = dest_id if dest_id is not None else self._mesh_id
-        seq = self._next_sequence()
+
+        if self.is_connected:
+            await self._send_now(opcode, params, target)
+        else:
+            await self._enqueue(opcode, params, target)
+
+    async def _send_now(self, opcode: int, params: bytes, dest_id: int) -> None:
+        """Send a command immediately via BLEConnection."""
+        key = self._conn.session_key
+        if key is None:
+            msg = "Not connected"
+            raise DisconnectedError(msg)
+
+        seq = self._conn.next_sequence()
 
         packet = encode_command_packet(
-            self._session_key,
+            key,
             self._mac_bytes,
             seq,
-            target,
+            dest_id,
             opcode,
             params,
         )
@@ -356,41 +278,95 @@ class MeshDevice:
             opcode,
             len(packet),
             seq,
-            target,
+            dest_id,
         )
 
-        await self._client.write_gatt_char(TELINK_CHAR_COMMAND, packet, response=False)
+        await self._conn.write_command(packet)
+
+    async def _enqueue(self, opcode: int, params: bytes, dest_id: int) -> None:
+        """Add a command to the queue for later sending.
+
+        Raises:
+            CommandQueueFullError: If queue is at capacity.
+        """
+        if len(self._queue) >= _QUEUE_MAX_SIZE:
+            msg = f"Command queue full ({_QUEUE_MAX_SIZE})"
+            raise CommandQueueFullError(msg)
+
+        future: asyncio.Future[None] = asyncio.get_event_loop().create_future()
+        cmd = _QueuedCommand(opcode, params, dest_id, future)
+        self._queue.append(cmd)
+        _LOGGER.debug("Queued command 0x%02X (queue size: %d)", opcode, len(self._queue))
+
+        await future
+
+    async def _drain_queue(self) -> None:
+        """Send all queued commands that haven't expired."""
+        if not self._queue:
+            return
+
+        _LOGGER.info("Draining command queue (%d commands)", len(self._queue))
+        now = time.monotonic()
+        remaining: list[_QueuedCommand] = []
+
+        for cmd in self._queue:
+            if now - cmd.created_at > _COMMAND_TTL:
+                if not cmd.future.done():
+                    cmd.future.set_exception(
+                        CommandExpiredError(f"Command 0x{cmd.opcode:02X} expired")
+                    )
+                continue
+            remaining.append(cmd)
+
+        self._queue.clear()
+
+        for cmd in remaining:
+            try:
+                await self._send_now(cmd.opcode, cmd.params, cmd.dest_id)
+                if not cmd.future.done():
+                    cmd.future.set_result(None)
+            except Exception as exc:
+                if not cmd.future.done():
+                    cmd.future.set_exception(exc)
+                break  # Stop draining on failure
+
+    # --- High-level commands (0xD2 compact DP format) ---
 
     async def send_power(self, on: bool) -> None:
         """Turn the device on or off.
 
+        Uses 0xD2 compact DP with dp_id 121 (confirmed from HCI snoop).
+
         Args:
             on: True to turn on, False to turn off.
         """
-        params = b"\x01" if on else b"\x00"
-        await self.send_command(TELINK_CMD_POWER, params)
+        params = encode_compact_dp(COMPACT_DP_POWER, DP_TYPE_VALUE, 1 if on else 0)
+        await self.send_command(TELINK_CMD_DP_WRITE, params)
         _LOGGER.info("Power %s sent to %s", "ON" if on else "OFF", self._address)
 
     async def send_brightness(self, level: int) -> None:
         """Set the white brightness level.
 
+        Uses 0xD2 compact DP with dp_id 122 (confirmed from HCI snoop).
+
         Args:
-            level: Brightness value (device-dependent range, typically 0-127).
+            level: Brightness percentage (1-100).
 
         Raises:
             ProtocolError: If level is out of range.
         """
-        if not 0 <= level <= 0xFF:
-            msg = f"Brightness must be 0..255, got {level}"
+        if not 1 <= level <= 100:
+            msg = f"Brightness must be 1..100, got {level}"
             raise ProtocolError(msg)
-        await self.send_command(TELINK_CMD_WHITE_BRIGHTNESS, bytes([level]))
-        _LOGGER.info("Brightness %d sent to %s", level, self._address)
+        params = encode_compact_dp(COMPACT_DP_BRIGHTNESS, DP_TYPE_VALUE, level)
+        await self.send_command(TELINK_CMD_DP_WRITE, params)
+        _LOGGER.info("Brightness %d%% sent to %s", level, self._address)
 
     async def send_color_temp(self, temp: int) -> None:
         """Set the white color temperature.
 
         Args:
-            temp: Color temperature value (device-dependent range, typically 0-127).
+            temp: Color temperature value (0-255).
 
         Raises:
             ProtocolError: If temp is out of range.

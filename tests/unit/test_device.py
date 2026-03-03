@@ -1,6 +1,7 @@
 """Unit tests for the MeshDevice command interface."""
 
 import sys
+import time
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -8,14 +9,28 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
-from tuya_ble_mesh.const import TELINK_CHAR_COMMAND
-from tuya_ble_mesh.device import MESH_ADDRESS_ALL, MESH_ADDRESS_DEFAULT, MeshDevice
+from tuya_ble_mesh.connection import BLEConnection, ConnectionState
+from tuya_ble_mesh.const import (
+    COMPACT_DP_BRIGHTNESS,
+    COMPACT_DP_POWER,
+    DP_TYPE_VALUE,
+    TELINK_CMD_DP_WRITE,
+)
+from tuya_ble_mesh.device import (
+    _COMMAND_TTL,
+    _QUEUE_MAX_SIZE,
+    MESH_ADDRESS_ALL,
+    MESH_ADDRESS_DEFAULT,
+    MeshDevice,
+)
 from tuya_ble_mesh.exceptions import (
+    CommandExpiredError,
+    CommandQueueFullError,
     ConnectionError,
     ProtocolError,
     TimeoutError,
 )
-from tuya_ble_mesh.protocol import StatusResponse
+from tuya_ble_mesh.protocol import StatusResponse, encode_compact_dp
 
 MAC = "DC:23:4D:21:43:A5"
 MESH_NAME = b"out_of_mesh"
@@ -29,17 +44,16 @@ def _make_device(**kwargs: object) -> MeshDevice:
 
 
 def _make_connected_device() -> tuple[MeshDevice, AsyncMock]:
-    """Create a MeshDevice in connected state with mock client."""
+    """Create a MeshDevice in connected state with mock BLEConnection."""
     device = _make_device()
-    client = AsyncMock()
-    client.connect = AsyncMock()
-    client.disconnect = AsyncMock()
-    client.write_gatt_char = AsyncMock()
-    client.start_notify = AsyncMock()
-    device._client = client
-    device._session_key = SESSION_KEY
-    device._connected = True
-    return device, client
+    # Mock the BLEConnection to be in READY state
+    conn = device._conn
+    conn._state = ConnectionState.READY
+    conn._session_key = bytearray(SESSION_KEY)
+    conn._client = AsyncMock()
+    conn._client.write_gatt_char = AsyncMock()
+    conn._client.disconnect = AsyncMock()
+    return device, conn._client
 
 
 # --- Construction ---
@@ -71,6 +85,10 @@ class TestConstruction:
     def test_not_connected_initially(self) -> None:
         device = _make_device()
         assert device.is_connected is False
+
+    def test_has_connection(self) -> None:
+        device = _make_device()
+        assert isinstance(device.connection, BLEConnection)
 
 
 # --- mesh_id property ---
@@ -117,25 +135,23 @@ class TestConnect:
 
         mock_client = AsyncMock()
         mock_client.connect = AsyncMock()
-        mock_client.start_notify = AsyncMock()
-
         mock_ble_device = MagicMock()
 
         with (
             patch(
-                "tuya_ble_mesh.device.BleakScanner.find_device_by_address",
+                "tuya_ble_mesh.connection.BleakScanner.find_device_by_address",
                 return_value=mock_ble_device,
             ),
-            patch("tuya_ble_mesh.device.BleakClient", return_value=mock_client),
-            patch(
-                "tuya_ble_mesh.device.provision",
-                return_value=SESSION_KEY,
-            ),
+            patch("tuya_ble_mesh.connection.BleakClient", return_value=mock_client),
+            patch("tuya_ble_mesh.connection.provision", return_value=SESSION_KEY),
         ):
             await device.connect()
 
         assert device.is_connected is True
         mock_client.connect.assert_called_once()
+
+        # Clean up keep-alive
+        device._conn._stop_keep_alive()
 
     @pytest.mark.asyncio
     async def test_connect_already_connected(self) -> None:
@@ -148,15 +164,14 @@ class TestConnect:
 
         mock_client = AsyncMock()
         mock_client.connect = AsyncMock(side_effect=OSError("BLE fail"))
-
         mock_ble_device = MagicMock()
 
         with (
             patch(
-                "tuya_ble_mesh.device.BleakScanner.find_device_by_address",
+                "tuya_ble_mesh.connection.BleakScanner.find_device_by_address",
                 return_value=mock_ble_device,
             ),
-            patch("tuya_ble_mesh.device.BleakClient", return_value=mock_client),
+            patch("tuya_ble_mesh.connection.BleakClient", return_value=mock_client),
             pytest.raises(ConnectionError, match="Failed to connect"),
         ):
             await device.connect()
@@ -170,17 +185,16 @@ class TestConnect:
         mock_client = AsyncMock()
         mock_client.connect = AsyncMock()
         mock_client.disconnect = AsyncMock()
-
         mock_ble_device = MagicMock()
 
         with (
             patch(
-                "tuya_ble_mesh.device.BleakScanner.find_device_by_address",
+                "tuya_ble_mesh.connection.BleakScanner.find_device_by_address",
                 return_value=mock_ble_device,
             ),
-            patch("tuya_ble_mesh.device.BleakClient", return_value=mock_client),
+            patch("tuya_ble_mesh.connection.BleakClient", return_value=mock_client),
             patch(
-                "tuya_ble_mesh.device.provision",
+                "tuya_ble_mesh.connection.provision",
                 side_effect=Exception("pair failed"),
             ),
             pytest.raises(ConnectionError, match="Provisioning failed"),
@@ -215,24 +229,20 @@ class TestContextManager:
         mock_client = AsyncMock()
         mock_client.connect = AsyncMock()
         mock_client.disconnect = AsyncMock()
-        mock_client.start_notify = AsyncMock()
-
         mock_ble_device = MagicMock()
 
         with (
             patch(
-                "tuya_ble_mesh.device.BleakScanner.find_device_by_address",
+                "tuya_ble_mesh.connection.BleakScanner.find_device_by_address",
                 return_value=mock_ble_device,
             ),
-            patch("tuya_ble_mesh.device.BleakClient", return_value=mock_client),
-            patch(
-                "tuya_ble_mesh.device.provision",
-                return_value=SESSION_KEY,
-            ),
+            patch("tuya_ble_mesh.connection.BleakClient", return_value=mock_client),
+            patch("tuya_ble_mesh.connection.provision", return_value=SESSION_KEY),
         ):
             device = _make_device()
             async with device:
                 assert device.is_connected is True
+                device._conn._stop_keep_alive()
             assert device.is_connected is False
 
 
@@ -245,48 +255,45 @@ class TestSendCommand:
     @pytest.mark.asyncio
     async def test_send_command(self) -> None:
         device, client = _make_connected_device()
-        await device.send_command(0xD0, b"\x01")
+        await device.send_command(0xD2, b"\x79\x02\x04\x00\x00\x00\x01")
 
         client.write_gatt_char.assert_called_once()
-        args = client.write_gatt_char.call_args
-        assert args[0][0] == TELINK_CHAR_COMMAND
-        assert len(args[0][1]) == 20
-        assert args[1]["response"] is False
 
     @pytest.mark.asyncio
-    async def test_send_command_not_connected_raises(self) -> None:
-        device = _make_device()
-        with pytest.raises(ConnectionError, match="Not connected"):
-            await device.send_command(0xD0, b"\x01")
+    async def test_send_when_connected_goes_to_ble(self) -> None:
+        """When connected, commands are sent immediately."""
+        device, client = _make_connected_device()
+        await device.send_command(0xD2, b"\x01")
+        client.write_gatt_char.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_send_command_custom_dest(self) -> None:
         device, client = _make_connected_device()
-        await device.send_command(0xD0, b"\x01", dest_id=42)
+        await device.send_command(0xD2, b"\x01", dest_id=42)
         client.write_gatt_char.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_sequence_increments(self) -> None:
         device, _ = _make_connected_device()
-        seq1 = device._next_sequence()
-        seq2 = device._next_sequence()
-        assert seq2 == seq1 + 1
+        s1 = device._conn.next_sequence()
+        s2 = device._conn.next_sequence()
+        assert s2 == s1 + 1
 
     @pytest.mark.asyncio
     async def test_sequence_wraps(self) -> None:
         device, _ = _make_connected_device()
-        device._sequence = 0xFFFFFF
-        seq = device._next_sequence()
+        device._conn._sequence = 0xFFFFFF
+        seq = device._conn.next_sequence()
         assert seq == 0xFFFFFF
-        next_seq = device._next_sequence()
+        next_seq = device._conn.next_sequence()
         assert next_seq == 0
 
 
-# --- send_power ---
+# --- send_power (0xD2 compact DP) ---
 
 
 class TestSendPower:
-    """Test power on/off commands."""
+    """Test power on/off commands using 0xD2 compact DP."""
 
     @pytest.mark.asyncio
     async def test_power_on(self) -> None:
@@ -294,18 +301,43 @@ class TestSendPower:
         await device.send_power(True)
         client.write_gatt_char.assert_called_once()
 
+        # Verify the packet encodes 0xD2 with compact DP for power
+        args = client.write_gatt_char.call_args
+        packet = args[0][1]
+        assert len(packet) == 20
+
     @pytest.mark.asyncio
     async def test_power_off(self) -> None:
         device, client = _make_connected_device()
         await device.send_power(False)
         client.write_gatt_char.assert_called_once()
 
+    @pytest.mark.asyncio
+    async def test_power_uses_dp_write_opcode(self) -> None:
+        """Verify send_power uses TELINK_CMD_DP_WRITE (0xD2)."""
+        device, _ = _make_connected_device()
+        expected_params = encode_compact_dp(COMPACT_DP_POWER, DP_TYPE_VALUE, 1)
 
-# --- send_brightness ---
+        with patch.object(device, "send_command", new_callable=AsyncMock) as mock_cmd:
+            await device.send_power(True)
+            mock_cmd.assert_called_once_with(TELINK_CMD_DP_WRITE, expected_params)
+
+    @pytest.mark.asyncio
+    async def test_power_off_value(self) -> None:
+        """Verify send_power(False) sends value 0."""
+        device, _ = _make_connected_device()
+        expected_params = encode_compact_dp(COMPACT_DP_POWER, DP_TYPE_VALUE, 0)
+
+        with patch.object(device, "send_command", new_callable=AsyncMock) as mock_cmd:
+            await device.send_power(False)
+            mock_cmd.assert_called_once_with(TELINK_CMD_DP_WRITE, expected_params)
+
+
+# --- send_brightness (0xD2 compact DP, 1-100%) ---
 
 
 class TestSendBrightness:
-    """Test brightness commands."""
+    """Test brightness commands using 0xD2 compact DP."""
 
     @pytest.mark.asyncio
     async def test_valid_brightness(self) -> None:
@@ -314,26 +346,43 @@ class TestSendBrightness:
         client.write_gatt_char.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_brightness_zero(self) -> None:
+    async def test_brightness_min(self) -> None:
         device, _ = _make_connected_device()
-        await device.send_brightness(0)
+        await device.send_brightness(1)
 
     @pytest.mark.asyncio
     async def test_brightness_max(self) -> None:
         device, _ = _make_connected_device()
-        await device.send_brightness(255)
+        await device.send_brightness(100)
+
+    @pytest.mark.asyncio
+    async def test_brightness_zero_raises(self) -> None:
+        """Brightness 0 is out of range (use send_power(False) instead)."""
+        device, _ = _make_connected_device()
+        with pytest.raises(ProtocolError, match="Brightness"):
+            await device.send_brightness(0)
 
     @pytest.mark.asyncio
     async def test_brightness_too_high(self) -> None:
         device, _ = _make_connected_device()
         with pytest.raises(ProtocolError, match="Brightness"):
-            await device.send_brightness(256)
+            await device.send_brightness(101)
 
     @pytest.mark.asyncio
     async def test_brightness_negative(self) -> None:
         device, _ = _make_connected_device()
         with pytest.raises(ProtocolError, match="Brightness"):
             await device.send_brightness(-1)
+
+    @pytest.mark.asyncio
+    async def test_brightness_uses_dp_write_opcode(self) -> None:
+        """Verify send_brightness uses TELINK_CMD_DP_WRITE (0xD2)."""
+        device, _ = _make_connected_device()
+        expected_params = encode_compact_dp(COMPACT_DP_BRIGHTNESS, DP_TYPE_VALUE, 50)
+
+        with patch.object(device, "send_command", new_callable=AsyncMock) as mock_cmd:
+            await device.send_brightness(50)
+            mock_cmd.assert_called_once_with(TELINK_CMD_DP_WRITE, expected_params)
 
 
 # --- send_color_temp ---
@@ -487,9 +536,7 @@ class TestStatusCallbacks:
         received: list[StatusResponse] = []
         device.register_status_callback(lambda s: received.append(s))
 
-        # Build a fake 20-byte notification that decrypt_notification can handle
         with patch("tuya_ble_mesh.device.decrypt_notification") as mock_decrypt:
-            # Return 20 bytes with valid status fields
             fake = bytearray(20)
             fake[3] = 1  # mesh_id
             fake[12] = 0  # mode
@@ -509,7 +556,6 @@ class TestStatusCallbacks:
 
     def test_notification_without_session_key(self) -> None:
         device = _make_device()
-        # Should not raise
         device._handle_notification(0, bytearray(20))
 
     def test_callback_exception_isolated(self) -> None:
@@ -528,8 +574,102 @@ class TestStatusCallbacks:
             mock_decrypt.return_value = bytes(fake)
             device._handle_notification(0, bytearray(20))
 
-        # Second callback still received the status despite first raising
         assert len(received) == 1
+
+
+# --- Disconnect callbacks ---
+
+
+class TestDisconnectCallbacks:
+    """Test device-level disconnect callbacks."""
+
+    def test_register_and_unregister(self) -> None:
+        device = _make_device()
+        cb = MagicMock()
+        device.register_disconnect_callback(cb)
+        assert cb in device._disconnect_callbacks
+        device.unregister_disconnect_callback(cb)
+        assert cb not in device._disconnect_callbacks
+
+    def test_disconnect_callback_called(self) -> None:
+        device = _make_device()
+        cb = MagicMock()
+        device.register_disconnect_callback(cb)
+
+        device._on_disconnect()
+
+        cb.assert_called_once()
+
+
+# --- Command queue ---
+
+
+class TestCommandQueue:
+    """Test command queue behavior."""
+
+    @pytest.mark.asyncio
+    async def test_queue_full_raises(self) -> None:
+        """When not connected, exceeding queue limit raises."""
+        device = _make_device()
+        # Fill the queue with dummy commands (manually to avoid awaiting futures)
+        import asyncio
+
+        for _ in range(_QUEUE_MAX_SIZE):
+            future: asyncio.Future[None] = asyncio.get_event_loop().create_future()
+            from tuya_ble_mesh.device import _QueuedCommand
+
+            cmd = _QueuedCommand(0xD2, b"\x01", 0, future)
+            device._queue.append(cmd)
+
+        with pytest.raises(CommandQueueFullError, match="32"):
+            await device._enqueue(0xD2, b"\x01", 0)
+
+    @pytest.mark.asyncio
+    async def test_drain_queue_sends_commands(self) -> None:
+        """Queued commands are sent on reconnect."""
+        device, client = _make_connected_device()
+        import asyncio
+
+        future: asyncio.Future[None] = asyncio.get_event_loop().create_future()
+        from tuya_ble_mesh.device import _QueuedCommand
+
+        cmd = _QueuedCommand(0xD2, b"\x01", 0, future)
+        device._queue.append(cmd)
+
+        await device._drain_queue()
+
+        assert future.done()
+        assert future.exception() is None
+        client.write_gatt_char.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_drain_queue_expires_old_commands(self) -> None:
+        """Commands older than TTL are expired during drain."""
+        device, _ = _make_connected_device()
+        import asyncio
+
+        future: asyncio.Future[None] = asyncio.get_event_loop().create_future()
+        from tuya_ble_mesh.device import _QueuedCommand
+
+        cmd = _QueuedCommand(0xD2, b"\x01", 0, future)
+        # Make command old
+        cmd.created_at = time.monotonic() - _COMMAND_TTL - 1
+
+        device._queue.append(cmd)
+        await device._drain_queue()
+
+        assert future.done()
+        assert isinstance(future.exception(), CommandExpiredError)
+
+    @pytest.mark.asyncio
+    async def test_drain_empty_queue_is_noop(self) -> None:
+        device, client = _make_connected_device()
+        await device._drain_queue()
+        client.write_gatt_char.assert_not_called()
+
+    def test_queue_constants(self) -> None:
+        assert _QUEUE_MAX_SIZE == 32
+        assert _COMMAND_TTL == 60.0
 
 
 # --- wait_for_status ---
