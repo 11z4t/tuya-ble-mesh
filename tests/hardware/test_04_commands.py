@@ -58,10 +58,10 @@ class TestCommands:
             await device.send_power(True)
             await asyncio.sleep(0.5)
 
-            for level in [10, 64, 127]:
+            for level in [10, 50, 100]:
                 await device.send_brightness(level)
                 await asyncio.sleep(1.5)
-                print(f"VERIFY: Brightness should be ~{level}/127")
+                print(f"VERIFY: Brightness should be ~{level}%")
 
     @pytest.mark.asyncio
     async def test_color_temp(
