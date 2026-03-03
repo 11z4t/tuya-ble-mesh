@@ -19,6 +19,7 @@ from typing import Any
 from bleak import BleakClient, BleakScanner
 
 from tuya_ble_mesh.const import (
+    DIS_FIRMWARE_REVISION,
     TELINK_CHAR_COMMAND,
     TELINK_CMD_STATUS_QUERY,
     TELINK_VENDOR_ID,
@@ -97,6 +98,7 @@ class BLEConnection:
         self._state = ConnectionState.DISCONNECTED
         self._client: BleakClient | None = None
         self._session_key: bytearray | None = None
+        self._firmware_version: str | None = None
         self._sequence: int = 0
         self._keep_alive_task: asyncio.Task[None] | None = None
         self._disconnect_callbacks: list[DisconnectCallback] = []
@@ -123,6 +125,11 @@ class BLEConnection:
     def is_ready(self) -> bool:
         """Return True if the connection is ready for commands."""
         return self._state == ConnectionState.READY
+
+    @property
+    def firmware_version(self) -> str | None:
+        """Return the device firmware version, or None if not read."""
+        return self._firmware_version
 
     def next_sequence(self) -> int:
         """Get the next sequence number (24-bit, wrapping)."""
@@ -188,6 +195,8 @@ class BLEConnection:
             msg = f"Provisioning failed for {self._address}"
             raise ConnectionError(msg) from exc
 
+        await self._read_firmware_version()
+
         self._state = ConnectionState.READY
         self._start_keep_alive()
         _LOGGER.info("Connected and provisioned: %s", self._address)
@@ -240,6 +249,17 @@ class BLEConnection:
 
         msg = f"Failed to connect to {self._address} after {max_retries} attempts"
         raise ConnectionError(msg) from last_exc
+
+    async def _read_firmware_version(self) -> None:
+        """Read firmware version from Device Information Service (0x2A26)."""
+        if self._client is None:
+            return
+        try:
+            raw = await self._client.read_gatt_char(DIS_FIRMWARE_REVISION)
+            self._firmware_version = raw.decode("utf-8", errors="replace").strip()
+            _LOGGER.debug("Firmware version: %s", self._firmware_version)
+        except Exception:
+            _LOGGER.debug("Could not read firmware version (ignored)", exc_info=True)
 
     async def _clear_bluez_device(self) -> None:
         """Remove the device from BlueZ D-Bus cache."""

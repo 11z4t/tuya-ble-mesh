@@ -17,6 +17,9 @@ if TYPE_CHECKING:
     from tuya_ble_mesh.device import MeshDevice
     from tuya_ble_mesh.protocol import StatusResponse
 
+# RSSI refresh interval (seconds)
+_RSSI_REFRESH_INTERVAL = 60.0
+
 _LOGGER = logging.getLogger(__name__)
 
 # Reconnect backoff parameters
@@ -51,6 +54,7 @@ class TuyaBLEMeshCoordinator:
         self._state = TuyaBLEMeshDeviceState()
         self._listeners: list[Callable[[], None]] = []
         self._reconnect_task: asyncio.Task[None] | None = None
+        self._rssi_task: asyncio.Task[None] | None = None
         self._backoff = _INITIAL_BACKOFF
         self._running = False
 
@@ -119,6 +123,7 @@ class TuyaBLEMeshCoordinator:
         """
         _LOGGER.warning("Device disconnected: %s", self._device.address)
         self._state.available = False
+        self._stop_rssi_polling()
         self._notify_listeners()
         self._schedule_reconnect()
 
@@ -131,7 +136,9 @@ class TuyaBLEMeshCoordinator:
         try:
             await self._device.connect()
             self._state.available = True
+            self._state.firmware_version = self._device.firmware_version
             self._backoff = _INITIAL_BACKOFF
+            self._start_rssi_polling()
             _LOGGER.info("Coordinator started for %s", self._device.address)
         except Exception:
             _LOGGER.warning(
@@ -147,6 +154,8 @@ class TuyaBLEMeshCoordinator:
     async def async_stop(self) -> None:
         """Stop the coordinator — disconnect and cancel reconnection."""
         self._running = False
+
+        self._stop_rssi_polling()
 
         if self._reconnect_task is not None:
             self._reconnect_task.cancel()
@@ -189,7 +198,9 @@ class TuyaBLEMeshCoordinator:
             try:
                 await self._device.connect()
                 self._state.available = True
+                self._state.firmware_version = self._device.firmware_version
                 self._backoff = _INITIAL_BACKOFF
+                self._start_rssi_polling()
                 _LOGGER.info("Reconnected to %s", self._device.address)
                 self._notify_listeners()
                 return
@@ -202,3 +213,37 @@ class TuyaBLEMeshCoordinator:
                 self._state.available = False
                 self._backoff = min(self._backoff * _BACKOFF_MULTIPLIER, _MAX_BACKOFF)
                 self._notify_listeners()
+
+    # --- RSSI polling ---
+
+    def _start_rssi_polling(self) -> None:
+        """Start periodic RSSI refresh via BLE scan."""
+        self._stop_rssi_polling()
+        self._rssi_task = asyncio.ensure_future(self._rssi_loop())
+
+    def _stop_rssi_polling(self) -> None:
+        """Stop RSSI polling."""
+        if self._rssi_task is not None:
+            self._rssi_task.cancel()
+            self._rssi_task = None
+
+    async def _rssi_loop(self) -> None:
+        """Periodically scan for device to update RSSI."""
+        from bleak import BleakScanner
+
+        try:
+            while self._running and self._state.available:
+                await asyncio.sleep(_RSSI_REFRESH_INTERVAL)
+                if not self._running or not self._state.available:
+                    break
+                try:
+                    device = await BleakScanner.find_device_by_address(
+                        self._device.address, timeout=10.0
+                    )
+                    if device is not None and device.rssi is not None:
+                        self._state.rssi = device.rssi
+                        self._notify_listeners()
+                except Exception:
+                    _LOGGER.debug("RSSI scan failed (ignored)", exc_info=True)
+        except asyncio.CancelledError:
+            pass
