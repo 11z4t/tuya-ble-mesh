@@ -7,7 +7,10 @@ Run with: pytest tests/hardware/ -v -s
 from __future__ import annotations
 
 import asyncio
+import contextlib
+import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -45,6 +48,19 @@ requires_bluetooth = pytest.mark.skipif(
     not _check_bluetooth_available(),
     reason="Bluetooth adapter (hci0) not available or not running",
 )
+
+
+@pytest.fixture(autouse=True, scope="session")
+def _clear_bluez_cache() -> None:
+    """Remove stale BlueZ state before hardware test session."""
+    with contextlib.suppress(Exception):
+        subprocess.run(
+            ["bluetoothctl", "remove", TARGET_MAC],
+            capture_output=True,
+            timeout=5,
+        )
+    # Settle time for D-Bus
+    time.sleep(1.0)
 
 
 @pytest.fixture
