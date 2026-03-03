@@ -230,6 +230,23 @@ class TestCryptPayload:
         with pytest.raises(CryptoError, match="16 bytes"):
             crypt_payload(b"\x00" * 8, b"\x00" * 8, b"data")
 
+    def test_rejects_oversized_payload(self) -> None:
+        """CTR counter is single byte — payloads over 4096 bytes must be rejected."""
+        key = b"\x00" * 16
+        nonce = b"\x00" * 8
+        oversized = b"\x41" * 4097  # 257 blocks, exceeds 256-block limit
+        with pytest.raises(CryptoError, match="too large"):
+            crypt_payload(key, nonce, oversized)
+
+    def test_accepts_max_size_payload(self) -> None:
+        """Exactly 4096 bytes (256 blocks) should be accepted."""
+        key = b"\xab" * 16
+        nonce = b"\xcd" * 8
+        max_payload = b"\x42" * 4096  # Exactly 256 blocks
+        encrypted = crypt_payload(key, nonce, max_payload)
+        decrypted = crypt_payload(key, nonce, encrypted)
+        assert decrypted == max_payload
+
 
 # --- make_checksum (CBC-MAC) ---
 
