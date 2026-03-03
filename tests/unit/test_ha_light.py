@@ -13,12 +13,13 @@ _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
 sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
+from homeassistant.components.light import ColorMode  # noqa: E402
+
 from custom_components.tuya_ble_mesh.const import DOMAIN  # noqa: E402
 from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     TuyaBLEMeshDeviceState,
 )
 from custom_components.tuya_ble_mesh.light import (  # noqa: E402
-    COLOR_MODE_COLOR_TEMP,
     TuyaBLEMeshLight,
     async_setup_entry,
     brightness_to_device,
@@ -205,12 +206,17 @@ class TestLightProperties:
     def test_color_mode(self) -> None:
         coord = make_mock_coordinator()
         light = TuyaBLEMeshLight(coord, "test_entry")
-        assert light.color_mode == COLOR_MODE_COLOR_TEMP
+        assert light.color_mode == ColorMode.COLOR_TEMP
 
     def test_supported_color_modes(self) -> None:
         coord = make_mock_coordinator()
         light = TuyaBLEMeshLight(coord, "test_entry")
-        assert light.supported_color_modes == {COLOR_MODE_COLOR_TEMP}
+        assert light.supported_color_modes == {ColorMode.COLOR_TEMP}
+
+    def test_should_poll_false(self) -> None:
+        coord = make_mock_coordinator()
+        light = TuyaBLEMeshLight(coord, "test_entry")
+        assert light.should_poll is False
 
 
 class TestLightActions:
@@ -291,6 +297,19 @@ class TestLightLifecycle:
         await light.async_will_remove_from_hass()
 
         remove_fn.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_update_triggers_ha_state_write(self) -> None:
+        coord = make_mock_coordinator()
+        light = TuyaBLEMeshLight(coord, "test_entry")
+        light.async_write_ha_state = MagicMock()
+
+        await light.async_added_to_hass()
+        # Get the callback that was registered
+        callback = coord.add_listener.call_args[0][0]
+        callback()
+
+        light.async_write_ha_state.assert_called_once()
 
 
 class TestLightPlatformSetup:

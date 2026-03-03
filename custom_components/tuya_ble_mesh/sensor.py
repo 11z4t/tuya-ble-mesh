@@ -8,6 +8,9 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.helpers.entity import EntityCategory
+
 from custom_components.tuya_ble_mesh.const import DOMAIN
 
 if TYPE_CHECKING:
@@ -44,11 +47,10 @@ async def async_setup_entry(
     )
 
 
-class TuyaBLEMeshRSSISensor:
-    """RSSI signal strength sensor for a Tuya BLE Mesh device.
+class TuyaBLEMeshRSSISensor(SensorEntity):
+    """RSSI signal strength sensor for a Tuya BLE Mesh device."""
 
-    Duck-typed to match HA's SensorEntity interface.
-    """
+    _attr_should_poll = False
 
     def __init__(self, coordinator: TuyaBLEMeshCoordinator, entry_id: str) -> None:
         self._coordinator = coordinator
@@ -83,14 +85,14 @@ class TuyaBLEMeshRSSISensor:
         return "dBm"
 
     @property
-    def device_class(self) -> str:
+    def device_class(self) -> SensorDeviceClass:
         """Return the device class."""
-        return "signal_strength"
+        return SensorDeviceClass.SIGNAL_STRENGTH
 
     @property
-    def entity_category(self) -> str:
+    def entity_category(self) -> EntityCategory:
         """Return the entity category."""
-        return "diagnostic"
+        return EntityCategory.DIAGNOSTIC
 
     async def async_added_to_hass(self) -> None:
         """Register state listener when added to HA."""
@@ -104,14 +106,13 @@ class TuyaBLEMeshRSSISensor:
 
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        _LOGGER.debug("RSSI sensor updated: %s", self.native_value)
+        self.async_write_ha_state()
 
 
-class TuyaBLEMeshFirmwareSensor:
-    """Firmware version sensor for a Tuya BLE Mesh device.
+class TuyaBLEMeshFirmwareSensor(SensorEntity):
+    """Firmware version sensor for a Tuya BLE Mesh device."""
 
-    Duck-typed to match HA's SensorEntity interface.
-    """
+    _attr_should_poll = False
 
     def __init__(self, coordinator: TuyaBLEMeshCoordinator, entry_id: str) -> None:
         self._coordinator = coordinator
@@ -141,9 +142,9 @@ class TuyaBLEMeshFirmwareSensor:
         return self._coordinator.state.firmware_version
 
     @property
-    def entity_category(self) -> str:
+    def entity_category(self) -> EntityCategory:
         """Return the entity category."""
-        return "diagnostic"
+        return EntityCategory.DIAGNOSTIC
 
     async def async_added_to_hass(self) -> None:
         """Register state listener when added to HA."""
@@ -157,4 +158,4 @@ class TuyaBLEMeshFirmwareSensor:
 
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        _LOGGER.debug("Firmware sensor updated: %s", self.native_value)
+        self.async_write_ha_state()
