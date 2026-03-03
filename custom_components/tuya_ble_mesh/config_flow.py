@@ -9,6 +9,8 @@ import logging
 import re
 from typing import Any
 
+from homeassistant.config_entries import ConfigFlow
+
 from custom_components.tuya_ble_mesh.const import (
     CONF_MAC_ADDRESS,
     CONF_MESH_NAME,
@@ -35,16 +37,13 @@ def _validate_mac(mac: str) -> str | None:
     return None
 
 
-class TuyaBLEMeshConfigFlow:
-    """Handle a config flow for Tuya BLE Mesh.
+class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
+    """Handle a config flow for Tuya BLE Mesh."""
 
-    Duck-typed to match HA's ConfigFlow interface without importing it.
-    """
-
-    DOMAIN = DOMAIN
     VERSION = 1
 
     def __init__(self) -> None:
+        super().__init__()
         self._discovery_info: dict[str, Any] | None = None
 
     async def async_step_bluetooth(self, discovery_info: dict[str, Any]) -> dict[str, Any]:
@@ -62,7 +61,8 @@ class TuyaBLEMeshConfigFlow:
         _LOGGER.info("Bluetooth discovery: %s (%s)", name, address)
 
         # Check if already configured
-        await self._async_abort_if_unique_id_configured(address)
+        await self.async_set_unique_id(address)
+        self._abort_if_unique_id_configured()
 
         self._discovery_info = {
             "address": address,
@@ -81,7 +81,7 @@ class TuyaBLEMeshConfigFlow:
             Flow result dict.
         """
         if user_input is not None and self._discovery_info is not None:
-            return self._async_create_entry(
+            return self.async_create_entry(
                 title=self._discovery_info.get("name", "Tuya BLE Mesh"),
                 data={
                     CONF_MAC_ADDRESS: self._discovery_info["address"],
@@ -90,13 +90,12 @@ class TuyaBLEMeshConfigFlow:
                 },
             )
 
-        return {
-            "type": "form",
-            "step_id": "confirm",
-            "description_placeholders": {
+        return self.async_show_form(
+            step_id="confirm",
+            description_placeholders={
                 "name": self._discovery_info.get("name", "") if self._discovery_info else "",
             },
-        }
+        )
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> dict[str, Any]:
         """Handle manual setup.
@@ -115,7 +114,7 @@ class TuyaBLEMeshConfigFlow:
             if mac_error:
                 errors[CONF_MAC_ADDRESS] = mac_error
             else:
-                return self._async_create_entry(
+                return self.async_create_entry(
                     title=f"Tuya BLE Mesh {mac[-8:]}",
                     data={
                         CONF_MAC_ADDRESS: mac.upper(),
@@ -124,34 +123,7 @@ class TuyaBLEMeshConfigFlow:
                     },
                 )
 
-        return {
-            "type": "form",
-            "step_id": "user",
-            "errors": errors,
-        }
-
-    async def _async_abort_if_unique_id_configured(self, unique_id: str) -> None:
-        """Set unique ID and abort if already configured.
-
-        Args:
-            unique_id: Unique identifier (MAC address).
-        """
-        # In HA, this would call self.async_set_unique_id() and
-        # self._abort_if_unique_id_configured(). Duck-typed here.
-        pass
-
-    def _async_create_entry(self, *, title: str, data: dict[str, Any]) -> dict[str, Any]:
-        """Create a config entry.
-
-        Args:
-            title: Entry title.
-            data: Entry data.
-
-        Returns:
-            Flow result dict.
-        """
-        return {
-            "type": "create_entry",
-            "title": title,
-            "data": data,
-        }
+        return self.async_show_form(
+            step_id="user",
+            errors=errors,
+        )
