@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -344,3 +346,147 @@ class TestLightPlatformSetup:
 
         entities = add_entities.call_args[0][0]
         assert entities[0]._coordinator is coord
+
+
+class TestTransitions:
+    """Test transition (gradual brightness/color temp) support."""
+
+    @pytest.mark.asyncio
+    async def test_turn_on_with_transition_brightness(self) -> None:
+        """Transition sends multiple brightness steps."""
+        coord = make_mock_coordinator(brightness=10)
+        light = TuyaBLEMeshLight(coord, "test_entry")
+
+        await light.async_turn_on(brightness=255, transition=0.2)
+        # Wait for the transition task to complete
+        assert light._transition_task is not None
+        await light._transition_task
+
+        # Should have called send_brightness multiple times (>= 2 steps)
+        assert coord.device.send_brightness.call_count >= 2
+        # Last call should be close to device max (100)
+        last_val = coord.device.send_brightness.call_args_list[-1][0][0]
+        assert last_val == 100
+        # Power should NOT have been called
+        coord.device.send_power.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_turn_on_with_transition_color_temp(self) -> None:
+        """Transition sends multiple color_temp steps."""
+        coord = make_mock_coordinator(color_temp=0)
+        light = TuyaBLEMeshLight(coord, "test_entry")
+
+        # 153 mireds (coolest) -> device 127
+        await light.async_turn_on(color_temp=153, transition=0.2)
+        assert light._transition_task is not None
+        await light._transition_task
+
+        assert coord.device.send_color_temp.call_count >= 2
+        last_val = coord.device.send_color_temp.call_args_list[-1][0][0]
+        assert last_val == 127
+
+    @pytest.mark.asyncio
+    async def test_turn_off_with_transition(self) -> None:
+        """Turn off with transition ramps brightness down then powers off."""
+        coord = make_mock_coordinator(brightness=80)
+        light = TuyaBLEMeshLight(coord, "test_entry")
+
+        await light.async_turn_off(transition=0.2)
+        assert light._transition_task is not None
+        await light._transition_task
+
+        # Should ramp brightness down
+        assert coord.device.send_brightness.call_count >= 2
+        # Last brightness should be min (1)
+        last_val = coord.device.send_brightness.call_args_list[-1][0][0]
+        assert last_val == 1
+        # Then power off
+        coord.device.send_power.assert_called_once_with(False)
+
+    @pytest.mark.asyncio
+    async def test_transition_cancelled_by_new_command(self) -> None:
+        """A new turn_on cancels an in-progress transition."""
+        coord = make_mock_coordinator(brightness=50)
+        # Make send_brightness slow so we can cancel mid-transition
+        call_count = 0
+
+        async def slow_send(val: int) -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count <= 2:
+                await asyncio.sleep(0.5)
+
+        coord.device.send_brightness = AsyncMock(side_effect=slow_send)
+
+        light = TuyaBLEMeshLight(coord, "test_entry")
+
+        # Start a long transition
+        await light.async_turn_on(brightness=255, transition=5.0)
+        task1 = light._transition_task
+        assert task1 is not None
+
+        # Immediately send a new instant command — should cancel transition
+        await light.async_turn_on(brightness=128)
+
+        # Let event loop process the cancellation
+        with contextlib.suppress(asyncio.CancelledError, TimeoutError):
+            await asyncio.wait_for(asyncio.shield(task1), timeout=0.1)
+
+        # First task should be cancelled
+        assert task1.cancelled() or task1.done()
+
+    @pytest.mark.asyncio
+    async def test_no_transition_unchanged_behavior(self) -> None:
+        """Without transition kwarg, behavior is unchanged (instant)."""
+        coord = make_mock_coordinator()
+        light = TuyaBLEMeshLight(coord, "test_entry")
+
+        await light.async_turn_on(brightness=200)
+
+        coord.device.send_brightness.assert_called_once()
+        assert light._transition_task is None
+
+    @pytest.mark.asyncio
+    async def test_transition_zero_is_instant(self) -> None:
+        """Transition=0 should use instant path, not transition."""
+        coord = make_mock_coordinator()
+        light = TuyaBLEMeshLight(coord, "test_entry")
+
+        await light.async_turn_on(brightness=200, transition=0)
+
+        coord.device.send_brightness.assert_called_once()
+        assert light._transition_task is None
+
+    @pytest.mark.asyncio
+    async def test_supported_features_includes_transition(self) -> None:
+        """Entity reports TRANSITION as supported feature."""
+        from homeassistant.components.light import LightEntityFeature
+
+        coord = make_mock_coordinator()
+        light = TuyaBLEMeshLight(coord, "test_entry")
+        assert light.supported_features & LightEntityFeature.TRANSITION
+
+    @pytest.mark.asyncio
+    async def test_will_remove_cancels_transition(self) -> None:
+        """Removing entity from HA cancels in-progress transition."""
+        coord = make_mock_coordinator(brightness=50)
+
+        async def slow_send(val: int) -> None:
+            await asyncio.sleep(5.0)
+
+        coord.device.send_brightness = AsyncMock(side_effect=slow_send)
+
+        light = TuyaBLEMeshLight(coord, "test_entry")
+        light._remove_listener = MagicMock()
+
+        await light.async_turn_on(brightness=255, transition=5.0)
+        task = light._transition_task
+        assert task is not None
+
+        await light.async_will_remove_from_hass()
+
+        # Let event loop process the cancellation
+        await asyncio.sleep(0)
+
+        assert task.cancelled() or task.done()
+        assert light._transition_task is None

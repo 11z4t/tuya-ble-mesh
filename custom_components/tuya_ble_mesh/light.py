@@ -8,10 +8,16 @@ Mappings:
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.light import ColorMode, LightEntity
+from homeassistant.components.light import (
+    ATTR_TRANSITION,
+    ColorMode,
+    LightEntity,
+    LightEntityFeature,
+)
 
 from custom_components.tuya_ble_mesh.const import (
     DEVICE_BRIGHTNESS_MAX,
@@ -134,6 +140,7 @@ class TuyaBLEMeshLight(LightEntity):
     """Light entity for a Tuya BLE Mesh device."""
 
     _attr_should_poll = False
+    _attr_supported_features = LightEntityFeature.TRANSITION
 
     def __init__(self, coordinator: TuyaBLEMeshCoordinator, entry_id: str) -> None:
         self._coordinator = coordinator
@@ -141,6 +148,7 @@ class TuyaBLEMeshLight(LightEntity):
         self._attr_unique_id = f"{coordinator.device.address}_light"
         self._attr_name = f"Tuya BLE Mesh {coordinator.device.address[-8:]}"
         self._remove_listener: Any = None
+        self._transition_task: asyncio.Task[None] | None = None
 
     @property
     def unique_id(self) -> str:
@@ -200,12 +208,23 @@ class TuyaBLEMeshLight(LightEntity):
         """Turn on the light.
 
         Args:
-            **kwargs: Optional brightness and color_temp.
+            **kwargs: Optional brightness, color_temp, and transition.
         """
+        self._cancel_transition()
         device = self._coordinator.device
+        transition: float | None = kwargs.get(ATTR_TRANSITION)
 
         brightness = kwargs.get("brightness")
         color_temp = kwargs.get("color_temp")
+
+        has_target = brightness is not None or color_temp is not None
+        if transition is not None and transition > 0 and has_target:
+            target_bright = brightness_to_device(brightness) if brightness is not None else None
+            target_temp = color_temp_to_device(color_temp) if color_temp is not None else None
+            self._transition_task = asyncio.create_task(
+                self._run_transition(target_bright, target_temp, transition)
+            )
+            return
 
         if brightness is not None:
             device_brightness = brightness_to_device(brightness)
@@ -221,8 +240,78 @@ class TuyaBLEMeshLight(LightEntity):
             await device.send_power(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
-        """Turn off the light."""
+        """Turn off the light.
+
+        Args:
+            **kwargs: Optional transition.
+        """
+        self._cancel_transition()
+        transition: float | None = kwargs.get(ATTR_TRANSITION)
+
+        if transition is not None and transition > 0:
+            self._transition_task = asyncio.create_task(
+                self._run_transition(
+                    target_brightness=DEVICE_BRIGHTNESS_MIN,
+                    target_color_temp=None,
+                    duration=transition,
+                    power_off_after=True,
+                )
+            )
+            return
+
         await self._coordinator.device.send_power(False)
+
+    def _cancel_transition(self) -> None:
+        """Cancel any in-progress transition task."""
+        if self._transition_task is not None and not self._transition_task.done():
+            self._transition_task.cancel()
+        self._transition_task = None
+
+    async def _run_transition(
+        self,
+        target_brightness: int | None,
+        target_color_temp: int | None,
+        duration: float,
+        *,
+        power_off_after: bool = False,
+    ) -> None:
+        """Run a gradual transition by sending incremental commands.
+
+        Args:
+            target_brightness: Target device brightness (1-100), or None.
+            target_color_temp: Target device color temp (0-127), or None.
+            duration: Transition duration in seconds.
+            power_off_after: Send power off after transition completes.
+        """
+        device = self._coordinator.device
+        state = self._coordinator.state
+
+        steps = min(int(duration * 10), 50)
+        if steps < 2:
+            steps = 2
+        interval = duration / steps
+
+        start_bright = state.brightness if target_brightness is not None else None
+        start_temp = state.color_temp if target_color_temp is not None else None
+
+        for i in range(1, steps + 1):
+            fraction = i / steps
+
+            if target_brightness is not None and start_bright is not None:
+                val = round(start_bright + (target_brightness - start_bright) * fraction)
+                val = max(DEVICE_BRIGHTNESS_MIN, min(val, DEVICE_BRIGHTNESS_MAX))
+                await device.send_brightness(val)
+
+            if target_color_temp is not None and start_temp is not None:
+                val = round(start_temp + (target_color_temp - start_temp) * fraction)
+                val = max(DEVICE_COLOR_TEMP_MIN, min(val, DEVICE_COLOR_TEMP_MAX))
+                await device.send_color_temp(val)
+
+            if i < steps:
+                await asyncio.sleep(interval)
+
+        if power_off_after:
+            await device.send_power(False)
 
     async def async_added_to_hass(self) -> None:
         """Register state listener when added to HA."""
@@ -230,6 +319,7 @@ class TuyaBLEMeshLight(LightEntity):
 
     async def async_will_remove_from_hass(self) -> None:
         """Remove state listener when removed from HA."""
+        self._cancel_transition()
         if self._remove_listener is not None:
             self._remove_listener()
             self._remove_listener = None
