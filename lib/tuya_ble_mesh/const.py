@@ -100,7 +100,9 @@ TELINK_CMD_TIME = 0xE4
 TELINK_CMD_ALARMS = 0xE5
 
 # Telink command packet fixed bytes (vendor/application identifier)
-TELINK_VENDOR_ID = bytes([0x60, 0x01])
+# Confirmed from HCI snoop capture of Malmbergs BLE app (2026-03-03):
+# App sends vendor bytes 01 10 (LE uint16: 0x1001), NOT 60 01 (0x0160).
+TELINK_VENDOR_ID = bytes([0x01, 0x10])
 
 # --- Telink Mesh Status Offsets ---
 # Byte offsets within a decrypted status notification from char 1911.
