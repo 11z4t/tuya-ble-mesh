@@ -23,13 +23,17 @@ Modules:
     const — Protocol constants
 """
 
+from tuya_ble_mesh.connection import ConnectionState
 from tuya_ble_mesh.device import MeshDevice
 from tuya_ble_mesh.dps import DeviceProfile, list_profiles, load_profile, load_profile_by_model
 from tuya_ble_mesh.exceptions import (
     AuthenticationError,
+    CommandExpiredError,
+    CommandQueueFullError,
     ConnectionError,
     CryptoError,
     DeviceNotFoundError,
+    DisconnectedError,
     MalmbergsBTError,
     PowerControlError,
     ProtocolError,
@@ -50,10 +54,14 @@ from tuya_ble_mesh.scanner import (
 
 __all__ = [
     "AuthenticationError",
+    "CommandExpiredError",
+    "CommandQueueFullError",
     "ConnectionError",
+    "ConnectionState",
     "CryptoError",
     "DeviceNotFoundError",
     "DeviceProfile",
+    "DisconnectedError",
     "DiscoveredDevice",
     "MalmbergsBTError",
     "MeshDevice",
