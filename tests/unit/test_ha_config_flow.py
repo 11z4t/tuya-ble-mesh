@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
 
 # Add project root for imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+from homeassistant.config_entries import HANDLERS
 
 from custom_components.tuya_ble_mesh.config_flow import (
     TuyaBLEMeshConfigFlow,
@@ -53,9 +56,9 @@ class TestValidateMac:
 class TestConfigFlowInit:
     """Test config flow initialization."""
 
-    def test_domain(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
-        assert flow.DOMAIN == DOMAIN
+    def test_domain_registered(self) -> None:
+        assert DOMAIN in HANDLERS
+        assert HANDLERS[DOMAIN] is TuyaBLEMeshConfigFlow
 
     def test_version(self) -> None:
         flow = TuyaBLEMeshConfigFlow()
@@ -127,6 +130,9 @@ class TestBluetoothStep:
     @pytest.mark.asyncio
     async def test_bluetooth_discovery(self) -> None:
         flow = TuyaBLEMeshConfigFlow()
+        flow.async_set_unique_id = AsyncMock()
+        flow._abort_if_unique_id_configured = lambda: None
+
         result = await flow.async_step_bluetooth(
             {"address": "DC:23:4D:21:43:A5", "name": "out_of_mesh_1234"}
         )
@@ -134,6 +140,7 @@ class TestBluetoothStep:
         # Should show confirm form
         assert result["type"] == "form"
         assert result["step_id"] == "confirm"
+        flow.async_set_unique_id.assert_called_once_with("DC:23:4D:21:43:A5")
 
 
 class TestConfirmStep:
