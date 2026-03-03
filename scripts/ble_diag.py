@@ -1,25 +1,19 @@
 #!/usr/bin/env python3
-"""BLE Command Protocol Diagnostic — hex-dump entire flow.
+"""BLE Command Protocol Diagnostic v15b — CCCD after pairing.
 
-Temporary diagnostic script. Tests:
-1. Connect + pair (3-step AES handshake)
-2. Char 1911 raw read + write 0x01
-3. Command: power ON with dest_id=0
-4. Command: power ON with dest_id=0xFFFF
-5. Command: power OFF with dest_id=0
-6. Command: power ON with random sequence
-7. start_notify (LAST — known to kill BlueZ D-Bus connection)
+Key insight: start_notify crashes with EOFError if called before pairing.
+Try: complete pairing first, THEN enable CCCD, THEN send commands.
 
-SECURITY: Session keys and credentials are NEVER logged.
-Only hex of encrypted packets (safe) and lengths are shown.
+Also tries manual CCCD descriptor write as fallback.
+
+SECURITY: Session key hex is NEVER shown.
 """
 
-import argparse
 import asyncio
 import contextlib
-import logging
 import os
 import pathlib
+import struct
 import sys
 
 from bleak import BleakClient, BleakScanner
@@ -29,216 +23,202 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "lib"))
 from tuya_ble_mesh.const import (
     TARGET_DEVICE_MAC,
     TELINK_CHAR_COMMAND,
+    TELINK_CHAR_PAIRING,
     TELINK_CHAR_STATUS,
     TELINK_CMD_POWER,
+    TELINK_CMD_WHITE_BRIGHTNESS,
 )
-from tuya_ble_mesh.crypto import crypt_payload, make_checksum
-from tuya_ble_mesh.protocol import build_nonce, encode_command_payload
-from tuya_ble_mesh.provisioner import pair
+from tuya_ble_mesh.crypto import (
+    crypt_payload,
+    generate_session_random,
+    make_checksum,
+    make_pair_packet,
+    make_session_key,
+)
 
-_LOGGER = logging.getLogger(__name__)
-
-_DEFAULT_CONNECT_RETRIES = 5
-
-
-async def _connect_with_retry(
-    address: str,
-    timeout: float,
-    max_retries: int,
-) -> BleakClient:
-    """Connect with retry logic matching device.py pattern."""
-    last_exc: Exception | None = None
-
-    for attempt in range(1, max_retries + 1):
-        try:
-            ble_device = await BleakScanner.find_device_by_address(address, timeout=timeout)
-            if ble_device is None:
-                print(f"  Device {address} not found in scan")
-                continue
-
-            client = BleakClient(ble_device, timeout=timeout)
-            await client.connect()
-            print(f"  Connected on attempt {attempt}/{max_retries}")
-            return client
-        except Exception as exc:
-            last_exc = exc
-            backoff = min(2.0 * attempt, 8.0)
-            print(
-                f"  Attempt {attempt}/{max_retries} failed: "
-                f"{type(exc).__name__}, retrying in {backoff:.1f}s"
-            )
-            # Clear stale BlueZ state
-            with contextlib.suppress(Exception):
-                proc = await asyncio.create_subprocess_exec(
-                    "bluetoothctl",
-                    "remove",
-                    address,
-                    stdout=asyncio.subprocess.DEVNULL,
-                    stderr=asyncio.subprocess.DEVNULL,
-                )
-                await asyncio.wait_for(proc.wait(), timeout=5.0)
-            await asyncio.sleep(backoff)
-
-    msg = f"Failed to connect after {max_retries} attempts"
-    raise ConnectionError(msg) from last_exc
+_RETRIES = 5
+_PAYLOAD_SIZE = 15
+VENDOR_ID = bytes([0x60, 0x01])
+MESH_NAME = b"out_of_mesh"
+MESH_PASS = b"123456"
 
 
 def _hex(data: bytes) -> str:
-    """Format bytes as hex string."""
     return data.hex(" ")
 
 
-def _build_command(
-    key: bytes,
-    mac_bytes: bytes,
-    sequence: int,
-    dest_id: int,
-    opcode: int,
-    params: bytes,
-) -> bytes:
-    """Build a 20-byte encrypted command packet (diagnostic version)."""
-    seq_bytes = sequence.to_bytes(3, "little")
-    nonce = build_nonce(mac_bytes, sequence)
-    payload = encode_command_payload(dest_id, opcode, params)
-    checksum = make_checksum(key, nonce, payload)
-    encrypted = crypt_payload(key, nonce, payload)
-    return seq_bytes + checksum[:2] + encrypted
+def _make_cmd(key: bytes, mac: str, dest: int, cmd: int, data: bytes) -> bytes:
+    """Build encrypted command packet (AWox-exact format)."""
+    s = os.urandom(3)
+    a = bytearray.fromhex(mac.replace(":", ""))
+    a.reverse()
+    nonce = bytes(a[0:4] + b"\x01" + s)
+    d = struct.pack("<H", dest)
+    payload = (d + struct.pack("B", cmd) + VENDOR_ID + data).ljust(_PAYLOAD_SIZE, b"\x00")
+    check = make_checksum(key, nonce, payload)
+    enc = crypt_payload(key, nonce, payload)
+    return s + check[0:2] + enc
 
 
-async def _send_and_observe(
-    client: BleakClient,
-    label: str,
-    packet: bytes,
-    wait: float = 3.0,
-) -> None:
-    """Send a command packet and wait, observing lamp visually."""
-    print(f"  Packet: {_hex(packet)}")
-    await client.write_gatt_char(TELINK_CHAR_COMMAND, packet, response=False)
-    print(f"  Sent. Observe lamp for {wait:.0f}s...")
-    await asyncio.sleep(wait)
+async def _connect(address: str, timeout: float) -> BleakClient:
+    for attempt in range(1, _RETRIES + 1):
+        try:
+            dev = await BleakScanner.find_device_by_address(address, timeout=timeout)
+            if dev is None:
+                print(f"  Scan: not found ({attempt})")
+                continue
+            client = BleakClient(dev, timeout=timeout)
+            await client.connect()
+            print(f"  Connected (attempt {attempt})")
+            return client
+        except Exception as exc:
+            backoff = min(2.0 * attempt, 8.0)
+            print(f"  Attempt {attempt}: {type(exc).__name__}, {backoff:.0f}s...")
+            with contextlib.suppress(Exception):
+                p = await asyncio.create_subprocess_exec(
+                    "bluetoothctl", "remove", address,
+                    stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+                )
+                await asyncio.wait_for(p.wait(), timeout=5.0)
+            await asyncio.sleep(backoff)
+    raise ConnectionError("Failed to connect")
 
 
-async def run_diagnostics(mac: str, timeout: float) -> None:
-    """Run the full diagnostic flow."""
-    mesh_name = b"out_of_mesh"
-    mesh_password = b"123456"
-
+async def run(mac: str, timeout: float) -> None:
     print(f"\n{'=' * 60}")
-    print("  BLE Command Protocol Diagnostic")
+    print(f"  BLE Diagnostic v15b — CCCD after pairing")
     print(f"  Target: {mac}")
     print(f"{'=' * 60}\n")
 
-    # Step 1: Connect
+    # === Step 1: Connect ===
     print("[1] Connecting...")
-    client = await _connect_with_retry(mac, timeout, _DEFAULT_CONNECT_RETRIES)
+    client = await _connect(mac, timeout)
+    session_key = None
 
     try:
-        # Step 2: Pair
-        print("\n[2] Pairing (3-step AES handshake)...")
-        session_key, _client_random = await pair(client, mesh_name, mesh_password)
-        print(f"  Session key: {len(session_key)} bytes [REDACTED]")
-        print("  Pairing: SUCCESS")
+        # === Step 2: Full pairing handshake ===
+        print("\n[2] Pairing (factory creds)...")
+        client_random = generate_session_random()
+        pair_pkt = make_pair_packet(MESH_NAME, MESH_PASS, client_random)
 
-        # Get MAC bytes for nonce
-        mac_parts = mac.split(":")
-        mac_bytes = bytes(int(p, 16) for p in mac_parts)
+        await client.write_gatt_char(TELINK_CHAR_PAIRING, pair_pkt, response=True)
+        print("  Pair request written")
 
-        # Step 3: Read + write char 1911
-        print("\n[3] Char 1911 (status)...")
+        await client.write_gatt_char(TELINK_CHAR_STATUS, b"\x01", response=True)
+        print("  Status enable (0x01) written to 1911")
+
+        resp = bytes(await client.read_gatt_char(TELINK_CHAR_PAIRING))
+        print(f"  Response: 0x{resp[0]:02X}")
+
+        if resp[0] == 0x0E:
+            print("  AUTH FAILED!")
+            return
+        if resp[0] != 0x0D:
+            print(f"  UNEXPECTED: {_hex(resp)}")
+            return
+
+        device_random = resp[1:9]
+        session_key = make_session_key(MESH_NAME, MESH_PASS, client_random, device_random)
+        print(f"  Paired OK (key len={len(session_key)})")
+
+        # Small delay after pairing
+        await asyncio.sleep(1)
+
+        # === Step 3: Try start_notify AFTER pairing ===
+        print("\n[3] start_notify on 1911 (AFTER pairing)...")
+        notifications = []
+
+        def _on_notify(sender, data: bytearray):
+            raw = bytes(data)
+            notifications.append(raw)
+            print(f"  >> NOTIFICATION ({len(raw)}B): {_hex(raw)}")
+            if len(raw) >= 7 and session_key:
+                a = bytearray.fromhex(mac.replace(":", ""))
+                a.reverse()
+                nonce = bytes(a[0:3] + raw[0:5])
+                dec = crypt_payload(session_key, nonce, raw[7:])
+                chk = make_checksum(session_key, nonce, dec)
+                if chk[0:2] == raw[5:7]:
+                    print(f"  >> DECRYPTED: {_hex(bytes(dec))}")
+
+        notify_ok = False
         try:
-            raw_1911 = await client.read_gatt_char(TELINK_CHAR_STATUS)
-            print(f"  Read ({len(raw_1911)} bytes): {_hex(bytes(raw_1911))}")
-        except Exception as exc:
-            print(f"  Read failed: {type(exc).__name__}: {exc}")
+            await client.start_notify(TELINK_CHAR_STATUS, _on_notify)
+            notify_ok = True
+            print("  start_notify OK!")
+        except Exception as e:
+            print(f"  start_notify FAILED: {type(e).__name__}: {e}")
 
-        print("  Writing 0x01 to enable notifications...")
-        try:
-            await client.write_gatt_char(TELINK_CHAR_STATUS, b"\x01", response=True)
-            print("  Write 0x01: OK")
-        except Exception as exc:
-            print(f"  Write 0x01 FAILED: {type(exc).__name__}: {exc}")
+            # Fallback: try manual CCCD write
+            print("  Trying manual CCCD write (handle 0x0013)...")
+            try:
+                # CCCD UUID is 00002902-0000-1000-8000-00805f9b34fb
+                # Enable notifications = 0x0100 (little-endian)
+                for svc in client.services:
+                    for char in svc.characteristics:
+                        if char.uuid == TELINK_CHAR_STATUS:
+                            for desc in char.descriptors:
+                                if "2902" in desc.uuid:
+                                    print(f"  Found CCCD: {desc.uuid} handle=0x{desc.handle:04X}")
+                                    await client.write_gatt_descriptor(desc.handle, b"\x01\x00")
+                                    print("  Manual CCCD write OK!")
+                                    notify_ok = True
+            except Exception as e2:
+                print(f"  Manual CCCD also failed: {type(e2).__name__}: {e2}")
 
-        # Step 4: Power ON with dest_id=0 (unprovisioned default)
-        print("\n[4] Power ON, dest_id=0 (unprovisioned default)...")
-        pkt = _build_command(
-            session_key, mac_bytes, 1, dest_id=0, opcode=TELINK_CMD_POWER, params=b"\x01"
-        )
-        await _send_and_observe(client, "power ON dest=0", pkt)
+        # Wait for any spontaneous notifications
+        print("\n  Waiting 3s for notifications...")
+        await asyncio.sleep(3)
+        if notifications:
+            print(f"  Got {len(notifications)} notification(s)!")
+        else:
+            print("  No notifications yet")
 
-        # Step 5: Power ON with dest_id=0xFFFF (broadcast)
-        print("\n[5] Power ON, dest_id=0xFFFF (broadcast)...")
-        pkt = _build_command(
-            session_key, mac_bytes, 2, dest_id=0xFFFF, opcode=TELINK_CMD_POWER, params=b"\x01"
-        )
-        await _send_and_observe(client, "power ON dest=0xFFFF", pkt)
+        # === Step 4: Send commands ===
+        print("\n[4] Sending commands...")
 
-        # Step 6: Power OFF with dest_id=0
-        print("\n[6] Power OFF, dest_id=0...")
-        pkt = _build_command(
-            session_key, mac_bytes, 3, dest_id=0, opcode=TELINK_CMD_POWER, params=b"\x00"
-        )
-        await _send_and_observe(client, "power OFF dest=0", pkt)
+        tests = [
+            ("Power OFF, dest=0, WR", 0, TELINK_CMD_POWER, b"\x00", True),
+            ("Power ON, dest=0, WR", 0, TELINK_CMD_POWER, b"\x01", True),
+            ("Power OFF, dest=0xFFFF, WNR", 0xFFFF, TELINK_CMD_POWER, b"\x00", False),
+            ("Power ON, dest=0x01DC, WR", 0x01DC, TELINK_CMD_POWER, b"\x01", True),
+            ("Brightness 50%, dest=0", 0, TELINK_CMD_WHITE_BRIGHTNESS, b"\x40", True),
+        ]
 
-        # Step 7: Power ON with random sequence
-        print("\n[7] Power ON, random seq, dest_id=0...")
-        rand_seq = int.from_bytes(os.urandom(3), "little")
-        pkt = _build_command(
-            session_key, mac_bytes, rand_seq, dest_id=0, opcode=TELINK_CMD_POWER, params=b"\x01"
-        )
-        await _send_and_observe(client, f"power ON rand_seq={rand_seq}", pkt)
+        for name, dest, cmd, data, resp_flag in tests:
+            print(f"\n  --- {name} ---")
+            pkt = _make_cmd(session_key, mac, dest, cmd, data)
+            print(f"  Pkt ({len(pkt)}B): {_hex(pkt)}")
+            try:
+                await client.write_gatt_char(TELINK_CHAR_COMMAND, pkt, response=resp_flag)
+                mode = "WR" if resp_flag else "WNR"
+                print(f"  Sent ({mode}). 4s...")
+            except Exception as e:
+                print(f"  SEND FAILED: {type(e).__name__}: {e}")
+            await asyncio.sleep(4)
 
-        # Step 8: Power OFF with dest_id=0xFFFF
-        print("\n[8] Power OFF, dest_id=0xFFFF (broadcast)...")
-        pkt = _build_command(
-            session_key, mac_bytes, 4, dest_id=0xFFFF, opcode=TELINK_CMD_POWER, params=b"\x00"
-        )
-        await _send_and_observe(client, "power OFF dest=0xFFFF", pkt)
-
-        # Step 9: start_notify — LAST because it kills the connection
-        print("\n[9] Testing start_notify (WARNING: may kill connection)...")
-        try:
-            await client.start_notify(TELINK_CHAR_STATUS, lambda _s, _d: None)
-            print("  start_notify: OK (unexpected!)")
-        except Exception as exc:
-            print(f"  start_notify FAILED: {type(exc).__name__}: {exc}")
-            print("  (Expected — Telink devices crash BlueZ D-Bus on start_notify)")
-
-        # Summary
-        print(f"\n{'=' * 60}")
-        print("  DIAGNOSTIC SUMMARY")
-        print(f"{'=' * 60}")
-        print("  Pairing: OK")
-        print(
-            "  Commands sent: 5 (dest=0 ON, dest=0xFFFF ON, dest=0 OFF, rand ON, dest=0xFFFF OFF)"
-        )
-        print("  Observe lamp: did any command produce visible change?")
-        print("  If NO change: command nonce format may be wrong")
-        print("  If dest=0 works but not 0xFFFF: dest_id fix confirmed")
+        print(f"\n  Total notifications received: {len(notifications)}")
+        print(f"\n  REAGERADE LAMPAN PA NAGOT?")
 
     finally:
         with contextlib.suppress(Exception):
+            if notify_ok:
+                await client.stop_notify(TELINK_CHAR_STATUS)
+        with contextlib.suppress(Exception):
             await client.disconnect()
+        print("  Disconnected.")
 
 
 def main() -> None:
-    """CLI entry point."""
-    parser = argparse.ArgumentParser(description="BLE command protocol diagnostic")
-    parser.add_argument("--mac", default=TARGET_DEVICE_MAC, help="Target MAC")
-    parser.add_argument("--timeout", type=float, default=30.0, help="Connect timeout")
-    parser.add_argument("-v", "--verbose", action="store_true", help="Debug logging")
-    args = parser.parse_args()
-
-    log_level = logging.DEBUG if args.verbose else logging.INFO
-    logging.basicConfig(
-        level=log_level,
-        format="%(asctime)s %(levelname)-8s %(name)s: %(message)s",
-    )
-
+    import argparse
+    p = argparse.ArgumentParser()
+    p.add_argument("--mac", default=TARGET_DEVICE_MAC)
+    p.add_argument("--timeout", type=float, default=20.0)
+    args = p.parse_args()
     try:
-        asyncio.run(run_diagnostics(args.mac, args.timeout))
+        asyncio.run(run(args.mac, args.timeout))
     except KeyboardInterrupt:
         print("\nInterrupted.")
-        sys.exit(0)
     except Exception as exc:
         print(f"\nFATAL: {type(exc).__name__}: {exc}")
         sys.exit(1)
