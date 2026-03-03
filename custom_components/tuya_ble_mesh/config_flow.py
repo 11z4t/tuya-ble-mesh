@@ -9,6 +9,7 @@ import logging
 import re
 from typing import Any
 
+from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 from homeassistant.config_entries import ConfigFlow
 
 from custom_components.tuya_ble_mesh.const import (
@@ -48,17 +49,19 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
         super().__init__()
         self._discovery_info: dict[str, Any] | None = None
 
-    async def async_step_bluetooth(self, discovery_info: dict[str, Any]) -> dict[str, Any]:
+    async def async_step_bluetooth(
+        self, discovery_info: BluetoothServiceInfoBleak
+    ) -> dict[str, Any]:
         """Handle bluetooth discovery.
 
         Args:
-            discovery_info: Discovery info from HA bluetooth integration.
+            discovery_info: Bluetooth service info from HA bluetooth integration.
 
         Returns:
             Flow result dict.
         """
-        address: str = discovery_info.get("address", "")
-        name: str = discovery_info.get("name", "")
+        address: str = discovery_info.address
+        name: str = discovery_info.name or ""
 
         _LOGGER.info("Bluetooth discovery: %s (%s)", name, address)
 

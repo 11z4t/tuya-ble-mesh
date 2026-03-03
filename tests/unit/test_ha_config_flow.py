@@ -4,13 +4,14 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 # Add project root for imports
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
+from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 from homeassistant.config_entries import HANDLERS
 
 from custom_components.tuya_ble_mesh.config_flow import (
@@ -133,9 +134,11 @@ class TestBluetoothStep:
         flow.async_set_unique_id = AsyncMock()
         flow._abort_if_unique_id_configured = lambda: None
 
-        result = await flow.async_step_bluetooth(
-            {"address": "DC:23:4D:21:43:A5", "name": "out_of_mesh_1234"}
-        )
+        service_info = MagicMock(spec=BluetoothServiceInfoBleak)
+        service_info.address = "DC:23:4D:21:43:A5"
+        service_info.name = "out_of_mesh_1234"
+
+        result = await flow.async_step_bluetooth(service_info)
 
         # Should show confirm form
         assert result["type"] == "form"
