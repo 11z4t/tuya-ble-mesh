@@ -7,7 +7,8 @@
         "data": {
           "mac_address": "MAC Address",
           "mesh_name": "Mesh Name",
-          "mesh_password": "Mesh Password"
+          "mesh_password": "Mesh Password",
+          "vendor_id": "Vendor ID (hex, e.g. 0x1001)"
         }
       },
       "confirm": {

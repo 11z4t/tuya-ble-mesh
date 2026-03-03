@@ -15,6 +15,8 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_MAC_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
+    CONF_VENDOR_ID,
+    DEFAULT_VENDOR_ID,
     DOMAIN,
 )
 
@@ -87,6 +89,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_MAC_ADDRESS: self._discovery_info["address"],
                     CONF_MESH_NAME: user_input.get(CONF_MESH_NAME, "out_of_mesh"),
                     CONF_MESH_PASSWORD: user_input.get(CONF_MESH_PASSWORD, "123456"),
+                    CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
                 },
             )
 
@@ -120,6 +123,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_MAC_ADDRESS: mac.upper(),
                         CONF_MESH_NAME: user_input.get(CONF_MESH_NAME, "out_of_mesh"),
                         CONF_MESH_PASSWORD: user_input.get(CONF_MESH_PASSWORD, "123456"),
+                        CONF_VENDOR_ID: user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID),
                     },
                 )
 
