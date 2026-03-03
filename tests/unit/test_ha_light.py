@@ -59,11 +59,11 @@ class TestBrightnessToHa:
         assert brightness_to_ha(1) == 1
 
     def test_max_device_to_max_ha(self) -> None:
-        assert brightness_to_ha(127) == 255
+        assert brightness_to_ha(100) == 255
 
     def test_midpoint(self) -> None:
-        result = brightness_to_ha(64)
-        assert 126 <= result <= 129  # approximately 128
+        result = brightness_to_ha(50)
+        assert 125 <= result <= 130  # approximately 127
 
     def test_clamps_below_min(self) -> None:
         assert brightness_to_ha(0) == 1
@@ -79,18 +79,18 @@ class TestBrightnessToDevice:
         assert brightness_to_device(1) == 1
 
     def test_max_ha_to_max_device(self) -> None:
-        assert brightness_to_device(255) == 127
+        assert brightness_to_device(255) == 100
 
     def test_midpoint(self) -> None:
         result = brightness_to_device(128)
-        assert 63 <= result <= 65  # approximately 64
+        assert 49 <= result <= 51  # approximately 50
 
     def test_clamps_below_min(self) -> None:
         assert brightness_to_device(0) == 1
 
     def test_roundtrip(self) -> None:
         """Device -> HA -> device should be close to original."""
-        for device_val in [1, 32, 64, 96, 127]:
+        for device_val in [1, 25, 50, 75, 100]:
             ha_val = brightness_to_ha(device_val)
             back = brightness_to_device(ha_val)
             assert abs(back - device_val) <= 1
@@ -234,7 +234,7 @@ class TestLightActions:
 
         coord.device.send_brightness.assert_called_once()
         args = coord.device.send_brightness.call_args[0]
-        assert 1 <= args[0] <= 127  # device range
+        assert 1 <= args[0] <= 100  # device range
 
     @pytest.mark.asyncio
     async def test_turn_on_with_color_temp(self) -> None:

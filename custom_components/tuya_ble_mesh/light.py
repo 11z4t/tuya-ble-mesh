@@ -1,7 +1,7 @@
 """Light entity platform for Tuya BLE Mesh.
 
 Mappings:
-- Brightness: device 1-127 <-> HA 1-255 (linear)
+- Brightness: device 1-100 <-> HA 1-255 (linear)
 - Color temp: device 0(warm)-127(cool) <-> mireds 370(warm)-153(cool) (inverse)
 - Supported modes: COLOR_TEMP
 """
@@ -40,7 +40,7 @@ COLOR_MODE_COLOR_TEMP = "color_temp"
 
 
 def brightness_to_ha(device_value: int) -> int:
-    """Convert device brightness (1-127) to HA brightness (1-255).
+    """Convert device brightness (1-100) to HA brightness (1-255).
 
     Args:
         device_value: Device brightness value.
@@ -58,7 +58,7 @@ def brightness_to_ha(device_value: int) -> int:
 
 
 def brightness_to_device(ha_value: int) -> int:
-    """Convert HA brightness (1-255) to device brightness (1-127).
+    """Convert HA brightness (1-255) to device brightness (1-100).
 
     Args:
         ha_value: HA brightness value.

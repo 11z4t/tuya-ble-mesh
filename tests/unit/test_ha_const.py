@@ -64,7 +64,7 @@ class TestBrightnessMapping:
 
     def test_device_range(self) -> None:
         assert DEVICE_BRIGHTNESS_MIN == 1
-        assert DEVICE_BRIGHTNESS_MAX == 127
+        assert DEVICE_BRIGHTNESS_MAX == 100
 
     def test_ha_range(self) -> None:
         assert HA_BRIGHTNESS_MIN == 1
