@@ -52,6 +52,18 @@ class PowerControlError(TuyaBLEMeshError):
     """Shelly power control operation failed."""
 
 
+class DisconnectedError(ConnectionError):
+    """Operation attempted while device is disconnected."""
+
+
+class CommandQueueFullError(TuyaBLEMeshError):
+    """Command queue has reached its maximum capacity."""
+
+
+class CommandExpiredError(TuyaBLEMeshError):
+    """Command expired before it could be sent (TTL exceeded)."""
+
+
 # --- Backward-compatible aliases ---
 
 # Phase 2 → Phase 3 rename
