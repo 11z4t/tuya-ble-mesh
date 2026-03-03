@@ -37,6 +37,7 @@ from tuya_ble_mesh.const import (
     TELINK_CMD_MESH_ADDRESS,
     TELINK_CMD_MESH_RESET,
     TELINK_CMD_WHITE_TEMP,
+    TELINK_VENDOR_ID,
 )
 from tuya_ble_mesh.exceptions import (
     CommandExpiredError,
@@ -106,6 +107,7 @@ class MeshDevice:
         mesh_password: bytes,
         *,
         mesh_id: int = MESH_ADDRESS_DEFAULT,
+        vendor_id: bytes = TELINK_VENDOR_ID,
     ) -> None:
         """Initialize a mesh device interface.
 
@@ -114,11 +116,13 @@ class MeshDevice:
             mesh_name: Mesh network name (e.g. ``b"out_of_mesh"``).
             mesh_password: Mesh network password (e.g. ``b"123456"``).
             mesh_id: Target mesh address for commands (0 = unprovisioned default).
+            vendor_id: 2-byte vendor identifier (default: TELINK_VENDOR_ID).
         """
         self._address = address.upper()
         self._mesh_id = mesh_id
+        self._vendor_id = vendor_id
         self._mac_bytes = mac_to_bytes(address)
-        self._conn = BLEConnection(address, mesh_name, mesh_password)
+        self._conn = BLEConnection(address, mesh_name, mesh_password, vendor_id=vendor_id)
         self._status_callbacks: list[StatusCallback] = []
         self._disconnect_callbacks: list[DisconnectCallback] = []
         self._queue: list[_QueuedCommand] = []
@@ -271,6 +275,7 @@ class MeshDevice:
             dest_id,
             opcode,
             params,
+            vendor_id=self._vendor_id,
         )
 
         _LOGGER.debug(

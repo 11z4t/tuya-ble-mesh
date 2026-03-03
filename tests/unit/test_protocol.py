@@ -162,6 +162,17 @@ class TestEncodeCommandPayload:
         with pytest.raises(ProtocolError, match="dest_id"):
             encode_command_payload(-1, 0, b"")
 
+    def test_custom_vendor_id(self) -> None:
+        """Encoding with a custom vendor_id places it at bytes [3:5]."""
+        awox_vendor = bytes([0x60, 0x01])
+        payload = encode_command_payload(0, TELINK_CMD_POWER, b"", vendor_id=awox_vendor)
+        assert payload[3:5] == awox_vendor
+
+    def test_vendor_id_bad_length(self) -> None:
+        """A vendor_id that is not exactly 2 bytes raises ProtocolError."""
+        with pytest.raises(ProtocolError, match="vendor_id must be 2 bytes"):
+            encode_command_payload(0, 0, b"", vendor_id=bytes([0x01, 0x02, 0x03]))
+
 
 # --- encode_command_packet / decode_command_packet roundtrip ---
 
@@ -214,6 +225,15 @@ class TestCommandPacketRoundtrip:
         tampered[10] ^= 0xFF  # Flip a byte in encrypted payload
         with pytest.raises(AuthenticationError):
             decode_command_packet(TEST_KEY, TEST_MAC, bytes(tampered))
+
+    def test_roundtrip_custom_vendor_id(self) -> None:
+        """Roundtrip with a non-default vendor_id preserves it."""
+        awox_vendor = bytes([0x60, 0x01])
+        packet = encode_command_packet(
+            TEST_KEY, TEST_MAC, 1, 0x0001, TELINK_CMD_POWER, b"\x01", vendor_id=awox_vendor
+        )
+        decoded = decode_command_packet(TEST_KEY, TEST_MAC, packet)
+        assert decoded.vendor_id == awox_vendor
 
     def test_encrypted_differs_from_plaintext(self) -> None:
         payload = encode_command_payload(1, TELINK_CMD_POWER, b"\x01")
