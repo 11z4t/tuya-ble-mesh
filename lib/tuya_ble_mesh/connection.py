@@ -382,5 +382,5 @@ class BLEConnection:
             Next backoff value (capped at _MAX_BACKOFF, with jitter).
         """
         next_val = min(current_backoff * _BACKOFF_MULTIPLIER, _MAX_BACKOFF)
-        jitter = next_val * _JITTER_FACTOR * random.random()
+        jitter = next_val * _JITTER_FACTOR * random.random()  # nosec B311
         return next_val + jitter

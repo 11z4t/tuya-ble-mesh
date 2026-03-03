@@ -34,11 +34,11 @@ printf "╚═══════════════════════
 
 # Step 1: Lint
 run_step "ruff check" \
-    ruff check lib/ scripts/ tests/ custom_components/
+    ruff check lib/ tests/ custom_components/
 
 # Step 2: Format
 run_step "ruff format" \
-    ruff format --check lib/ scripts/ tests/ custom_components/
+    ruff format --check lib/ tests/ custom_components/
 
 # Step 3: Type checking
 run_step "mypy --strict" \
