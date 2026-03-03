@@ -16,6 +16,7 @@ from tuya_ble_mesh.connection import (
     BLEConnection,
     ConnectionState,
 )
+from tuya_ble_mesh.const import TELINK_VENDOR_ID
 from tuya_ble_mesh.exceptions import ConnectionError, DisconnectedError
 
 MAC = "DC:23:4D:21:43:A5"
@@ -81,6 +82,15 @@ class TestConstruction:
     def test_no_session_key_initially(self) -> None:
         conn = _make_conn()
         assert conn.session_key is None
+
+    def test_default_vendor_id(self) -> None:
+        conn = _make_conn()
+        assert conn._vendor_id == TELINK_VENDOR_ID
+
+    def test_custom_vendor_id(self) -> None:
+        awox_vendor = bytes([0x60, 0x01])
+        conn = BLEConnection(MAC, MESH_NAME, MESH_PASS, vendor_id=awox_vendor)
+        assert conn._vendor_id == awox_vendor
 
 
 # --- Connect ---
@@ -421,6 +431,26 @@ class TestKeepAlive:
         await conn._send_keep_alive()
 
         assert conn.state == ConnectionState.DISCONNECTED
+
+    @pytest.mark.asyncio
+    async def test_keep_alive_uses_custom_vendor_id(self) -> None:
+        """Keep-alive packets use the configured vendor_id."""
+        awox_vendor = bytes([0x60, 0x01])
+        conn = BLEConnection(MAC, MESH_NAME, MESH_PASS, vendor_id=awox_vendor)
+        client = AsyncMock()
+        client.write_gatt_char = AsyncMock()
+        conn._client = client
+        conn._session_key = bytearray(SESSION_KEY)
+        conn._state = ConnectionState.READY
+
+        with patch(
+            "tuya_ble_mesh.connection.encode_command_packet",
+            return_value=b"\x00" * 20,
+        ) as mock_encode:
+            await conn._send_keep_alive()
+            mock_encode.assert_called_once()
+            _, kwargs = mock_encode.call_args
+            assert kwargs["vendor_id"] == awox_vendor
 
     def test_keep_alive_interval(self) -> None:
         assert KEEP_ALIVE_INTERVAL == 30.0

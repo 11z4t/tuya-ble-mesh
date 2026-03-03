@@ -21,6 +21,7 @@ from bleak import BleakClient, BleakScanner
 from tuya_ble_mesh.const import (
     TELINK_CHAR_COMMAND,
     TELINK_CMD_STATUS_QUERY,
+    TELINK_VENDOR_ID,
 )
 from tuya_ble_mesh.exceptions import ConnectionError, DisconnectedError
 from tuya_ble_mesh.protocol import encode_command_packet
@@ -85,11 +86,14 @@ class BLEConnection:
         address: str,
         mesh_name: bytes,
         mesh_password: bytes,
+        *,
+        vendor_id: bytes = TELINK_VENDOR_ID,
     ) -> None:
         self._address = address.upper()
         self._mac_bytes = mac_to_bytes(address)
         self._mesh_name = mesh_name
         self._mesh_password = mesh_password
+        self._vendor_id = vendor_id
         self._state = ConnectionState.DISCONNECTED
         self._client: BleakClient | None = None
         self._session_key: bytearray | None = None
@@ -366,6 +370,7 @@ class BLEConnection:
                 0xFFFF,  # broadcast
                 TELINK_CMD_STATUS_QUERY,
                 _STATUS_QUERY_PARAM,
+                vendor_id=self._vendor_id,
             )
             await self._client.write_gatt_char(TELINK_CHAR_COMMAND, packet, response=False)
             _LOGGER.debug("Keep-alive sent (seq=%d)", seq)
