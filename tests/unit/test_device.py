@@ -15,6 +15,7 @@ from tuya_ble_mesh.const import (
     COMPACT_DP_POWER,
     DP_TYPE_VALUE,
     TELINK_CMD_DP_WRITE,
+    TELINK_VENDOR_ID,
 )
 from tuya_ble_mesh.device import (
     _COMMAND_TTL,
@@ -89,6 +90,16 @@ class TestConstruction:
     def test_has_connection(self) -> None:
         device = _make_device()
         assert isinstance(device.connection, BLEConnection)
+
+    def test_default_vendor_id(self) -> None:
+        device = _make_device()
+        assert device._vendor_id == TELINK_VENDOR_ID
+
+    def test_custom_vendor_id(self) -> None:
+        awox_vendor = bytes([0x60, 0x01])
+        device = _make_device(vendor_id=awox_vendor)
+        assert device._vendor_id == awox_vendor
+        assert device._conn._vendor_id == awox_vendor
 
 
 # --- mesh_id property ---
