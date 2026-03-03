@@ -9,6 +9,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
 from tuya_ble_mesh.const import (
+    COMPACT_DP_BRIGHTNESS,
+    COMPACT_DP_POWER,
     DP_TYPE_BOOLEAN,
     DP_TYPE_ENUM,
     DP_TYPE_RAW,
@@ -50,6 +52,7 @@ from tuya_ble_mesh.protocol import (
     decrypt_notification,
     encode_command_packet,
     encode_command_payload,
+    encode_compact_dp,
     encode_dp_value,
     encode_dps_command,
     parse_pair_response,
@@ -663,3 +666,75 @@ class TestDataClasses:
         pr = PairResponse(opcode=0x0D, device_random=b"")
         with pytest.raises(AttributeError):
             pr.opcode = 0  # type: ignore[misc]
+
+
+# --- encode_compact_dp ---
+
+
+class TestEncodeCompactDp:
+    """Test compact DP encoding (Telink 0xD2 format)."""
+
+    def test_power_on(self) -> None:
+        result = encode_compact_dp(COMPACT_DP_POWER, DP_TYPE_VALUE, 1)
+        assert result == bytes([121, DP_TYPE_VALUE, 4, 0, 0, 0, 1])
+
+    def test_power_off(self) -> None:
+        result = encode_compact_dp(COMPACT_DP_POWER, DP_TYPE_VALUE, 0)
+        assert result == bytes([121, DP_TYPE_VALUE, 4, 0, 0, 0, 0])
+
+    def test_brightness_100(self) -> None:
+        result = encode_compact_dp(COMPACT_DP_BRIGHTNESS, DP_TYPE_VALUE, 100)
+        assert result == bytes([122, DP_TYPE_VALUE, 4, 0, 0, 0, 100])
+
+    def test_brightness_1(self) -> None:
+        result = encode_compact_dp(COMPACT_DP_BRIGHTNESS, DP_TYPE_VALUE, 1)
+        assert result == bytes([122, DP_TYPE_VALUE, 4, 0, 0, 0, 1])
+
+    def test_boolean_type(self) -> None:
+        result = encode_compact_dp(1, DP_TYPE_BOOLEAN, 1)
+        assert result == bytes([1, DP_TYPE_BOOLEAN, 1, 1])
+
+    def test_boolean_false(self) -> None:
+        result = encode_compact_dp(1, DP_TYPE_BOOLEAN, 0)
+        assert result == bytes([1, DP_TYPE_BOOLEAN, 1, 0])
+
+    def test_header_is_3_bytes(self) -> None:
+        """Compact DP uses 1-byte length, not 2-byte like standard Tuya."""
+        result = encode_compact_dp(COMPACT_DP_POWER, DP_TYPE_VALUE, 1)
+        # Header: [dp_id=121][dp_type=2][length=4]
+        assert result[0] == 121
+        assert result[1] == DP_TYPE_VALUE
+        assert result[2] == 4  # 4 bytes for uint32
+
+    def test_value_big_endian(self) -> None:
+        result = encode_compact_dp(COMPACT_DP_BRIGHTNESS, DP_TYPE_VALUE, 0x01020304)
+        assert result[3:] == bytes([0x01, 0x02, 0x03, 0x04])
+
+    def test_dp_id_zero_raises(self) -> None:
+        with pytest.raises(ProtocolError, match="dp_id"):
+            encode_compact_dp(0, DP_TYPE_VALUE, 1)
+
+    def test_dp_id_too_large_raises(self) -> None:
+        with pytest.raises(ProtocolError, match="dp_id"):
+            encode_compact_dp(256, DP_TYPE_VALUE, 1)
+
+    def test_dp_type_negative_raises(self) -> None:
+        with pytest.raises(ProtocolError, match="dp_type"):
+            encode_compact_dp(1, -1, 1)
+
+    def test_value_negative_raises(self) -> None:
+        with pytest.raises(ProtocolError, match="Value must be"):
+            encode_compact_dp(1, DP_TYPE_VALUE, -1)
+
+    def test_value_overflow_raises(self) -> None:
+        with pytest.raises(ProtocolError, match="Value must be"):
+            encode_compact_dp(1, DP_TYPE_VALUE, 0x100000000)
+
+    def test_unsupported_dp_type_raises(self) -> None:
+        with pytest.raises(ProtocolError, match="Unsupported compact"):
+            encode_compact_dp(1, DP_TYPE_STRING, 1)
+
+    def test_compact_dp_constants(self) -> None:
+        """Verify compact DP constants match confirmed values."""
+        assert COMPACT_DP_POWER == 121
+        assert COMPACT_DP_BRIGHTNESS == 122

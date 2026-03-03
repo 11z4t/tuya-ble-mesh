@@ -567,3 +567,51 @@ def decode_dps_response(data: bytes) -> dict[int, bool | int | str | bytes]:
         offset += tlv_size
 
     return result
+
+
+# --- Compact DP encoding (Telink BLE Mesh 0xD2 format) ---
+
+# Compact TLV header: [dp_id 1B][dp_type 1B][length 1B]
+# NOTE: Standard Tuya uses 2-byte BE length; compact uses 1-byte length.
+_COMPACT_DP_HEADER_SIZE = 3
+
+
+def encode_compact_dp(dp_id: int, dp_type: int, value: int) -> bytes:
+    """Encode a single data point in Telink compact DP format.
+
+    Compact DP format (used with opcode 0xD2): ``[dp_id 1B][dp_type 1B][dp_len 1B][value NB]``
+
+    This differs from standard Tuya DP TLV which uses 2-byte BE length.
+    Confirmed from HCI snoop capture of Malmbergs BLE app (2026-03-03).
+
+    Args:
+        dp_id: Data point ID (1..255).
+        dp_type: DP type code (e.g. DP_TYPE_VALUE=0x02).
+        value: Integer value to encode (big-endian, variable length based on dp_type).
+
+    Returns:
+        Compact DP TLV bytes.
+
+    Raises:
+        ProtocolError: If dp_id or dp_type is out of range, or value
+            cannot be encoded for the given dp_type.
+    """
+    if not 1 <= dp_id <= 0xFF:
+        msg = f"dp_id must be 1..255, got {dp_id}"
+        raise ProtocolError(msg)
+    if not 0 <= dp_type <= 0xFF:
+        msg = f"dp_type must be 0..255, got {dp_type}"
+        raise ProtocolError(msg)
+
+    if dp_type == DP_TYPE_BOOLEAN:
+        encoded = bytes([1 if value else 0])
+    elif dp_type == DP_TYPE_VALUE:
+        if not 0 <= value <= 0xFFFFFFFF:
+            msg = f"Value must be 0..0xFFFFFFFF for dp_type VALUE, got {value}"
+            raise ProtocolError(msg)
+        encoded = struct.pack(">I", value)
+    else:
+        msg = f"Unsupported compact dp_type: 0x{dp_type:02X}"
+        raise ProtocolError(msg)
+
+    return struct.pack("BBB", dp_id, dp_type, len(encoded)) + encoded
