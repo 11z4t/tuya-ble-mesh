@@ -15,6 +15,8 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_MAC_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
+    CONF_VENDOR_ID,
+    DEFAULT_VENDOR_ID,
     DOMAIN,
     PLATFORMS,
 )
@@ -53,11 +55,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     mac_address: str = entry.data[CONF_MAC_ADDRESS]
     mesh_name: str = entry.data[CONF_MESH_NAME]
     mesh_password: str = entry.data[CONF_MESH_PASSWORD]
+    vendor_id_hex: str = entry.data.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
+    vendor_id_int = int(vendor_id_hex, 16)
+    vendor_id_bytes = vendor_id_int.to_bytes(2, "little")
 
     device = MeshDevice(
         mac_address,
         mesh_name.encode(),
         mesh_password.encode(),
+        vendor_id=vendor_id_bytes,
     )
     coordinator = TuyaBLEMeshCoordinator(device)
 
