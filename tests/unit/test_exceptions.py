@@ -13,9 +13,12 @@ from tuya_ble_mesh.exceptions import (
     BLEDeviceNotFoundError,
     BLEError,
     BLETimeoutError,
+    CommandExpiredError,
+    CommandQueueFullError,
     ConnectionError,
     CryptoError,
     DeviceNotFoundError,
+    DisconnectedError,
     MalformedPacketError,
     MalmbergsBTError,
     PowerControlError,
@@ -65,7 +68,17 @@ class TestInheritance:
             for cls in TuyaBLEMeshError.__subclasses__()
             if cls.__module__ == "tuya_ble_mesh.exceptions"
         ]
-        assert len(direct) == 8
+        assert len(direct) == 10
+
+    def test_disconnected_inherits_from_connection_error(self) -> None:
+        assert issubclass(DisconnectedError, ConnectionError)
+        assert issubclass(DisconnectedError, TuyaBLEMeshError)
+
+    def test_command_queue_full_inherits_from_base(self) -> None:
+        assert issubclass(CommandQueueFullError, TuyaBLEMeshError)
+
+    def test_command_expired_inherits_from_base(self) -> None:
+        assert issubclass(CommandExpiredError, TuyaBLEMeshError)
 
 
 # --- Message formatting ---
@@ -88,6 +101,9 @@ class TestMessageFormatting:
             (AuthenticationError, "pair proof mismatch"),
             (SecretAccessError, "vault unreachable"),
             (PowerControlError, "Shelly HTTP 500"),
+            (DisconnectedError, "device not ready"),
+            (CommandQueueFullError, "queue at capacity: 32"),
+            (CommandExpiredError, "command TTL exceeded"),
         ],
     )
     def test_message(self, exc_cls: type, msg: str) -> None:
@@ -113,9 +129,16 @@ class TestCatchSemantics:
             AuthenticationError,
             SecretAccessError,
             PowerControlError,
+            DisconnectedError,
+            CommandQueueFullError,
+            CommandExpiredError,
         ]:
             with pytest.raises(TuyaBLEMeshError):
                 raise exc_cls("test")
+
+    def test_catch_connection_catches_disconnected(self) -> None:
+        with pytest.raises(ConnectionError):
+            raise DisconnectedError("not connected")
 
     def test_catch_protocol_catches_malformed(self) -> None:
         with pytest.raises(ProtocolError):
@@ -145,6 +168,9 @@ class TestCatchSemantics:
             AuthenticationError,
             SecretAccessError,
             PowerControlError,
+            DisconnectedError,
+            CommandQueueFullError,
+            CommandExpiredError,
         ],
     )
     def test_isinstance_check(self, exc_cls: type) -> None:
