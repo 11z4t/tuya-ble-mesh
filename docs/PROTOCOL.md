@@ -340,16 +340,102 @@ understanding gained from this analysis.
 
 ---
 
-## 8. Next Steps
+## 8. Vendor IDs (Confirmed 2026-03-03)
 
-1. **Fix UUID mapping** in `const.py`: swap 1913 (OTA) and 1914 (Pairing)
-2. **Implement `crypto.py`**: Telink AES-ECB with byte reversal, session
-   key derivation, CTR + CBC-MAC
-3. **Implement `protocol.py`**: Pair packet, command packet, status decode
-4. **Implement `provisioner.py`**: 3-step handshake targeting char 1914
-5. **Retry provisioning** with corrected characteristic and encrypted packets
+Different brands embed a 2-byte vendor identifier at payload offset [3:5]
+in every command packet. The vendor ID is stored little-endian on the wire.
 
-Key references:
+| Brand | Vendor ID (uint16) | Wire bytes [3:5] | Status |
+|-------|--------------------|-------------------|--------|
+| **Malmbergs BT Smart** | `0x1001` | `01 10` | **Confirmed working** |
+| AwoX / Eglo | `0x0160` | `60 01` | Only 0xE3 reset confirmed |
+| Dimond / retsimx | `0x0211` | `11 02` | Not working |
+
+The vendor ID is now configurable via `MeshDevice(vendor_id=...)` and in the
+HA config flow. Default is `0x1001` (Malmbergs).
+
+---
+
+## 9. Compact DP Format — Opcode 0xD2 (Confirmed 2026-03-03)
+
+The Malmbergs LED Driver uses opcode `0xD2` with a compact DP (Data Point)
+format instead of the standard Telink command codes (0xD0, 0xF1, etc.).
+
+### Compact DP TLV Structure
+
+```
+[dp_id 1B][dp_type 1B][dp_len 1B][value NB]
+```
+
+**Key difference from standard Tuya DP:** The length field is **1 byte**
+(not 2-byte big-endian as in standard Tuya TLV).
+
+### Confirmed Data Points
+
+| dp_id | Name | dp_type | Values | Confirmed |
+|-------|------|---------|--------|-----------|
+| 121 (0x79) | Power | value (0x02) | 0=OFF, 1=ON | HCI snoop + hardware |
+| 122 (0x7A) | Brightness | value (0x02) | 1-100 (%) | HCI snoop + hardware |
+| ??? | Color temp | ??? | ??? | Not yet identified |
+
+### Example: Power ON
+
+```
+Opcode: 0xD2, Vendor: 01 10
+Params: 79 02 04 00 00 00 01
+         ^  ^  ^  ^^^^^^^^^^^
+         |  |  |  value=1 (uint32 BE)
+         |  |  length=4
+         |  dp_type=VALUE
+         dp_id=121 (power)
+```
+
+### Example: Brightness 50%
+
+```
+Opcode: 0xD2, Vendor: 01 10
+Params: 7A 02 04 00 00 00 32
+         ^  ^  ^  ^^^^^^^^^^^
+         |  |  |  value=50 (uint32 BE)
+         |  |  length=4
+         |  dp_type=VALUE
+         dp_id=122 (brightness)
+```
+
+---
+
+## 10. Pairing Order (Confirmed 2026-03-03)
+
+The awox-style pairing works but **write order matters**:
+
+```
+1. Write pair packet to char 1914
+2. Write 0x01 to char 1911      ← BEFORE reading pair response!
+3. Read pair response from char 1914
+4. Derive session key
+5. Send commands to char 1912 (write-without-response)
+```
+
+**Important:** Commands work with default credentials (`out_of_mesh`/`123456`)
+without full provisioning (name/pass/LTK assignment).
+
+---
+
+## 11. Notification Wire Format
+
+```
+Wire: [3B counter][2B header_extra][2B checksum][13B encrypted payload]
+Nonce: rev_mac[0:3] + packet[0:5]   (checksum NOT in nonce)
+```
+
+The notification nonce differs from the command nonce:
+- Command nonce: `rev_mac[0:4] + 0x01 + seq[3B]` (8 bytes)
+- Notification nonce: `rev_mac[0:3] + packet[0:5]` (8 bytes)
+
+---
+
+## 12. References
+
 - [python-awox-mesh-light](https://github.com/fsaris/python-awox-mesh-light)
   — MIT license, Telink mesh pairing + commands
 - [retsimx/tlsr8266_mesh](https://github.com/retsimx/tlsr8266_mesh)
