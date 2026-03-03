@@ -152,6 +152,11 @@ class MeshDevice:
         return self._conn.is_ready
 
     @property
+    def firmware_version(self) -> str | None:
+        """Return the device firmware version, or None if not read."""
+        return self._conn.firmware_version
+
+    @property
     def connection(self) -> BLEConnection:
         """Return the underlying BLE connection."""
         return self._conn
