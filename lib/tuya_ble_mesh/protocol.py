@@ -253,20 +253,32 @@ def decode_command_packet(
 # --- Notification nonce and decryption ---
 
 
+_NOTIFICATION_HEADER_SIZE = 5  # First 5 bytes of notification used in nonce
+_NOTIFICATION_CHECKSUM_OFFSET = 5  # Checksum at bytes [5:7]
+_NOTIFICATION_PAYLOAD_OFFSET = 7  # Encrypted payload starts at byte 7
+_NOTIFICATION_MIN_SIZE = _NOTIFICATION_PAYLOAD_OFFSET + 1
+
+
 def build_notification_nonce(mac_bytes: bytes, raw_header: bytes) -> bytes:
     """Build the 8-byte nonce for notification decryption.
 
     Notification nonce format (per python-awox-mesh-light reference):
-    ``[rev_mac[0:3]][raw_header[0:5]]``
+    ``[rev_mac[0:3]][packet[0:5]]``
 
     This differs from the command nonce which uses 4 MAC bytes + 0x01 + seq.
     The notification nonce uses 3 reversed MAC bytes followed by the first
-    5 bytes of the raw notification packet (sequence 3B + checksum 2B).
+    5 bytes of the raw notification packet.
+
+    Notification wire format (20 bytes):
+    ``[3B counter][2B header_extra][2B checksum][13B encrypted payload]``
+
+    The first 5 bytes (counter + header_extra) form part of the nonce.
+    Bytes [3:5] contain additional unencrypted data (e.g. source mesh ID).
+    The 2-byte checksum is at bytes [5:7], NOT at [3:5].
 
     Args:
         mac_bytes: 6-byte BLE MAC address in standard order.
-        raw_header: First 5 bytes of the raw notification packet
-            (3B sequence + 2B checksum).
+        raw_header: First 5 bytes of the raw notification packet.
 
     Returns:
         8-byte nonce for notification decryption.
@@ -274,15 +286,14 @@ def build_notification_nonce(mac_bytes: bytes, raw_header: bytes) -> bytes:
     if len(mac_bytes) != MAC_BYTES_SIZE:
         msg = f"MAC must be {MAC_BYTES_SIZE} bytes, got {len(mac_bytes)}"
         raise ProtocolError(msg)
-    if len(raw_header) < SEQUENCE_SIZE + CHECKSUM_SIZE:
+    if len(raw_header) < _NOTIFICATION_HEADER_SIZE:
         msg = (
-            f"raw_header must be at least {SEQUENCE_SIZE + CHECKSUM_SIZE} "
-            f"bytes, got {len(raw_header)}"
+            f"raw_header must be at least {_NOTIFICATION_HEADER_SIZE} bytes, got {len(raw_header)}"
         )
         raise ProtocolError(msg)
 
     rev_mac = bytes(reversed(mac_bytes))
-    return rev_mac[:3] + raw_header[: SEQUENCE_SIZE + CHECKSUM_SIZE]
+    return rev_mac[:3] + raw_header[:_NOTIFICATION_HEADER_SIZE]
 
 
 def decrypt_notification(
@@ -292,38 +303,42 @@ def decrypt_notification(
 ) -> bytes:
     """Decrypt a notification from characteristic 1911.
 
-    Returns the full packet with the payload portion decrypted in
-    place. The status offsets from const.py apply to this buffer.
+    Returns the full 20-byte packet with the payload portion decrypted
+    in place (matching python-awox-mesh-light ``decrypt_packet``).
+    The status offsets from const.py apply to this returned buffer.
 
-    Uses the notification-specific nonce format: ``[rev_mac[0:3]][packet[0:5]]``
-    which differs from the command nonce.
+    Wire format: ``[5B header][2B checksum][13B encrypted payload]``
+    Returned:    ``[5B header][2B checksum][13B decrypted payload]``
+
+    Uses the notification-specific nonce: ``[rev_mac[0:3]][packet[0:5]]``
 
     Args:
         key: 16-byte session key.
         mac_bytes: 6-byte BLE MAC address.
-        data: Raw notification bytes (at least 6 bytes).
+        data: Raw 20-byte notification from characteristic 1911.
 
     Returns:
-        Full packet bytes with payload decrypted.
+        20-byte packet with payload decrypted in place.
 
     Raises:
         MalformedPacketError: If notification is too short.
         AuthenticationError: If MAC verification fails.
     """
-    min_size = SEQUENCE_SIZE + CHECKSUM_SIZE + 1
-    if len(data) < min_size:
-        msg = f"Notification too short: {len(data)} < {min_size}"
+    if len(data) < _NOTIFICATION_MIN_SIZE:
+        msg = f"Notification too short: {len(data)} < {_NOTIFICATION_MIN_SIZE}"
         raise MalformedPacketError(msg)
 
-    header = data[: SEQUENCE_SIZE + CHECKSUM_SIZE]
-    expected_mac = data[SEQUENCE_SIZE : SEQUENCE_SIZE + CHECKSUM_SIZE]
-    encrypted = data[SEQUENCE_SIZE + CHECKSUM_SIZE :]
+    nonce_header = data[:_NOTIFICATION_HEADER_SIZE]
+    expected_mac = data[
+        _NOTIFICATION_CHECKSUM_OFFSET : _NOTIFICATION_CHECKSUM_OFFSET + CHECKSUM_SIZE
+    ]
+    encrypted = data[_NOTIFICATION_PAYLOAD_OFFSET:]
 
-    nonce = build_notification_nonce(mac_bytes, header)
+    nonce = build_notification_nonce(mac_bytes, nonce_header)
     payload = crypt_payload(key, nonce, encrypted)
     verify_checksum(key, nonce, payload, expected_mac)
 
-    return header + payload
+    return data[:_NOTIFICATION_PAYLOAD_OFFSET] + payload
 
 
 # --- Status parsing ---

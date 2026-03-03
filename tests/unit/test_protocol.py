@@ -249,6 +249,14 @@ class TestBuildNotificationNonce:
         with pytest.raises(ProtocolError, match="raw_header"):
             build_notification_nonce(TEST_MAC, b"\x00" * 4)
 
+    def test_uses_exactly_5_bytes_from_longer_input(self) -> None:
+        """Extra bytes beyond 5 are ignored."""
+        header_5 = b"\x01\x02\x03\x04\x05"
+        header_7 = header_5 + b"\xaa\xbb"
+        assert build_notification_nonce(TEST_MAC, header_5) == build_notification_nonce(
+            TEST_MAC, header_7
+        )
+
     def test_differs_from_command_nonce(self) -> None:
         """Notification nonce uses different format from command nonce."""
         seq = 42
@@ -266,31 +274,29 @@ def _build_notification_packet(
     mac_bytes: bytes,
     sequence: int,
     payload: bytes,
+    header_extra: bytes = b"\x00\x00",
 ) -> bytes:
     """Build a notification packet encrypted with notification nonce.
 
-    This helper simulates what a real device would send. The notification
-    nonce format ``[rev_mac[:3]][packet[:5]]`` creates a circular dependency:
-    the tag (checksum) bytes are part of the nonce used to compute the tag.
+    Simulates what a real device sends. The notification wire format is:
+    ``[3B counter][2B header_extra][2B checksum][13B encrypted payload]``
 
-    We solve this by brute-forcing the 2-byte tag space (max 65536 candidates)
-    to find a self-consistent value where::
+    The nonce uses the first 5 bytes (counter + header_extra), so the
+    checksum at bytes [5:7] is NOT part of the nonce — no circular dependency.
 
-        tag == make_checksum(key, nonce_with_tag, payload)[:2]
+    Args:
+        header_extra: 2 bytes of additional header data (e.g. source mesh ID).
     """
+    if len(payload) != 13:
+        msg = f"Notification payload must be 13 bytes, got {len(payload)}"
+        raise AssertionError(msg)
+
     seq_bytes = sequence.to_bytes(3, "little")
-
-    for tag_int in range(0x10000):
-        tag = struct.pack(">H", tag_int)
-        header = seq_bytes + tag
-        nonce = build_notification_nonce(mac_bytes, header)
-        computed = make_checksum(key, nonce, payload)[:2]
-        if computed == tag:
-            encrypted = crypt_payload(key, nonce, payload)
-            return header + encrypted
-
-    msg = "No self-consistent tag found"
-    raise AssertionError(msg)
+    header = seq_bytes + header_extra[:2]  # 5 bytes
+    nonce = build_notification_nonce(mac_bytes, header)
+    checksum = make_checksum(key, nonce, payload)[:2]
+    encrypted = crypt_payload(key, nonce, payload)
+    return header + checksum + encrypted  # 5 + 2 + 13 = 20 bytes
 
 
 class TestDecryptNotification:
@@ -298,29 +304,52 @@ class TestDecryptNotification:
 
     def test_roundtrip_with_notification_nonce(self) -> None:
         """A notification encrypted with notification nonce decrypts correctly."""
-        payload = bytearray(15)
-        payload[0] = 0x01  # dest low
-        payload[2] = TELINK_CMD_POWER
-        payload[3:5] = TELINK_VENDOR_ID
-        payload[5] = 0x01  # power on param
+        # 13-byte payload (bytes [7:20] of 20-byte notification)
+        payload = bytearray(13)
+        payload[0] = 0x01  # example data byte
+        payload[5] = 0x03  # mode field (at full packet offset 12)
+        payload[6] = 0x7F  # white_brightness (at full packet offset 13)
 
-        packet = _build_notification_packet(TEST_KEY, TEST_MAC, 42, bytes(payload))
+        mesh_id_bytes = b"\x42\x00"  # mesh_id = 0x42 at header[3]
+        packet = _build_notification_packet(
+            TEST_KEY,
+            TEST_MAC,
+            42,
+            bytes(payload),
+            mesh_id_bytes,
+        )
         decrypted = decrypt_notification(TEST_KEY, TEST_MAC, packet)
         assert len(decrypted) == COMMAND_PACKET_SIZE
         # Sequence preserved in header bytes 0-2
         assert int.from_bytes(decrypted[:3], "little") == 42
-        # Payload starts after 5-byte header (3B seq + 2B tag)
-        # payload[0] = dest_id low at decrypted[5]
-        assert decrypted[5] == 0x01
-        # payload[2] = opcode at decrypted[7]
-        assert decrypted[7] == TELINK_CMD_POWER
+        # Mesh ID at byte 3 (from unencrypted header)
+        assert decrypted[STATUS_OFFSET_MESH_ID] == 0x42
+        # Mode at byte 12 (from decrypted payload[5])
+        assert decrypted[STATUS_OFFSET_MODE] == 0x03
+        # White brightness at byte 13 (from decrypted payload[6])
+        assert decrypted[STATUS_OFFSET_WHITE_BRIGHTNESS] == 0x7F
+
+    def test_returned_packet_is_20_bytes(self) -> None:
+        """decrypt_notification returns full 20-byte packet matching awox format."""
+        payload = b"\x00" * 13
+        packet = _build_notification_packet(TEST_KEY, TEST_MAC, 0, payload)
+        decrypted = decrypt_notification(TEST_KEY, TEST_MAC, packet)
+        assert len(decrypted) == 20
+
+    def test_header_preserved(self) -> None:
+        """First 7 bytes (header + checksum) are unchanged in output."""
+        payload = b"\x00" * 13
+        packet = _build_notification_packet(TEST_KEY, TEST_MAC, 99, payload)
+        decrypted = decrypt_notification(TEST_KEY, TEST_MAC, packet)
+        # First 7 bytes should match the wire packet
+        assert decrypted[:7] == packet[:7]
 
     def test_too_short_raises(self) -> None:
         with pytest.raises(MalformedPacketError, match="too short"):
-            decrypt_notification(TEST_KEY, TEST_MAC, b"\x00" * 5)
+            decrypt_notification(TEST_KEY, TEST_MAC, b"\x00" * 7)
 
     def test_wrong_key_fails(self) -> None:
-        payload = b"\x00" * 15
+        payload = b"\x00" * 13
         packet = _build_notification_packet(TEST_KEY, TEST_MAC, 1, payload)
         with pytest.raises(AuthenticationError):
             decrypt_notification(b"\xcd" * 16, TEST_MAC, packet)
