@@ -2,7 +2,7 @@
 
 NOT a DataUpdateCoordinator subclass. BLE notifications drive state
 updates via _on_status_update → listener dispatch. Reconnection uses
-exponential backoff.
+exponential backoff, triggered by MeshDevice disconnect callbacks.
 """
 
 from __future__ import annotations
@@ -42,7 +42,8 @@ class TuyaBLEMeshCoordinator:
     """Push-based coordinator for a single BLE mesh device.
 
     Receives BLE notifications and dispatches state to HA entities.
-    Handles reconnection with exponential backoff.
+    Handles reconnection with exponential backoff, triggered by
+    MeshDevice disconnect callbacks (not polling).
     """
 
     def __init__(self, device: MeshDevice) -> None:
@@ -110,10 +111,22 @@ class TuyaBLEMeshCoordinator:
 
         self._notify_listeners()
 
+    def _on_disconnect(self) -> None:
+        """Handle device disconnect — mark unavailable and schedule reconnect.
+
+        Called by MeshDevice disconnect callback when the BLE connection
+        is lost (write failure or keep-alive timeout).
+        """
+        _LOGGER.warning("Device disconnected: %s", self._device.address)
+        self._state.available = False
+        self._notify_listeners()
+        self._schedule_reconnect()
+
     async def async_start(self) -> None:
         """Start the coordinator — connect and begin receiving notifications."""
         self._running = True
         self._device.register_status_callback(self._on_status_update)
+        self._device.register_disconnect_callback(self._on_disconnect)
 
         try:
             await self._device.connect()
@@ -140,6 +153,7 @@ class TuyaBLEMeshCoordinator:
             self._reconnect_task = None
 
         self._device.unregister_status_callback(self._on_status_update)
+        self._device.unregister_disconnect_callback(self._on_disconnect)
 
         try:
             await self._device.disconnect()

@@ -29,6 +29,8 @@ def make_mock_device() -> MagicMock:
     device.disconnect = AsyncMock()
     device.register_status_callback = MagicMock()
     device.unregister_status_callback = MagicMock()
+    device.register_disconnect_callback = MagicMock()
+    device.unregister_disconnect_callback = MagicMock()
     device.is_connected = True
     return device
 
@@ -200,6 +202,7 @@ class TestAsyncStart:
 
         device.connect.assert_called_once()
         device.register_status_callback.assert_called_once()
+        device.register_disconnect_callback.assert_called_once()
         assert coord.state.available is True
 
     @pytest.mark.asyncio
@@ -231,6 +234,7 @@ class TestAsyncStop:
 
         device.disconnect.assert_called_once()
         device.unregister_status_callback.assert_called_once()
+        device.unregister_disconnect_callback.assert_called_once()
         assert coord.state.available is False
 
     @pytest.mark.asyncio
@@ -243,6 +247,54 @@ class TestAsyncStop:
 
         await coord.async_stop()
 
+        assert coord._reconnect_task is None
+
+
+class TestDisconnectCallback:
+    """Test disconnect callback triggers reconnect."""
+
+    def test_on_disconnect_marks_unavailable(self) -> None:
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        coord.state.available = True
+
+        coord._on_disconnect()
+
+        assert coord.state.available is False
+
+    def test_on_disconnect_notifies_listeners(self) -> None:
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        listener = MagicMock()
+        coord.add_listener(listener)
+
+        coord._on_disconnect()
+
+        listener.assert_called_once()
+
+    def test_on_disconnect_schedules_reconnect(self) -> None:
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+
+        coord._on_disconnect()
+
+        assert coord._reconnect_task is not None
+
+        # Clean up
+        coord._reconnect_task.cancel()
+        coord._reconnect_task = None
+
+    def test_on_disconnect_noop_when_stopped(self) -> None:
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = False
+
+        coord._on_disconnect()
+
+        # No reconnect task scheduled when not running
         assert coord._reconnect_task is None
 
 
