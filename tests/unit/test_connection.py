@@ -1,5 +1,6 @@
 """Unit tests for BLEConnection transport class."""
 
+import asyncio
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -157,6 +158,87 @@ class TestConnect:
         assert conn.state == ConnectionState.DISCONNECTED
         assert conn.session_key is None
         mock_client.disconnect.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_clear_bluez_before_first_attempt(self) -> None:
+        """Verify _clear_bluez_device is called before BleakScanner."""
+        conn = _make_conn()
+        call_order: list[str] = []
+
+        async def mock_clear() -> None:
+            call_order.append("clear")
+
+        async def mock_scan(
+            *args: object,
+            **kwargs: object,
+        ) -> MagicMock:
+            call_order.append("scan")
+            return MagicMock()
+
+        mock_client = AsyncMock()
+        mock_client.connect = AsyncMock()
+
+        with (
+            patch.object(conn, "_clear_bluez_device", side_effect=mock_clear),
+            patch(
+                "tuya_ble_mesh.connection.BleakScanner.find_device_by_address",
+                side_effect=mock_scan,
+            ),
+            patch("tuya_ble_mesh.connection.BleakClient", return_value=mock_client),
+            patch("tuya_ble_mesh.connection.provision", return_value=SESSION_KEY),
+        ):
+            await conn.connect()
+
+        assert call_order[0] == "clear"
+        assert call_order[1] == "scan"
+        conn._stop_keep_alive()
+
+    @pytest.mark.asyncio
+    async def test_cancelled_error_retried(self) -> None:
+        """CancelledError on first attempt should retry and succeed."""
+        conn = _make_conn()
+        mock_client = AsyncMock()
+        mock_client.connect = AsyncMock(
+            side_effect=[asyncio.CancelledError(), None],
+        )
+        mock_ble_device = MagicMock()
+
+        with (
+            patch.object(conn, "_clear_bluez_device", new_callable=AsyncMock),
+            patch(
+                "tuya_ble_mesh.connection.BleakScanner.find_device_by_address",
+                return_value=mock_ble_device,
+            ),
+            patch("tuya_ble_mesh.connection.BleakClient", return_value=mock_client),
+            patch("tuya_ble_mesh.connection.provision", return_value=SESSION_KEY),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            await conn.connect()
+
+        assert conn.state == ConnectionState.READY
+        conn._stop_keep_alive()
+
+    @pytest.mark.asyncio
+    async def test_all_retries_cancelled_raises_connection_error(self) -> None:
+        """All retries hitting CancelledError should raise ConnectionError."""
+        conn = _make_conn()
+        mock_client = AsyncMock()
+        mock_client.connect = AsyncMock(side_effect=asyncio.CancelledError())
+        mock_ble_device = MagicMock()
+
+        with (
+            patch.object(conn, "_clear_bluez_device", new_callable=AsyncMock),
+            patch(
+                "tuya_ble_mesh.connection.BleakScanner.find_device_by_address",
+                return_value=mock_ble_device,
+            ),
+            patch("tuya_ble_mesh.connection.BleakClient", return_value=mock_client),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+            pytest.raises(ConnectionError, match="Failed to connect"),
+        ):
+            await conn.connect(max_retries=3)
+
+        assert conn.state == ConnectionState.DISCONNECTED
 
 
 # --- Disconnect ---
