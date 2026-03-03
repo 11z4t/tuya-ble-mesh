@@ -11,6 +11,8 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
+from homeassistant.components.light import ColorMode, LightEntity
+
 from custom_components.tuya_ble_mesh.const import (
     DEVICE_BRIGHTNESS_MAX,
     DEVICE_BRIGHTNESS_MIN,
@@ -34,9 +36,6 @@ if TYPE_CHECKING:
     AddEntitiesCallback = Callable[..., None]
 
 _LOGGER = logging.getLogger(__name__)
-
-# HA color mode constant (avoid importing homeassistant at module level)
-COLOR_MODE_COLOR_TEMP = "color_temp"
 
 
 def brightness_to_ha(device_value: int) -> int:
@@ -131,11 +130,10 @@ async def async_setup_entry(
     async_add_entities([TuyaBLEMeshLight(coordinator, entry.entry_id)])
 
 
-class TuyaBLEMeshLight:
-    """Light entity for a Tuya BLE Mesh device.
+class TuyaBLEMeshLight(LightEntity):
+    """Light entity for a Tuya BLE Mesh device."""
 
-    Duck-typed to match HA's LightEntity interface.
-    """
+    _attr_should_poll = False
 
     def __init__(self, coordinator: TuyaBLEMeshCoordinator, entry_id: str) -> None:
         self._coordinator = coordinator
@@ -189,14 +187,14 @@ class TuyaBLEMeshLight:
         return HA_MIRED_MAX
 
     @property
-    def color_mode(self) -> str:
+    def color_mode(self) -> ColorMode:
         """Return the current color mode."""
-        return COLOR_MODE_COLOR_TEMP
+        return ColorMode.COLOR_TEMP
 
     @property
-    def supported_color_modes(self) -> set[str]:
+    def supported_color_modes(self) -> set[ColorMode]:
         """Return supported color modes."""
-        return {COLOR_MODE_COLOR_TEMP}
+        return {ColorMode.COLOR_TEMP}
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the light.
@@ -238,5 +236,4 @@ class TuyaBLEMeshLight:
 
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""
-        # In HA, this would call self.async_write_ha_state()
-        _LOGGER.debug("Light state updated: on=%s", self.is_on)
+        self.async_write_ha_state()

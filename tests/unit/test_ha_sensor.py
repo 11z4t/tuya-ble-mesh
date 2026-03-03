@@ -92,6 +92,11 @@ class TestRSSISensor:
         sensor = TuyaBLEMeshRSSISensor(coord, "entry1")
         assert sensor.entity_category == "diagnostic"
 
+    def test_should_poll_false(self) -> None:
+        coord = make_mock_coordinator()
+        sensor = TuyaBLEMeshRSSISensor(coord, "entry1")
+        assert sensor.should_poll is False
+
 
 class TestFirmwareSensor:
     """Test TuyaBLEMeshFirmwareSensor."""
@@ -121,6 +126,11 @@ class TestFirmwareSensor:
         coord = make_mock_coordinator()
         sensor = TuyaBLEMeshFirmwareSensor(coord, "entry1")
         assert sensor.entity_category == "diagnostic"
+
+    def test_should_poll_false(self) -> None:
+        coord = make_mock_coordinator()
+        sensor = TuyaBLEMeshFirmwareSensor(coord, "entry1")
+        assert sensor.should_poll is False
 
 
 class TestSensorLifecycle:
@@ -167,6 +177,30 @@ class TestSensorLifecycle:
         await sensor.async_will_remove_from_hass()
 
         remove_fn.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_rssi_update_triggers_ha_state_write(self) -> None:
+        coord = make_mock_coordinator()
+        sensor = TuyaBLEMeshRSSISensor(coord, "entry1")
+        sensor.async_write_ha_state = MagicMock()
+
+        await sensor.async_added_to_hass()
+        callback = coord.add_listener.call_args[0][0]
+        callback()
+
+        sensor.async_write_ha_state.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_firmware_update_triggers_ha_state_write(self) -> None:
+        coord = make_mock_coordinator()
+        sensor = TuyaBLEMeshFirmwareSensor(coord, "entry1")
+        sensor.async_write_ha_state = MagicMock()
+
+        await sensor.async_added_to_hass()
+        callback = coord.add_listener.call_args[0][0]
+        callback()
+
+        sensor.async_write_ha_state.assert_called_once()
 
 
 class TestSensorPlatformSetup:
