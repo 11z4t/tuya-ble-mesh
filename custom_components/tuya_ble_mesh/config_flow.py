@@ -13,11 +13,13 @@ from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 from homeassistant.config_entries import ConfigFlow
 
 from custom_components.tuya_ble_mesh.const import (
+    CONF_DEVICE_TYPE,
     CONF_MAC_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
     CONF_VENDOR_ID,
     DEFAULT_VENDOR_ID,
+    DEVICE_TYPE_LIGHT,
     DOMAIN,
 )
 
@@ -93,6 +95,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_MESH_NAME: user_input.get(CONF_MESH_NAME, "out_of_mesh"),
                     CONF_MESH_PASSWORD: user_input.get(CONF_MESH_PASSWORD, "123456"),
                     CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
+                    CONF_DEVICE_TYPE: user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT),
                 },
             )
 
@@ -127,6 +130,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_MESH_NAME: user_input.get(CONF_MESH_NAME, "out_of_mesh"),
                         CONF_MESH_PASSWORD: user_input.get(CONF_MESH_PASSWORD, "123456"),
                         CONF_VENDOR_ID: user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID),
+                        CONF_DEVICE_TYPE: user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT),
                     },
                 )
 
