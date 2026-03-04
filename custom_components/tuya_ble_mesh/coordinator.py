@@ -36,6 +36,10 @@ class TuyaBLEMeshDeviceState:
     brightness: int = 0
     color_temp: int = 0
     mode: int = 0
+    red: int = 0
+    green: int = 0
+    blue: int = 0
+    color_brightness: int = 0
     rssi: int | None = None
     firmware_version: str | None = None
     available: bool = False
@@ -102,15 +106,24 @@ class TuyaBLEMeshCoordinator:
         self._state.mode = status.mode
         self._state.brightness = status.white_brightness
         self._state.color_temp = status.white_temp
+        self._state.red = status.red
+        self._state.green = status.green
+        self._state.blue = status.blue
+        self._state.color_brightness = status.color_brightness
         self._state.is_on = status.white_brightness > 0 or status.color_brightness > 0
         self._state.available = True
         self._backoff = _INITIAL_BACKOFF
 
         _LOGGER.debug(
-            "Status update: on=%s bright=%d temp=%d",
+            "Status update: on=%s mode=%d bright=%d temp=%d rgb=(%d,%d,%d) cbright=%d",
             self._state.is_on,
+            self._state.mode,
             self._state.brightness,
             self._state.color_temp,
+            self._state.red,
+            self._state.green,
+            self._state.blue,
+            self._state.color_brightness,
         )
 
         self._notify_listeners()

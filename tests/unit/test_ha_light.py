@@ -36,6 +36,11 @@ def make_mock_coordinator(
     is_on: bool = True,
     brightness: int = 64,
     color_temp: int = 32,
+    mode: int = 0,
+    red: int = 0,
+    green: int = 0,
+    blue: int = 0,
+    color_brightness: int = 0,
     available: bool = True,
 ) -> MagicMock:
     """Create a mock coordinator with configurable state."""
@@ -44,6 +49,11 @@ def make_mock_coordinator(
         is_on=is_on,
         brightness=brightness,
         color_temp=color_temp,
+        mode=mode,
+        red=red,
+        green=green,
+        blue=blue,
+        color_brightness=color_brightness,
         available=available,
     )
     coord.device = MagicMock()
@@ -51,6 +61,9 @@ def make_mock_coordinator(
     coord.device.send_power = AsyncMock()
     coord.device.send_brightness = AsyncMock()
     coord.device.send_color_temp = AsyncMock()
+    coord.device.send_color = AsyncMock()
+    coord.device.send_color_brightness = AsyncMock()
+    coord.device.send_light_mode = AsyncMock()
     coord.add_listener = MagicMock(return_value=MagicMock())
     return coord
 
@@ -205,20 +218,49 @@ class TestLightProperties:
         assert light.min_mireds == 153
         assert light.max_mireds == 370
 
-    def test_color_mode(self) -> None:
-        coord = make_mock_coordinator()
+    def test_color_mode_white(self) -> None:
+        coord = make_mock_coordinator(mode=0)
         light = TuyaBLEMeshLight(coord, "test_entry")
         assert light.color_mode == ColorMode.COLOR_TEMP
 
-    def test_supported_color_modes(self) -> None:
+    def test_supported_color_modes_includes_rgb(self) -> None:
         coord = make_mock_coordinator()
         light = TuyaBLEMeshLight(coord, "test_entry")
-        assert light.supported_color_modes == {ColorMode.COLOR_TEMP}
+        assert light.supported_color_modes == {ColorMode.COLOR_TEMP, ColorMode.RGB}
 
     def test_should_poll_false(self) -> None:
         coord = make_mock_coordinator()
         light = TuyaBLEMeshLight(coord, "test_entry")
         assert light.should_poll is False
+
+
+class TestRGBColorMode:
+    """Test RGB color mode support."""
+
+    def test_rgb_color_mode_when_mode_is_color(self) -> None:
+        coord = make_mock_coordinator(mode=1, is_on=True)
+        light = TuyaBLEMeshLight(coord, "test_entry")
+        assert light.color_mode == ColorMode.RGB
+
+    def test_rgb_color_property(self) -> None:
+        coord = make_mock_coordinator(mode=1, is_on=True, red=255, green=128, blue=64)
+        light = TuyaBLEMeshLight(coord, "test_entry")
+        assert light.rgb_color == (255, 128, 64)
+
+    def test_rgb_color_none_when_white_mode(self) -> None:
+        coord = make_mock_coordinator(mode=0, is_on=True, red=255, green=128, blue=64)
+        light = TuyaBLEMeshLight(coord, "test_entry")
+        assert light.rgb_color is None
+
+    def test_rgb_color_none_when_off(self) -> None:
+        coord = make_mock_coordinator(mode=1, is_on=False)
+        light = TuyaBLEMeshLight(coord, "test_entry")
+        assert light.rgb_color is None
+
+    def test_brightness_in_rgb_mode(self) -> None:
+        coord = make_mock_coordinator(mode=1, is_on=True, color_brightness=200)
+        light = TuyaBLEMeshLight(coord, "test_entry")
+        assert light.brightness == 200
 
 
 class TestLightActions:
@@ -274,6 +316,36 @@ class TestLightActions:
         await light.async_turn_off()
 
         coord.device.send_power.assert_called_once_with(False)
+
+    @pytest.mark.asyncio
+    async def test_turn_on_with_rgb_color(self) -> None:
+        coord = make_mock_coordinator()
+        light = TuyaBLEMeshLight(coord, "test_entry")
+
+        await light.async_turn_on(rgb_color=(255, 0, 128))
+
+        coord.device.send_color.assert_called_once_with(255, 0, 128)
+        coord.device.send_light_mode.assert_called_once_with(1)
+
+    @pytest.mark.asyncio
+    async def test_turn_on_brightness_in_rgb_mode(self) -> None:
+        coord = make_mock_coordinator(mode=1)
+        light = TuyaBLEMeshLight(coord, "test_entry")
+
+        await light.async_turn_on(brightness=200)
+
+        coord.device.send_color_brightness.assert_called_once_with(200)
+        coord.device.send_brightness.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_color_temp_switches_to_white_mode(self) -> None:
+        coord = make_mock_coordinator(mode=1)
+        light = TuyaBLEMeshLight(coord, "test_entry")
+
+        await light.async_turn_on(color_temp=262)
+
+        coord.device.send_light_mode.assert_called_once_with(0)
+        coord.device.send_color_temp.assert_called_once()
 
 
 class TestLightLifecycle:
@@ -346,6 +418,20 @@ class TestLightPlatformSetup:
 
         entities = add_entities.call_args[0][0]
         assert entities[0]._coordinator is coord
+
+    @pytest.mark.asyncio
+    async def test_setup_skips_plug_device_type(self) -> None:
+        coord = make_mock_coordinator()
+        hass = MagicMock()
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        entry = MagicMock()
+        entry.entry_id = "entry1"
+        entry.data = {"device_type": "plug"}
+        add_entities = MagicMock()
+
+        await async_setup_entry(hass, entry, add_entities)
+
+        add_entities.assert_not_called()
 
 
 class TestTransitions:
