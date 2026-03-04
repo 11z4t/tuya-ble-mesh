@@ -1,0 +1,193 @@
+"""Unit tests for the Tuya BLE Mesh switch entity platform."""
+
+from __future__ import annotations
+
+import sys
+from pathlib import Path
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock
+
+import pytest
+
+# Add project root and lib for imports
+_ROOT = str(Path(__file__).resolve().parent.parent.parent)
+sys.path.insert(0, _ROOT)
+sys.path.insert(0, str(Path(_ROOT) / "lib"))
+
+from homeassistant.components.switch import SwitchDeviceClass  # noqa: E402
+
+from custom_components.tuya_ble_mesh.const import DOMAIN  # noqa: E402
+from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
+    TuyaBLEMeshDeviceState,
+)
+from custom_components.tuya_ble_mesh.switch import (  # noqa: E402
+    TuyaBLEMeshSwitch,
+    async_setup_entry,
+)
+
+
+def make_mock_coordinator(
+    *,
+    is_on: bool = True,
+    available: bool = True,
+) -> MagicMock:
+    """Create a mock coordinator with configurable state."""
+    coord = MagicMock()
+    coord.state = TuyaBLEMeshDeviceState(
+        is_on=is_on,
+        available=available,
+    )
+    coord.device = MagicMock()
+    coord.device.address = "DC:23:4D:21:43:A5"
+    coord.device.send_power = AsyncMock()
+    coord.add_listener = MagicMock(return_value=MagicMock())
+    return coord
+
+
+class TestSwitchProperties:
+    """Test TuyaBLEMeshSwitch properties."""
+
+    def test_switch_unique_id(self) -> None:
+        coord = make_mock_coordinator()
+        switch = TuyaBLEMeshSwitch(coord, "test_entry")
+        assert "DC:23:4D:21:43:A5" in switch.unique_id
+        assert switch.unique_id.endswith("_switch")
+
+    def test_switch_is_on_property(self) -> None:
+        coord = make_mock_coordinator(is_on=True)
+        switch = TuyaBLEMeshSwitch(coord, "test_entry")
+        assert switch.is_on is True
+
+    def test_switch_is_off_property(self) -> None:
+        coord = make_mock_coordinator(is_on=False)
+        switch = TuyaBLEMeshSwitch(coord, "test_entry")
+        assert switch.is_on is False
+
+    def test_switch_available(self) -> None:
+        coord = make_mock_coordinator(available=True)
+        switch = TuyaBLEMeshSwitch(coord, "test_entry")
+        assert switch.available is True
+
+    def test_switch_not_available(self) -> None:
+        coord = make_mock_coordinator(available=False)
+        switch = TuyaBLEMeshSwitch(coord, "test_entry")
+        assert switch.available is False
+
+    def test_switch_device_class_outlet(self) -> None:
+        coord = make_mock_coordinator()
+        switch = TuyaBLEMeshSwitch(coord, "test_entry")
+        assert switch.device_class == SwitchDeviceClass.OUTLET
+
+    def test_switch_should_poll_false(self) -> None:
+        coord = make_mock_coordinator()
+        switch = TuyaBLEMeshSwitch(coord, "test_entry")
+        assert switch.should_poll is False
+
+
+class TestSwitchActions:
+    """Test switch turn_on/turn_off actions."""
+
+    @pytest.mark.asyncio
+    async def test_switch_turn_on(self) -> None:
+        coord = make_mock_coordinator()
+        switch = TuyaBLEMeshSwitch(coord, "test_entry")
+
+        await switch.async_turn_on()
+
+        coord.device.send_power.assert_called_once_with(True)
+
+    @pytest.mark.asyncio
+    async def test_switch_turn_off(self) -> None:
+        coord = make_mock_coordinator()
+        switch = TuyaBLEMeshSwitch(coord, "test_entry")
+
+        await switch.async_turn_off()
+
+        coord.device.send_power.assert_called_once_with(False)
+
+
+class TestSwitchLifecycle:
+    """Test HA lifecycle methods."""
+
+    @pytest.mark.asyncio
+    async def test_added_to_hass(self) -> None:
+        coord = make_mock_coordinator()
+        switch = TuyaBLEMeshSwitch(coord, "test_entry")
+
+        await switch.async_added_to_hass()
+
+        coord.add_listener.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_removed_from_hass(self) -> None:
+        coord = make_mock_coordinator()
+        remove_fn = MagicMock()
+        coord.add_listener.return_value = remove_fn
+        switch = TuyaBLEMeshSwitch(coord, "test_entry")
+
+        await switch.async_added_to_hass()
+        await switch.async_will_remove_from_hass()
+
+        remove_fn.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_update_triggers_ha_state_write(self) -> None:
+        coord = make_mock_coordinator()
+        switch = TuyaBLEMeshSwitch(coord, "test_entry")
+        switch.async_write_ha_state = MagicMock()  # type: ignore[assignment]
+
+        await switch.async_added_to_hass()
+        callback = coord.add_listener.call_args[0][0]
+        callback()
+
+        switch.async_write_ha_state.assert_called_once()
+
+
+class TestSwitchPlatformSetup:
+    """Test async_setup_entry for the switch platform."""
+
+    @pytest.mark.asyncio
+    async def test_setup_creates_switch_for_plug(self) -> None:
+        coord = make_mock_coordinator()
+        hass = MagicMock()
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        entry = MagicMock()
+        entry.entry_id = "entry1"
+        entry.data = {"device_type": "plug"}
+        add_entities = MagicMock()
+
+        await async_setup_entry(hass, entry, add_entities)
+
+        add_entities.assert_called_once()
+        entities = add_entities.call_args[0][0]
+        assert len(entities) == 1
+        assert isinstance(entities[0], TuyaBLEMeshSwitch)
+
+    @pytest.mark.asyncio
+    async def test_setup_skips_light_device_type(self) -> None:
+        coord = make_mock_coordinator()
+        hass = MagicMock()
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        entry = MagicMock()
+        entry.entry_id = "entry1"
+        entry.data = {"device_type": "light"}
+        add_entities = MagicMock()
+
+        await async_setup_entry(hass, entry, add_entities)
+
+        add_entities.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_setup_skips_no_device_type(self) -> None:
+        """Default (no device_type) should not create switch."""
+        coord = make_mock_coordinator()
+        hass = MagicMock()
+        hass.data: dict[str, Any] = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        entry = MagicMock()
+        entry.entry_id = "entry1"
+        entry.data = {}
+        add_entities = MagicMock()
+
+        await async_setup_entry(hass, entry, add_entities)
+
+        add_entities.assert_not_called()
