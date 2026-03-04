@@ -19,6 +19,7 @@ from custom_components.tuya_ble_mesh.config_flow import (
     _validate_mac,
 )
 from custom_components.tuya_ble_mesh.const import (
+    CONF_DEVICE_TYPE,
     CONF_MAC_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
@@ -204,3 +205,40 @@ class TestConfirmStep:
         result = await flow.async_step_confirm({})
 
         assert result["title"] == "out_of_mesh_1234"
+
+
+class TestDeviceType:
+    """Test device_type field in config flow."""
+
+    @pytest.mark.asyncio
+    async def test_user_flow_with_device_type_plug(self) -> None:
+        flow = TuyaBLEMeshConfigFlow()
+        result = await flow.async_step_user(
+            {
+                CONF_MAC_ADDRESS: "DC:23:4D:21:43:A5",
+                CONF_DEVICE_TYPE: "plug",
+            }
+        )
+
+        assert result["type"] == "create_entry"
+        assert result["data"][CONF_DEVICE_TYPE] == "plug"
+
+    @pytest.mark.asyncio
+    async def test_default_device_type_is_light(self) -> None:
+        flow = TuyaBLEMeshConfigFlow()
+        result = await flow.async_step_user({CONF_MAC_ADDRESS: "DC:23:4D:21:43:A5"})
+
+        assert result["type"] == "create_entry"
+        assert result["data"][CONF_DEVICE_TYPE] == "light"
+
+    @pytest.mark.asyncio
+    async def test_confirm_default_device_type_is_light(self) -> None:
+        flow = TuyaBLEMeshConfigFlow()
+        flow._discovery_info = {
+            "address": "DC:23:4D:21:43:A5",
+            "name": "out_of_mesh_1234",
+        }
+
+        result = await flow.async_step_confirm({})
+
+        assert result["data"][CONF_DEVICE_TYPE] == "light"
