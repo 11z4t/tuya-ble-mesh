@@ -207,6 +207,32 @@ class TestConfirmStep:
         assert result["title"] == "out_of_mesh_1234"
 
 
+class TestDescriptionPlaceholders:
+    """Test security warning description placeholders."""
+
+    @pytest.mark.asyncio
+    async def test_user_step_form_has_description_placeholders(self) -> None:
+        flow = TuyaBLEMeshConfigFlow()
+        result = await flow.async_step_user(None)
+
+        assert result["type"] == "form"
+        assert "description_placeholders" in result
+
+    @pytest.mark.asyncio
+    async def test_confirm_step_form_has_description_placeholders(self) -> None:
+        flow = TuyaBLEMeshConfigFlow()
+        flow._discovery_info = {
+            "address": "DC:23:4D:21:43:A5",
+            "name": "out_of_mesh_1234",
+        }
+
+        result = await flow.async_step_confirm(None)
+
+        assert result["type"] == "form"
+        assert "description_placeholders" in result
+        assert result["description_placeholders"]["name"] == "out_of_mesh_1234"
+
+
 class TestDeviceType:
     """Test device_type field in config flow."""
 
