@@ -12,11 +12,19 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from custom_components.tuya_ble_mesh.const import (
+    CONF_DEVICE_TYPE,
+    CONF_IV_INDEX,
     CONF_MAC_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
+    CONF_OP_ITEM_PREFIX,
+    CONF_UNICAST_OUR,
+    CONF_UNICAST_TARGET,
     CONF_VENDOR_ID,
+    DEFAULT_IV_INDEX,
+    DEFAULT_OP_ITEM_PREFIX,
     DEFAULT_VENDOR_ID,
+    DEVICE_TYPE_SIG_PLUG,
     DOMAIN,
     PLATFORMS,
 )
@@ -46,25 +54,46 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     Returns:
         True if setup succeeded.
     """
-    from tuya_ble_mesh.device import MeshDevice
-
     from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
 
     _LOGGER.info("Setting up Tuya BLE Mesh entry: %s", entry.title)
 
     mac_address: str = entry.data[CONF_MAC_ADDRESS]
-    mesh_name: str = entry.data[CONF_MESH_NAME]
-    mesh_password: str = entry.data[CONF_MESH_PASSWORD]
-    vendor_id_hex: str = entry.data.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
-    vendor_id_int = int(vendor_id_hex, 16)
-    vendor_id_bytes = vendor_id_int.to_bytes(2, "little")
+    device_type: str = entry.data.get(CONF_DEVICE_TYPE, "")
 
-    device = MeshDevice(
-        mac_address,
-        mesh_name.encode(),
-        mesh_password.encode(),
-        vendor_id=vendor_id_bytes,
-    )
+    if device_type == DEVICE_TYPE_SIG_PLUG:
+        from tuya_ble_mesh.secrets import SecretsManager
+        from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
+
+        target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00aa"), 16)
+        our_addr = int(entry.data.get(CONF_UNICAST_OUR, "0001"), 16)
+        op_prefix: str = entry.data.get(CONF_OP_ITEM_PREFIX, DEFAULT_OP_ITEM_PREFIX)
+        iv_index: int = entry.data.get(CONF_IV_INDEX, DEFAULT_IV_INDEX)
+
+        device = SIGMeshDevice(
+            mac_address,
+            target_addr,
+            our_addr,
+            SecretsManager(),
+            op_item_prefix=op_prefix,
+            iv_index=iv_index,
+        )
+    else:
+        from tuya_ble_mesh.device import MeshDevice
+
+        mesh_name: str = entry.data[CONF_MESH_NAME]
+        mesh_password: str = entry.data[CONF_MESH_PASSWORD]
+        vendor_id_hex: str = entry.data.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
+        vendor_id_int = int(vendor_id_hex, 16)
+        vendor_id_bytes = vendor_id_int.to_bytes(2, "little")
+
+        device = MeshDevice(  # type: ignore[assignment]
+            mac_address,
+            mesh_name.encode(),
+            mesh_password.encode(),
+            vendor_id=vendor_id_bytes,
+        )
+
     coordinator = TuyaBLEMeshCoordinator(device)
 
     hass.data.setdefault(DOMAIN, {})
