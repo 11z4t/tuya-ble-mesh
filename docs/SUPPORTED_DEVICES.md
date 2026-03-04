@@ -9,6 +9,8 @@ characteristics with the Telink base UUID (`00010203-0405-0607-0809-0a0b0c0dXXXX
 | Brand | Model | Product | Vendor ID | Features | Status |
 |-------|-------|---------|-----------|----------|--------|
 | Malmbergs BT Smart | 9952126 | LED Driver | `0x1001` | Power, brightness, color temp | Working |
+| Malmbergs BT Smart | 9917071 | Smart Plug S17 | — | Power on/off | Research |
+| Malmbergs BT Smart | 9917073 | Smart Plug S17 | — | Power on/off, energy monitoring | Research |
 
 ## Known Compatible Brands
 
@@ -67,9 +69,30 @@ The integration discovers devices automatically if they match:
 
 Devices with other names may work via manual MAC address entry.
 
+## S17 Smart Plug — Research Notes
+
+Malmbergs sells two S17 plug variants with the same underlying logic:
+
+| Article | Description | Notes |
+|---------|-------------|-------|
+| 9917071 | Smart Plug S17 | On/off control |
+| 9917073 | Smart Plug S17 | Same as 9917071, likely with energy monitoring |
+
+The S17 plug uses a **different protocol** than the LED driver:
+
+- **Advertising UUID:** `0000fe07` (same as LED driver)
+- **GATT UUIDs:** `c44f42b1-f5cf-479b-b515-9f1bb009XXXX` (NOT Telink)
+- **Protocol:** Standard Bluetooth SIG Mesh (confirmed via btsnoop analysis)
+- **Communication:** Via SIG Mesh Proxy node (DC:23:4F), not direct GATT
+
+The Malmbergs app communicates with the S17 through a mesh proxy connection
+using standard SIG Mesh Network PDUs (UUID 0x2ADD/0x2ADE), not the Telink
+proprietary protocol used for the LED driver.
+
 ## Known Limitations
 
-- Only Telink-based proprietary Tuya Mesh is supported (not SIG Mesh)
+- Only Telink-based proprietary Tuya Mesh is supported currently (not SIG Mesh)
+- S17 smart plugs require SIG Mesh support (not yet implemented)
 - Color temperature DP ID is not confirmed for all devices
 - Some devices may use different DP IDs or command formats
 - The compact DP format (opcode 0xD2) is confirmed for Malmbergs only;
