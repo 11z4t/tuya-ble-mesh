@@ -9,8 +9,8 @@ from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 
 from custom_components.tuya_ble_mesh.const import (
     CONF_DEVICE_TYPE,
-    DEVICE_TYPE_PLUG,
     DOMAIN,
+    PLUG_DEVICE_TYPES,
 )
 
 if TYPE_CHECKING:
@@ -38,7 +38,7 @@ async def async_setup_entry(
         entry: Config entry being set up.
         async_add_entities: Callback to register new entities.
     """
-    if entry.data.get(CONF_DEVICE_TYPE) != DEVICE_TYPE_PLUG:
+    if entry.data.get(CONF_DEVICE_TYPE) not in PLUG_DEVICE_TYPES:
         return
     coordinator: TuyaBLEMeshCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     async_add_entities([TuyaBLEMeshSwitch(coordinator, entry.entry_id)])

@@ -142,6 +142,51 @@ class TestAsyncSetupEntry:
         assert entry.entry_id in hass.data[DOMAIN]
 
 
+class TestAsyncSetupEntrySIGMesh:
+    """Test async_setup_entry with SIG Mesh device type."""
+
+    @pytest.mark.asyncio
+    async def test_setup_sig_plug_creates_sig_mesh_device(self) -> None:
+        hass = make_mock_hass()
+        entry = MagicMock()
+        entry.entry_id = "sig_entry_id"
+        entry.title = "SIG Mesh Plug"
+        entry.data = {
+            "mac_address": "AA:BB:CC:DD:EE:FF",
+            "device_type": "sig_plug",
+            "unicast_target": "00aa",
+            "unicast_our": "0001",
+            "op_item_prefix": "s17",
+            "iv_index": 0,
+        }
+
+        mock_device = MagicMock()
+        mock_device.address = "AA:BB:CC:DD:EE:FF"
+        mock_coord = MagicMock()
+        mock_coord.async_start = AsyncMock()
+        mock_coord.async_stop = AsyncMock()
+        mock_coord.device = mock_device
+
+        with (
+            patch(
+                "tuya_ble_mesh.sig_mesh_device.SIGMeshDevice",
+                return_value=mock_device,
+            ) as sig_cls,
+            patch(
+                "tuya_ble_mesh.secrets.SecretsManager",
+            ),
+            patch(_PATCH_COORDINATOR, return_value=mock_coord),
+        ):
+            result = await async_setup_entry(hass, entry)
+
+        assert result is True
+        sig_cls.assert_called_once()
+        call_kwargs = sig_cls.call_args
+        assert call_kwargs[0][0] == "AA:BB:CC:DD:EE:FF"
+        assert call_kwargs[0][1] == 0x00AA
+        assert call_kwargs[0][2] == 0x0001
+
+
 class TestAsyncUnloadEntry:
     """Test async_unload_entry."""
 

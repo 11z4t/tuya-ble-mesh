@@ -11,11 +11,12 @@ import asyncio
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from tuya_ble_mesh.device import MeshDevice
     from tuya_ble_mesh.protocol import StatusResponse
+    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
 
 # RSSI refresh interval (seconds)
 _RSSI_REFRESH_INTERVAL = 60.0
@@ -53,8 +54,8 @@ class TuyaBLEMeshCoordinator:
     MeshDevice disconnect callbacks (not polling).
     """
 
-    def __init__(self, device: MeshDevice) -> None:
-        self._device = device
+    def __init__(self, device: MeshDevice | SIGMeshDevice) -> None:
+        self._device: Any = device
         self._state = TuyaBLEMeshDeviceState()
         self._listeners: list[Callable[[], None]] = []
         self._reconnect_task: asyncio.Task[None] | None = None
@@ -63,8 +64,8 @@ class TuyaBLEMeshCoordinator:
         self._running = False
 
     @property
-    def device(self) -> MeshDevice:
-        """Return the underlying mesh device."""
+    def device(self) -> Any:
+        """Return the underlying mesh device (MeshDevice or SIGMeshDevice)."""
         return self._device
 
     @property
@@ -96,6 +97,19 @@ class TuyaBLEMeshCoordinator:
                 callback()
             except Exception:
                 _LOGGER.warning("Listener callback error", exc_info=True)
+
+    def _on_onoff_update(self, on: bool) -> None:
+        """Handle a GenericOnOff Status from a SIG Mesh device.
+
+        Args:
+            on: True if device is on, False if off.
+        """
+        self._state.is_on = on
+        self._state.available = True
+        self._backoff = _INITIAL_BACKOFF
+
+        _LOGGER.debug("OnOff update: on=%s", on)
+        self._notify_listeners()
 
     def _on_status_update(self, status: StatusResponse) -> None:
         """Handle a status notification from the device.
@@ -143,7 +157,12 @@ class TuyaBLEMeshCoordinator:
     async def async_start(self) -> None:
         """Start the coordinator — connect and begin receiving notifications."""
         self._running = True
-        self._device.register_status_callback(self._on_status_update)
+
+        # Wire callbacks based on device type (duck-typing)
+        if hasattr(self._device, "register_onoff_callback"):
+            self._device.register_onoff_callback(self._on_onoff_update)
+        if hasattr(self._device, "register_status_callback"):
+            self._device.register_status_callback(self._on_status_update)
         self._device.register_disconnect_callback(self._on_disconnect)
 
         try:
@@ -174,7 +193,10 @@ class TuyaBLEMeshCoordinator:
             self._reconnect_task.cancel()
             self._reconnect_task = None
 
-        self._device.unregister_status_callback(self._on_status_update)
+        if hasattr(self._device, "unregister_onoff_callback"):
+            self._device.unregister_onoff_callback(self._on_onoff_update)
+        if hasattr(self._device, "unregister_status_callback"):
+            self._device.unregister_status_callback(self._on_status_update)
         self._device.unregister_disconnect_callback(self._on_disconnect)
 
         try:
