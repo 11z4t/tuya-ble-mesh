@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Tuya BLE Mesh Device",
-        "description": "Enter the BLE MAC address and mesh credentials.",
+        "description": "Enter the BLE MAC address and mesh credentials.\n\nNote: Default credentials (out_of_mesh/123456) are factory defaults. Mesh credentials are stored in the Home Assistant config database.",
         "data": {
           "mac_address": "MAC Address",
           "mesh_name": "Mesh Name",
@@ -14,7 +14,7 @@
       },
       "confirm": {
         "title": "Confirm Device",
-        "description": "Found {name}. Enter mesh credentials to connect."
+        "description": "Found {name}.\n\nNote: Default credentials (out_of_mesh/123456) are factory defaults. Mesh credentials are stored in the Home Assistant config database."
       }
     },
     "error": {
