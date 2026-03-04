@@ -3,7 +3,8 @@
 Mappings:
 - Brightness: device 1-100 <-> HA 1-255 (linear)
 - Color temp: device 0(warm)-127(cool) <-> mireds 370(warm)-153(cool) (inverse)
-- Supported modes: COLOR_TEMP
+- Color brightness: device 0-255 <-> HA 0-255 (same scale)
+- Supported modes: COLOR_TEMP, RGB
 """
 
 from __future__ import annotations
@@ -13,6 +14,8 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.light import (
+    ATTR_COLOR_TEMP,
+    ATTR_RGB_COLOR,
     ATTR_TRANSITION,
     ColorMode,
     LightEntity,
@@ -20,10 +23,12 @@ from homeassistant.components.light import (
 )
 
 from custom_components.tuya_ble_mesh.const import (
+    CONF_DEVICE_TYPE,
     DEVICE_BRIGHTNESS_MAX,
     DEVICE_BRIGHTNESS_MIN,
     DEVICE_COLOR_TEMP_MAX,
     DEVICE_COLOR_TEMP_MIN,
+    DEVICE_TYPE_PLUG,
     DOMAIN,
     HA_BRIGHTNESS_MAX,
     HA_BRIGHTNESS_MIN,
@@ -132,6 +137,8 @@ async def async_setup_entry(
         entry: Config entry being set up.
         async_add_entities: Callback to register new entities.
     """
+    if entry.data.get(CONF_DEVICE_TYPE) == DEVICE_TYPE_PLUG:
+        return
     coordinator: TuyaBLEMeshCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     async_add_entities([TuyaBLEMeshLight(coordinator, entry.entry_id)])
 
@@ -175,6 +182,8 @@ class TuyaBLEMeshLight(LightEntity):
         """Return the current brightness (HA 1-255)."""
         if not self._coordinator.state.is_on:
             return None
+        if self._coordinator.state.mode == 1:
+            return self._coordinator.state.color_brightness
         return brightness_to_ha(self._coordinator.state.brightness)
 
     @property
@@ -195,48 +204,77 @@ class TuyaBLEMeshLight(LightEntity):
         return HA_MIRED_MAX
 
     @property
+    def rgb_color(self) -> tuple[int, int, int] | None:
+        """Return the current RGB color."""
+        if not self._coordinator.state.is_on:
+            return None
+        if self._coordinator.state.mode != 1:
+            return None
+        state = self._coordinator.state
+        return (state.red, state.green, state.blue)
+
+    @property
     def color_mode(self) -> ColorMode:
         """Return the current color mode."""
+        if self._coordinator.state.mode == 1:
+            return ColorMode.RGB
         return ColorMode.COLOR_TEMP
 
     @property
     def supported_color_modes(self) -> set[ColorMode]:
         """Return supported color modes."""
-        return {ColorMode.COLOR_TEMP}
+        return {ColorMode.COLOR_TEMP, ColorMode.RGB}
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the light.
 
         Args:
-            **kwargs: Optional brightness, color_temp, and transition.
+            **kwargs: Optional brightness, color_temp, rgb_color, and transition.
         """
         self._cancel_transition()
         device = self._coordinator.device
         transition: float | None = kwargs.get(ATTR_TRANSITION)
 
         brightness = kwargs.get("brightness")
-        color_temp = kwargs.get("color_temp")
+        color_temp = kwargs.get(ATTR_COLOR_TEMP)
+        rgb_color: tuple[int, int, int] | None = kwargs.get(ATTR_RGB_COLOR)
 
-        has_target = brightness is not None or color_temp is not None
+        has_target = brightness is not None or color_temp is not None or rgb_color is not None
         if transition is not None and transition > 0 and has_target:
             target_bright = brightness_to_device(brightness) if brightness is not None else None
             target_temp = color_temp_to_device(color_temp) if color_temp is not None else None
+            target_rgb = rgb_color
             self._transition_task = asyncio.create_task(
-                self._run_transition(target_bright, target_temp, transition)
+                self._run_transition(target_bright, target_temp, transition, target_rgb=target_rgb)
             )
             return
 
-        if brightness is not None:
-            device_brightness = brightness_to_device(brightness)
-            await device.send_brightness(device_brightness)
-            _LOGGER.debug("Set brightness: HA %d -> device %d", brightness, device_brightness)
+        if rgb_color is not None:
+            await device.send_color(rgb_color[0], rgb_color[1], rgb_color[2])
+            await device.send_light_mode(1)
+            _LOGGER.debug("Set RGB color: (%d,%d,%d)", *rgb_color)
+            if brightness is not None:
+                await device.send_color_brightness(brightness)
+                _LOGGER.debug("Set color brightness: %d", brightness)
+            return
 
         if color_temp is not None:
+            if self._coordinator.state.mode == 1:
+                await device.send_light_mode(0)
             device_temp = color_temp_to_device(color_temp)
             await device.send_color_temp(device_temp)
             _LOGGER.debug("Set color temp: HA %d mireds -> device %d", color_temp, device_temp)
 
-        if brightness is None and color_temp is None:
+        if brightness is not None:
+            if self._coordinator.state.mode == 1:
+                await device.send_color_brightness(brightness)
+                _LOGGER.debug("Set color brightness: %d", brightness)
+            else:
+                device_brightness = brightness_to_device(brightness)
+                await device.send_brightness(device_brightness)
+                _LOGGER.debug("Set brightness: HA %d -> device %d", brightness, device_brightness)
+
+        if not has_target:
             await device.send_power(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
@@ -274,6 +312,7 @@ class TuyaBLEMeshLight(LightEntity):
         duration: float,
         *,
         power_off_after: bool = False,
+        target_rgb: tuple[int, int, int] | None = None,
     ) -> None:
         """Run a gradual transition by sending incremental commands.
 
@@ -282,6 +321,7 @@ class TuyaBLEMeshLight(LightEntity):
             target_color_temp: Target device color temp (0-127), or None.
             duration: Transition duration in seconds.
             power_off_after: Send power off after transition completes.
+            target_rgb: Target RGB color tuple, or None.
         """
         device = self._coordinator.device
         state = self._coordinator.state
@@ -293,6 +333,9 @@ class TuyaBLEMeshLight(LightEntity):
 
         start_bright = state.brightness if target_brightness is not None else None
         start_temp = state.color_temp if target_color_temp is not None else None
+        start_rgb: tuple[int, int, int] | None = None
+        if target_rgb is not None:
+            start_rgb = (state.red, state.green, state.blue)
 
         for i in range(1, steps + 1):
             fraction = i / steps
@@ -306,6 +349,16 @@ class TuyaBLEMeshLight(LightEntity):
                 val = round(start_temp + (target_color_temp - start_temp) * fraction)
                 val = max(DEVICE_COLOR_TEMP_MIN, min(val, DEVICE_COLOR_TEMP_MAX))
                 await device.send_color_temp(val)
+
+            if target_rgb is not None and start_rgb is not None:
+                r = round(start_rgb[0] + (target_rgb[0] - start_rgb[0]) * fraction)
+                g = round(start_rgb[1] + (target_rgb[1] - start_rgb[1]) * fraction)
+                b = round(start_rgb[2] + (target_rgb[2] - start_rgb[2]) * fraction)
+                await device.send_color(
+                    max(0, min(r, 255)),
+                    max(0, min(g, 255)),
+                    max(0, min(b, 255)),
+                )
 
             if i < steps:
                 await asyncio.sleep(interval)
