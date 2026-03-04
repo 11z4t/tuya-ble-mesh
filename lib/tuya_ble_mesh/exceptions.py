@@ -48,6 +48,14 @@ class SecretAccessError(TuyaBLEMeshError):
     """Failed to read or write a secret via 1Password."""
 
 
+class SIGMeshError(TuyaBLEMeshError):
+    """SIG Mesh protocol or configuration error."""
+
+
+class SIGMeshKeyError(SIGMeshError):
+    """Required SIG Mesh key not available."""
+
+
 class PowerControlError(TuyaBLEMeshError):
     """Shelly power control operation failed."""
 

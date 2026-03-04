@@ -178,6 +178,24 @@ class TestSwitchPlatformSetup:
         add_entities.assert_not_called()
 
     @pytest.mark.asyncio
+    async def test_setup_creates_switch_for_sig_plug(self) -> None:
+        """SIG plug device type should also create switch entity."""
+        coord = make_mock_coordinator()
+        hass = MagicMock()
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        entry = MagicMock()
+        entry.entry_id = "entry1"
+        entry.data = {"device_type": "sig_plug"}
+        add_entities = MagicMock()
+
+        await async_setup_entry(hass, entry, add_entities)
+
+        add_entities.assert_called_once()
+        entities = add_entities.call_args[0][0]
+        assert len(entities) == 1
+        assert isinstance(entities[0], TuyaBLEMeshSwitch)
+
+    @pytest.mark.asyncio
     async def test_setup_skips_no_device_type(self) -> None:
         """Default (no device_type) should not create switch."""
         coord = make_mock_coordinator()

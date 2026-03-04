@@ -14,12 +14,19 @@ from homeassistant.config_entries import ConfigFlow
 
 from custom_components.tuya_ble_mesh.const import (
     CONF_DEVICE_TYPE,
+    CONF_IV_INDEX,
     CONF_MAC_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
+    CONF_OP_ITEM_PREFIX,
+    CONF_UNICAST_OUR,
+    CONF_UNICAST_TARGET,
     CONF_VENDOR_ID,
+    DEFAULT_IV_INDEX,
+    DEFAULT_OP_ITEM_PREFIX,
     DEFAULT_VENDOR_ID,
     DEVICE_TYPE_LIGHT,
+    DEVICE_TYPE_SIG_PLUG,
     DOMAIN,
 )
 
@@ -123,6 +130,13 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             if mac_error:
                 errors[CONF_MAC_ADDRESS] = mac_error
             else:
+                device_type = user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
+                if device_type == DEVICE_TYPE_SIG_PLUG:
+                    self._discovery_info = {
+                        "address": mac.upper(),
+                        "name": f"SIG Mesh {mac[-8:]}",
+                    }
+                    return await self.async_step_sig_plug(None)
                 return self.async_create_entry(
                     title=f"Tuya BLE Mesh {mac[-8:]}",
                     data={
@@ -130,7 +144,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_MESH_NAME: user_input.get(CONF_MESH_NAME, "out_of_mesh"),
                         CONF_MESH_PASSWORD: user_input.get(CONF_MESH_PASSWORD, "123456"),
                         CONF_VENDOR_ID: user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID),
-                        CONF_DEVICE_TYPE: user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT),
+                        CONF_DEVICE_TYPE: device_type,
                     },
                 )
 
@@ -138,4 +152,36 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="user",
             description_placeholders={},
             errors=errors,
+        )
+
+    async def async_step_sig_plug(self, user_input: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Handle SIG Mesh plug configuration.
+
+        Args:
+            user_input: User-provided SIG Mesh parameters.
+
+        Returns:
+            Flow result dict.
+        """
+        if user_input is not None and self._discovery_info is not None:
+            mac = self._discovery_info["address"]
+            return self.async_create_entry(
+                title=f"SIG Mesh {mac[-8:]}",
+                data={
+                    CONF_MAC_ADDRESS: mac,
+                    CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG,
+                    CONF_UNICAST_TARGET: user_input.get(CONF_UNICAST_TARGET, "00aa"),
+                    CONF_UNICAST_OUR: user_input.get(CONF_UNICAST_OUR, "0001"),
+                    CONF_OP_ITEM_PREFIX: user_input.get(
+                        CONF_OP_ITEM_PREFIX, DEFAULT_OP_ITEM_PREFIX
+                    ),
+                    CONF_IV_INDEX: user_input.get(CONF_IV_INDEX, DEFAULT_IV_INDEX),
+                },
+            )
+
+        return self.async_show_form(
+            step_id="sig_plug",
+            description_placeholders={
+                "name": (self._discovery_info.get("name", "") if self._discovery_info else ""),
+            },
         )
