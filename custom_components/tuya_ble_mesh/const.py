@@ -10,11 +10,23 @@ PLATFORMS: list[str] = ["light", "sensor", "switch"]
 CONF_DEVICE_TYPE = "device_type"
 DEVICE_TYPE_LIGHT = "light"
 DEVICE_TYPE_PLUG = "plug"
+DEVICE_TYPE_SIG_PLUG = "sig_plug"
 CONF_MESH_NAME = "mesh_name"
 CONF_MESH_PASSWORD = "mesh_password"  # pragma: allowlist secret
 CONF_MAC_ADDRESS = "mac_address"
 CONF_VENDOR_ID = "vendor_id"
 DEFAULT_VENDOR_ID = "0x1001"
+
+# SIG Mesh config keys
+CONF_UNICAST_TARGET = "unicast_target"
+CONF_UNICAST_OUR = "unicast_our"
+CONF_OP_ITEM_PREFIX = "op_item_prefix"
+CONF_IV_INDEX = "iv_index"
+
+DEFAULT_OP_ITEM_PREFIX = "s17"
+DEFAULT_IV_INDEX = 0
+
+PLUG_DEVICE_TYPES = {DEVICE_TYPE_PLUG, DEVICE_TYPE_SIG_PLUG}
 
 # Brightness mapping: device 1-100 ↔ HA 1-255
 DEVICE_BRIGHTNESS_MIN = 1

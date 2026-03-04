@@ -20,9 +20,13 @@ from custom_components.tuya_ble_mesh.config_flow import (
 )
 from custom_components.tuya_ble_mesh.const import (
     CONF_DEVICE_TYPE,
+    CONF_IV_INDEX,
     CONF_MAC_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
+    CONF_OP_ITEM_PREFIX,
+    CONF_UNICAST_OUR,
+    CONF_UNICAST_TARGET,
     DOMAIN,
 )
 
@@ -268,3 +272,76 @@ class TestDeviceType:
         result = await flow.async_step_confirm({})
 
         assert result["data"][CONF_DEVICE_TYPE] == "light"
+
+
+class TestSIGPlugStep:
+    """Test SIG Mesh plug configuration step."""
+
+    @pytest.mark.asyncio
+    async def test_user_step_branches_to_sig_plug(self) -> None:
+        """User step with sig_plug device type redirects to sig_plug step."""
+        flow = TuyaBLEMeshConfigFlow()
+        result = await flow.async_step_user(
+            {
+                CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF",
+                CONF_DEVICE_TYPE: "sig_plug",
+            }
+        )
+
+        # Should show the sig_plug form
+        assert result["type"] == "form"
+        assert result["step_id"] == "sig_plug"
+
+    @pytest.mark.asyncio
+    async def test_sig_plug_step_creates_entry(self) -> None:
+        flow = TuyaBLEMeshConfigFlow()
+        flow._discovery_info = {
+            "address": "AA:BB:CC:DD:EE:FF",
+            "name": "SIG Mesh FF",
+        }
+
+        result = await flow.async_step_sig_plug(
+            {
+                CONF_UNICAST_TARGET: "00aa",
+                CONF_UNICAST_OUR: "0001",
+                CONF_OP_ITEM_PREFIX: "s17",
+                CONF_IV_INDEX: 0,
+            }
+        )
+
+        assert result["type"] == "create_entry"
+        assert result["data"][CONF_DEVICE_TYPE] == "sig_plug"
+        assert result["data"][CONF_UNICAST_TARGET] == "00aa"
+        assert result["data"][CONF_UNICAST_OUR] == "0001"
+        assert result["data"][CONF_OP_ITEM_PREFIX] == "s17"
+        assert result["data"][CONF_IV_INDEX] == 0
+        assert result["data"][CONF_MAC_ADDRESS] == "AA:BB:CC:DD:EE:FF"
+
+    @pytest.mark.asyncio
+    async def test_sig_plug_step_defaults(self) -> None:
+        flow = TuyaBLEMeshConfigFlow()
+        flow._discovery_info = {
+            "address": "AA:BB:CC:DD:EE:FF",
+            "name": "SIG Mesh FF",
+        }
+
+        result = await flow.async_step_sig_plug({})
+
+        assert result["type"] == "create_entry"
+        assert result["data"][CONF_UNICAST_TARGET] == "00aa"
+        assert result["data"][CONF_UNICAST_OUR] == "0001"
+        assert result["data"][CONF_OP_ITEM_PREFIX] == "s17"
+        assert result["data"][CONF_IV_INDEX] == 0
+
+    @pytest.mark.asyncio
+    async def test_sig_plug_step_shows_form(self) -> None:
+        flow = TuyaBLEMeshConfigFlow()
+        flow._discovery_info = {
+            "address": "AA:BB:CC:DD:EE:FF",
+            "name": "SIG Mesh FF",
+        }
+
+        result = await flow.async_step_sig_plug(None)
+
+        assert result["type"] == "form"
+        assert result["step_id"] == "sig_plug"

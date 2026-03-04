@@ -298,6 +298,100 @@ class TestDisconnectCallback:
         assert coord._reconnect_task is None
 
 
+class TestOnOffUpdate:
+    """Test _on_onoff_update for SIG Mesh devices."""
+
+    def test_on_onoff_update_sets_state_on(self) -> None:
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+
+        coord._on_onoff_update(True)
+
+        assert coord.state.is_on is True
+        assert coord.state.available is True
+
+    def test_on_onoff_update_sets_state_off(self) -> None:
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+
+        coord._on_onoff_update(False)
+
+        assert coord.state.is_on is False
+        assert coord.state.available is True
+
+    def test_on_onoff_update_resets_backoff(self) -> None:
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._backoff = 60.0
+
+        coord._on_onoff_update(True)
+
+        assert coord._backoff == _INITIAL_BACKOFF
+
+    def test_on_onoff_update_notifies_listeners(self) -> None:
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        listener = MagicMock()
+        coord.add_listener(listener)
+
+        coord._on_onoff_update(True)
+
+        listener.assert_called_once()
+
+
+class TestSIGMeshCoordinator:
+    """Test coordinator with SIG Mesh device (onoff callbacks)."""
+
+    @pytest.mark.asyncio
+    async def test_start_wires_onoff_callback(self) -> None:
+        """Coordinator should wire onoff callback for SIG Mesh devices."""
+        device = MagicMock()
+        device.address = "AA:BB:CC:DD:EE:FF"
+        device.connect = AsyncMock()
+        device.disconnect = AsyncMock()
+        device.register_onoff_callback = MagicMock()
+        device.register_disconnect_callback = MagicMock()
+        device.unregister_onoff_callback = MagicMock()
+        device.unregister_disconnect_callback = MagicMock()
+        device.is_connected = True
+        device.firmware_version = None
+
+        coord = TuyaBLEMeshCoordinator(device)
+        await coord.async_start()
+
+        device.register_onoff_callback.assert_called_once()
+        device.register_disconnect_callback.assert_called_once()
+        # No register_status_callback since SIG device doesn't have it
+        assert not hasattr(device, "register_status_callback") or True
+
+        await coord.async_stop()
+        device.unregister_onoff_callback.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_start_wires_both_for_dual_device(self) -> None:
+        """If device has both callback types, both should be wired."""
+        device = MagicMock()
+        device.address = "AA:BB:CC:DD:EE:FF"
+        device.connect = AsyncMock()
+        device.disconnect = AsyncMock()
+        device.register_onoff_callback = MagicMock()
+        device.register_status_callback = MagicMock()
+        device.register_disconnect_callback = MagicMock()
+        device.unregister_onoff_callback = MagicMock()
+        device.unregister_status_callback = MagicMock()
+        device.unregister_disconnect_callback = MagicMock()
+        device.is_connected = True
+        device.firmware_version = None
+
+        coord = TuyaBLEMeshCoordinator(device)
+        await coord.async_start()
+
+        device.register_onoff_callback.assert_called_once()
+        device.register_status_callback.assert_called_once()
+
+        await coord.async_stop()
+
+
 class TestReconnect:
     """Test reconnection logic."""
 

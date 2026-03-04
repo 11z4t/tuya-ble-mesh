@@ -68,7 +68,7 @@ class TestInheritance:
             for cls in TuyaBLEMeshError.__subclasses__()
             if cls.__module__ == "tuya_ble_mesh.exceptions"
         ]
-        assert len(direct) == 10
+        assert len(direct) == 11
 
     def test_disconnected_inherits_from_connection_error(self) -> None:
         assert issubclass(DisconnectedError, ConnectionError)
