@@ -136,5 +136,6 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="user",
+            description_placeholders={},
             errors=errors,
         )

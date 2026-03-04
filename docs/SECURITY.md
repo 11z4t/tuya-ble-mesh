@@ -205,6 +205,32 @@ reflects a home lab environment, not a public-facing service.
 
 ---
 
+## HA Config Entry Storage
+
+Home Assistant stores config entry data in plaintext JSON at
+`.storage/core.config_entries`. This is HA's standard model — all
+integrations (Z-Wave, Zigbee, etc.) store network keys this way.
+
+**What is stored:**
+- MAC address (not a secret)
+- Mesh name and mesh password (factory defaults: out_of_mesh / 123456)
+- Vendor ID and device type (not secrets)
+
+**Risk acceptance:**
+- Config entries are only accessible to HA admin users
+- The mesh password protects BLE communication within ~10m range
+- Factory default credentials (123456) provide no real security
+- This matches HA's security model for local integrations
+
+**Mitigation:**
+- Config flow warns users that credentials are stored in config DB
+- If stronger protection is needed, use file system encryption on
+  the HA storage directory
+- SecretsManager (1Password) remains the canonical interface for
+  standalone scripts outside HA
+
+---
+
 ## Logging and Redaction
 
 ### Allowed in Logs
