@@ -35,6 +35,7 @@ from custom_components.tuya_ble_mesh.const import (
     DEVICE_TYPE_PLUG,
     DEVICE_TYPE_SIG_BRIDGE_PLUG,
     DEVICE_TYPE_SIG_PLUG,
+    DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
     DOMAIN,
     SIG_MESH_PROXY_UUID,
 )
@@ -171,6 +172,12 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                         "name": f"SIG Bridge {mac[-8:]}",
                     }
                     return await self.async_step_sig_bridge(None)
+                if device_type == DEVICE_TYPE_TELINK_BRIDGE_LIGHT:
+                    self._discovery_info = {
+                        "address": mac.upper(),
+                        "name": f"Telink Bridge {mac[-8:]}",
+                    }
+                    return await self.async_step_telink_bridge(None)
                 if device_type == DEVICE_TYPE_SIG_PLUG:
                     self._discovery_info = {
                         "address": mac.upper(),
@@ -198,10 +205,11 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_MAC_ADDRESS): str,
                     vol.Required(CONF_DEVICE_TYPE, default=DEVICE_TYPE_LIGHT): vol.In(
                         {
-                            DEVICE_TYPE_LIGHT: "Light",
-                            DEVICE_TYPE_PLUG: "Plug",
-                            DEVICE_TYPE_SIG_PLUG: "SIG Mesh Plug",
+                            DEVICE_TYPE_LIGHT: "Light (Telink direct)",
+                            DEVICE_TYPE_PLUG: "Plug (Telink direct)",
+                            DEVICE_TYPE_SIG_PLUG: "SIG Mesh Plug (direct)",
                             DEVICE_TYPE_SIG_BRIDGE_PLUG: "SIG Mesh Bridge Plug",
+                            DEVICE_TYPE_TELINK_BRIDGE_LIGHT: "Telink Bridge Light",
                         }
                     ),
                     vol.Optional(CONF_MESH_NAME, default="out_of_mesh"): str,
@@ -281,6 +289,50 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                         CONF_BRIDGE_PORT, default=DEFAULT_BRIDGE_PORT
                     ): int,
                     vol.Optional(CONF_UNICAST_TARGET, default="00B0"): str,
+                }
+            ),
+            description_placeholders={
+                "name": (
+                    self._discovery_info.get("name", "")
+                    if self._discovery_info
+                    else ""
+                ),
+            },
+        )
+
+    async def async_step_telink_bridge(
+        self, user_input: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Handle Telink Bridge light configuration.
+
+        Args:
+            user_input: User-provided bridge parameters.
+
+        Returns:
+            Flow result dict.
+        """
+        if user_input is not None and self._discovery_info is not None:
+            mac = self._discovery_info["address"]
+            return self.async_create_entry(
+                title=f"Telink Bridge {mac[-8:]}",
+                data={
+                    CONF_MAC_ADDRESS: mac,
+                    CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
+                    CONF_BRIDGE_HOST: user_input.get(CONF_BRIDGE_HOST, ""),
+                    CONF_BRIDGE_PORT: user_input.get(
+                        CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT
+                    ),
+                },
+            )
+
+        return self.async_show_form(
+            step_id="telink_bridge",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_BRIDGE_HOST): str,
+                    vol.Optional(
+                        CONF_BRIDGE_PORT, default=DEFAULT_BRIDGE_PORT
+                    ): int,
                 }
             ),
             description_placeholders={
