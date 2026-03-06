@@ -652,9 +652,9 @@ class SIGMeshDevice:
                 len(params),
                 src,
             )
-            for callback in self._vendor_callbacks:
+            for vcb in self._vendor_callbacks:
                 try:
-                    callback(opcode, params)
+                    vcb(opcode, params)
                 except Exception:
                     _LOGGER.warning("Vendor callback error", exc_info=True)
         else:

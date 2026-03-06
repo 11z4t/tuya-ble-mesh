@@ -30,9 +30,9 @@ def make_mock_secrets() -> MagicMock:
     # 16-byte keys as hex strings (32 chars)
     secrets.get = AsyncMock(
         side_effect=lambda item, field="password": {  # pragma: allowlist secret
-            "s17-net-key": "f7a2a44f8e8a8029064f173ddc1e2b00",
-            "s17-dev-key-00aa": "00112233445566778899aabbccddeeff",
-            "s17-app-key": "3216d1509884b533248541792b877f98",
+            "s17-net-key": "f7a2a44f8e8a8029064f173ddc1e2b00",  # pragma: allowlist secret
+            "s17-dev-key-00aa": "00112233445566778899aabbccddeeff",  # pragma: allowlist secret
+            "s17-app-key": "3216d1509884b533248541792b877f98",  # pragma: allowlist secret
         }.get(item, "00" * 16)
     )
     return secrets
@@ -292,9 +292,9 @@ class TestSegmentReassembly:
 
         dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
         dev._keys = MeshKeys(
-            "f7a2a44f8e8a8029064f173ddc1e2b00",
-            "00112233445566778899aabbccddeeff",
-            "3216d1509884b533248541792b877f98",
+            "f7a2a44f8e8a8029064f173ddc1e2b00",  # pragma: allowlist secret
+            "00112233445566778899aabbccddeeff",  # pragma: allowlist secret
+            "3216d1509884b533248541792b877f98",  # pragma: allowlist secret
         )
         return dev
 
@@ -415,9 +415,9 @@ class TestVendorCallbacks:
 
         dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
         dev._keys = MeshKeys(
-            "f7a2a44f8e8a8029064f173ddc1e2b00",
-            "00112233445566778899aabbccddeeff",
-            "3216d1509884b533248541792b877f98",
+            "f7a2a44f8e8a8029064f173ddc1e2b00",  # pragma: allowlist secret
+            "00112233445566778899aabbccddeeff",  # pragma: allowlist secret
+            "3216d1509884b533248541792b877f98",  # pragma: allowlist secret
         )
         cb = MagicMock()
         dev.register_vendor_callback(cb)
@@ -451,9 +451,9 @@ class TestCompositionData:
 
         dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
         dev._keys = MeshKeys(
-            "f7a2a44f8e8a8029064f173ddc1e2b00",
-            "00112233445566778899aabbccddeeff",
-            "3216d1509884b533248541792b877f98",
+            "f7a2a44f8e8a8029064f173ddc1e2b00",  # pragma: allowlist secret
+            "00112233445566778899aabbccddeeff",  # pragma: allowlist secret
+            "3216d1509884b533248541792b877f98",  # pragma: allowlist secret
         )
         return dev
 

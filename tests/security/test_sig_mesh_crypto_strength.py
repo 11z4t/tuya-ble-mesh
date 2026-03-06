@@ -119,32 +119,32 @@ class TestMeshKeysValidation:
     def test_rejects_odd_length_hex(self) -> None:
         with pytest.raises(ValueError):
             MeshKeys(
-                "f7a2a44f8e8a8029064f173ddc1e2b0",  # 31 chars (odd)
-                "00112233445566778899aabbccddeeff",
-                "3216d1509884b533248541792b877f98",
+                "f7a2a44f8e8a8029064f173ddc1e2b0",  # 31 chars (odd)  # pragma: allowlist secret
+                "00112233445566778899aabbccddeeff",  # pragma: allowlist secret
+                "3216d1509884b533248541792b877f98",  # pragma: allowlist secret
             )
 
     def test_rejects_non_hex_chars(self) -> None:
         with pytest.raises(ValueError):
             MeshKeys(
-                "f7a2a44f8e8a8029064f173ddc1e2bXX",  # XX = invalid
-                "00112233445566778899aabbccddeeff",
-                "3216d1509884b533248541792b877f98",
+                "f7a2a44f8e8a8029064f173ddc1e2bXX",  # XX = invalid  # pragma: allowlist secret
+                "00112233445566778899aabbccddeeff",  # pragma: allowlist secret
+                "3216d1509884b533248541792b877f98",  # pragma: allowlist secret
             )
 
     def test_rejects_wrong_key_length_in_derivation(self) -> None:
         with pytest.raises(CryptoError):
             MeshKeys(
                 "0011223344556677",  # 8 bytes, need 16
-                "00112233445566778899aabbccddeeff",
-                "3216d1509884b533248541792b877f98",
+                "00112233445566778899aabbccddeeff",  # pragma: allowlist secret
+                "3216d1509884b533248541792b877f98",  # pragma: allowlist secret
             )
 
     def test_valid_keys_accepted(self) -> None:
         keys = MeshKeys(
-            "f7a2a44f8e8a8029064f173ddc1e2b00",
-            "00112233445566778899aabbccddeeff",
-            "3216d1509884b533248541792b877f98",
+            "f7a2a44f8e8a8029064f173ddc1e2b00",  # pragma: allowlist secret
+            "00112233445566778899aabbccddeeff",  # pragma: allowlist secret
+            "3216d1509884b533248541792b877f98",  # pragma: allowlist secret
         )
         assert keys.nid is not None
         assert keys.aid is not None
