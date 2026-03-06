@@ -71,8 +71,9 @@ class TestPairPacketIntegrity:
 
     def test_different_credentials_different_proof(self) -> None:
         rand = b"\xcc" * 8
-        p1 = make_pair_packet(b"name_a", b"pass_a", rand)
-        p2 = make_pair_packet(b"name_b", b"pass_b", rand)
+        # Use credentials where name XOR password actually differs
+        p1 = make_pair_packet(b"out_of_mesh", b"123456", rand)
+        p2 = make_pair_packet(b"my_network", b"abcdef", rand)
         # Opcode and random are same, encrypted proof differs
         assert p1[:9] == p2[:9]
         assert p1[9:] != p2[9:]
