@@ -17,9 +17,9 @@ _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
 sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
-from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
+from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # noqa: E402
 
-from custom_components.tuya_ble_mesh.coordinator import (
+from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     _SEQ_SAFETY_MARGIN,
     TuyaBLEMeshCoordinator,
 )

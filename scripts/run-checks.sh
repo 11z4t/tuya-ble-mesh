@@ -49,8 +49,10 @@ run_step "bandit" \
     bandit -r lib/ -c pyproject.toml -q
 
 # Step 5: Dependency vulnerability scan
+# Ignoring CVE-2024-23342 (64459, 64396): ecdsa Minerva side-channel — transitive
+# dep from bluetooth-mesh-network; all versions affected, no upstream fix available.
 run_step "safety check" \
-    safety check --output bare
+    safety check --output bare --ignore 64459 --ignore 64396
 
 # Step 6: Secret detection
 run_step "detect-secrets" \
