@@ -147,7 +147,7 @@ def main() -> None:
         output = child.before.decode("utf-8", errors="replace")
 
         if idx <= 3:
-            print(f"\n*** PROVISIONING COMPLETE ***")
+            print("\n*** PROVISIONING COMPLETE ***")
             print(f"Output: {output[:300]}")
 
             # Try to extract unicast address
@@ -167,7 +167,7 @@ def main() -> None:
             print(f"Config exported to {CONFIG_FILE}")
 
         else:
-            print(f"\n*** PROVISIONING FAILED ***")
+            print("\n*** PROVISIONING FAILED ***")
             print(f"Output: {output[:300]}")
 
     except pexpect.TIMEOUT:

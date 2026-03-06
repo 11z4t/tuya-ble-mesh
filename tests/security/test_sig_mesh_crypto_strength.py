@@ -91,7 +91,7 @@ class TestNoKeyMaterialInExceptions:
     """Verify exception messages do not contain key bytes."""
 
     def test_short_key_no_leakage(self) -> None:
-        bad_key = b"\xDE\xAD\xBE\xEF"
+        bad_key = b"\xde\xad\xbe\xef"
         try:
             mesh_aes_ccm_encrypt(bad_key, _VALID_NONCE, b"test")
         except CryptoError as exc:
@@ -103,7 +103,7 @@ class TestNoKeyMaterialInExceptions:
     def test_wrong_nonce_decrypt_no_key_leakage(self) -> None:
         """AES-CCM auth failure should not leak key material."""
         ct = mesh_aes_ccm_encrypt(_VALID_KEY, _VALID_NONCE, b"hello")
-        wrong_nonce = b"\xFF" * 13
+        wrong_nonce = b"\xff" * 13
         try:
             mesh_aes_ccm_decrypt(_VALID_KEY, wrong_nonce, ct)
         except CryptoError as exc:

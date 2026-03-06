@@ -17,7 +17,8 @@ _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
 sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
-from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice, _INITIAL_SEQ
+from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
+
 from custom_components.tuya_ble_mesh.coordinator import (
     _SEQ_SAFETY_MARGIN,
     TuyaBLEMeshCoordinator,
@@ -64,9 +65,7 @@ class TestSeqRestoreWithMargin:
         mock_store = MagicMock()
         mock_store.async_load = AsyncMock(return_value={"seq": stored_seq})
 
-        coord = TuyaBLEMeshCoordinator(
-            device, hass=mock_hass, entry_id="test_entry"
-        )
+        coord = TuyaBLEMeshCoordinator(device, hass=mock_hass, entry_id="test_entry")
 
         with patch(
             "custom_components.tuya_ble_mesh.coordinator.Store",
@@ -96,9 +95,7 @@ class TestSeqRestoreWithMargin:
         mock_store = MagicMock()
         mock_store.async_load = AsyncMock(return_value={"seq": stored_seq})
 
-        coord = TuyaBLEMeshCoordinator(
-            device, hass=mock_hass, entry_id="test_entry"
-        )
+        coord = TuyaBLEMeshCoordinator(device, hass=mock_hass, entry_id="test_entry")
 
         with patch(
             "custom_components.tuya_ble_mesh.coordinator.Store",
