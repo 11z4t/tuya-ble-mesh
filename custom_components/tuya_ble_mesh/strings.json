@@ -9,7 +9,8 @@
           "mesh_name": "Mesh Name",
           "mesh_password": "Mesh Password",
           "vendor_id": "Vendor ID (hex, e.g. 0x1001)",
-          "device_type": "Device Type (light or plug)"
+          "device_type": "Device Type (light or plug)",
+          "mesh_address": "Mesh Address (0 = auto)"
         }
       },
       "confirm": {
@@ -18,7 +19,8 @@
         "data": {
           "device_type": "Device Type",
           "mesh_name": "Mesh Name",
-          "mesh_password": "Mesh Password"
+          "mesh_password": "Mesh Password",
+          "mesh_address": "Mesh Address (0 = auto)"
         }
       }
     },

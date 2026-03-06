@@ -16,6 +16,8 @@ CONF_MESH_PASSWORD = "mesh_password"  # pragma: allowlist secret
 CONF_MAC_ADDRESS = "mac_address"
 CONF_VENDOR_ID = "vendor_id"
 DEFAULT_VENDOR_ID = "0x1001"
+CONF_MESH_ADDRESS = "mesh_address"
+DEFAULT_MESH_ADDRESS = 0  # 0 = connected device itself
 
 # SIG Mesh config keys
 CONF_UNICAST_TARGET = "unicast_target"

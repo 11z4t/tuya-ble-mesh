@@ -212,11 +212,11 @@ class TestLightProperties:
         light = TuyaBLEMeshLight(coord, "test_entry")
         assert light.color_temp is None
 
-    def test_min_max_mireds(self) -> None:
+    def test_min_max_color_temp_kelvin(self) -> None:
         coord = make_mock_coordinator()
         light = TuyaBLEMeshLight(coord, "test_entry")
-        assert light.min_mireds == 153
-        assert light.max_mireds == 370
+        assert light.min_color_temp_kelvin == 2703
+        assert light.max_color_temp_kelvin == 6535
 
     def test_color_mode_white(self) -> None:
         coord = make_mock_coordinator(mode=0)

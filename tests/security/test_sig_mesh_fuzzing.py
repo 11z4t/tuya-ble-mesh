@@ -132,11 +132,11 @@ class TestFuzzParseAccessOpcode:
     def test_2byte_opcode_boundary(self) -> None:
         """2-byte opcodes (0x80xx-0xBFxx) should parse."""
         for hi in range(0x80, 0xC0):
-            opcode, params = parse_access_opcode(bytes([hi, 0x01, 0xFF]))
+            opcode, _params = parse_access_opcode(bytes([hi, 0x01, 0xFF]))
             assert opcode == (hi << 8) | 0x01
 
     def test_3byte_vendor_opcode_boundary(self) -> None:
         """3-byte opcodes (0xC0xxxx-0xFFxxxx) should parse."""
         for hi in range(0xC0, 0x100):
-            opcode, params = parse_access_opcode(bytes([hi, 0x01, 0x02, 0xAA]))
+            opcode, _params = parse_access_opcode(bytes([hi, 0x01, 0x02, 0xAA]))
             assert opcode == (hi << 16) | 0x0102
