@@ -12,7 +12,12 @@
       },
       "confirm": {
         "title": "Bekr\u00e4fta enhet",
-        "description": "Hittade {name}. Ange mesh-uppgifter f\u00f6r att ansluta."
+        "description": "Hittade {name}. V\u00e4lj enhetstyp och mesh-uppgifter.",
+        "data": {
+          "device_type": "Enhetstyp",
+          "mesh_name": "Mesh-namn",
+          "mesh_password": "Mesh-l\u00f6senord"
+        }
       }
     },
     "error": {

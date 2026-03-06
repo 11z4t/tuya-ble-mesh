@@ -14,7 +14,12 @@
       },
       "confirm": {
         "title": "Confirm Device",
-        "description": "Found {name}.\n\nNote: Default credentials (out_of_mesh/123456) are factory defaults. Mesh credentials are stored in the Home Assistant config database."
+        "description": "Found {name}. Choose device type and mesh credentials.",
+        "data": {
+          "device_type": "Device Type",
+          "mesh_name": "Mesh Name",
+          "mesh_password": "Mesh Password"
+        }
       }
     },
     "error": {

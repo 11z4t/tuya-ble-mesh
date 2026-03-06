@@ -1,7 +1,7 @@
 {
   "domain": "tuya_ble_mesh",
   "name": "Tuya BLE Mesh",
-  "version": "0.4.0",
+  "version": "0.5.1",
   "documentation": "https://github.com/bormal/malmbergs-bt",
   "issue_tracker": "https://github.com/bormal/malmbergs-bt/issues",
   "codeowners": ["@bormal"],
