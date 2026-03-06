@@ -94,7 +94,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             vendor_id=vendor_id_bytes,
         )
 
-    coordinator = TuyaBLEMeshCoordinator(device)
+    coordinator = TuyaBLEMeshCoordinator(
+        device, hass=hass, entry_id=entry.entry_id
+    )
 
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {

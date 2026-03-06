@@ -28,6 +28,7 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_UNICAST_OUR,
     CONF_UNICAST_TARGET,
     DOMAIN,
+    SIG_MESH_PROXY_UUID,
 )
 
 
@@ -345,3 +346,98 @@ class TestSIGPlugStep:
 
         assert result["type"] == "form"
         assert result["step_id"] == "sig_plug"
+
+
+class TestAutoDiscovery:
+    """Test auto-detection of SIG Mesh Proxy devices via bluetooth discovery."""
+
+    @pytest.mark.asyncio
+    async def test_discovery_with_proxy_uuid_routes_to_sig_plug(self) -> None:
+        """Device with 0x1828 service UUID should route to sig_plug step."""
+        flow = TuyaBLEMeshConfigFlow()
+        flow.async_set_unique_id = AsyncMock()
+        flow._abort_if_unique_id_configured = lambda: None
+
+        service_info = MagicMock(spec=BluetoothServiceInfoBleak)
+        service_info.address = "AA:BB:CC:DD:EE:FF"
+        service_info.name = "Mesh Proxy"
+        service_info.service_uuids = [SIG_MESH_PROXY_UUID]
+
+        result = await flow.async_step_bluetooth(service_info)
+
+        assert result["type"] == "form"
+        assert result["step_id"] == "sig_plug"
+
+    @pytest.mark.asyncio
+    async def test_discovery_without_proxy_uuid_routes_to_confirm(self) -> None:
+        """Device without 0x1828 UUID should route to confirm step."""
+        flow = TuyaBLEMeshConfigFlow()
+        flow.async_set_unique_id = AsyncMock()
+        flow._abort_if_unique_id_configured = lambda: None
+
+        service_info = MagicMock(spec=BluetoothServiceInfoBleak)
+        service_info.address = "DC:23:4D:21:43:A5"
+        service_info.name = "out_of_mesh_1234"
+        service_info.service_uuids = []
+
+        result = await flow.async_step_bluetooth(service_info)
+
+        assert result["type"] == "form"
+        assert result["step_id"] == "confirm"
+
+    @pytest.mark.asyncio
+    async def test_discovery_proxy_sets_discovery_info(self) -> None:
+        """Discovery info should be populated for sig_plug step."""
+        flow = TuyaBLEMeshConfigFlow()
+        flow.async_set_unique_id = AsyncMock()
+        flow._abort_if_unique_id_configured = lambda: None
+
+        service_info = MagicMock(spec=BluetoothServiceInfoBleak)
+        service_info.address = "AA:BB:CC:DD:EE:FF"
+        service_info.name = "Mesh Proxy"
+        service_info.service_uuids = [SIG_MESH_PROXY_UUID]
+
+        await flow.async_step_bluetooth(service_info)
+
+        assert flow._discovery_info is not None
+        assert flow._discovery_info["address"] == "AA:BB:CC:DD:EE:FF"
+
+    @pytest.mark.asyncio
+    async def test_discovery_proxy_no_service_uuids_attr(self) -> None:
+        """Device without service_uuids attribute should route to confirm."""
+        flow = TuyaBLEMeshConfigFlow()
+        flow.async_set_unique_id = AsyncMock()
+        flow._abort_if_unique_id_configured = lambda: None
+
+        service_info = MagicMock(spec=BluetoothServiceInfoBleak)
+        service_info.address = "DC:23:4D:21:43:A5"
+        service_info.name = "out_of_mesh_1234"
+        # Remove service_uuids attribute
+        del service_info.service_uuids
+
+        result = await flow.async_step_bluetooth(service_info)
+
+        assert result["type"] == "form"
+        assert result["step_id"] == "confirm"
+
+    @pytest.mark.asyncio
+    async def test_discovery_proxy_completes_full_flow(self) -> None:
+        """Proxy discovery → sig_plug form → entry creation."""
+        flow = TuyaBLEMeshConfigFlow()
+        flow.async_set_unique_id = AsyncMock()
+        flow._abort_if_unique_id_configured = lambda: None
+
+        service_info = MagicMock(spec=BluetoothServiceInfoBleak)
+        service_info.address = "AA:BB:CC:DD:EE:FF"
+        service_info.name = "Mesh Proxy"
+        service_info.service_uuids = [SIG_MESH_PROXY_UUID]
+
+        # Step 1: bluetooth discovery → sig_plug form
+        result = await flow.async_step_bluetooth(service_info)
+        assert result["step_id"] == "sig_plug"
+
+        # Step 2: submit sig_plug form → entry created
+        result = await flow.async_step_sig_plug({})
+        assert result["type"] == "create_entry"
+        assert result["data"][CONF_DEVICE_TYPE] == "sig_plug"
+        assert result["data"][CONF_MAC_ADDRESS] == "AA:BB:CC:DD:EE:FF"

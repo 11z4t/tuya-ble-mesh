@@ -1,6 +1,6 @@
 """Sensor entities for Tuya BLE Mesh devices.
 
-Provides RSSI (signal strength) and firmware version sensors.
+Provides RSSI (signal strength), firmware version, power, and energy sensors.
 """
 
 from __future__ import annotations
@@ -8,10 +8,18 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.sensor import SensorDeviceClass, SensorEntity
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.helpers.entity import EntityCategory
 
-from custom_components.tuya_ble_mesh.const import DOMAIN
+from custom_components.tuya_ble_mesh.const import (
+    CONF_DEVICE_TYPE,
+    DOMAIN,
+    PLUG_DEVICE_TYPES,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -39,12 +47,19 @@ async def async_setup_entry(
         async_add_entities: Callback to register new entities.
     """
     coordinator: TuyaBLEMeshCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    async_add_entities(
-        [
-            TuyaBLEMeshRSSISensor(coordinator, entry.entry_id),
-            TuyaBLEMeshFirmwareSensor(coordinator, entry.entry_id),
-        ]
-    )
+
+    entities: list[SensorEntity] = [
+        TuyaBLEMeshRSSISensor(coordinator, entry.entry_id),
+        TuyaBLEMeshFirmwareSensor(coordinator, entry.entry_id),
+    ]
+
+    # Add power/energy sensors for plug device types
+    device_type = entry.data.get(CONF_DEVICE_TYPE, "")
+    if device_type in PLUG_DEVICE_TYPES:
+        entities.append(TuyaBLEMeshPowerSensor(coordinator, entry.entry_id))
+        entities.append(TuyaBLEMeshEnergySensor(coordinator, entry.entry_id))
+
+    async_add_entities(entities)
 
 
 class TuyaBLEMeshRSSISensor(SensorEntity):
@@ -145,6 +160,130 @@ class TuyaBLEMeshFirmwareSensor(SensorEntity):
     def entity_category(self) -> EntityCategory:
         """Return the entity category."""
         return EntityCategory.DIAGNOSTIC
+
+    async def async_added_to_hass(self) -> None:
+        """Register state listener when added to HA."""
+        self._remove_listener = self._coordinator.add_listener(self._handle_coordinator_update)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Remove state listener when removed from HA."""
+        if self._remove_listener is not None:
+            self._remove_listener()
+            self._remove_listener = None
+
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self.async_write_ha_state()
+
+
+class TuyaBLEMeshPowerSensor(SensorEntity):
+    """Power consumption sensor (W) for a Tuya BLE Mesh plug."""
+
+    _attr_should_poll = False
+
+    def __init__(self, coordinator: TuyaBLEMeshCoordinator, entry_id: str) -> None:
+        self._coordinator = coordinator
+        self._entry_id = entry_id
+        self._attr_unique_id = f"{coordinator.device.address}_power"
+        self._attr_name = f"Tuya BLE Mesh {coordinator.device.address[-8:]} Power"
+        self._remove_listener: Any = None
+
+    @property
+    def unique_id(self) -> str:
+        """Return unique ID."""
+        return self._attr_unique_id
+
+    @property
+    def name(self) -> str:
+        """Return entity name."""
+        return self._attr_name
+
+    @property
+    def available(self) -> bool:
+        """Return True if the device is available."""
+        return self._coordinator.state.available
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the power in watts."""
+        return self._coordinator.state.power_w
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        """Return the unit of measurement."""
+        return "W"
+
+    @property
+    def device_class(self) -> SensorDeviceClass:
+        """Return the device class."""
+        return SensorDeviceClass.POWER
+
+    @property
+    def state_class(self) -> SensorStateClass:
+        """Return the state class."""
+        return SensorStateClass.MEASUREMENT
+
+    async def async_added_to_hass(self) -> None:
+        """Register state listener when added to HA."""
+        self._remove_listener = self._coordinator.add_listener(self._handle_coordinator_update)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Remove state listener when removed from HA."""
+        if self._remove_listener is not None:
+            self._remove_listener()
+            self._remove_listener = None
+
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator."""
+        self.async_write_ha_state()
+
+
+class TuyaBLEMeshEnergySensor(SensorEntity):
+    """Energy consumption sensor (kWh) for a Tuya BLE Mesh plug."""
+
+    _attr_should_poll = False
+
+    def __init__(self, coordinator: TuyaBLEMeshCoordinator, entry_id: str) -> None:
+        self._coordinator = coordinator
+        self._entry_id = entry_id
+        self._attr_unique_id = f"{coordinator.device.address}_energy"
+        self._attr_name = f"Tuya BLE Mesh {coordinator.device.address[-8:]} Energy"
+        self._remove_listener: Any = None
+
+    @property
+    def unique_id(self) -> str:
+        """Return unique ID."""
+        return self._attr_unique_id
+
+    @property
+    def name(self) -> str:
+        """Return entity name."""
+        return self._attr_name
+
+    @property
+    def available(self) -> bool:
+        """Return True if the device is available."""
+        return self._coordinator.state.available
+
+    @property
+    def native_value(self) -> float | None:
+        """Return the energy in kWh."""
+        return self._coordinator.state.energy_kwh
+
+    @property
+    def native_unit_of_measurement(self) -> str:
+        """Return the unit of measurement."""
+        return "kWh"
+
+    @property
+    def device_class(self) -> SensorDeviceClass:
+        """Return the device class."""
+        return SensorDeviceClass.ENERGY
+
+    @property
+    def state_class(self) -> SensorStateClass:
+        """Return the state class."""
+        return SensorStateClass.TOTAL_INCREASING
 
     async def async_added_to_hass(self) -> None:
         """Register state listener when added to HA."""
