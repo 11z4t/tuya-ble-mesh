@@ -735,11 +735,36 @@ class ProxySession:
 # ============================================================
 
 
+def load_mesh_keys_from_json(keys_file: Path, our_addr: int) -> tuple["MeshKeys", int]:
+    """Load mesh keys from pb_gatt_provision.py output JSON.
+
+    Returns (MeshKeys, our_unicast_address).
+    """
+    if not keys_file.exists():
+        print(f"ERROR: Keys file not found: {keys_file}")
+        sys.exit(1)
+
+    data = json.loads(keys_file.read_text())
+    keys = MeshKeys(
+        net_key_hex=data["net_key"],
+        dev_key_hex=data["dev_key"],
+        app_key_hex=data.get("app_key"),
+        iv_index=data.get("iv_index", 0),
+    )
+    return keys, our_addr
+
+
 def load_mesh_keys(target: int) -> tuple["MeshKeys", int]:
     """Load mesh keys from bluetooth-meshd config files.
 
     Returns (MeshKeys, our_unicast_address).
     """
+    # Try pb_gatt_provision.py output first
+    json_keys = Path("/tmp/mesh_keys.json")
+    if json_keys.exists():
+        print(f"Loading keys from {json_keys}")
+        return load_mesh_keys_from_json(json_keys, our_addr=0x0001)
+
     meshd_dir = Path("/var/lib/bluetooth/mesh")
     node_dirs = list(meshd_dir.glob("*/node.json"))
     if not node_dirs:
