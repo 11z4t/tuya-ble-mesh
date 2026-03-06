@@ -1,4 +1,24 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
-  <rect width="64" height="64" rx="8" fill="#4A90D9"/>
-  <text x="32" y="38" font-family="Arial, sans-serif" font-size="18" font-weight="bold" fill="white" text-anchor="middle">TBM</text>
+  <!-- Background -->
+  <rect width="64" height="64" rx="12" fill="#FF4800"/>
+
+  <!-- Bluetooth symbol -->
+  <path d="M32 12 L32 52 L42 42 L24 26 L32 18 L32 46 L42 36 L24 20 Z"
+        fill="none" stroke="white" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+
+  <!-- Mesh nodes - left -->
+  <circle cx="16" cy="24" r="3" fill="white" opacity="0.8"/>
+  <circle cx="14" cy="40" r="3" fill="white" opacity="0.8"/>
+
+  <!-- Mesh nodes - right -->
+  <circle cx="50" cy="20" r="3" fill="white" opacity="0.8"/>
+  <circle cx="52" cy="38" r="3" fill="white" opacity="0.8"/>
+
+  <!-- Mesh connection lines -->
+  <line x1="16" y1="24" x2="24" y2="26" stroke="white" stroke-width="1" opacity="0.5"/>
+  <line x1="14" y1="40" x2="24" y2="36" stroke="white" stroke-width="1" opacity="0.5"/>
+  <line x1="50" y1="20" x2="42" y2="26" stroke="white" stroke-width="1" opacity="0.5"/>
+  <line x1="52" y1="38" x2="42" y2="36" stroke="white" stroke-width="1" opacity="0.5"/>
+  <line x1="16" y1="24" x2="14" y2="40" stroke="white" stroke-width="1" opacity="0.4"/>
+  <line x1="50" y1="20" x2="52" y2="38" stroke="white" stroke-width="1" opacity="0.4"/>
 </svg>
