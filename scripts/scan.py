@@ -83,12 +83,9 @@ async def scan(duration: int = 15) -> None:
         if is_tuya_device(device, adv):
             tuya_devices.append((device, adv))
 
-    scanner = BleakScanner(detection_callback=callback)
-
     print("Scanning...")
-    await scanner.start()
-    await asyncio.sleep(duration)
-    await scanner.stop()
+    async with BleakScanner(detection_callback=callback):
+        await asyncio.sleep(duration)
 
     # Deduplicate by MAC
     seen_macs = set()
