@@ -19,6 +19,7 @@ from tuya_ble_mesh.exceptions import (  # noqa: E402
 )
 from tuya_ble_mesh.sig_mesh_device import (  # noqa: E402
     _INITIAL_SEQ,
+    _REASSEMBLY_TIMEOUT,
     SIGMeshDevice,
 )
 
@@ -192,6 +193,9 @@ class TestSIGMeshDeviceSendPower:
             mock_scanner.find_device_by_address = AsyncMock(return_value=MagicMock())
             await dev.connect(max_retries=1)
 
+        # Reset mock after connect (which sends Composition Data Get)
+        mock_client.write_gatt_char.reset_mock()
+
         await dev.send_power(True)
 
         mock_client.write_gatt_char.assert_called_once()
@@ -241,6 +245,22 @@ class TestSIGMeshDeviceSequence:
         s2 = dev._next_seq()
         assert s2 == s1 + 1
 
+    def test_set_seq(self) -> None:
+        dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
+        dev.set_seq(5000)
+        assert dev.get_seq() == 5000
+
+    def test_get_seq(self) -> None:
+        dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
+        assert dev.get_seq() == _INITIAL_SEQ
+
+    def test_set_seq_persists_through_next_seq(self) -> None:
+        dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
+        dev.set_seq(9000)
+        seq = dev._next_seq()
+        assert seq == 9000
+        assert dev.get_seq() == 9001
+
 
 class TestSIGMeshDeviceBLEDisconnect:
     """Test BLE disconnect callback."""
@@ -261,3 +281,299 @@ class TestSIGMeshDeviceBLEDisconnect:
         dev._on_ble_disconnect(MagicMock())
 
         assert dev._client is None
+
+
+class TestSegmentReassembly:
+    """Test segmented message reassembly in SIGMeshDevice."""
+
+    def _make_device_with_keys(self) -> SIGMeshDevice:
+        """Create a SIGMeshDevice with mock keys loaded."""
+        from tuya_ble_mesh.sig_mesh_protocol import MeshKeys
+
+        dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
+        dev._keys = MeshKeys(
+            "f7a2a44f8e8a8029064f173ddc1e2b00",
+            "00112233445566778899aabbccddeeff",
+            "3216d1509884b533248541792b877f98",
+        )
+        return dev
+
+    def test_handle_segment_collects_segments(self) -> None:
+        """_handle_segment should collect segments into buffer."""
+        import struct
+
+        dev = self._make_device_with_keys()
+        # Create a fake segment: SEG=1, AKF=0, AID=0
+        hdr = 0x80
+        info = (0 << 23) | (100 << 10) | (0 << 5) | 1  # seg_o=0, seg_n=1
+        pdu = bytes([hdr]) + struct.pack(">I", info)[1:] + b"\x42" * 12
+
+        dev._handle_segment(0x00AA, 0x0001, pdu)
+
+        assert (0x00AA, 100) in dev._segment_buffers
+        buf = dev._segment_buffers[(0x00AA, 100)]
+        assert 0 in buf.segments
+        assert buf.seg_n == 1
+
+    def test_handle_segment_completes_on_last(self) -> None:
+        """When all segments arrive, buffer should be consumed."""
+        from tuya_ble_mesh.sig_mesh_protocol import make_access_segmented
+
+        dev = self._make_device_with_keys()
+        assert dev._keys is not None
+
+        # Create a real segmented message
+        access_payload = b"\x82\x04\x01"  # OnOff Status ON
+        segments = make_access_segmented(
+            dev._keys.dev_key,
+            0x00AA,
+            0x0001,
+            100,
+            0,
+            access_payload + b"\x00" * 10,  # pad to force 2 segments
+        )
+
+        # Feed each segment through _handle_segment
+        for _seq, transport_pdu in segments:
+            dev._handle_segment(0x00AA, 0x0001, transport_pdu)
+
+        # Buffer should be consumed after complete reassembly
+        assert (0x00AA, 100 & 0x1FFF) not in dev._segment_buffers
+
+    def test_stale_buffer_cleanup(self) -> None:
+        """Stale buffers should be removed by _clean_stale_buffers."""
+        import struct
+        import time
+
+        dev = self._make_device_with_keys()
+
+        # Insert a fake buffer with old timestamp
+        hdr = 0x80
+        info = (0 << 23) | (200 << 10) | (0 << 5) | 1
+        pdu = bytes([hdr]) + struct.pack(">I", info)[1:] + b"\x42" * 12
+        dev._handle_segment(0x00AA, 0x0001, pdu)
+
+        # Make the buffer look stale
+        buf = dev._segment_buffers[(0x00AA, 200)]
+        buf.created_at = time.monotonic() - _REASSEMBLY_TIMEOUT - 1.0
+
+        # Trigger cleanup with another segment
+        info2 = (0 << 23) | (300 << 10) | (0 << 5) | 0
+        pdu2 = bytes([hdr]) + struct.pack(">I", info2)[1:] + b"\x42" * 8
+        dev._handle_segment(0x00BB, 0x0001, pdu2)
+
+        # Stale buffer should be gone
+        assert (0x00AA, 200) not in dev._segment_buffers
+
+    def test_dispatch_access_payload_onoff(self) -> None:
+        """_dispatch_access_payload should invoke onoff callbacks."""
+        dev = self._make_device_with_keys()
+        cb = MagicMock()
+        dev.register_onoff_callback(cb)
+
+        # OnOff Status: ON
+        dev._dispatch_access_payload(0x00AA, b"\x82\x04\x01")
+
+        cb.assert_called_once_with(True)
+
+    def test_dispatch_access_payload_unknown_opcode(self) -> None:
+        """Unknown opcode should not crash."""
+        dev = self._make_device_with_keys()
+        cb = MagicMock()
+        dev.register_onoff_callback(cb)
+
+        # Unknown 2-byte opcode
+        dev._dispatch_access_payload(0x00AA, b"\x80\xFF\x42")
+
+        cb.assert_not_called()
+
+    def test_segment_buffers_initialized_empty(self) -> None:
+        """New device should have empty segment buffers."""
+        dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
+        assert dev._segment_buffers == {}
+
+
+class TestVendorCallbacks:
+    """Test vendor callback registration and dispatch."""
+
+    def test_register_vendor_callback(self) -> None:
+        dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
+        cb = MagicMock()
+        dev.register_vendor_callback(cb)
+        assert cb in dev._vendor_callbacks
+
+    def test_unregister_vendor_callback(self) -> None:
+        dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
+        cb = MagicMock()
+        dev.register_vendor_callback(cb)
+        dev.unregister_vendor_callback(cb)
+        assert cb not in dev._vendor_callbacks
+
+    def test_dispatch_vendor_opcode(self) -> None:
+        """3-byte vendor opcodes should invoke vendor callbacks."""
+        from tuya_ble_mesh.sig_mesh_protocol import MeshKeys
+
+        dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
+        dev._keys = MeshKeys(
+            "f7a2a44f8e8a8029064f173ddc1e2b00",
+            "00112233445566778899aabbccddeeff",
+            "3216d1509884b533248541792b877f98",
+        )
+        cb = MagicMock()
+        dev.register_vendor_callback(cb)
+
+        # 3-byte vendor opcode 0xCDD007
+        dev._dispatch_access_payload(0x00AA, b"\xCD\xD0\x07\x01\x02\x03")
+
+        cb.assert_called_once()
+        call_args = cb.call_args[0]
+        assert call_args[0] == 0xCDD007
+        assert call_args[1] == b"\x01\x02\x03"
+
+    def test_dispatch_2byte_opcode_does_not_invoke_vendor(self) -> None:
+        """2-byte opcodes should NOT invoke vendor callbacks."""
+        dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
+        cb = MagicMock()
+        dev.register_vendor_callback(cb)
+
+        # 2-byte opcode (OnOff Status)
+        dev._dispatch_access_payload(0x00AA, b"\x82\x04\x01")
+
+        cb.assert_not_called()
+
+
+class TestCompositionData:
+    """Test Composition Data handling and firmware version."""
+
+    def _make_device_with_keys(self) -> SIGMeshDevice:
+        """Create a SIGMeshDevice with mock keys loaded."""
+        from tuya_ble_mesh.sig_mesh_protocol import MeshKeys
+
+        dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
+        dev._keys = MeshKeys(
+            "f7a2a44f8e8a8029064f173ddc1e2b00",
+            "00112233445566778899aabbccddeeff",
+            "3216d1509884b533248541792b877f98",
+        )
+        return dev
+
+    def test_firmware_version_initially_none(self) -> None:
+        dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
+        assert dev.firmware_version is None
+
+    def test_register_composition_callback(self) -> None:
+        dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
+        cb = MagicMock()
+        dev.register_composition_callback(cb)
+        assert cb in dev._composition_callbacks
+
+    def test_unregister_composition_callback(self) -> None:
+        dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
+        cb = MagicMock()
+        dev.register_composition_callback(cb)
+        dev.unregister_composition_callback(cb)
+        assert cb not in dev._composition_callbacks
+
+    def test_handle_composition_data_sets_firmware_version(self) -> None:
+        """Composition Data Status should set firmware_version."""
+        import struct
+
+        dev = self._make_device_with_keys()
+
+        # Build Composition Data Status params:
+        # page(1) + CID(2) + PID(2) + VID(2) + CRPL(2) + Features(2) + elements
+        page = b"\x00"
+        cid = struct.pack("<H", 0x07D0)  # Tuya
+        pid = struct.pack("<H", 0x0001)
+        vid = struct.pack("<H", 0x0002)
+        crpl = struct.pack("<H", 10)
+        features = struct.pack("<H", 0x0003)
+        params = page + cid + pid + vid + crpl + features + b"\x00" * 4
+
+        dev._handle_composition_data(params)
+
+        assert dev.firmware_version == "CID:07D0 PID:0001 VID:0002"
+        assert dev._composition is not None
+        assert dev._composition.cid == 0x07D0
+
+    def test_handle_composition_data_invokes_callbacks(self) -> None:
+        """Composition callbacks should be invoked."""
+        import struct
+
+        dev = self._make_device_with_keys()
+        cb = MagicMock()
+        dev.register_composition_callback(cb)
+
+        page = b"\x00"
+        cid = struct.pack("<H", 0x07D0)
+        pid = struct.pack("<H", 0x0001)
+        vid = struct.pack("<H", 0x0002)
+        crpl = struct.pack("<H", 10)
+        features = struct.pack("<H", 0x0003)
+        params = page + cid + pid + vid + crpl + features
+
+        dev._handle_composition_data(params)
+
+        cb.assert_called_once()
+        comp = cb.call_args[0][0]
+        assert comp.cid == 0x07D0
+
+    def test_dispatch_composition_status_opcode(self) -> None:
+        """Opcode 0x02 should route to _handle_composition_data."""
+        import struct
+
+        dev = self._make_device_with_keys()
+        cb = MagicMock()
+        dev.register_composition_callback(cb)
+
+        # Opcode 0x02 (1-byte) + page + composition data
+        page = b"\x00"
+        cid = struct.pack("<H", 0x07D0)
+        pid = struct.pack("<H", 0x0001)
+        vid = struct.pack("<H", 0x0002)
+        crpl = struct.pack("<H", 10)
+        features = struct.pack("<H", 0x0003)
+        access_payload = b"\x02" + page + cid + pid + vid + crpl + features
+
+        dev._dispatch_access_payload(0x00AA, access_payload)
+
+        cb.assert_called_once()
+        assert dev.firmware_version is not None
+
+    def test_handle_composition_data_short_ignored(self) -> None:
+        """Short composition data should be silently ignored."""
+        dev = self._make_device_with_keys()
+        dev._handle_composition_data(b"\x00\x01\x02")  # Too short
+        assert dev.firmware_version is None
+
+    @pytest.mark.asyncio
+    async def test_request_composition_data_raises_when_not_connected(self) -> None:
+        dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
+        with pytest.raises(SIGMeshError, match="Not connected"):
+            await dev.request_composition_data()
+
+    @pytest.mark.asyncio
+    async def test_request_composition_data_writes_gatt(self) -> None:
+        """request_composition_data should write Config Composition Get."""
+        secrets = make_mock_secrets()
+        dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, secrets)
+
+        mock_client = MagicMock()
+        mock_client.connect = AsyncMock()
+        mock_client.start_notify = AsyncMock()
+        mock_client.write_gatt_char = AsyncMock()
+        mock_client.is_connected = True
+
+        with (
+            patch("tuya_ble_mesh.sig_mesh_device.BleakScanner") as mock_scanner,
+            patch(
+                "tuya_ble_mesh.sig_mesh_device.BleakClient",
+                return_value=mock_client,
+            ),
+        ):
+            mock_scanner.find_device_by_address = AsyncMock(return_value=MagicMock())
+            await dev.connect(max_retries=1)
+
+        # connect() calls request_composition_data internally,
+        # plus we can verify it wrote to GATT
+        assert mock_client.write_gatt_char.call_count >= 1

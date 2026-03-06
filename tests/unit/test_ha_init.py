@@ -79,7 +79,9 @@ class TestAsyncSetupEntry:
             b"123456",
             vendor_id=b"\x01\x10",
         )
-        coord_cls.assert_called_once_with(mock_device)
+        coord_cls.assert_called_once_with(
+            mock_device, hass=hass, entry_id=entry.entry_id
+        )
 
     @pytest.mark.asyncio
     async def test_setup_starts_coordinator(self) -> None:
