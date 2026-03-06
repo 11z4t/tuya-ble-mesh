@@ -12,6 +12,8 @@ from typing import Any
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 from homeassistant.config_entries import ConfigFlow
 
+import voluptuous as vol
+
 from custom_components.tuya_ble_mesh.const import (
     CONF_DEVICE_TYPE,
     CONF_IV_INDEX,
@@ -26,8 +28,10 @@ from custom_components.tuya_ble_mesh.const import (
     DEFAULT_OP_ITEM_PREFIX,
     DEFAULT_VENDOR_ID,
     DEVICE_TYPE_LIGHT,
+    DEVICE_TYPE_PLUG,
     DEVICE_TYPE_SIG_PLUG,
     DOMAIN,
+    SIG_MESH_PROXY_UUID,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -83,10 +87,16 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             "name": name,
         }
 
+        # Auto-detect SIG Mesh Proxy devices by service UUID
+        service_uuids = getattr(discovery_info, "service_uuids", [])
+        if SIG_MESH_PROXY_UUID in service_uuids:
+            _LOGGER.info("SIG Mesh Proxy detected: %s", address)
+            return await self.async_step_sig_plug()
+
         return await self.async_step_confirm()
 
     async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> dict[str, Any]:
-        """Confirm bluetooth discovery.
+        """Confirm bluetooth discovery and choose device type.
 
         Args:
             user_input: User confirmation input.
@@ -95,19 +105,32 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             Flow result dict.
         """
         if user_input is not None and self._discovery_info is not None:
+            mac = self._discovery_info["address"]
+            device_type = user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
+            short_mac = mac[-8:]
+            title = f"BLE Mesh Plug {short_mac}" if device_type == DEVICE_TYPE_PLUG else f"BLE Mesh Light {short_mac}"
             return self.async_create_entry(
-                title=self._discovery_info.get("name", "Tuya BLE Mesh"),
+                title=title,
                 data={
-                    CONF_MAC_ADDRESS: self._discovery_info["address"],
+                    CONF_MAC_ADDRESS: mac,
                     CONF_MESH_NAME: user_input.get(CONF_MESH_NAME, "out_of_mesh"),
                     CONF_MESH_PASSWORD: user_input.get(CONF_MESH_PASSWORD, "123456"),
                     CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
-                    CONF_DEVICE_TYPE: user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT),
+                    CONF_DEVICE_TYPE: device_type,
                 },
             )
 
         return self.async_show_form(
             step_id="confirm",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_DEVICE_TYPE, default=DEVICE_TYPE_LIGHT): vol.In(
+                        {DEVICE_TYPE_LIGHT: "Light", DEVICE_TYPE_PLUG: "Plug"}
+                    ),
+                    vol.Optional(CONF_MESH_NAME, default="out_of_mesh"): str,
+                    vol.Optional(CONF_MESH_PASSWORD, default="123456"): str,
+                }
+            ),
             description_placeholders={
                 "name": self._discovery_info.get("name", "") if self._discovery_info else "",
             },

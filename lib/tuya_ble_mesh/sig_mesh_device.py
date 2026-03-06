@@ -17,7 +17,9 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import time
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Any
 
 from bleak import BleakClient, BleakScanner
@@ -31,7 +33,10 @@ from tuya_ble_mesh.exceptions import (
     SIGMeshKeyError,
 )
 from tuya_ble_mesh.sig_mesh_protocol import (
+    CompositionData,
     MeshKeys,
+    _OPCODE_COMPOSITION_STATUS,
+    config_composition_get,
     decrypt_access_payload,
     decrypt_network_pdu,
     encrypt_network_pdu,
@@ -39,7 +44,10 @@ from tuya_ble_mesh.sig_mesh_protocol import (
     make_access_unsegmented,
     make_proxy_pdu,
     parse_access_opcode,
+    parse_composition_data,
     parse_proxy_pdu,
+    parse_segment_header,
+    reassemble_and_decrypt_segments,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -54,6 +62,8 @@ _OPCODE_ONOFF_STATUS = 0x8204
 
 # Callback types
 OnOffCallback = Callable[[bool], Any]
+VendorCallback = Callable[[int, bytes], Any]
+CompositionCallback = Callable[[CompositionData], Any]
 DisconnectCallback = Callable[[], Any]
 
 # Initial sequence number (in-memory, not persisted)
@@ -61,6 +71,24 @@ _INITIAL_SEQ = 2000
 
 # Default TTL for mesh commands
 _DEFAULT_TTL = 5
+
+# Reassembly timeout for segmented messages (seconds)
+_REASSEMBLY_TIMEOUT = 10.0
+
+
+@dataclass
+class _ReassemblyBuffer:
+    """Buffer for collecting segmented transport PDU chunks."""
+
+    src: int
+    dst: int
+    akf: int
+    aid: int
+    szmic: int
+    seq_zero: int
+    seg_n: int
+    segments: dict[int, bytes] = field(default_factory=dict)
+    created_at: float = field(default_factory=time.monotonic)
 
 
 class SIGMeshDevice:
@@ -103,7 +131,16 @@ class SIGMeshDevice:
         self._tid = 0
 
         self._onoff_callbacks: list[OnOffCallback] = []
+        self._vendor_callbacks: list[VendorCallback] = []
+        self._composition_callbacks: list[CompositionCallback] = []
         self._disconnect_callbacks: list[DisconnectCallback] = []
+
+        # Composition Data and firmware version
+        self._composition: CompositionData | None = None
+        self._firmware_version: str | None = None
+
+        # Segmented message reassembly buffers: (src, seq_zero) -> buffer
+        self._segment_buffers: dict[tuple[int, int], _ReassemblyBuffer] = {}
 
     @property
     def address(self) -> str:
@@ -117,8 +154,24 @@ class SIGMeshDevice:
 
     @property
     def firmware_version(self) -> str | None:
-        """Return firmware version (not available for SIG Mesh v1)."""
-        return None
+        """Return firmware version derived from Composition Data (CID/PID/VID)."""
+        return self._firmware_version
+
+    def set_seq(self, seq: int) -> None:
+        """Override the current sequence number (for restore on startup).
+
+        Args:
+            seq: Sequence number to set.
+        """
+        self._seq = seq
+
+    def get_seq(self) -> int:
+        """Return the current sequence number (for persistence).
+
+        Returns:
+            Current sequence number.
+        """
+        return self._seq
 
     def register_onoff_callback(self, callback: OnOffCallback) -> None:
         """Register a callback for GenericOnOff Status notifications.
@@ -135,6 +188,38 @@ class SIGMeshDevice:
             callback: The callback to remove.
         """
         self._onoff_callbacks.remove(callback)
+
+    def register_vendor_callback(self, callback: VendorCallback) -> None:
+        """Register a callback for Tuya vendor messages.
+
+        Args:
+            callback: Called with ``(opcode: int, params: bytes)``.
+        """
+        self._vendor_callbacks.append(callback)
+
+    def unregister_vendor_callback(self, callback: VendorCallback) -> None:
+        """Remove a previously registered vendor callback.
+
+        Args:
+            callback: The callback to remove.
+        """
+        self._vendor_callbacks.remove(callback)
+
+    def register_composition_callback(self, callback: CompositionCallback) -> None:
+        """Register a callback for Composition Data responses.
+
+        Args:
+            callback: Called with ``CompositionData`` when received.
+        """
+        self._composition_callbacks.append(callback)
+
+    def unregister_composition_callback(self, callback: CompositionCallback) -> None:
+        """Remove a previously registered composition callback.
+
+        Args:
+            callback: The callback to remove.
+        """
+        self._composition_callbacks.remove(callback)
 
     def register_disconnect_callback(self, callback: DisconnectCallback) -> None:
         """Register a callback for disconnect events.
@@ -195,6 +280,15 @@ class SIGMeshDevice:
 
                 self._client = client
                 _LOGGER.info("Connected to %s", self._address)
+
+                # Request Composition Data (non-critical)
+                try:
+                    await self.request_composition_data()
+                except Exception:
+                    _LOGGER.debug(
+                        "Composition Data request failed (non-critical)",
+                        exc_info=True,
+                    )
                 return
 
             except Exception as exc:
@@ -281,6 +375,56 @@ class SIGMeshDevice:
             seq,
         )
 
+    async def request_composition_data(self) -> None:
+        """Send Config Composition Data Get to retrieve device info.
+
+        Uses the device key (akf=0) since this is a config message.
+        Response arrives asynchronously via notifications.
+
+        Raises:
+            SIGMeshError: If not connected or keys not loaded.
+        """
+        if self._client is None or self._keys is None:
+            msg = "Not connected"
+            raise SIGMeshError(msg)
+
+        access_payload = config_composition_get(page=0)
+        seq = self._next_seq()
+
+        transport_pdu = make_access_unsegmented(
+            self._keys.dev_key,
+            self._our_addr,
+            self._target_addr,
+            seq,
+            self._keys.iv_index,
+            access_payload,
+            akf=0,
+            aid=0,
+        )
+
+        network_pdu = encrypt_network_pdu(
+            self._keys.enc_key,
+            self._keys.priv_key,
+            self._keys.nid,
+            ctl=0,
+            ttl=_DEFAULT_TTL,
+            seq=seq,
+            src=self._our_addr,
+            dst=self._target_addr,
+            transport_pdu=transport_pdu,
+            iv_index=self._keys.iv_index,
+        )
+
+        proxy_pdu = make_proxy_pdu(network_pdu)
+        await self._client.write_gatt_char(
+            SIG_MESH_PROXY_DATA_IN, proxy_pdu, response=False
+        )
+        _LOGGER.info(
+            "Composition Data Get sent to 0x%04X (seq=%d)",
+            self._target_addr,
+            seq,
+        )
+
     # --- Private helpers ---
 
     def _next_seq(self) -> int:
@@ -329,8 +473,8 @@ class SIGMeshDevice:
     def _on_notify(self, _sender: BleakGATTCharacteristic, data: bytearray) -> None:
         """Handle a GATT Proxy notification.
 
-        Decrypts the network PDU and dispatches GenericOnOff Status
-        to registered callbacks.
+        Decrypts the network PDU and dispatches to access layer.
+        Supports both unsegmented and segmented messages.
 
         Args:
             _sender: The characteristic that sent the notification.
@@ -363,15 +507,127 @@ class SIGMeshDevice:
             net_pdu.seq,
             net_pdu.transport_pdu,
         )
-        if access_msg is None or access_msg.access_payload is None:
+        if access_msg is None:
+            _LOGGER.debug("Access payload decryption failed")
+            return
+
+        if access_msg.seg:
+            self._handle_segment(net_pdu.src, net_pdu.dst, net_pdu.transport_pdu)
+            return
+
+        if access_msg.access_payload is None:
+            _LOGGER.debug("Unsegmented access payload decryption failed")
+            return
+
+        self._dispatch_access_payload(net_pdu.src, access_msg.access_payload)
+
+    def _handle_segment(self, src: int, dst: int, transport_pdu: bytes) -> None:
+        """Collect a segment and attempt reassembly when complete.
+
+        Args:
+            src: Source unicast address.
+            dst: Destination address.
+            transport_pdu: Lower transport PDU (segmented).
+        """
+        try:
+            seg_hdr = parse_segment_header(transport_pdu)
+        except Exception:
+            _LOGGER.debug("Failed to parse segment header", exc_info=True)
+            return
+
+        buf_key = (src, seg_hdr.seq_zero)
+
+        # Get or create reassembly buffer
+        buf = self._segment_buffers.get(buf_key)
+        if buf is None:
+            buf = _ReassemblyBuffer(
+                src=src,
+                dst=dst,
+                akf=seg_hdr.akf,
+                aid=seg_hdr.aid,
+                szmic=seg_hdr.szmic,
+                seq_zero=seg_hdr.seq_zero,
+                seg_n=seg_hdr.seg_n,
+            )
+            self._segment_buffers[buf_key] = buf
+
+        buf.segments[seg_hdr.seg_o] = seg_hdr.segment_data
+
+        _LOGGER.debug(
+            "Segment %d/%d received from 0x%04X (seq_zero=%d)",
+            seg_hdr.seg_o,
+            seg_hdr.seg_n,
+            src,
+            seg_hdr.seq_zero,
+        )
+
+        # Check if all segments received
+        if len(buf.segments) == buf.seg_n + 1:
+            self._complete_reassembly(buf_key)
+
+        # Clean stale buffers
+        self._clean_stale_buffers()
+
+    def _complete_reassembly(self, buf_key: tuple[int, int]) -> None:
+        """Decrypt a fully reassembled segmented message and dispatch.
+
+        Args:
+            buf_key: (src, seq_zero) key into _segment_buffers.
+        """
+        buf = self._segment_buffers.pop(buf_key, None)
+        if buf is None or self._keys is None:
+            return
+
+        access_payload = reassemble_and_decrypt_segments(
+            self._keys,
+            buf.src,
+            buf.dst,
+            buf.segments,
+            buf.seg_n,
+            buf.szmic,
+            buf.seq_zero,
+            buf.akf,
+        )
+
+        if access_payload is None:
             _LOGGER.debug(
-                "Access payload decryption failed (seg=%s)",
-                access_msg.seg if access_msg else "N/A",
+                "Segmented reassembly decryption failed from 0x%04X",
+                buf.src,
             )
             return
 
+        _LOGGER.debug(
+            "Reassembled %d segments from 0x%04X (%d bytes)",
+            buf.seg_n + 1,
+            buf.src,
+            len(access_payload),
+        )
+
+        self._dispatch_access_payload(buf.src, access_payload)
+
+    def _clean_stale_buffers(self) -> None:
+        """Remove reassembly buffers older than _REASSEMBLY_TIMEOUT."""
+        now = time.monotonic()
+        stale = [
+            key
+            for key, buf in self._segment_buffers.items()
+            if now - buf.created_at > _REASSEMBLY_TIMEOUT
+        ]
+        for key in stale:
+            _LOGGER.debug("Discarding stale reassembly buffer: %s", key)
+            del self._segment_buffers[key]
+
+    def _dispatch_access_payload(self, src: int, access_payload: bytes) -> None:
+        """Parse opcode and route to appropriate handler.
+
+        Shared by both unsegmented and reassembled segmented paths.
+
+        Args:
+            src: Source unicast address.
+            access_payload: Decrypted access layer payload.
+        """
         try:
-            opcode, params = parse_access_opcode(access_msg.access_payload)
+            opcode, params = parse_access_opcode(access_payload)
         except Exception:
             _LOGGER.debug("Failed to parse access opcode", exc_info=True)
             return
@@ -380,7 +636,7 @@ class SIGMeshDevice:
             on_state = bool(params[0])
             _LOGGER.info(
                 "GenericOnOff Status from 0x%04X: %s",
-                net_pdu.src,
+                src,
                 "ON" if on_state else "OFF",
             )
             for callback in self._onoff_callbacks:
@@ -388,13 +644,59 @@ class SIGMeshDevice:
                     callback(on_state)
                 except Exception:
                     _LOGGER.warning("OnOff callback error", exc_info=True)
+        elif opcode == _OPCODE_COMPOSITION_STATUS:
+            self._handle_composition_data(params)
+        elif opcode > 0xFFFF:
+            # 3-byte vendor opcode
+            _LOGGER.debug(
+                "Vendor opcode 0x%06X (%d param bytes) from 0x%04X",
+                opcode,
+                len(params),
+                src,
+            )
+            for callback in self._vendor_callbacks:
+                try:
+                    callback(opcode, params)
+                except Exception:
+                    _LOGGER.warning("Vendor callback error", exc_info=True)
         else:
             _LOGGER.debug(
                 "Received opcode 0x%04X (%d param bytes) from 0x%04X",
                 opcode,
                 len(params),
-                net_pdu.src,
+                src,
             )
+
+    def _handle_composition_data(self, params: bytes) -> None:
+        """Handle a Composition Data Status response.
+
+        Parses the composition data, sets firmware_version, and
+        notifies composition callbacks.
+
+        Args:
+            params: Parameters after opcode 0x02.
+        """
+        try:
+            comp = parse_composition_data(params)
+        except Exception:
+            _LOGGER.debug("Failed to parse Composition Data", exc_info=True)
+            return
+
+        self._composition = comp
+        self._firmware_version = f"CID:{comp.cid:04X} PID:{comp.pid:04X} VID:{comp.vid:04X}"
+
+        _LOGGER.info(
+            "Composition Data from device: %s (CRPL=%d, features=0x%04X)",
+            self._firmware_version,
+            comp.crpl,
+            comp.features,
+        )
+
+        for callback in self._composition_callbacks:
+            try:
+                callback(comp)
+            except Exception:
+                _LOGGER.warning("Composition callback error", exc_info=True)
 
     def _on_ble_disconnect(self, _client: BleakClient) -> None:
         """Handle BLE disconnection event.
