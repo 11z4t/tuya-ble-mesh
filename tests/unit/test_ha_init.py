@@ -77,6 +77,7 @@ class TestAsyncSetupEntry:
             "DC:23:4D:21:43:A5",
             b"out_of_mesh",
             b"123456",
+            mesh_id=0,
             vendor_id=b"\x01\x10",
         )
         coord_cls.assert_called_once_with(mock_device, hass=hass, entry_id=entry.entry_id)

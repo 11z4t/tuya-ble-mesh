@@ -17,6 +17,7 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_DEVICE_TYPE,
     CONF_IV_INDEX,
     CONF_MAC_ADDRESS,
+    CONF_MESH_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
     CONF_OP_ITEM_PREFIX,
@@ -24,6 +25,7 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_UNICAST_TARGET,
     CONF_VENDOR_ID,
     DEFAULT_IV_INDEX,
+    DEFAULT_MESH_ADDRESS,
     DEFAULT_OP_ITEM_PREFIX,
     DEFAULT_VENDOR_ID,
     DEVICE_TYPE_LIGHT,
@@ -120,6 +122,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_MESH_PASSWORD: user_input.get(CONF_MESH_PASSWORD, "123456"),
                     CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
                     CONF_DEVICE_TYPE: device_type,
+                    CONF_MESH_ADDRESS: user_input.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS),
                 },
             )
 
@@ -132,6 +135,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                     ),
                     vol.Optional(CONF_MESH_NAME, default="out_of_mesh"): str,
                     vol.Optional(CONF_MESH_PASSWORD, default="123456"): str,
+                    vol.Optional(CONF_MESH_ADDRESS, default=DEFAULT_MESH_ADDRESS): int,
                 }
             ),
             description_placeholders={
@@ -163,19 +167,38 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                         "name": f"SIG Mesh {mac[-8:]}",
                     }
                     return await self.async_step_sig_plug(None)
+                short = mac[-8:]
+                type_label = "Plug" if device_type == DEVICE_TYPE_PLUG else "Light"
                 return self.async_create_entry(
-                    title=f"Tuya BLE Mesh {mac[-8:]}",
+                    title=f"BLE Mesh {type_label} {short}",
                     data={
                         CONF_MAC_ADDRESS: mac.upper(),
                         CONF_MESH_NAME: user_input.get(CONF_MESH_NAME, "out_of_mesh"),
                         CONF_MESH_PASSWORD: user_input.get(CONF_MESH_PASSWORD, "123456"),
                         CONF_VENDOR_ID: user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID),
                         CONF_DEVICE_TYPE: device_type,
+                        CONF_MESH_ADDRESS: user_input.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS),
                     },
                 )
 
         return self.async_show_form(
             step_id="user",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_MAC_ADDRESS): str,
+                    vol.Required(CONF_DEVICE_TYPE, default=DEVICE_TYPE_LIGHT): vol.In(
+                        {
+                            DEVICE_TYPE_LIGHT: "Light",
+                            DEVICE_TYPE_PLUG: "Plug",
+                            DEVICE_TYPE_SIG_PLUG: "SIG Mesh Plug",
+                        }
+                    ),
+                    vol.Optional(CONF_MESH_NAME, default="out_of_mesh"): str,
+                    vol.Optional(CONF_MESH_PASSWORD, default="123456"): str,
+                    vol.Optional(CONF_VENDOR_ID, default=DEFAULT_VENDOR_ID): str,
+                    vol.Optional(CONF_MESH_ADDRESS, default=DEFAULT_MESH_ADDRESS): int,
+                }
+            ),
             description_placeholders={},
             errors=errors,
         )

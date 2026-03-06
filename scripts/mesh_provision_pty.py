@@ -13,6 +13,7 @@ SECURITY: Network/device keys are written to a JSON file only —
 never printed to stdout.
 """
 
+import contextlib
 import json
 import re
 import sys
@@ -65,10 +66,8 @@ def main() -> None:
         # mesh-cfgclient auto-attaches on startup when config exists
         # Wait for the "Attached" message
         time.sleep(3)
-        try:
+        with contextlib.suppress(pexpect.TIMEOUT, pexpect.EOF):
             child.read_nonblocking(size=4096, timeout=2)
-        except (pexpect.TIMEOUT, pexpect.EOF):
-            pass
         print("Using existing mesh network.")
     else:
         output = send_cmd(child, "create", timeout=15)
@@ -107,10 +106,8 @@ def main() -> None:
     child.sendline("discover-unprovisioned off")
     time.sleep(2)
     # Flush output
-    try:
+    with contextlib.suppress(pexpect.TIMEOUT, pexpect.EOF):
         child.read_nonblocking(size=4096, timeout=1)
-    except (pexpect.TIMEOUT, pexpect.EOF):
-        pass
 
     if not discovered:
         print("\nNo unprovisioned devices found!")
@@ -174,10 +171,8 @@ def main() -> None:
         print("\nProvisioning timed out (60s)")
 
     # Clean exit
-    try:
+    with contextlib.suppress(pexpect.TIMEOUT, pexpect.EOF):
         send_cmd(child, "quit", timeout=5)
-    except (pexpect.TIMEOUT, pexpect.EOF):
-        pass
     child.close()
 
 

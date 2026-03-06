@@ -1,3 +1,4 @@
+# ruff: noqa: F821, F722
 #!/usr/bin/env python3
 """SIG Mesh provisioner via bluetooth-meshd D-Bus API.
 
@@ -269,7 +270,7 @@ async def run() -> None:
     node_intro = await bus.introspect(MESH_SERVICE, node_path)
     node_proxy = bus.get_proxy_object(MESH_SERVICE, node_path, node_intro)
     mgmt = node_proxy.get_interface("org.bluez.mesh.Management1")
-    node = node_proxy.get_interface("org.bluez.mesh.Node1")
+    node_proxy.get_interface("org.bluez.mesh.Node1")
 
     # Create app key if needed
     try:
@@ -301,7 +302,7 @@ async def run() -> None:
         print(f"  UUID: {uuid}  RSSI: {d['rssi']}")
 
     # Step 2: Provision first discovered device
-    target_uuid = list(unique.keys())[0]
+    target_uuid = next(iter(unique.keys()))
     print(f"\nProvisioning UUID: {target_uuid}...")
 
     provisioner.prov_result = asyncio.get_event_loop().create_future()

@@ -17,6 +17,7 @@ from collections.abc import Callable
 from typing import Any
 
 from bleak import BleakClient, BleakScanner
+from bleak_retry_connector import establish_connection
 
 from tuya_ble_mesh.const import (
     DIS_FIRMWARE_REVISION,
@@ -206,11 +207,8 @@ class BLEConnection:
         timeout: float,
         max_retries: int,
     ) -> None:
-        """Connect to BLE device with retry + BlueZ cache clearing."""
+        """Connect to BLE device using bleak-retry-connector."""
         last_exc: Exception | None = None
-
-        # Proactive cleanup — clear stale BlueZ cache from previous sessions
-        await self._clear_bluez_device()
 
         for attempt in range(1, max_retries + 1):
             try:
@@ -222,8 +220,12 @@ class BLEConnection:
                     msg = f"Device {self._address} not found in BLE scan"
                     raise ConnectionError(msg)
 
-                self._client = BleakClient(ble_device, timeout=timeout)
-                await self._client.connect()
+                self._client = await establish_connection(
+                    BleakClient,
+                    ble_device,
+                    self._address,
+                    max_attempts=3,
+                )
                 _LOGGER.info(
                     "BLE connected on attempt %d/%d",
                     attempt,
@@ -244,7 +246,6 @@ class BLEConnection:
                     type(exc).__name__,
                     backoff,
                 )
-                await self._clear_bluez_device()
                 await asyncio.sleep(backoff)
 
         msg = f"Failed to connect to {self._address} after {max_retries} attempts"
