@@ -76,8 +76,11 @@ async def _connect(address: str, timeout: float) -> BleakClient:
             print(f"  Attempt {attempt}: {type(exc).__name__}, {backoff:.0f}s...")
             with contextlib.suppress(Exception):
                 p = await asyncio.create_subprocess_exec(
-                    "bluetoothctl", "remove", address,
-                    stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+                    "bluetoothctl",
+                    "remove",
+                    address,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
                 )
                 await asyncio.wait_for(p.wait(), timeout=5.0)
             await asyncio.sleep(backoff)
@@ -86,7 +89,7 @@ async def _connect(address: str, timeout: float) -> BleakClient:
 
 async def run(mac: str, timeout: float) -> None:
     print(f"\n{'=' * 60}")
-    print(f"  BLE Diagnostic v15b — CCCD after pairing")
+    print("  BLE Diagnostic v15b — CCCD after pairing")
     print(f"  Target: {mac}")
     print(f"{'=' * 60}\n")
 
@@ -198,7 +201,7 @@ async def run(mac: str, timeout: float) -> None:
             await asyncio.sleep(4)
 
         print(f"\n  Total notifications received: {len(notifications)}")
-        print(f"\n  REAGERADE LAMPAN PA NAGOT?")
+        print("\n  REAGERADE LAMPAN PA NAGOT?")
 
     finally:
         with contextlib.suppress(Exception):
@@ -211,6 +214,7 @@ async def run(mac: str, timeout: float) -> None:
 
 def main() -> None:
     import argparse
+
     p = argparse.ArgumentParser()
     p.add_argument("--mac", default=TARGET_DEVICE_MAC)
     p.add_argument("--timeout", type=float, default=20.0)

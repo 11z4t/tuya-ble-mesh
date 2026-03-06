@@ -13,8 +13,8 @@ Nordic SLIP encoding: START=0xAB, END=0xBC, ESC=0xCD
 
 import os
 import struct
-import sys
 import time
+
 import serial
 
 # Target device
@@ -29,8 +29,8 @@ SLIP_START = 0xAB
 SLIP_END = 0xBC
 SLIP_ESC = 0xCD
 SLIP_ESC_START = 0xAC  # SLIP_START + 1
-SLIP_ESC_END = 0xBD    # SLIP_END + 1
-SLIP_ESC_ESC = 0xCE    # SLIP_ESC + 1
+SLIP_ESC_END = 0xBD  # SLIP_END + 1
+SLIP_ESC_ESC = 0xCE  # SLIP_ESC + 1
 
 # nRF Sniffer packet types
 REQ_FOLLOW = 0x00
@@ -119,9 +119,18 @@ def build_sniffer_packet(pkt_id, payload=b"", counter=0):
 
 def write_pcap_header(f):
     """Write PCAP global header."""
-    f.write(struct.pack("<IHHIIII",
-        PCAP_MAGIC, PCAP_VERSION_MAJOR, PCAP_VERSION_MINOR,
-        0, 0, 0xFFFF, LINKTYPE_NORDIC_BLE))
+    f.write(
+        struct.pack(
+            "<IHHIIII",
+            PCAP_MAGIC,
+            PCAP_VERSION_MAJOR,
+            PCAP_VERSION_MINOR,
+            0,
+            0,
+            0xFFFF,
+            LINKTYPE_NORDIC_BLE,
+        )
+    )
 
 
 def write_pcap_packet(f, data):
@@ -142,15 +151,14 @@ def mac_to_list(mac_str):
 
 def main():
     print(f"\n{'=' * 60}")
-    print(f"  nRF51822 BLE Sniffer → PCAP")
+    print("  nRF51822 BLE Sniffer → PCAP")
     print(f"  Target: {TARGET_MAC}")
     print(f"  Port:   {SERIAL_PORT}")
     print(f"  Output: {PCAP_FILE}")
     print(f"  Duration: {CAPTURE_SECONDS}s")
     print(f"{'=' * 60}\n")
 
-    ser = serial.Serial(SERIAL_PORT, baudrate=BAUDRATE, timeout=0.1,
-                        rtscts=True)
+    ser = serial.Serial(SERIAL_PORT, baudrate=BAUDRATE, timeout=0.1, rtscts=True)
     counter = [0]
 
     def send(pkt_id, payload=b""):
@@ -191,8 +199,8 @@ def main():
     # Open PCAP file
     with open(PCAP_FILE, "wb") as pcap:
         write_pcap_header(pcap)
-        print(f"\n  CAPTURING — para med appen och styr lampan!")
-        print(f"  Ctrl+C to stop.\n")
+        print("\n  CAPTURING — para med appen och styr lampan!")
+        print("  Ctrl+C to stop.\n")
 
         pkt_count = 0
         data_count = 0
@@ -221,17 +229,19 @@ def main():
                 # Print summary
                 if pkt_id == EVENT_CONNECT:
                     connect_count += 1
-                    print(f"  [{time.time()-start:6.1f}s] CONNECTION #{connect_count}")
+                    print(f"  [{time.time() - start:6.1f}s] CONNECTION #{connect_count}")
                 elif pkt_id == EVENT_DISCONNECT:
-                    print(f"  [{time.time()-start:6.1f}s] DISCONNECT")
+                    print(f"  [{time.time() - start:6.1f}s] DISCONNECT")
                 elif pkt_id == EVENT_PACKET:
                     data_count += 1
                     if data_count <= 10 or data_count % 50 == 0:
-                        print(f"  [{time.time()-start:6.1f}s] DATA pkt #{data_count} ({pay_len}B)")
+                        print(
+                            f"  [{time.time() - start:6.1f}s] DATA pkt #{data_count} ({pay_len}B)"
+                        )
                 elif pkt_id == EVENT_DEVICE:
                     pass  # advertising, ignore
                 elif pkt_count <= 5:
-                    print(f"  [{time.time()-start:6.1f}s] type=0x{pkt_id:02X} ({pay_len}B)")
+                    print(f"  [{time.time() - start:6.1f}s] type=0x{pkt_id:02X} ({pay_len}B)")
 
         except KeyboardInterrupt:
             print("\n  Stopped.")
@@ -242,7 +252,7 @@ def main():
     print(f"\n  Captured {pkt_count} packets ({data_count} data, {connect_count} connections)")
     print(f"  Duration: {elapsed:.1f}s")
     print(f"  PCAP: {PCAP_FILE} ({pcap_size} bytes)")
-    print(f"\n  Analyze:")
+    print("\n  Analyze:")
     print(f"    tshark -r {PCAP_FILE} -V -Y 'btatt'")
     print(f"    tshark -r {PCAP_FILE} -Y 'btatt.opcode == 0x12' -V")
 

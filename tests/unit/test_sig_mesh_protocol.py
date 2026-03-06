@@ -14,7 +14,6 @@ from tuya_ble_mesh.sig_mesh_protocol import (
     MeshKeys,
     ProxyPDU,
     SegmentHeader,
-    TuyaVendorDP,
     config_appkey_add,
     config_composition_get,
     config_model_app_bind,
@@ -494,7 +493,7 @@ class TestParseSegmentHeader:
         info = (0 << 23) | (500 << 10) | (0 << 5) | 1
         import struct
 
-        pdu = bytes([hdr]) + struct.pack(">I", info)[1:] + b"\xAA\xBB\xCC"
+        pdu = bytes([hdr]) + struct.pack(">I", info)[1:] + b"\xaa\xbb\xcc"
         result = parse_segment_header(pdu)
         assert isinstance(result, SegmentHeader)
         assert result.akf == 0
@@ -503,7 +502,7 @@ class TestParseSegmentHeader:
         assert result.seq_zero == 500
         assert result.seg_o == 0
         assert result.seg_n == 1
-        assert result.segment_data == b"\xAA\xBB\xCC"
+        assert result.segment_data == b"\xaa\xbb\xcc"
 
     def test_akf_and_aid_parsed(self) -> None:
         """AKF=1, AID=0x38 should be correctly extracted."""
@@ -583,7 +582,7 @@ class TestReassembleAndDecrypt:
 
     def test_roundtrip_app_key(self, mesh_keys: MeshKeys) -> None:
         """Encrypt segmented with app key, then reassemble and decrypt."""
-        access_payload = b"\x82\x02\x01\x01" + b"\xFF" * 15  # 19 bytes
+        access_payload = b"\x82\x02\x01\x01" + b"\xff" * 15  # 19 bytes
         segments = make_access_segmented(
             mesh_keys.app_key,
             0x0001,
