@@ -449,12 +449,10 @@ class TestSeqPersistence:
 
         from unittest.mock import patch
 
-        coord = TuyaBLEMeshCoordinator(
-            device, hass=mock_hass, entry_id="test_entry"
-        )
+        coord = TuyaBLEMeshCoordinator(device, hass=mock_hass, entry_id="test_entry")
 
         with patch(
-            "custom_components.tuya_ble_mesh.coordinator.Store",
+            "homeassistant.helpers.storage.Store",
             return_value=mock_store,
         ):
             await coord._load_seq()
@@ -475,12 +473,10 @@ class TestSeqPersistence:
 
         from unittest.mock import patch
 
-        coord = TuyaBLEMeshCoordinator(
-            device, hass=mock_hass, entry_id="test_entry"
-        )
+        coord = TuyaBLEMeshCoordinator(device, hass=mock_hass, entry_id="test_entry")
 
         with patch(
-            "custom_components.tuya_ble_mesh.coordinator.Store",
+            "homeassistant.helpers.storage.Store",
             return_value=mock_store,
         ):
             await coord._load_seq()
@@ -595,7 +591,7 @@ class TestVendorUpdate:
         listener = MagicMock()
         coord.add_listener(listener)
 
-        coord._on_vendor_update(0x123456, b"\x12\x02\x01\x0A")
+        coord._on_vendor_update(0x123456, b"\x12\x02\x01\x0a")
 
         listener.assert_not_called()
         assert coord.state.power_w is None
@@ -626,10 +622,19 @@ class TestVendorUpdate:
         )
 
         # Two DPs: power=100 (10.0W) + energy=500 (5.00 kWh)
-        params = bytes([
-            DP_ID_POWER_W, 0x02, 0x01, 0x64,
-            DP_ID_ENERGY_KWH, 0x02, 0x02, 0x01, 0xF4,
-        ])
+        params = bytes(
+            [
+                DP_ID_POWER_W,
+                0x02,
+                0x01,
+                0x64,
+                DP_ID_ENERGY_KWH,
+                0x02,
+                0x02,
+                0x01,
+                0xF4,
+            ]
+        )
         coord._on_vendor_update(TUYA_VENDOR_OPCODE, params)
 
         assert coord.state.power_w == 10.0

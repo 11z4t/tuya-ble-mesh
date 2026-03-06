@@ -45,7 +45,7 @@ def _compute_device_proof(device_random: bytes, nxp: bytes) -> bytes:
 async def main() -> None:
     mac = TARGET_DEVICE_MAC
     print(f"\n{'=' * 60}")
-    print(f"  Credential Verification — Live Test")
+    print("  Credential Verification — Live Test")
     print(f"  Target: {mac}")
     print(f"{'=' * 60}\n")
 
@@ -69,8 +69,11 @@ async def main() -> None:
             print(f"  {attempt}: {type(e).__name__}")
             with contextlib.suppress(Exception):
                 p = await asyncio.create_subprocess_exec(
-                    "bluetoothctl", "remove", mac,
-                    stdout=asyncio.subprocess.DEVNULL, stderr=asyncio.subprocess.DEVNULL,
+                    "bluetoothctl",
+                    "remove",
+                    mac,
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
                 )
                 await asyncio.wait_for(p.wait(), timeout=5)
             await asyncio.sleep(3)
@@ -110,7 +113,7 @@ async def main() -> None:
         print(f"  Full response: {_hex(resp)}")
 
         # Step 3: Verify device proof against many credentials
-        print(f"\n[3] Verifying device proof against credentials...")
+        print("\n[3] Verifying device proof against credentials...")
 
         credentials = [
             ("out_of_mesh", "123456"),
@@ -166,6 +169,7 @@ async def main() -> None:
                 # Build and send power OFF command
                 import os
                 import struct
+
                 from tuya_ble_mesh.crypto import crypt_payload, make_checksum
 
                 seq = os.urandom(3)
@@ -181,6 +185,7 @@ async def main() -> None:
                 print(f"  Power ON cmd: {_hex(cmd)}")
 
                 from tuya_ble_mesh.const import TELINK_CHAR_COMMAND
+
                 await client.write_gatt_char(TELINK_CHAR_COMMAND, cmd, response=False)
                 print("  Sent (Write Command, no response)")
                 await asyncio.sleep(3)
@@ -191,6 +196,7 @@ async def main() -> None:
             print("\n  NO MATCH in standard credential set!")
             print("  Trying numeric brute-force 1-4 digits...")
             import itertools
+
             for length in range(1, 5):
                 for combo in itertools.product("0123456789", repeat=length):
                     pwd = "".join(combo)

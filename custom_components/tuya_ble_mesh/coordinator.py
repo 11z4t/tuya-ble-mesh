@@ -16,11 +16,9 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.storage import Store
-
     from tuya_ble_mesh.device import MeshDevice
     from tuya_ble_mesh.protocol import StatusResponse
     from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
-
     from tuya_ble_mesh.sig_mesh_protocol import CompositionData
 
 # RSSI refresh interval (seconds)
@@ -86,6 +84,7 @@ class TuyaBLEMeshCoordinator:
         self._entry_id = entry_id
         self._seq_store: Store[dict[str, int]] | None = None
         self._seq_command_count = 0
+        self._seq_persist_task: asyncio.Task[None] | None = None
 
     @property
     def device(self) -> Any:
@@ -136,7 +135,7 @@ class TuyaBLEMeshCoordinator:
         self._seq_command_count += 1
         if self._seq_command_count >= _SEQ_PERSIST_INTERVAL:
             self._seq_command_count = 0
-            asyncio.ensure_future(self._save_seq())
+            self._seq_persist_task = asyncio.ensure_future(self._save_seq())
 
         _LOGGER.debug("OnOff update: on=%s", on)
         self._notify_listeners()
@@ -203,9 +202,7 @@ class TuyaBLEMeshCoordinator:
                 raw = int.from_bytes(dp.value, "big")
                 self._state.energy_kwh = raw / 100.0
                 updated = True
-                _LOGGER.debug(
-                    "Energy: %.2f kWh (raw=%d)", self._state.energy_kwh, raw
-                )
+                _LOGGER.debug("Energy: %.2f kWh (raw=%d)", self._state.energy_kwh, raw)
 
         if updated:
             self._state.available = True

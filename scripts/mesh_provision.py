@@ -17,9 +17,9 @@ import sys
 import uuid as uuid_mod
 from pathlib import Path
 
+from dbus_next import BusType
 from dbus_next.aio import MessageBus
-from dbus_next import BusType, Variant
-from dbus_next.service import ServiceInterface, PropertyAccess, method, signal, dbus_property
+from dbus_next.service import PropertyAccess, ServiceInterface, dbus_property, method
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -193,7 +193,7 @@ class Provisioner(ServiceInterface):
             unicast,
             count,
         )
-        print(f"\n  *** PROVISIONING COMPLETE ***")
+        print("\n  *** PROVISIONING COMPLETE ***")
         print(f"  UUID: {uuid_hex}")
         print(f"  Unicast: 0x{unicast:04X}")
         print(f"  Elements: {count}")
@@ -311,7 +311,7 @@ async def run() -> None:
     # Wait for provisioning result
     try:
         result = await asyncio.wait_for(provisioner.prov_result, timeout=60.0)
-        print(f"\nProvisioned successfully!")
+        print("\nProvisioned successfully!")
 
         # Export configuration
         config = {
@@ -323,7 +323,7 @@ async def run() -> None:
         CONFIG_FILE.write_text(json.dumps(config, indent=2))
         print(f"Config exported to {CONFIG_FILE}")
 
-    except asyncio.TimeoutError:
+    except TimeoutError:
         print("\nProvisioning timed out (60s)")
     except RuntimeError as e:
         print(f"\nProvisioning failed: {e}")

@@ -33,9 +33,9 @@ from tuya_ble_mesh.exceptions import (
     SIGMeshKeyError,
 )
 from tuya_ble_mesh.sig_mesh_protocol import (
+    _OPCODE_COMPOSITION_STATUS,
     CompositionData,
     MeshKeys,
-    _OPCODE_COMPOSITION_STATUS,
     config_composition_get,
     decrypt_access_payload,
     decrypt_network_pdu,
@@ -416,9 +416,7 @@ class SIGMeshDevice:
         )
 
         proxy_pdu = make_proxy_pdu(network_pdu)
-        await self._client.write_gatt_char(
-            SIG_MESH_PROXY_DATA_IN, proxy_pdu, response=False
-        )
+        await self._client.write_gatt_char(SIG_MESH_PROXY_DATA_IN, proxy_pdu, response=False)
         _LOGGER.info(
             "Composition Data Get sent to 0x%04X (seq=%d)",
             self._target_addr,

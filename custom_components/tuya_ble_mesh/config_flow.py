@@ -9,10 +9,9 @@ import logging
 import re
 from typing import Any
 
+import voluptuous as vol
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 from homeassistant.config_entries import ConfigFlow
-
-import voluptuous as vol
 
 from custom_components.tuya_ble_mesh.const import (
     CONF_DEVICE_TYPE,
@@ -108,7 +107,11 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             mac = self._discovery_info["address"]
             device_type = user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
             short_mac = mac[-8:]
-            title = f"BLE Mesh Plug {short_mac}" if device_type == DEVICE_TYPE_PLUG else f"BLE Mesh Light {short_mac}"
+            title = (
+                f"BLE Mesh Plug {short_mac}"
+                if device_type == DEVICE_TYPE_PLUG
+                else f"BLE Mesh Light {short_mac}"
+            )
             return self.async_create_entry(
                 title=title,
                 data={
