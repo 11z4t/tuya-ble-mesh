@@ -14,6 +14,8 @@ from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 from homeassistant.config_entries import ConfigFlow
 
 from custom_components.tuya_ble_mesh.const import (
+    CONF_BRIDGE_HOST,
+    CONF_BRIDGE_PORT,
     CONF_DEVICE_TYPE,
     CONF_IV_INDEX,
     CONF_MAC_ADDRESS,
@@ -24,12 +26,14 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_UNICAST_OUR,
     CONF_UNICAST_TARGET,
     CONF_VENDOR_ID,
+    DEFAULT_BRIDGE_PORT,
     DEFAULT_IV_INDEX,
     DEFAULT_MESH_ADDRESS,
     DEFAULT_OP_ITEM_PREFIX,
     DEFAULT_VENDOR_ID,
     DEVICE_TYPE_LIGHT,
     DEVICE_TYPE_PLUG,
+    DEVICE_TYPE_SIG_BRIDGE_PLUG,
     DEVICE_TYPE_SIG_PLUG,
     DOMAIN,
     SIG_MESH_PROXY_UUID,
@@ -161,6 +165,12 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors[CONF_MAC_ADDRESS] = mac_error
             else:
                 device_type = user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
+                if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
+                    self._discovery_info = {
+                        "address": mac.upper(),
+                        "name": f"SIG Bridge {mac[-8:]}",
+                    }
+                    return await self.async_step_sig_bridge(None)
                 if device_type == DEVICE_TYPE_SIG_PLUG:
                     self._discovery_info = {
                         "address": mac.upper(),
@@ -191,6 +201,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                             DEVICE_TYPE_LIGHT: "Light",
                             DEVICE_TYPE_PLUG: "Plug",
                             DEVICE_TYPE_SIG_PLUG: "SIG Mesh Plug",
+                            DEVICE_TYPE_SIG_BRIDGE_PLUG: "SIG Mesh Bridge Plug",
                         }
                     ),
                     vol.Optional(CONF_MESH_NAME, default="out_of_mesh"): str,
@@ -232,5 +243,51 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="sig_plug",
             description_placeholders={
                 "name": (self._discovery_info.get("name", "") if self._discovery_info else ""),
+            },
+        )
+
+    async def async_step_sig_bridge(
+        self, user_input: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Handle SIG Mesh Bridge plug configuration.
+
+        Args:
+            user_input: User-provided bridge parameters.
+
+        Returns:
+            Flow result dict.
+        """
+        if user_input is not None and self._discovery_info is not None:
+            mac = self._discovery_info["address"]
+            return self.async_create_entry(
+                title=f"SIG Bridge {mac[-8:]}",
+                data={
+                    CONF_MAC_ADDRESS: mac,
+                    CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_BRIDGE_PLUG,
+                    CONF_UNICAST_TARGET: user_input.get(CONF_UNICAST_TARGET, "00B0"),
+                    CONF_BRIDGE_HOST: user_input.get(CONF_BRIDGE_HOST, ""),
+                    CONF_BRIDGE_PORT: user_input.get(
+                        CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT
+                    ),
+                },
+            )
+
+        return self.async_show_form(
+            step_id="sig_bridge",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_BRIDGE_HOST): str,
+                    vol.Optional(
+                        CONF_BRIDGE_PORT, default=DEFAULT_BRIDGE_PORT
+                    ): int,
+                    vol.Optional(CONF_UNICAST_TARGET, default="00B0"): str,
+                }
+            ),
+            description_placeholders={
+                "name": (
+                    self._discovery_info.get("name", "")
+                    if self._discovery_info
+                    else ""
+                ),
             },
         )

@@ -13,6 +13,15 @@
           "mesh_address": "Mesh Address (0 = auto)"
         }
       },
+      "sig_bridge": {
+        "title": "SIG Mesh Bridge Configuration",
+        "description": "Configure the BLE bridge daemon connection for {name}.",
+        "data": {
+          "bridge_host": "Bridge Host (RPi IP address)",
+          "bridge_port": "Bridge Port",
+          "unicast_target": "Target Unicast Address (hex)"
+        }
+      },
       "confirm": {
         "title": "Confirm Device",
         "description": "Found {name}. Choose device type and mesh credentials.",
