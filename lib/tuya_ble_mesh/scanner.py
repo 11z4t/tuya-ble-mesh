@@ -116,10 +116,8 @@ async def scan_for_devices(
         if existing is None or discovered.rssi > existing.rssi:
             devices_map[device.address] = discovered
 
-    scanner = BleakScanner(detection_callback=callback)
-    await scanner.start()
-    await asyncio.sleep(timeout)
-    await scanner.stop()
+    async with BleakScanner(detection_callback=callback):
+        await asyncio.sleep(timeout)
 
     result = sorted(devices_map.values(), key=lambda d: d.rssi, reverse=True)
     _LOGGER.info("Scan complete: %d devices found", len(result))
