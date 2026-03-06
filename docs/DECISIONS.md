@@ -528,6 +528,96 @@ visual confirmation (is the light on?). They cannot run in CI.
 
 ---
 
+## ADR-016: Dual-Protocol Architecture (SIG Mesh + Telink Proprietary)
+
+**Date:** 2026-03-07
+**Status:** Accepted (supersedes ADR-010 partially)
+
+### Decision
+
+Support both SIG Mesh and Telink proprietary mesh in the same integration.
+The BLE plug uses SIG Mesh, the LED driver uses Telink proprietary mesh.
+Both are controlled via a common HTTP bridge daemon on the RPi.
+
+### Context
+
+Initial assumption (ADR-010) was that all Malmbergs devices use Telink
+proprietary mesh. After factory reset testing, the BLE plug switched to
+SIG Mesh mode (UUID 1828) while the LED driver remained in Telink mode
+(UUID 1910). These are fundamentally different protocols:
+
+- **SIG Mesh**: Standard BLE Mesh with PB-GATT provisioning, NetKey/AppKey,
+  GenericOnOff model. Used by the plug (DC:23:4F:10:52:C4).
+- **Telink Proprietary**: Custom Telink GATT service (1910), AES-ECB session
+  key, compact DP commands. Used by the LED driver (DC:23:4D:21:43:A5).
+- **Tuya BLE** (UUID fe07): A third protocol used by some devices. NOT used
+  by either of our devices.
+
+### Alternatives Considered
+
+1. **Force all devices to SIG Mesh** — Factory reset the LED driver to
+   trigger SIG Mesh mode. Rejected: multiple power cycle patterns tried
+   (3x, 5x, 6x with various timings) — the LED driver never switches.
+   It only supports Telink proprietary mesh.
+2. **Separate integrations** — One for SIG Mesh, one for Telink. Rejected:
+   they share the same bridge daemon, WiFi toggle logic, and HA coordinator.
+3. **Telink only** — Ignore the plug's SIG Mesh mode. Rejected: the plug
+   is already provisioned and working in SIG Mesh mode.
+
+### Rationale
+
+- Both protocols work through the same WiFi-toggle bridge pattern
+- Bridge daemon handles both with `device_type` field in commands
+- `SIGMeshBridgeDevice` and `TelinkBridgeDevice` duck-type the same
+  coordinator interface
+- Config flow offers both types for manual setup
+- Tested: both ON/OFF and brightness commands work for both devices
+
+---
+
+## ADR-017: HTTP Bridge Daemon for WiFi/BLE Coexistence
+
+**Date:** 2026-03-07
+**Status:** Accepted
+
+### Decision
+
+Run a systemd HTTP daemon (`ble_mesh_daemon.py`) on the RPi that
+mediates all BLE operations. HA (on a separate VM) sends commands via
+HTTP; the daemon toggles WiFi, executes BLE, and re-enables WiFi.
+
+### Context
+
+The CYW43455 WiFi/BLE combo chip on RPi cannot do WiFi and BLE
+simultaneously. BLE connections only work when WiFi is disabled.
+HA runs on a different machine (VM 900 at 192.168.5.22).
+
+### Evidence
+
+- BLE connections fail 100% of the time with WiFi active (HCI error 0x3E)
+- Disabling WiFi makes BLE work reliably (confirmed across sessions)
+- WiFi must be re-enabled after BLE for SSH/HTTP access
+
+### Alternatives Considered
+
+1. **External USB BLE adapter** — Bypasses CYW43455 entirely. Viable but
+   requires hardware purchase and doesn't solve the "HA on different host"
+   problem.
+2. **Direct BLE from HA VM** — VM has no BLE adapter. Would need USB
+   passthrough, which is fragile with Proxmox.
+3. **MQTT bridge** — More complex, requires MQTT broker. HTTP is simpler
+   for request-response patterns.
+
+### Rationale
+
+- Simple HTTP API (health check, command submission, result polling)
+- Systemd service ensures daemon starts on boot
+- File-based command queue prevents race conditions
+- WiFi toggle is atomic within the daemon (no external coordination)
+- ~30-45 second round-trip per command (acceptable for home automation)
+
+---
+
 ## Template
 
 Use this template when adding new decisions:
