@@ -28,12 +28,12 @@ from custom_components.tuya_ble_mesh.const import (
     DEVICE_BRIGHTNESS_MIN,
     DEVICE_COLOR_TEMP_MAX,
     DEVICE_COLOR_TEMP_MIN,
-    DEVICE_TYPE_PLUG,
     DOMAIN,
     HA_BRIGHTNESS_MAX,
     HA_BRIGHTNESS_MIN,
     HA_MIRED_MAX,
     HA_MIRED_MIN,
+    PLUG_DEVICE_TYPES,
 )
 
 if TYPE_CHECKING:
@@ -137,7 +137,7 @@ async def async_setup_entry(
         entry: Config entry being set up.
         async_add_entities: Callback to register new entities.
     """
-    if entry.data.get(CONF_DEVICE_TYPE) == DEVICE_TYPE_PLUG:
+    if entry.data.get(CONF_DEVICE_TYPE) in PLUG_DEVICE_TYPES:
         return
     coordinator: TuyaBLEMeshCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     async_add_entities([TuyaBLEMeshLight(coordinator, entry.entry_id)])
