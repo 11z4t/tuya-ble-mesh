@@ -12,6 +12,8 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from custom_components.tuya_ble_mesh.const import (
+    CONF_BRIDGE_HOST,
+    CONF_BRIDGE_PORT,
     CONF_DEVICE_TYPE,
     CONF_IV_INDEX,
     CONF_MAC_ADDRESS,
@@ -22,10 +24,12 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_UNICAST_OUR,
     CONF_UNICAST_TARGET,
     CONF_VENDOR_ID,
+    DEFAULT_BRIDGE_PORT,
     DEFAULT_IV_INDEX,
     DEFAULT_MESH_ADDRESS,
     DEFAULT_OP_ITEM_PREFIX,
     DEFAULT_VENDOR_ID,
+    DEVICE_TYPE_SIG_BRIDGE_PLUG,
     DEVICE_TYPE_SIG_PLUG,
     DOMAIN,
     PLATFORMS,
@@ -63,7 +67,20 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     mac_address: str = entry.data[CONF_MAC_ADDRESS]
     device_type: str = entry.data.get(CONF_DEVICE_TYPE, "")
 
-    if device_type == DEVICE_TYPE_SIG_PLUG:
+    if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
+        from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice
+
+        target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
+        bridge_host: str = entry.data[CONF_BRIDGE_HOST]
+        bridge_port: int = entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+
+        device = SIGMeshBridgeDevice(
+            mac_address,
+            target_addr,
+            bridge_host,
+            bridge_port,
+        )
+    elif device_type == DEVICE_TYPE_SIG_PLUG:
         from tuya_ble_mesh.secrets import SecretsManager
         from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
 
