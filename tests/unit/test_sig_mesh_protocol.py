@@ -40,9 +40,9 @@ from tuya_ble_mesh.sig_mesh_protocol import (
 
 
 # Mesh Profile 8.1.3 test vector
-NET_KEY_HEX = "f7a2a44f8e8a8029064f173ddc1e2b00"
-DEV_KEY_HEX = "00112233445566778899aabbccddeeff"
-APP_KEY_HEX = "3216d1509884b533248541792b877f98"
+NET_KEY_HEX = "f7a2a44f8e8a8029064f173ddc1e2b00"  # pragma: allowlist secret
+DEV_KEY_HEX = "00112233445566778899aabbccddeeff"  # pragma: allowlist secret
+APP_KEY_HEX = "3216d1509884b533248541792b877f98"  # pragma: allowlist secret
 
 
 @pytest.fixture()
