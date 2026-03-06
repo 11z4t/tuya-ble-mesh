@@ -383,7 +383,7 @@ class TestSegmentReassembly:
         dev.register_onoff_callback(cb)
 
         # Unknown 2-byte opcode
-        dev._dispatch_access_payload(0x00AA, b"\x80\xFF\x42")
+        dev._dispatch_access_payload(0x00AA, b"\x80\xff\x42")
 
         cb.assert_not_called()
 
@@ -423,7 +423,7 @@ class TestVendorCallbacks:
         dev.register_vendor_callback(cb)
 
         # 3-byte vendor opcode 0xCDD007
-        dev._dispatch_access_payload(0x00AA, b"\xCD\xD0\x07\x01\x02\x03")
+        dev._dispatch_access_payload(0x00AA, b"\xcd\xd0\x07\x01\x02\x03")
 
         cb.assert_called_once()
         call_args = cb.call_args[0]

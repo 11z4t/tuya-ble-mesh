@@ -209,7 +209,7 @@ class TestConfirmStep:
 
         result = await flow.async_step_confirm({})
 
-        assert result["title"] == "out_of_mesh_1234"
+        assert result["title"] == "BLE Mesh Light 21:43:A5"
 
 
 class TestDescriptionPlaceholders:
