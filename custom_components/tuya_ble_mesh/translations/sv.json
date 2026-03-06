@@ -7,7 +7,10 @@
         "data": {
           "mac_address": "MAC-adress",
           "mesh_name": "Mesh-namn",
-          "mesh_password": "Mesh-l\u00f6senord"
+          "mesh_password": "Mesh-l\u00f6senord",
+          "device_type": "Enhetstyp",
+          "vendor_id": "Vendor ID (hex, t.ex. 0x1001)",
+          "mesh_address": "Mesh-adress (0 = auto)"
         }
       },
       "confirm": {
@@ -16,7 +19,8 @@
         "data": {
           "device_type": "Enhetstyp",
           "mesh_name": "Mesh-namn",
-          "mesh_password": "Mesh-l\u00f6senord"
+          "mesh_password": "Mesh-l\u00f6senord",
+          "mesh_address": "Mesh-adress (0 = auto)"
         }
       }
     },

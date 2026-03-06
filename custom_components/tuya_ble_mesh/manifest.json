@@ -1,7 +1,7 @@
 {
   "domain": "tuya_ble_mesh",
   "name": "Tuya BLE Mesh",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "documentation": "https://github.com/bormal/malmbergs-bt",
   "issue_tracker": "https://github.com/bormal/malmbergs-bt/issues",
   "codeowners": ["@bormal"],
@@ -13,5 +13,5 @@
     { "service_uuid": "00001828-0000-1000-8000-00805f9b34fb" }
   ],
   "dependencies": ["bluetooth_adapters"],
-  "requirements": ["bleak>=0.21.0"]
+  "requirements": ["bleak>=0.21.0", "bleak-retry-connector>=3.0.0"]
 }

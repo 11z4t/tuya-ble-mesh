@@ -15,6 +15,7 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_DEVICE_TYPE,
     CONF_IV_INDEX,
     CONF_MAC_ADDRESS,
+    CONF_MESH_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
     CONF_OP_ITEM_PREFIX,
@@ -22,6 +23,7 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_UNICAST_TARGET,
     CONF_VENDOR_ID,
     DEFAULT_IV_INDEX,
+    DEFAULT_MESH_ADDRESS,
     DEFAULT_OP_ITEM_PREFIX,
     DEFAULT_VENDOR_ID,
     DEVICE_TYPE_SIG_PLUG,
@@ -87,10 +89,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         vendor_id_int = int(vendor_id_hex, 16)
         vendor_id_bytes = vendor_id_int.to_bytes(2, "little")
 
+        mesh_addr: int = entry.data.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS)
+
         device = MeshDevice(  # type: ignore[assignment]
             mac_address,
             mesh_name.encode(),
             mesh_password.encode(),
+            mesh_id=mesh_addr,
             vendor_id=vendor_id_bytes,
         )
 

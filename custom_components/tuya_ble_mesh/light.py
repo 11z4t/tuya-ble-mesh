@@ -193,15 +193,8 @@ class TuyaBLEMeshLight(LightEntity):
             return None
         return color_temp_to_ha(self._coordinator.state.color_temp)
 
-    @property
-    def min_mireds(self) -> int:
-        """Return minimum color temp in mireds (coolest)."""
-        return HA_MIRED_MIN
-
-    @property
-    def max_mireds(self) -> int:
-        """Return maximum color temp in mireds (warmest)."""
-        return HA_MIRED_MAX
+    _attr_min_color_temp_kelvin = 2703  # warmest (370 mireds)
+    _attr_max_color_temp_kelvin = 6535  # coolest (153 mireds)
 
     @property
     def rgb_color(self) -> tuple[int, int, int] | None:

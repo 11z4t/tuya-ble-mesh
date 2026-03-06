@@ -33,7 +33,7 @@ def _xor_creds(name: str, password: str) -> bytes:
     """XOR name and password, both padded to 16 bytes."""
     n = name.encode("utf-8").ljust(16, b"\x00")[:16]
     p = password.encode("utf-8").ljust(16, b"\x00")[:16]
-    return bytes(a ^ b for a, b in zip(n, p))
+    return bytes(a ^ b for a, b in zip(n, p, strict=False))
 
 
 def _compute_device_proof(device_random: bytes, nxp: bytes) -> bytes:

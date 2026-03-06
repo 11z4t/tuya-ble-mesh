@@ -170,37 +170,35 @@ class TestConnect:
         mock_client.disconnect.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_clear_bluez_before_first_attempt(self) -> None:
-        """Verify _clear_bluez_device is called before BleakScanner."""
+    async def test_uses_establish_connection(self) -> None:
+        """Verify bleak-retry-connector establish_connection is used."""
         conn = _make_conn()
-        call_order: list[str] = []
 
-        async def mock_clear() -> None:
-            call_order.append("clear")
+        mock_client = AsyncMock()
 
         async def mock_scan(
             *args: object,
             **kwargs: object,
         ) -> MagicMock:
-            call_order.append("scan")
             return MagicMock()
 
-        mock_client = AsyncMock()
-        mock_client.connect = AsyncMock()
+        async def mock_establish(*args: object, **kwargs: object) -> AsyncMock:
+            return mock_client
 
         with (
-            patch.object(conn, "_clear_bluez_device", side_effect=mock_clear),
             patch(
                 "tuya_ble_mesh.connection.BleakScanner.find_device_by_address",
                 side_effect=mock_scan,
             ),
-            patch("tuya_ble_mesh.connection.BleakClient", return_value=mock_client),
+            patch(
+                "tuya_ble_mesh.connection.establish_connection",
+                side_effect=mock_establish,
+            ) as mock_est,
             patch("tuya_ble_mesh.connection.provision", return_value=SESSION_KEY),
         ):
             await conn.connect()
 
-        assert call_order[0] == "clear"
-        assert call_order[1] == "scan"
+        mock_est.assert_called_once()
         conn._stop_keep_alive()
 
     @pytest.mark.asyncio

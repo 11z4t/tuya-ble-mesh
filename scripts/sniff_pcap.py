@@ -191,7 +191,7 @@ def main():
     # Follow target
     mac_bytes = mac_to_list(TARGET_MAC)
     # REQ_FOLLOW payload: 6 bytes addr + 1 byte followOnlyAdvertisements
-    follow_payload = bytes(mac_bytes + [0])
+    follow_payload = bytes([*mac_bytes, 0])
     print(f"  Following {TARGET_MAC}...", flush=True)
     send(REQ_FOLLOW, follow_payload)
     time.sleep(0.5)
@@ -216,9 +216,9 @@ def main():
                     continue
 
                 # Parse sniffer header
-                hdr_len = frame[0]
+                frame[0]
                 pay_len = frame[1]
-                proto = frame[2]
+                frame[2]
                 pkt_id = frame[5]
 
                 pkt_count += 1
