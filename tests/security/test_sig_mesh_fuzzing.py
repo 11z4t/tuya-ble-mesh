@@ -7,6 +7,7 @@ random/malformed input without crashing. Only TuyaBLEMeshError
 
 from __future__ import annotations
 
+import contextlib
 import os
 import sys
 from pathlib import Path
@@ -28,9 +29,9 @@ from tuya_ble_mesh.sig_mesh_protocol import (
 _FUZZ_ITERATIONS = int(os.environ.get("FUZZ_ITERATIONS", "10000"))
 
 # Valid keys for decrypt tests
-_NET_KEY_HEX = "f7a2a44f8e8a8029064f173ddc1e2b00"
+_NET_KEY_HEX = "f7a2a44f8e8a8029064f173ddc1e2b00"  # pragma: allowlist secret
 _DEV_KEY_HEX = "00112233445566778899aabbccddeeff"  # pragma: allowlist secret
-_APP_KEY_HEX = "3216d1509884b533248541792b877f98"
+_APP_KEY_HEX = "3216d1509884b533248541792b877f98"  # pragma: allowlist secret
 
 
 def _random_bytes(max_len: int = 64) -> bytes:
@@ -45,10 +46,8 @@ class TestFuzzParseProxyPDU:
     def test_fuzz_parse_proxy_pdu(self) -> None:
         for _ in range(_FUZZ_ITERATIONS):
             data = _random_bytes(32)
-            try:
+            with contextlib.suppress(TuyaBLEMeshError):
                 parse_proxy_pdu(data)
-            except TuyaBLEMeshError:
-                pass  # Expected for malformed data
 
 
 class TestFuzzDecryptNetworkPDU:
@@ -74,10 +73,8 @@ class TestFuzzParseSegmentHeader:
     def test_fuzz_parse_segment_header(self) -> None:
         for _ in range(_FUZZ_ITERATIONS):
             data = _random_bytes(20)
-            try:
+            with contextlib.suppress(TuyaBLEMeshError):
                 parse_segment_header(data)
-            except TuyaBLEMeshError:
-                pass  # Expected for malformed data
 
 
 class TestFuzzParseTuyaVendorDPs:
@@ -103,10 +100,8 @@ class TestFuzzParseCompositionData:
     def test_fuzz_parse_composition_data(self) -> None:
         for _ in range(_FUZZ_ITERATIONS):
             data = _random_bytes(64)
-            try:
+            with contextlib.suppress(TuyaBLEMeshError):
                 parse_composition_data(data)
-            except TuyaBLEMeshError:
-                pass  # Expected for short data
 
 
 class TestFuzzParseAccessOpcode:
