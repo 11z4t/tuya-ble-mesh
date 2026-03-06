@@ -100,27 +100,8 @@ def load_keys() -> dict | None:
     return json.loads(KEYS_FILE.read_text())
 
 
-def execute_ble_command(cmd: dict) -> dict:
-    """Execute a BLE mesh command with WiFi temporarily disabled.
-
-    This runs in a subprocess since we can't use asyncio across WiFi toggle.
-    """
-    action = cmd.get("action", "")
-    target = cmd.get("target", "00B0")
-    mac = cmd.get("mac", "DC:23:4F:10:52:C4")
-
-    _LOGGER.info("Executing BLE command: action=%s target=%s", action, target)
-
-    if action not in ("on", "off", "status", "setup"):
-        return {"success": False, "error": f"Unknown action: {action}"}
-
-    # Phase 1: Disable WiFi
-    if not wifi_down():
-        return {"success": False, "error": "Failed to disable WiFi"}
-
-    time.sleep(1)
-
-    # Phase 2: Restart bluetooth
+def _restart_bluetooth() -> bool:
+    """Restart bluetooth stack. Returns True on success."""
     try:
         subprocess.run(
             ["sudo", "systemctl", "restart", "bluetooth"],
@@ -132,12 +113,14 @@ def execute_ble_command(cmd: dict) -> dict:
             check=True, capture_output=True, timeout=5,
         )
         time.sleep(1)
+        return True
     except Exception as exc:
         _LOGGER.error("Bluetooth restart failed: %s", exc)
-        wifi_up()
-        return {"success": False, "error": f"Bluetooth restart failed: {exc}"}
+        return False
 
-    # Phase 3: Run mesh command
+
+def _execute_sig_mesh(action: str, mac: str, target: str) -> dict:
+    """Execute a SIG Mesh command via mesh_proxy_cmd.py subprocess."""
     script = str(Path(__file__).parent / "mesh_proxy_cmd.py")
     env = os.environ.copy()
     env["PYTHONPATH"] = str(Path(__file__).resolve().parent.parent / "lib")
@@ -158,21 +141,12 @@ def execute_ble_command(cmd: dict) -> dict:
         stdout = result.stdout
         stderr = result.stderr
         exit_code = result.returncode
-        _LOGGER.info("BLE command exit code: %d", exit_code)
+        _LOGGER.info("SIG Mesh command exit code: %d", exit_code)
     except subprocess.TimeoutExpired:
-        stdout = ""
-        stderr = "BLE command timed out"
-        exit_code = -1
+        stdout, stderr, exit_code = "", "BLE command timed out", -1
     except Exception as exc:
-        stdout = ""
-        stderr = str(exc)
-        exit_code = -1
+        stdout, stderr, exit_code = "", str(exc), -1
 
-    # Phase 4: Re-enable WiFi
-    wifi_up()
-
-    # Parse result
-    success = exit_code == 0
     status = None
     for line in stdout.split("\n"):
         if "OnOff Status:" in line:
@@ -183,15 +157,144 @@ def execute_ble_command(cmd: dict) -> dict:
             status = "setup_ok"
 
     return {
-        "success": success,
-        "action": action,
-        "target": target,
+        "success": exit_code == 0,
         "status": status,
         "exit_code": exit_code,
         "stdout": stdout[-500:] if stdout else "",
         "stderr": stderr[-200:] if stderr else "",
-        "timestamp": time.time(),
     }
+
+
+def _execute_telink(action: str, mac: str, params: dict) -> dict:
+    """Execute a Telink proprietary mesh command via MeshDevice.
+
+    Runs in a subprocess to avoid asyncio conflicts with the daemon loop.
+    """
+    script_code = f"""
+import asyncio, sys, json
+sys.path.insert(0, "{Path(__file__).resolve().parent.parent / 'lib'}")
+from tuya_ble_mesh.device import MeshDevice
+
+async def run():
+    dev = MeshDevice("{mac}", b"out_of_mesh", b"123456", mesh_id=0)
+    result = {{"success": False}}
+    try:
+        await dev.connect(timeout=15.0, max_retries=3)
+        result["firmware"] = dev.firmware_version
+        action = "{action}"
+        if action == "on":
+            await dev.send_power(True)
+            result["status"] = "ON"
+        elif action == "off":
+            await dev.send_power(False)
+            result["status"] = "OFF"
+        elif action == "brightness":
+            level = {params.get("level", 100)}
+            await dev.send_brightness(level)
+            result["status"] = f"brightness_{{level}}"
+        elif action == "color_temp":
+            temp = {params.get("temp", 128)}
+            await dev.send_color_temp(temp)
+            result["status"] = f"color_temp_{{temp}}"
+        elif action == "color":
+            r, g, b = {params.get("r", 255)}, {params.get("g", 255)}, {params.get("b", 255)}
+            await dev.send_color(r, g, b)
+            result["status"] = f"color_{{r}}_{{g}}_{{b}}"
+        elif action == "light_mode":
+            mode = {params.get("mode", 0)}
+            await dev.send_light_mode(mode)
+            result["status"] = f"mode_{{mode}}"
+        elif action == "color_brightness":
+            level = {params.get("level", 255)}
+            await dev.send_color_brightness(level)
+            result["status"] = f"color_brightness_{{level}}"
+        else:
+            result["error"] = f"Unknown telink action: {{action}}"
+            print(json.dumps(result))
+            await dev.disconnect()
+            return
+        result["success"] = True
+        await asyncio.sleep(0.5)
+        await dev.disconnect()
+    except Exception as e:
+        result["error"] = f"{{type(e).__name__}}: {{e}}"
+    print(json.dumps(result))
+
+asyncio.run(run())
+"""
+    env = os.environ.copy()
+    try:
+        result = subprocess.run(
+            [sys.executable, "-c", script_code],
+            capture_output=True, text=True, timeout=60,
+            env=env,
+        )
+        stdout = result.stdout.strip()
+        stderr = result.stderr
+        if result.returncode == 0 and stdout:
+            for line in stdout.split("\n"):
+                line = line.strip()
+                if line.startswith("{"):
+                    return json.loads(line)
+        return {
+            "success": False,
+            "error": f"Subprocess failed (exit {result.returncode})",
+            "stderr": stderr[-200:] if stderr else "",
+        }
+    except subprocess.TimeoutExpired:
+        return {"success": False, "error": "Telink command timed out"}
+    except Exception as exc:
+        return {"success": False, "error": str(exc)}
+
+
+def execute_ble_command(cmd: dict) -> dict:
+    """Execute a BLE mesh command with WiFi temporarily disabled."""
+    action = cmd.get("action", "")
+    target = cmd.get("target", "00B0")
+    mac = cmd.get("mac", "DC:23:4F:10:52:C4")
+    device_type = cmd.get("device_type", "sig_mesh")
+
+    _LOGGER.info(
+        "Executing BLE command: type=%s action=%s target=%s mac=%s",
+        device_type, action, target, mac,
+    )
+
+    sig_actions = ("on", "off", "status", "setup", "composition")
+    telink_actions = ("on", "off", "brightness", "color_temp", "color", "light_mode", "color_brightness")
+
+    if device_type == "telink" and action not in telink_actions:
+        return {"success": False, "error": f"Unknown telink action: {action}"}
+    if device_type == "sig_mesh" and action not in sig_actions:
+        return {"success": False, "error": f"Unknown sig_mesh action: {action}"}
+
+    # Phase 1: Disable WiFi
+    if not wifi_down():
+        return {"success": False, "error": "Failed to disable WiFi"}
+
+    time.sleep(1)
+
+    # Phase 2: Restart bluetooth
+    if not _restart_bluetooth():
+        wifi_up()
+        return {"success": False, "error": "Bluetooth restart failed"}
+
+    # Phase 3: Run command
+    if device_type == "telink":
+        result = _execute_telink(action, mac, cmd.get("params", {}))
+    else:
+        result = _execute_sig_mesh(action, mac, target)
+
+    # Phase 4: Re-enable WiFi
+    wifi_up()
+
+    result.update({
+        "action": action,
+        "target": target,
+        "device_type": device_type,
+        "mac": mac,
+        "timestamp": time.time(),
+    })
+    return result
 
 
 def process_pending() -> None:

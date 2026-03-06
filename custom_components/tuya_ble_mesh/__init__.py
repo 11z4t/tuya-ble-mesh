@@ -31,6 +31,7 @@ from custom_components.tuya_ble_mesh.const import (
     DEFAULT_VENDOR_ID,
     DEVICE_TYPE_SIG_BRIDGE_PLUG,
     DEVICE_TYPE_SIG_PLUG,
+    DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
     DOMAIN,
     PLATFORMS,
 )
@@ -77,6 +78,17 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         device = SIGMeshBridgeDevice(
             mac_address,
             target_addr,
+            bridge_host,
+            bridge_port,
+        )
+    elif device_type == DEVICE_TYPE_TELINK_BRIDGE_LIGHT:
+        from tuya_ble_mesh.sig_mesh_bridge import TelinkBridgeDevice
+
+        bridge_host = entry.data[CONF_BRIDGE_HOST]
+        bridge_port = entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+
+        device = TelinkBridgeDevice(
+            mac_address,
             bridge_host,
             bridge_port,
         )
