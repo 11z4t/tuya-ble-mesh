@@ -111,7 +111,8 @@ Fully local control via Tuya BLE Mesh. No cloud dependency.
 - RPi 4 Bluetooth (hci0) — active BLE communication
 - Adafruit nRF51822 BLE Sniffer (/dev/ttyUSB0, CP210x UART) — passive serial sniffer (NOT HCI)
 - Shelly Plug S (192.168.1.50) — power control for headless device cycling (Gen1, no auth)
-- Malmbergs LED Driver 9952126 (MAC: DC:23:4D:21:43:A5)
+- Malmbergs BLE Plug 9917072 (MAC: DC:23:4F:10:52:C4) — SIG Mesh, provisioned
+- Malmbergs LED Driver 9952126 (MAC: DC:23:4D:21:43:A5) — Telink proprietary mesh
 - NAS: //192.168.5.220/z-solutions → /mnt/solutions (CIFS/SMB 3.0, sec=none)
 
 ### Quick Start

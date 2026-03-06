@@ -22,6 +22,14 @@
           "unicast_target": "Target Unicast Address (hex)"
         }
       },
+      "telink_bridge": {
+        "title": "Telink Bridge Light Configuration",
+        "description": "Configure the BLE bridge daemon connection for {name}.",
+        "data": {
+          "bridge_host": "Bridge Host (RPi IP address)",
+          "bridge_port": "Bridge Port"
+        }
+      },
       "confirm": {
         "title": "Confirm Device",
         "description": "Found {name}. Choose device type and mesh credentials.",
