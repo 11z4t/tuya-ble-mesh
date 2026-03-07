@@ -13,7 +13,9 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        run: |
+          git clone https://git.malmgrens.me/${{ github.repository }}.git . 2>/dev/null || git init && git fetch https://git.malmgrens.me/${{ github.repository }}.git ${{ github.sha }} && git checkout FETCH_HEAD
       - name: Ruff check
         run: python3 -m ruff check .
       - name: Ruff format check
@@ -22,26 +24,29 @@ jobs:
   typecheck:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        run: |
+          git clone https://git.malmgrens.me/${{ github.repository }}.git . 2>/dev/null || git init && git fetch https://git.malmgrens.me/${{ github.repository }}.git ${{ github.sha }} && git checkout FETCH_HEAD
       - name: MyPy type check
         run: python3 -m mypy custom_components/tuya_ble_mesh --ignore-missing-imports || true
 
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Install test dependencies
-        run: python3 -m pip install bleak bleak-retry-connector cryptography aiohttp pyserial pytest-timeout
+      - name: Checkout
+        run: |
+          git clone https://git.malmgrens.me/${{ github.repository }}.git . 2>/dev/null || git init && git fetch https://git.malmgrens.me/${{ github.repository }}.git ${{ github.sha }} && git checkout FETCH_HEAD
       - name: Run unit and security tests
         run: python3 -m pytest tests/unit tests/security -v --tb=short --timeout=30
 
   secrets-scan:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        run: |
+          git clone https://git.malmgrens.me/${{ github.repository }}.git . 2>/dev/null || git init && git fetch https://git.malmgrens.me/${{ github.repository }}.git ${{ github.sha }} && git checkout FETCH_HEAD
       - name: Scan for secrets
         run: |
-          python3 -m pip install detect-secrets
           python3 -m detect_secrets scan --all-files --exclude-files "(\.git/.*|strings\.json|translations/.*\.json)" > /tmp/secrets-report.json
           python3 -c "
           import json
@@ -58,7 +63,9 @@ jobs:
     needs: [lint, typecheck, test, secrets-scan]
     if: github.event_name == push
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        run: |
+          git clone https://git.malmgrens.me/${{ github.repository }}.git . 2>/dev/null || git init && git fetch https://git.malmgrens.me/${{ github.repository }}.git ${{ github.sha }} && git checkout FETCH_HEAD
       - name: Dual AI Review (Claude + GPT)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
