@@ -108,6 +108,7 @@ class MeshDevice:
         *,
         mesh_id: int = MESH_ADDRESS_DEFAULT,
         vendor_id: bytes = TELINK_VENDOR_ID,
+        ble_device_callback: Any = None,
     ) -> None:
         """Initialize a mesh device interface.
 
@@ -117,12 +118,20 @@ class MeshDevice:
             mesh_password: Mesh network password (e.g. ``b"123456"``).
             mesh_id: Target mesh address for commands (0 = unprovisioned default).
             vendor_id: 2-byte vendor identifier (default: TELINK_VENDOR_ID).
+            ble_device_callback: Optional callback(address) → BLEDevice for
+                HA Bluetooth Proxy support. If None, uses BleakScanner.
         """
         self._address = address.upper()
         self._mesh_id = mesh_id
         self._vendor_id = vendor_id
         self._mac_bytes = mac_to_bytes(address)
-        self._conn = BLEConnection(address, mesh_name, mesh_password, vendor_id=vendor_id)
+        self._conn = BLEConnection(
+            address,
+            mesh_name,
+            mesh_password,
+            vendor_id=vendor_id,
+            ble_device_callback=ble_device_callback,
+        )
         self._status_callbacks: list[StatusCallback] = []
         self._disconnect_callbacks: list[DisconnectCallback] = []
         self._queue: list[_QueuedCommand] = []

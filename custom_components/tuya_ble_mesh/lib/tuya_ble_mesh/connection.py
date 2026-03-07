@@ -90,12 +90,14 @@ class BLEConnection:
         mesh_password: bytes,
         *,
         vendor_id: bytes = TELINK_VENDOR_ID,
+        ble_device_callback: Callable[[str], Any] | None = None,
     ) -> None:
         self._address = address.upper()
         self._mac_bytes = mac_to_bytes(address)
         self._mesh_name = mesh_name
         self._mesh_password = mesh_password
         self._vendor_id = vendor_id
+        self._ble_device_callback = ble_device_callback
         self._state = ConnectionState.DISCONNECTED
         self._client: BleakClient | None = None
         self._session_key: bytearray | None = None
@@ -212,10 +214,13 @@ class BLEConnection:
 
         for attempt in range(1, max_retries + 1):
             try:
-                ble_device = await BleakScanner.find_device_by_address(
-                    self._address,
-                    timeout=timeout,
-                )
+                if self._ble_device_callback is not None:
+                    ble_device = self._ble_device_callback(self._address)
+                else:
+                    ble_device = await BleakScanner.find_device_by_address(
+                        self._address,
+                        timeout=timeout,
+                    )
                 if ble_device is None:
                     msg = f"Device {self._address} not found in BLE scan"
                     raise ConnectionError(msg)

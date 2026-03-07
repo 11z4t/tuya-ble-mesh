@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -79,6 +79,7 @@ class TestAsyncSetupEntry:
             b"123456",
             mesh_id=0,
             vendor_id=b"\x01\x10",
+            ble_device_callback=ANY,
         )
         coord_cls.assert_called_once_with(mock_device, hass=hass, entry_id=entry.entry_id)
 
