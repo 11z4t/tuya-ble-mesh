@@ -16,9 +16,9 @@ from custom_components.tuya_ble_mesh.const import (
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
 
+    from custom_components.tuya_ble_mesh import TuyaBLEMeshConfigEntry
     from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
 
     AddEntitiesCallback = Callable[..., None]
@@ -31,7 +31,7 @@ PARALLEL_UPDATES = 1
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: TuyaBLEMeshConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Tuya BLE Mesh switch entities from a config entry.
