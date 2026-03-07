@@ -13,9 +13,12 @@ _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
 
 from custom_components.tuya_ble_mesh.const import (  # noqa: E402
+    CONF_APP_KEY,
+    CONF_DEV_KEY,
     CONF_MAC_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
+    CONF_NET_KEY,
 )
 from custom_components.tuya_ble_mesh.diagnostics import (  # noqa: E402
     REDACTED,
@@ -69,6 +72,21 @@ class TestRedactData:
         data = {CONF_MESH_NAME: "original", CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF"}
         _redact_data(data)
         assert data[CONF_MESH_NAME] == "original"
+
+    def test_redacts_net_key(self) -> None:
+        data = {CONF_NET_KEY: "aabbccdd", CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF"}
+        result = _redact_data(data)
+        assert result[CONF_NET_KEY] == REDACTED
+
+    def test_redacts_dev_key(self) -> None:
+        data = {CONF_DEV_KEY: "aabbccdd", CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF"}
+        result = _redact_data(data)
+        assert result[CONF_DEV_KEY] == REDACTED
+
+    def test_redacts_app_key(self) -> None:
+        data = {CONF_APP_KEY: "aabbccdd", CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF"}
+        result = _redact_data(data)
+        assert result[CONF_APP_KEY] == REDACTED
 
     def test_empty_dict(self) -> None:
         assert _redact_data({}) == {}
@@ -129,6 +147,29 @@ class TestSecurityVerification:
         result_str = str(result)
         assert secret_mesh not in result_str
         assert secret_pass not in result_str
+
+    @pytest.mark.asyncio
+    async def test_no_plaintext_sig_keys_in_output(self) -> None:
+        """Verify SIG Mesh keys never appear in diagnostics output."""
+        secret_net = "aa11bb22cc33dd44ee55ff6677889900"  # pragma: allowlist secret
+        secret_dev = "11223344556677889900aabbccddeeff"  # pragma: allowlist secret
+        secret_app = "ffeeddccbbaa99887766554433221100"  # pragma: allowlist secret
+        entry = MagicMock()
+        entry.entry_id = "sig_entry"
+        entry.data = {
+            CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF",
+            CONF_NET_KEY: secret_net,
+            CONF_DEV_KEY: secret_dev,
+            CONF_APP_KEY: secret_app,
+        }
+        hass = MagicMock()
+
+        result = await async_get_config_entry_diagnostics(hass, entry)
+
+        result_str = str(result)
+        assert secret_net not in result_str
+        assert secret_dev not in result_str
+        assert secret_app not in result_str
 
     @pytest.mark.asyncio
     async def test_redacted_placeholder_present(self) -> None:
