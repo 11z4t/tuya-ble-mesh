@@ -142,7 +142,7 @@ async def async_setup_entry(
     """
     if entry.data.get(CONF_DEVICE_TYPE) in PLUG_DEVICE_TYPES:
         return
-    runtime_data = entry.runtime_data  # type: ignore[attr-defined]
+    runtime_data = entry.runtime_data
     coordinator: TuyaBLEMeshCoordinator = runtime_data.coordinator
     device_info: DeviceInfo = runtime_data.device_info
     async_add_entities([TuyaBLEMeshLight(coordinator, entry.entry_id, device_info)])
