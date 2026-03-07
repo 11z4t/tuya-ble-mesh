@@ -172,6 +172,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     # Forward platform setup even if device is unavailable —
     # entities will show as "unavailable" until connection succeeds
+    # Pre-import platform modules in executor to avoid blocking the event loop
+    # (HA 2026.x raises warnings for synchronous imports during setup)
+    import importlib
+    for platform in PLATFORMS:
+        await hass.async_add_import_executor_job(
+            importlib.import_module, f".{platform}", __name__
+        )
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     _LOGGER.info("Tuya BLE Mesh entry set up: %s", entry.title)
