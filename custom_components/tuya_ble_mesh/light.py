@@ -21,6 +21,7 @@ from homeassistant.components.light import (
     LightEntity,
     LightEntityFeature,
 )
+from homeassistant.helpers.device_registry import DeviceInfo
 
 from custom_components.tuya_ble_mesh.const import (
     CONF_DEVICE_TYPE,
@@ -139,8 +140,10 @@ async def async_setup_entry(
     """
     if entry.data.get(CONF_DEVICE_TYPE) in PLUG_DEVICE_TYPES:
         return
-    coordinator: TuyaBLEMeshCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    async_add_entities([TuyaBLEMeshLight(coordinator, entry.entry_id)])
+    entry_data = hass.data[DOMAIN][entry.entry_id]
+    coordinator: TuyaBLEMeshCoordinator = entry_data["coordinator"]
+    device_info: DeviceInfo = entry_data["device_info"]
+    async_add_entities([TuyaBLEMeshLight(coordinator, entry.entry_id, device_info)])
 
 
 class TuyaBLEMeshLight(LightEntity):
@@ -149,11 +152,18 @@ class TuyaBLEMeshLight(LightEntity):
     _attr_should_poll = False
     _attr_supported_features = LightEntityFeature.TRANSITION
 
-    def __init__(self, coordinator: TuyaBLEMeshCoordinator, entry_id: str) -> None:
+    def __init__(
+        self,
+        coordinator: TuyaBLEMeshCoordinator,
+        entry_id: str,
+        device_info: DeviceInfo | None = None,
+    ) -> None:
         self._coordinator = coordinator
         self._entry_id = entry_id
         self._attr_unique_id = f"{coordinator.device.address}_light"
         self._attr_name = f"Tuya BLE Mesh {coordinator.device.address[-8:]}"
+        if device_info is not None:
+            self._attr_device_info = device_info
         self._remove_listener: Any = None
         self._transition_task: asyncio.Task[None] | None = None
 

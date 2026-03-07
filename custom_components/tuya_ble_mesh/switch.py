@@ -6,6 +6,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
+from homeassistant.helpers.device_registry import DeviceInfo
 
 from custom_components.tuya_ble_mesh.const import (
     CONF_DEVICE_TYPE,
@@ -40,8 +41,10 @@ async def async_setup_entry(
     """
     if entry.data.get(CONF_DEVICE_TYPE) not in PLUG_DEVICE_TYPES:
         return
-    coordinator: TuyaBLEMeshCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
-    async_add_entities([TuyaBLEMeshSwitch(coordinator, entry.entry_id)])
+    entry_data = hass.data[DOMAIN][entry.entry_id]
+    coordinator: TuyaBLEMeshCoordinator = entry_data["coordinator"]
+    device_info: DeviceInfo = entry_data["device_info"]
+    async_add_entities([TuyaBLEMeshSwitch(coordinator, entry.entry_id, device_info)])
 
 
 class TuyaBLEMeshSwitch(SwitchEntity):
@@ -50,11 +53,18 @@ class TuyaBLEMeshSwitch(SwitchEntity):
     _attr_should_poll = False
     _attr_device_class = SwitchDeviceClass.OUTLET
 
-    def __init__(self, coordinator: TuyaBLEMeshCoordinator, entry_id: str) -> None:
+    def __init__(
+        self,
+        coordinator: TuyaBLEMeshCoordinator,
+        entry_id: str,
+        device_info: DeviceInfo | None = None,
+    ) -> None:
         self._coordinator = coordinator
         self._entry_id = entry_id
         self._attr_unique_id = f"{coordinator.device.address}_switch"
         self._attr_name = f"Tuya BLE Mesh {coordinator.device.address[-8:]}"
+        if device_info is not None:
+            self._attr_device_info = device_info
         self._remove_listener: Any = None
 
     @property
