@@ -14,3 +14,4 @@ scripts/setup-1password-vault.sh
 scripts/verify_creds.py
 scripts/git-setup-remote.sh
 .secrets.baseline
+.venv/
