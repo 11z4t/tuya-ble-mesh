@@ -24,6 +24,7 @@ def make_mock_hass() -> MagicMock:
     hass.config_entries = MagicMock()
     hass.config_entries.async_forward_entry_setups = AsyncMock()
     hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
+    hass.async_add_import_executor_job = AsyncMock()
     return hass
 
 

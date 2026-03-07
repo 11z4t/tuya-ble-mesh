@@ -237,7 +237,7 @@ class TuyaBLEMeshLight(LightEntity):
 
         brightness = kwargs.get("brightness")
         color_temp_kelvin: int | None = kwargs.get(ATTR_COLOR_TEMP_KELVIN)
-        color_temp = round(1_000_000 / color_temp_kelvin) if color_temp_kelvin is not None else None
+        color_temp = round(1_000_000 / color_temp_kelvin) if color_temp_kelvin else None
         rgb_color: tuple[int, int, int] | None = kwargs.get(ATTR_RGB_COLOR)
 
         has_target = brightness is not None or color_temp is not None or rgb_color is not None

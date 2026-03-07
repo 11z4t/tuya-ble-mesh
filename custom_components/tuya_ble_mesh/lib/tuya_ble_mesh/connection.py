@@ -103,6 +103,7 @@ class BLEConnection:
         self._session_key: bytearray | None = None
         self._firmware_version: str | None = None
         self._sequence: int = 0
+        self._sequence_lock = asyncio.Lock()
         self._keep_alive_task: asyncio.Task[None] | None = None
         self._disconnect_callbacks: list[DisconnectCallback] = []
         self._notification_handler: Callable[..., Any] | None = None
@@ -134,11 +135,16 @@ class BLEConnection:
         """Return the device firmware version, or None if not read."""
         return self._firmware_version
 
-    def next_sequence(self) -> int:
-        """Get the next sequence number (24-bit, wrapping)."""
-        seq = self._sequence
-        self._sequence = (self._sequence + 1) & _MAX_SEQUENCE
-        return seq
+    async def next_sequence(self) -> int:
+        """Get the next sequence number (24-bit, wrapping).
+
+        Protected by asyncio.Lock to prevent nonce collision from
+        concurrent callers.
+        """
+        async with self._sequence_lock:
+            seq = self._sequence
+            self._sequence = (self._sequence + 1) & _MAX_SEQUENCE
+            return seq
 
     def register_disconnect_callback(self, callback: DisconnectCallback) -> None:
         """Register a callback for disconnect events."""
@@ -388,7 +394,7 @@ class BLEConnection:
             return
 
         try:
-            seq = self.next_sequence()
+            seq = await self.next_sequence()
             packet = encode_command_packet(
                 bytes(self._session_key),
                 self._mac_bytes,

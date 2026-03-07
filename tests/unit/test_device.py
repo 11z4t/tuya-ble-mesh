@@ -286,17 +286,17 @@ class TestSendCommand:
     @pytest.mark.asyncio
     async def test_sequence_increments(self) -> None:
         device, _ = _make_connected_device()
-        s1 = device._conn.next_sequence()
-        s2 = device._conn.next_sequence()
+        s1 = await device._conn.next_sequence()
+        s2 = await device._conn.next_sequence()
         assert s2 == s1 + 1
 
     @pytest.mark.asyncio
     async def test_sequence_wraps(self) -> None:
         device, _ = _make_connected_device()
         device._conn._sequence = 0xFFFFFF
-        seq = device._conn.next_sequence()
+        seq = await device._conn.next_sequence()
         assert seq == 0xFFFFFF
-        next_seq = device._conn.next_sequence()
+        next_seq = await device._conn.next_sequence()
         assert next_seq == 0
 
 
