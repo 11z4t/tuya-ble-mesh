@@ -212,7 +212,7 @@ class TestSensorPlatformSetup:
     async def test_setup_entry_creates_two_sensors(self) -> None:
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
         entry.data = {"device_type": "light"}
@@ -228,7 +228,7 @@ class TestSensorPlatformSetup:
     async def test_setup_entry_creates_rssi_and_firmware(self) -> None:
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
         entry.data = {"device_type": "light"}
@@ -245,7 +245,7 @@ class TestSensorPlatformSetup:
     async def test_setup_entry_uses_coordinator_from_hass_data(self) -> None:
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
         entry.data = {"device_type": "light"}
@@ -262,7 +262,7 @@ class TestSensorPlatformSetup:
         """Plug devices get RSSI + Firmware + Power + Energy = 4 sensors."""
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
         entry.data = {"device_type": "sig_plug"}
@@ -281,7 +281,7 @@ class TestSensorPlatformSetup:
         """Light devices get RSSI + Firmware = 2 sensors (no power/energy)."""
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
         entry.data = {"device_type": "light"}
