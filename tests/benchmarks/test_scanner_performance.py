@@ -130,8 +130,10 @@ class TestCoordinatorCreationPerformance:
             coord = TuyaBLEMeshCoordinator(mock_device)
             callbacks = []
             for _ in range(10):
+
                 def callback():
                     return None
+
                 coord.add_listener(callback)
                 callbacks.append(callback)
             return len(callbacks)
