@@ -341,6 +341,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
         # Check if already configured
         await self.async_set_unique_id(address)
+        self._abort_if_unique_id_configured()
 
         self._discovery_info = {
             "address": address,
