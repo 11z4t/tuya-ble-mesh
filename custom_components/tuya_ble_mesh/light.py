@@ -148,7 +148,7 @@ async def async_setup_entry(
     async_add_entities([TuyaBLEMeshLight(coordinator, entry.entry_id, device_info)])
 
 
-class TuyaBLEMeshLight(LightEntity):
+class TuyaBLEMeshLight(LightEntity):  # type: ignore[misc]
     """Light entity for a Tuya BLE Mesh device."""
 
     _attr_should_poll = False

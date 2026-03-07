@@ -10,7 +10,7 @@ import logging
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeAlias
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import HomeAssistantError
@@ -74,7 +74,7 @@ class TuyaBLEMeshRuntimeData:
 
 
 # Type alias for typed config entry access in platform files
-TuyaBLEMeshConfigEntry = ConfigEntry[TuyaBLEMeshRuntimeData]
+TuyaBLEMeshConfigEntry: TypeAlias = ConfigEntry[TuyaBLEMeshRuntimeData]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) -> bool:
@@ -173,7 +173,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
 
         mesh_addr: int = entry.data.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS)
 
-        device = MeshDevice(  # type: ignore[assignment]
+        device = MeshDevice(
             mac_address,
             mesh_name.encode(),
             mesh_password.encode(),

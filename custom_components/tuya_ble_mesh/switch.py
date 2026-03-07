@@ -49,7 +49,7 @@ async def async_setup_entry(
     async_add_entities([TuyaBLEMeshSwitch(coordinator, entry.entry_id, device_info)])
 
 
-class TuyaBLEMeshSwitch(SwitchEntity):
+class TuyaBLEMeshSwitch(SwitchEntity):  # type: ignore[misc]
     """Switch entity for a Tuya BLE Mesh smart plug."""
 
     _attr_should_poll = False
