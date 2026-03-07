@@ -51,7 +51,7 @@ def _redact_string(text: str) -> str:
 
 def _redact_data(data: dict[str, Any]) -> dict[str, Any]:
     """Return a copy of data with sensitive keys and network info redacted."""
-    redacted = {}
+    redacted: dict[str, Any] = {}
     for key, value in data.items():
         if key in _SENSITIVE_KEYS:
             redacted[key] = REDACTED

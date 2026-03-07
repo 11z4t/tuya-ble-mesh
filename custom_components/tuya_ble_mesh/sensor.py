@@ -45,7 +45,7 @@ PARALLEL_UPDATES = 1
 
 
 @dataclass(frozen=True, kw_only=True)
-class TuyaBLEMeshSensorEntityDescription(SensorEntityDescription):
+class TuyaBLEMeshSensorEntityDescription(SensorEntityDescription):  # type: ignore[misc]
     """Extended sensor entity description for Tuya BLE Mesh sensors.
 
     Attributes:
@@ -144,7 +144,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class TuyaBLEMeshSensor(SensorEntity):
+class TuyaBLEMeshSensor(SensorEntity):  # type: ignore[misc]
     """Unified sensor entity for Tuya BLE Mesh devices using EntityDescription pattern.
 
     This class replaces individual sensor classes (RSSI, firmware, power, energy)
