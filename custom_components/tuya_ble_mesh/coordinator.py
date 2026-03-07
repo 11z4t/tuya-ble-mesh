@@ -385,8 +385,15 @@ class TuyaBLEMeshCoordinator:
 
     # --- RSSI polling ---
 
+    def _is_bridge_device(self) -> bool:
+        """Return True if device communicates via HTTP bridge (no local BLE)."""
+        type_name = type(self._device).__name__
+        return "Bridge" in type_name
+
     def _start_rssi_polling(self) -> None:
         """Start periodic RSSI refresh via BLE scan."""
+        if self._is_bridge_device():
+            return  # No local BLE — skip RSSI polling
         self._stop_rssi_polling()
         self._rssi_task = asyncio.ensure_future(self._rssi_loop())
 
