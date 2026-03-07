@@ -41,6 +41,7 @@ def make_mock_coordinator(
     )
     coord.device = MagicMock()
     coord.device.address = "DC:23:4D:21:43:A5"
+    coord.device.supports_power_monitoring = False
     coord.add_listener = MagicMock(return_value=MagicMock())
     return coord
 
@@ -261,6 +262,7 @@ class TestSensorPlatformSetup:
     async def test_setup_entry_creates_four_sensors_for_plug(self) -> None:
         """Plug devices get RSSI + Firmware + Power + Energy = 4 sensors."""
         coord = make_mock_coordinator()
+        coord.device.supports_power_monitoring = True
         hass = MagicMock()
         hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()

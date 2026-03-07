@@ -132,6 +132,7 @@ class SIGMeshDevice:
         self._client: BleakClient | None = None
         self._keys: MeshKeys | None = None
         self._seq = _INITIAL_SEQ
+        self._seq_lock = asyncio.Lock()
         self._tid = 0
 
         self._onoff_callbacks: list[OnOffCallback] = []
@@ -344,7 +345,7 @@ class SIGMeshDevice:
         access_payload = generic_onoff_set(on, self._tid)
         self._tid = (self._tid + 1) & 0xFF
 
-        seq = self._next_seq()
+        seq = await self._next_seq()
         app_key = self._keys.app_key
         if app_key is None:
             msg = "No application key loaded"
@@ -398,7 +399,7 @@ class SIGMeshDevice:
             raise SIGMeshError(msg)
 
         access_payload = config_composition_get(page=0)
-        seq = self._next_seq()
+        seq = await self._next_seq()
 
         transport_pdu = make_access_unsegmented(
             self._keys.dev_key,
@@ -434,11 +435,16 @@ class SIGMeshDevice:
 
     # --- Private helpers ---
 
-    def _next_seq(self) -> int:
-        """Return and increment the sequence number."""
-        seq = self._seq
-        self._seq += 1
-        return seq
+    async def _next_seq(self) -> int:
+        """Return and increment the sequence number.
+
+        Protected by asyncio.Lock to prevent nonce collision from
+        concurrent callers.
+        """
+        async with self._seq_lock:
+            seq = self._seq
+            self._seq += 1
+            return seq
 
     async def _load_keys(self) -> None:
         """Load mesh keys from 1Password via SecretsManager.

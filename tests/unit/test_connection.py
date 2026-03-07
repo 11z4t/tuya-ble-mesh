@@ -364,17 +364,19 @@ class TestDisconnectCallbacks:
 class TestSequence:
     """Test sequence counter."""
 
-    def test_increments(self) -> None:
+    @pytest.mark.asyncio
+    async def test_increments(self) -> None:
         conn = _make_conn()
-        s1 = conn.next_sequence()
-        s2 = conn.next_sequence()
+        s1 = await conn.next_sequence()
+        s2 = await conn.next_sequence()
         assert s2 == s1 + 1
 
-    def test_wraps_at_24_bits(self) -> None:
+    @pytest.mark.asyncio
+    async def test_wraps_at_24_bits(self) -> None:
         conn = _make_conn()
         conn._sequence = 0xFFFFFF
-        assert conn.next_sequence() == 0xFFFFFF
-        assert conn.next_sequence() == 0
+        assert await conn.next_sequence() == 0xFFFFFF
+        assert await conn.next_sequence() == 0
 
 
 # --- Keep-alive ---

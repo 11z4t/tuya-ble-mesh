@@ -14,6 +14,7 @@ Only operation names, lengths, and success/failure status are safe to log.
 
 from __future__ import annotations
 
+import asyncio
 import logging
 
 from bleak import BleakClient
@@ -37,6 +38,9 @@ from tuya_ble_mesh.exceptions import ProvisioningError
 from tuya_ble_mesh.protocol import parse_pair_response
 
 _LOGGER = logging.getLogger(__name__)
+
+# Timeout for individual GATT read/write operations during provisioning
+_GATT_TIMEOUT = 10.0
 
 
 async def pair(
@@ -68,11 +72,16 @@ async def pair(
     pair_packet = make_pair_packet(mesh_name, mesh_password, client_random)
 
     _LOGGER.debug("Writing pair request (%d bytes) to %s", len(pair_packet), TELINK_CHAR_PAIRING)
-    await client.write_gatt_char(TELINK_CHAR_PAIRING, pair_packet, response=True)
+    await asyncio.wait_for(
+        client.write_gatt_char(TELINK_CHAR_PAIRING, pair_packet, response=True),
+        timeout=_GATT_TIMEOUT,
+    )
 
     # Step 2: Read pair response
     _LOGGER.debug("Reading pair response from %s", TELINK_CHAR_PAIRING)
-    response_data = bytes(await client.read_gatt_char(TELINK_CHAR_PAIRING))
+    response_data = bytes(
+        await asyncio.wait_for(client.read_gatt_char(TELINK_CHAR_PAIRING), timeout=_GATT_TIMEOUT)
+    )
 
     response = parse_pair_response(response_data)
 
@@ -118,16 +127,24 @@ async def set_mesh_credentials(
     enc_name = encrypt_mesh_credential(session_key, new_name)
     name_packet = bytes([PAIR_OPCODE_SET_NAME]) + enc_name
     _LOGGER.debug("Writing mesh name (%d bytes)", len(name_packet))
-    await client.write_gatt_char(TELINK_CHAR_PAIRING, name_packet, response=True)
+    await asyncio.wait_for(
+        client.write_gatt_char(TELINK_CHAR_PAIRING, name_packet, response=True),
+        timeout=_GATT_TIMEOUT,
+    )
 
     # Encrypt and write password
     enc_pass = encrypt_mesh_credential(session_key, new_password)
     pass_packet = bytes([PAIR_OPCODE_SET_PASS]) + enc_pass
     _LOGGER.debug("Writing mesh password (%d bytes)", len(pass_packet))
-    await client.write_gatt_char(TELINK_CHAR_PAIRING, pass_packet, response=True)
+    await asyncio.wait_for(
+        client.write_gatt_char(TELINK_CHAR_PAIRING, pass_packet, response=True),
+        timeout=_GATT_TIMEOUT,
+    )
 
     # Read confirmation
-    confirm_data = bytes(await client.read_gatt_char(TELINK_CHAR_PAIRING))
+    confirm_data = bytes(
+        await asyncio.wait_for(client.read_gatt_char(TELINK_CHAR_PAIRING), timeout=_GATT_TIMEOUT)
+    )
     confirm = parse_pair_response(confirm_data)
 
     if confirm.opcode != PAIR_OPCODE_SET_OK:
@@ -152,7 +169,10 @@ async def enable_notifications(client: BleakClient) -> None:
         client: Connected and paired BleakClient.
     """
     _LOGGER.debug("Enabling notifications on %s", TELINK_CHAR_STATUS)
-    await client.write_gatt_char(TELINK_CHAR_STATUS, b"\x01", response=True)
+    await asyncio.wait_for(
+        client.write_gatt_char(TELINK_CHAR_STATUS, b"\x01", response=True),
+        timeout=_GATT_TIMEOUT,
+    )
     _LOGGER.info("Notifications enabled on status characteristic")
 
 

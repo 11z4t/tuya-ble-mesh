@@ -33,6 +33,21 @@ from custom_components.tuya_ble_mesh.const import (
     SIG_MESH_PROXY_UUID,
 )
 
+
+def _make_flow() -> TuyaBLEMeshConfigFlow:
+    """Create a config flow with a mock hass attached."""
+    flow = TuyaBLEMeshConfigFlow()
+    flow.context = {"source": "user"}
+    hass = MagicMock()
+    hass.config_entries = MagicMock()
+    hass.config_entries.flow = MagicMock()
+    hass.config_entries.flow.async_progress_by_handler = MagicMock(return_value=[])
+    hass.config_entries.async_entries = MagicMock(return_value=[])
+    hass.config_entries.async_entry_for_domain_unique_id = MagicMock(return_value=None)
+    flow.hass = hass
+    return flow
+
+
 # Test keys (not real secrets — random hex for unit tests)
 _TEST_NET_KEY = "00112233445566778899aabbccddeeff"  # pragma: allowlist secret
 _TEST_DEV_KEY = "ffeeddccbbaa99887766554433221100"  # pragma: allowlist secret
@@ -75,7 +90,7 @@ class TestConfigFlowInit:
         assert HANDLERS[DOMAIN] is TuyaBLEMeshConfigFlow
 
     def test_version(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         assert flow.VERSION == 1
 
 
@@ -84,7 +99,7 @@ class TestUserStep:
 
     @pytest.mark.asyncio
     async def test_user_step_shows_form(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         result = await flow.async_step_user(None)
 
         assert result["type"] == "form"
@@ -92,7 +107,7 @@ class TestUserStep:
 
     @pytest.mark.asyncio
     async def test_user_step_valid_mac_creates_entry(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         result = await flow.async_step_user(
             {
                 CONF_MAC_ADDRESS: "DC:23:4D:21:43:A5",
@@ -108,7 +123,7 @@ class TestUserStep:
 
     @pytest.mark.asyncio
     async def test_user_step_invalid_mac_shows_error(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         result = await flow.async_step_user({CONF_MAC_ADDRESS: "invalid"})
 
         assert result["type"] == "form"
@@ -116,7 +131,7 @@ class TestUserStep:
 
     @pytest.mark.asyncio
     async def test_user_step_mac_uppercased(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         result = await flow.async_step_user({CONF_MAC_ADDRESS: "dc:23:4d:21:43:a5"})
 
         assert result["type"] == "create_entry"
@@ -124,7 +139,7 @@ class TestUserStep:
 
     @pytest.mark.asyncio
     async def test_user_step_defaults(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         result = await flow.async_step_user({CONF_MAC_ADDRESS: "DC:23:4D:21:43:A5"})
 
         assert result["data"][CONF_MESH_NAME] == "out_of_mesh"
@@ -132,7 +147,7 @@ class TestUserStep:
 
     @pytest.mark.asyncio
     async def test_user_step_title_contains_mac_suffix(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         result = await flow.async_step_user({CONF_MAC_ADDRESS: "DC:23:4D:21:43:A5"})
 
         assert "21:43:A5" in result["title"]
@@ -143,7 +158,7 @@ class TestBluetoothStep:
 
     @pytest.mark.asyncio
     async def test_bluetooth_discovery(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
         flow._abort_if_unique_id_configured = lambda: None
 
@@ -164,7 +179,7 @@ class TestConfirmStep:
 
     @pytest.mark.asyncio
     async def test_confirm_creates_entry(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         # Simulate discovery
         flow._discovery_info = {
             "address": "DC:23:4D:21:43:A5",
@@ -181,7 +196,7 @@ class TestConfirmStep:
 
     @pytest.mark.asyncio
     async def test_confirm_shows_form_without_input(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         flow._discovery_info = {
             "address": "DC:23:4D:21:43:A5",
             "name": "out_of_mesh_1234",
@@ -194,7 +209,7 @@ class TestConfirmStep:
 
     @pytest.mark.asyncio
     async def test_confirm_uses_defaults(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         flow._discovery_info = {
             "address": "DC:23:4D:21:43:A5",
             "name": "out_of_mesh_1234",
@@ -208,7 +223,7 @@ class TestConfirmStep:
 
     @pytest.mark.asyncio
     async def test_confirm_title_from_discovery_name(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         flow._discovery_info = {
             "address": "DC:23:4D:21:43:A5",
             "name": "out_of_mesh_1234",
@@ -224,7 +239,7 @@ class TestDescriptionPlaceholders:
 
     @pytest.mark.asyncio
     async def test_user_step_form_has_description_placeholders(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         result = await flow.async_step_user(None)
 
         assert result["type"] == "form"
@@ -232,7 +247,7 @@ class TestDescriptionPlaceholders:
 
     @pytest.mark.asyncio
     async def test_confirm_step_form_has_description_placeholders(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         flow._discovery_info = {
             "address": "DC:23:4D:21:43:A5",
             "name": "out_of_mesh_1234",
@@ -250,7 +265,7 @@ class TestDeviceType:
 
     @pytest.mark.asyncio
     async def test_user_flow_with_device_type_plug(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         result = await flow.async_step_user(
             {
                 CONF_MAC_ADDRESS: "DC:23:4D:21:43:A5",
@@ -263,7 +278,7 @@ class TestDeviceType:
 
     @pytest.mark.asyncio
     async def test_default_device_type_is_light(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         result = await flow.async_step_user({CONF_MAC_ADDRESS: "DC:23:4D:21:43:A5"})
 
         assert result["type"] == "create_entry"
@@ -271,7 +286,7 @@ class TestDeviceType:
 
     @pytest.mark.asyncio
     async def test_confirm_default_device_type_is_light(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         flow._discovery_info = {
             "address": "DC:23:4D:21:43:A5",
             "name": "out_of_mesh_1234",
@@ -288,7 +303,7 @@ class TestSIGPlugStep:
     @pytest.mark.asyncio
     async def test_user_step_branches_to_sig_plug(self) -> None:
         """User step with sig_plug device type redirects to sig_plug step."""
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         result = await flow.async_step_user(
             {
                 CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF",
@@ -302,7 +317,7 @@ class TestSIGPlugStep:
 
     @pytest.mark.asyncio
     async def test_sig_plug_step_creates_entry(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         flow._discovery_info = {
             "address": "AA:BB:CC:DD:EE:FF",
             "name": "SIG Mesh FF",
@@ -329,7 +344,7 @@ class TestSIGPlugStep:
 
     @pytest.mark.asyncio
     async def test_sig_plug_step_defaults(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         flow._discovery_info = {
             "address": "AA:BB:CC:DD:EE:FF",
             "name": "SIG Mesh FF",
@@ -351,7 +366,7 @@ class TestSIGPlugStep:
 
     @pytest.mark.asyncio
     async def test_sig_plug_step_shows_form(self) -> None:
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         flow._discovery_info = {
             "address": "AA:BB:CC:DD:EE:FF",
             "name": "SIG Mesh FF",
@@ -369,7 +384,7 @@ class TestAutoDiscovery:
     @pytest.mark.asyncio
     async def test_discovery_with_proxy_uuid_routes_to_sig_plug(self) -> None:
         """Device with 0x1828 service UUID should route to sig_plug step."""
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
         flow._abort_if_unique_id_configured = lambda: None
 
@@ -386,7 +401,7 @@ class TestAutoDiscovery:
     @pytest.mark.asyncio
     async def test_discovery_without_proxy_uuid_routes_to_confirm(self) -> None:
         """Device without 0x1828 UUID should route to confirm step."""
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
         flow._abort_if_unique_id_configured = lambda: None
 
@@ -403,7 +418,7 @@ class TestAutoDiscovery:
     @pytest.mark.asyncio
     async def test_discovery_proxy_sets_discovery_info(self) -> None:
         """Discovery info should be populated for sig_plug step."""
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
         flow._abort_if_unique_id_configured = lambda: None
 
@@ -420,7 +435,7 @@ class TestAutoDiscovery:
     @pytest.mark.asyncio
     async def test_discovery_proxy_no_service_uuids_attr(self) -> None:
         """Device without service_uuids attribute should route to confirm."""
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
         flow._abort_if_unique_id_configured = lambda: None
 
@@ -438,7 +453,7 @@ class TestAutoDiscovery:
     @pytest.mark.asyncio
     async def test_discovery_proxy_completes_full_flow(self) -> None:
         """Proxy discovery → sig_plug form → entry creation."""
-        flow = TuyaBLEMeshConfigFlow()
+        flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
         flow._abort_if_unique_id_configured = lambda: None
 
