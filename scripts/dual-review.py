@@ -6,10 +6,8 @@ Triggered by CI pipeline or manually.
 """
 
 import asyncio
-import json
 import os
 import subprocess
-import sys
 import time
 from pathlib import Path
 
@@ -20,14 +18,16 @@ def get_key(op_ref: str) -> str:
     """Read secret from 1Password via safe-op.sh."""
     result = subprocess.run(
         [os.path.expanduser("~/scripts/secret-helpers/safe-op.sh"), "read", op_ref],
-        capture_output=True, text=True, timeout=15,
+        capture_output=True,
+        text=True,
+        timeout=15,
     )
     if result.returncode != 0:
         raise RuntimeError(f"safe-op failed: {result.stderr.strip()}")
     tmpfile = result.stdout.strip()
     try:
         val = Path(tmpfile).read_text().strip()
-        lines = [l.strip() for l in val.splitlines() if l.strip()]
+        lines = [line.strip() for line in val.splitlines() if line.strip()]
         for line in reversed(lines):
             if len(line) >= 30:
                 return line
@@ -40,7 +40,9 @@ def get_diff() -> str:
     """Get the diff of the last commit."""
     result = subprocess.run(
         ["git", "log", "-1", "--patch", "--stat"],
-        capture_output=True, text=True, cwd=os.environ.get("REPO_PATH", "."),
+        capture_output=True,
+        text=True,
+        cwd=os.environ.get("REPO_PATH", "."),
     )
     diff = result.stdout
     if len(diff) > 40000:
@@ -125,7 +127,8 @@ async def main() -> None:
     diff = get_diff()
     commit_sha = subprocess.run(
         ["git", "rev-parse", "HEAD"],
-        capture_output=True, text=True,
+        capture_output=True,
+        text=True,
         cwd=os.environ.get("REPO_PATH", "."),
     ).stdout.strip()
 
@@ -154,9 +157,9 @@ async def main() -> None:
             final.append(r)
 
     for r in final:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"{r['reviewer']} ({r['elapsed_s']}s)")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
         print(r["review"])
 
     # Post to Slack if webhook available

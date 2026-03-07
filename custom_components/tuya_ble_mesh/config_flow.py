@@ -119,10 +119,10 @@ def _validate_hex_key(value: str) -> bool:
 
 
 _PRIVATE_IP_NETS = (
-    ipaddress.ip_network("127.0.0.0/8"),   # loopback
+    ipaddress.ip_network("127.0.0.0/8"),  # loopback
     ipaddress.ip_network("169.254.0.0/16"),  # link-local / AWS metadata
-    ipaddress.ip_network("::1/128"),         # IPv6 loopback
-    ipaddress.ip_network("fe80::/10"),       # IPv6 link-local
+    ipaddress.ip_network("::1/128"),  # IPv6 loopback
+    ipaddress.ip_network("fe80::/10"),  # IPv6 link-local
 )
 
 

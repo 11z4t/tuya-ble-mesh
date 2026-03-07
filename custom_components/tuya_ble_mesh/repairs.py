@@ -95,9 +95,7 @@ class TuyaBLEMeshRepairFlow(RepairsFlow):
     Guides the user through resolving provisioning or connectivity issues.
     """
 
-    async def async_step_init(
-        self, user_input: dict[str, str] | None = None
-    ) -> FlowResult:
+    async def async_step_init(self, user_input: dict[str, str] | None = None) -> FlowResult:
         """Handle the first step of the repair flow.
 
         Args:
@@ -108,9 +106,7 @@ class TuyaBLEMeshRepairFlow(RepairsFlow):
         """
         return await self.async_step_confirm()
 
-    async def async_step_confirm(
-        self, user_input: dict[str, str] | None = None
-    ) -> FlowResult:
+    async def async_step_confirm(self, user_input: dict[str, str] | None = None) -> FlowResult:
         """Confirm the repair action.
 
         Args:
