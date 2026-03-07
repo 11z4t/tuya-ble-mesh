@@ -1,20 +1,29 @@
 """Sensor entities for Tuya BLE Mesh devices.
 
-Provides RSSI (signal strength), firmware version, power, and energy sensors.
+Provides RSSI (signal strength), firmware version, power, and energy sensors
+using the EntityDescription pattern for HA Core Platinum quality compliance.
 """
 
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
     SensorEntity,
+    SensorEntityDescription,
     SensorStateClass,
+)
+from homeassistant.const import (
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+    UnitOfEnergy,
+    UnitOfPower,
 )
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
+from homeassistant.helpers.typing import StateType
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -22,7 +31,10 @@ if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
 
     from custom_components.tuya_ble_mesh import TuyaBLEMeshConfigEntry
-    from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
+    from custom_components.tuya_ble_mesh.coordinator import (
+        TuyaBLEMeshCoordinator,
+        TuyaBLEMeshDeviceState,
+    )
 
     AddEntitiesCallback = Callable[..., None]
 
@@ -32,12 +44,75 @@ _LOGGER = logging.getLogger(__name__)
 PARALLEL_UPDATES = 1
 
 
+@dataclass(frozen=True, kw_only=True)
+class TuyaBLEMeshSensorEntityDescription(SensorEntityDescription):
+    """Extended sensor entity description for Tuya BLE Mesh sensors.
+
+    Attributes:
+        key: Unique identifier for this sensor type.
+        device_class: Classification of the sensor (signal strength, power, etc).
+        native_unit_of_measurement: Unit displayed in the UI.
+        state_class: Type of state (measurement, total, etc) for statistics.
+        entity_category: Category (diagnostic, config, etc) or None for primary.
+        entity_registry_enabled_default: Whether entity is enabled by default.
+        suggested_display_precision: Number of decimal places to display.
+        value_fn: Callable that extracts the sensor value from coordinator state.
+        available_fn: Optional callable to determine availability based on state.
+    """
+
+    value_fn: Callable[[TuyaBLEMeshDeviceState], StateType]
+    available_fn: Callable[[TuyaBLEMeshDeviceState], bool] | None = None
+
+
+SENSOR_DESCRIPTIONS: tuple[TuyaBLEMeshSensorEntityDescription, ...] = (
+    TuyaBLEMeshSensorEntityDescription(
+        key="rssi",
+        translation_key="rssi",
+        device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+        native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=lambda state: state.rssi,
+    ),
+    TuyaBLEMeshSensorEntityDescription(
+        key="firmware",
+        translation_key="firmware",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,  # G3: disabled by default
+        value_fn=lambda state: state.firmware_version,
+    ),
+    TuyaBLEMeshSensorEntityDescription(
+        key="power",
+        translation_key="power",
+        device_class=SensorDeviceClass.POWER,
+        native_unit_of_measurement=UnitOfPower.WATT,
+        state_class=SensorStateClass.MEASUREMENT,
+        suggested_display_precision=1,
+        value_fn=lambda state: state.power_w,
+        available_fn=lambda state: state.power_w is not None,
+    ),
+    TuyaBLEMeshSensorEntityDescription(
+        key="energy",
+        translation_key="energy",
+        device_class=SensorDeviceClass.ENERGY,
+        native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        suggested_display_precision=2,
+        value_fn=lambda state: state.energy_kwh,
+        available_fn=lambda state: state.energy_kwh is not None,
+    ),
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: TuyaBLEMeshConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Tuya BLE Mesh sensor entities from a config entry.
+
+    Creates sensor entities based on SENSOR_DESCRIPTIONS. Power and energy
+    sensors are only created if the device supports power monitoring (most
+    BLE Mesh plugs like Malmbergs S17 do NOT have power metering).
 
     Args:
         hass: Home Assistant instance.
@@ -48,266 +123,109 @@ async def async_setup_entry(
     coordinator: TuyaBLEMeshCoordinator = runtime_data.coordinator
     device_info: DeviceInfo = runtime_data.device_info
 
-    entities: list[SensorEntity] = [
-        TuyaBLEMeshRSSISensor(coordinator, entry.entry_id, device_info),
-        TuyaBLEMeshFirmwareSensor(coordinator, entry.entry_id, device_info),
-    ]
+    # Create sensors based on descriptions
+    entities: list[SensorEntity] = []
+    for description in SENSOR_DESCRIPTIONS:
+        # Power/energy sensors require device support
+        if description.key in ("power", "energy") and not getattr(
+            coordinator.device, "supports_power_monitoring", False
+        ):
+            continue
 
-    # Add power/energy sensors only if the device supports power monitoring.
-    # Most BLE Mesh plugs (e.g. Malmbergs S17) do NOT have power metering.
-    if getattr(coordinator.device, "supports_power_monitoring", False):
-        entities.append(TuyaBLEMeshPowerSensor(coordinator, entry.entry_id, device_info))
-        entities.append(TuyaBLEMeshEnergySensor(coordinator, entry.entry_id, device_info))
+        entities.append(
+            TuyaBLEMeshSensor(
+                coordinator=coordinator,
+                entry_id=entry.entry_id,
+                description=description,
+                device_info=device_info,
+            )
+        )
 
     async_add_entities(entities)
 
 
-class TuyaBLEMeshRSSISensor(SensorEntity):
-    """RSSI signal strength sensor for a Tuya BLE Mesh device."""
+class TuyaBLEMeshSensor(SensorEntity):
+    """Unified sensor entity for Tuya BLE Mesh devices using EntityDescription pattern.
+
+    This class replaces individual sensor classes (RSSI, firmware, power, energy)
+    with a single, data-driven implementation following HA Core Platinum patterns.
+    All sensor-specific behavior is defined in SENSOR_DESCRIPTIONS via value_fn
+    and available_fn callables.
+    """
 
     _attr_should_poll = False
     _attr_has_entity_name = True
-    _attr_name = "RSSI"
+
+    entity_description: TuyaBLEMeshSensorEntityDescription
 
     def __init__(
         self,
         coordinator: TuyaBLEMeshCoordinator,
         entry_id: str,
+        description: TuyaBLEMeshSensorEntityDescription,
         device_info: DeviceInfo | None = None,
     ) -> None:
+        """Initialize the sensor entity.
+
+        Args:
+            coordinator: Coordinator managing device state.
+            entry_id: Config entry ID for this integration instance.
+            description: Sensor entity description defining sensor behavior.
+            device_info: Device registry information.
+        """
+        self.entity_description = description
         self._coordinator = coordinator
         self._entry_id = entry_id
-        self._attr_unique_id = f"{coordinator.device.address}_rssi"
+        self._attr_unique_id = f"{coordinator.device.address}_{description.key}"
         if device_info is not None:
             self._attr_device_info = device_info
         self._remove_listener: Any = None
 
     @property
     def unique_id(self) -> str:
-        """Return unique ID."""
+        """Return unique ID for this sensor."""
         return self._attr_unique_id
 
     @property
     def available(self) -> bool:
-        """Return True if the device is available."""
+        """Return True if the sensor is available.
+
+        Uses description.available_fn if provided, otherwise falls back
+        to coordinator.state.available. This allows sensors like power/energy
+        to report unavailable if the device doesn't support those features.
+        """
+        if (
+            self.entity_description.available_fn is not None
+            and not self.entity_description.available_fn(self._coordinator.state)
+        ):
+            return False
+        # Base availability from coordinator
         return self._coordinator.state.available
 
     @property
-    def native_value(self) -> int | None:
-        """Return the RSSI value in dBm."""
-        return self._coordinator.state.rssi
+    def native_value(self) -> StateType:
+        """Return the current sensor value.
 
-    @property
-    def native_unit_of_measurement(self) -> str:
-        """Return the unit of measurement."""
-        return "dBm"
-
-    @property
-    def device_class(self) -> SensorDeviceClass:
-        """Return the device class."""
-        return SensorDeviceClass.SIGNAL_STRENGTH
-
-    @property
-    def entity_category(self) -> EntityCategory:
-        """Return the entity category."""
-        return EntityCategory.DIAGNOSTIC
+        Extracts the value from coordinator state using the value_fn
+        defined in the entity description. This eliminates duplicate
+        property definitions across multiple sensor classes.
+        """
+        return self.entity_description.value_fn(self._coordinator.state)
 
     async def async_added_to_hass(self) -> None:
-        """Register state listener when added to HA."""
+        """Register state listener when added to Home Assistant."""
         self._remove_listener = self._coordinator.add_listener(self._handle_coordinator_update)
 
     async def async_will_remove_from_hass(self) -> None:
-        """Remove state listener when removed from HA."""
+        """Remove state listener when removed from Home Assistant."""
         if self._remove_listener is not None:
             self._remove_listener()
             self._remove_listener = None
 
     def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        self.async_write_ha_state()
+        """Handle updated data from the coordinator.
 
-
-class TuyaBLEMeshFirmwareSensor(SensorEntity):
-    """Firmware version sensor for a Tuya BLE Mesh device."""
-
-    _attr_should_poll = False
-    _attr_has_entity_name = True
-    _attr_name = "Firmware"
-    _attr_entity_registry_enabled_default = False  # G3: disabled by default
-
-    def __init__(
-        self,
-        coordinator: TuyaBLEMeshCoordinator,
-        entry_id: str,
-        device_info: DeviceInfo | None = None,
-    ) -> None:
-        self._coordinator = coordinator
-        self._entry_id = entry_id
-        self._attr_unique_id = f"{coordinator.device.address}_firmware"
-        if device_info is not None:
-            self._attr_device_info = device_info
-        self._remove_listener: Any = None
-
-    @property
-    def unique_id(self) -> str:
-        """Return unique ID."""
-        return self._attr_unique_id
-
-    @property
-    def available(self) -> bool:
-        """Return True if the device is available."""
-        return self._coordinator.state.available
-
-    @property
-    def native_value(self) -> str | None:
-        """Return the firmware version."""
-        return self._coordinator.state.firmware_version
-
-    @property
-    def entity_category(self) -> EntityCategory:
-        """Return the entity category."""
-        return EntityCategory.DIAGNOSTIC
-
-    async def async_added_to_hass(self) -> None:
-        """Register state listener when added to HA."""
-        self._remove_listener = self._coordinator.add_listener(self._handle_coordinator_update)
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Remove state listener when removed from HA."""
-        if self._remove_listener is not None:
-            self._remove_listener()
-            self._remove_listener = None
-
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        self.async_write_ha_state()
-
-
-class TuyaBLEMeshPowerSensor(SensorEntity):
-    """Power consumption sensor (W) for a Tuya BLE Mesh plug."""
-
-    _attr_should_poll = False
-    _attr_has_entity_name = True
-    _attr_name = "Power"
-
-    def __init__(
-        self,
-        coordinator: TuyaBLEMeshCoordinator,
-        entry_id: str,
-        device_info: DeviceInfo | None = None,
-    ) -> None:
-        self._coordinator = coordinator
-        self._entry_id = entry_id
-        self._attr_unique_id = f"{coordinator.device.address}_power"
-        if device_info is not None:
-            self._attr_device_info = device_info
-        self._remove_listener: Any = None
-
-    @property
-    def unique_id(self) -> str:
-        """Return unique ID."""
-        return self._attr_unique_id
-
-    @property
-    def available(self) -> bool:
-        """Return True if the device is available."""
-        return self._coordinator.state.available
-
-    @property
-    def native_value(self) -> float | None:
-        """Return the power in watts."""
-        return self._coordinator.state.power_w
-
-    @property
-    def native_unit_of_measurement(self) -> str:
-        """Return the unit of measurement."""
-        return "W"
-
-    @property
-    def device_class(self) -> SensorDeviceClass:
-        """Return the device class."""
-        return SensorDeviceClass.POWER
-
-    @property
-    def state_class(self) -> SensorStateClass:
-        """Return the state class."""
-        return SensorStateClass.MEASUREMENT
-
-    async def async_added_to_hass(self) -> None:
-        """Register state listener when added to HA."""
-        self._remove_listener = self._coordinator.add_listener(self._handle_coordinator_update)
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Remove state listener when removed from HA."""
-        if self._remove_listener is not None:
-            self._remove_listener()
-            self._remove_listener = None
-
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        self.async_write_ha_state()
-
-
-class TuyaBLEMeshEnergySensor(SensorEntity):
-    """Energy consumption sensor (kWh) for a Tuya BLE Mesh plug."""
-
-    _attr_should_poll = False
-    _attr_has_entity_name = True
-    _attr_name = "Energy"
-
-    def __init__(
-        self,
-        coordinator: TuyaBLEMeshCoordinator,
-        entry_id: str,
-        device_info: DeviceInfo | None = None,
-    ) -> None:
-        self._coordinator = coordinator
-        self._entry_id = entry_id
-        self._attr_unique_id = f"{coordinator.device.address}_energy"
-        if device_info is not None:
-            self._attr_device_info = device_info
-        self._remove_listener: Any = None
-
-    @property
-    def unique_id(self) -> str:
-        """Return unique ID."""
-        return self._attr_unique_id
-
-    @property
-    def available(self) -> bool:
-        """Return True if the device is available."""
-        return self._coordinator.state.available
-
-    @property
-    def native_value(self) -> float | None:
-        """Return the energy in kWh."""
-        return self._coordinator.state.energy_kwh
-
-    @property
-    def native_unit_of_measurement(self) -> str:
-        """Return the unit of measurement."""
-        return "kWh"
-
-    @property
-    def device_class(self) -> SensorDeviceClass:
-        """Return the device class."""
-        return SensorDeviceClass.ENERGY
-
-    @property
-    def state_class(self) -> SensorStateClass:
-        """Return the state class."""
-        return SensorStateClass.TOTAL_INCREASING
-
-    async def async_added_to_hass(self) -> None:
-        """Register state listener when added to HA."""
-        self._remove_listener = self._coordinator.add_listener(self._handle_coordinator_update)
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Remove state listener when removed from HA."""
-        if self._remove_listener is not None:
-            self._remove_listener()
-            self._remove_listener = None
-
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
+        Called by coordinator when device state changes. Triggers
+        entity state write to Home Assistant.
+        """
         self.async_write_ha_state()
