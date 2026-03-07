@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 from typing import Any
-from unittest.mock import ANY, AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -712,7 +711,8 @@ class TestTestBridge:
         mock_session = MagicMock()
         mock_session.get = MagicMock(return_value=mock_response)
 
-        with patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=mock_session):
+        _patch_target = "homeassistant.helpers.aiohttp_client.async_get_clientsession"
+        with patch(_patch_target, return_value=mock_session):
             mock_hass = MagicMock()
             result = await _test_bridge_with_session(mock_hass, "192.168.1.100", 8099)
 
@@ -729,7 +729,8 @@ class TestTestBridge:
         mock_session = MagicMock()
         mock_session.get = MagicMock(return_value=mock_response)
 
-        with patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=mock_session):
+        _patch_target = "homeassistant.helpers.aiohttp_client.async_get_clientsession"
+        with patch(_patch_target, return_value=mock_session):
             mock_hass = MagicMock()
             result = await _test_bridge_with_session(mock_hass, "192.168.1.100", 8099)
 
@@ -743,7 +744,8 @@ class TestTestBridge:
         mock_session = MagicMock()
         mock_session.get = MagicMock(side_effect=aiohttp.ClientError)
 
-        with patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=mock_session):
+        _patch_target = "homeassistant.helpers.aiohttp_client.async_get_clientsession"
+        with patch(_patch_target, return_value=mock_session):
             mock_hass = MagicMock()
             result = await _test_bridge_with_session(mock_hass, "192.168.1.100", 8099)
 
@@ -757,7 +759,8 @@ class TestTestBridge:
         mock_session = MagicMock()
         mock_session.get = MagicMock(side_effect=_asyncio.TimeoutError)
 
-        with patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=mock_session):
+        _patch_target = "homeassistant.helpers.aiohttp_client.async_get_clientsession"
+        with patch(_patch_target, return_value=mock_session):
             mock_hass = MagicMock()
             result = await _test_bridge_with_session(mock_hass, "192.168.1.100", 8099)
 
