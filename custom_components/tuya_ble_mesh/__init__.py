@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
@@ -72,6 +72,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     mac_address: str = entry.data[CONF_MAC_ADDRESS]
     device_type: str = entry.data.get(CONF_DEVICE_TYPE, "")
 
+    # BLE Proxy support: use HA's bluetooth stack to find devices
+    # This routes through all available BLE adapters and ESPHome proxies
+    def _ble_device_from_ha(address: str) -> Any:
+        from homeassistant.components.bluetooth import async_ble_device_from_address
+
+        return async_ble_device_from_address(hass, address, connectable=True)
+
     if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
         from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice
 
@@ -120,6 +127,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             DictSecretsManager(secrets_dict),
             op_item_prefix=op_prefix,
             iv_index=iv_index,
+            ble_device_callback=_ble_device_from_ha,
         )
     else:
         from tuya_ble_mesh.device import MeshDevice
@@ -138,6 +146,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             mesh_password.encode(),
             mesh_id=mesh_addr,
             vendor_id=vendor_id_bytes,
+            ble_device_callback=_ble_device_from_ha,
         )
 
     coordinator = TuyaBLEMeshCoordinator(device, hass=hass, entry_id=entry.entry_id)
