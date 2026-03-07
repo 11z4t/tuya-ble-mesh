@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
-from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 from homeassistant.config_entries import ConfigFlow
+
+if TYPE_CHECKING:
+    from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 
 from custom_components.tuya_ble_mesh.const import (
     CONF_BRIDGE_HOST,
@@ -69,7 +71,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
         self._discovery_info: dict[str, Any] | None = None
 
     async def async_step_bluetooth(
-        self, discovery_info: BluetoothServiceInfoBleak
+        self,
+        discovery_info: BluetoothServiceInfoBleak,
     ) -> dict[str, Any]:
         """Handle bluetooth discovery.
 
@@ -249,6 +252,14 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return self.async_show_form(
             step_id="sig_plug",
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(CONF_UNICAST_TARGET, default="00B0"): str,
+                    vol.Optional(CONF_UNICAST_OUR, default="0001"): str,
+                    vol.Optional(CONF_OP_ITEM_PREFIX, default=DEFAULT_OP_ITEM_PREFIX): str,
+                    vol.Optional(CONF_IV_INDEX, default=DEFAULT_IV_INDEX): int,
+                }
+            ),
             description_placeholders={
                 "name": (self._discovery_info.get("name", "") if self._discovery_info else ""),
             },
@@ -274,9 +285,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_BRIDGE_PLUG,
                     CONF_UNICAST_TARGET: user_input.get(CONF_UNICAST_TARGET, "00B0"),
                     CONF_BRIDGE_HOST: user_input.get(CONF_BRIDGE_HOST, ""),
-                    CONF_BRIDGE_PORT: user_input.get(
-                        CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT
-                    ),
+                    CONF_BRIDGE_PORT: user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT),
                 },
             )
 
@@ -285,18 +294,12 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_BRIDGE_HOST): str,
-                    vol.Optional(
-                        CONF_BRIDGE_PORT, default=DEFAULT_BRIDGE_PORT
-                    ): int,
+                    vol.Optional(CONF_BRIDGE_PORT, default=DEFAULT_BRIDGE_PORT): int,
                     vol.Optional(CONF_UNICAST_TARGET, default="00B0"): str,
                 }
             ),
             description_placeholders={
-                "name": (
-                    self._discovery_info.get("name", "")
-                    if self._discovery_info
-                    else ""
-                ),
+                "name": (self._discovery_info.get("name", "") if self._discovery_info else ""),
             },
         )
 
@@ -319,9 +322,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                     CONF_MAC_ADDRESS: mac,
                     CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
                     CONF_BRIDGE_HOST: user_input.get(CONF_BRIDGE_HOST, ""),
-                    CONF_BRIDGE_PORT: user_input.get(
-                        CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT
-                    ),
+                    CONF_BRIDGE_PORT: user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT),
                 },
             )
 
@@ -330,16 +331,10 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             data_schema=vol.Schema(
                 {
                     vol.Required(CONF_BRIDGE_HOST): str,
-                    vol.Optional(
-                        CONF_BRIDGE_PORT, default=DEFAULT_BRIDGE_PORT
-                    ): int,
+                    vol.Optional(CONF_BRIDGE_PORT, default=DEFAULT_BRIDGE_PORT): int,
                 }
             ),
             description_placeholders={
-                "name": (
-                    self._discovery_info.get("name", "")
-                    if self._discovery_info
-                    else ""
-                ),
+                "name": (self._discovery_info.get("name", "") if self._discovery_info else ""),
             },
         )

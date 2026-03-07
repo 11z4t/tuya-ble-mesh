@@ -1,10 +1,10 @@
 {
   "domain": "tuya_ble_mesh",
   "name": "Tuya BLE Mesh",
-  "version": "0.7.0",
-  "documentation": "https://github.com/bormal/malmbergs-bt",
-  "issue_tracker": "https://github.com/bormal/malmbergs-bt/issues",
-  "codeowners": ["@bormal"],
+  "version": "0.8.0",
+  "documentation": "https://github.com/11z4t/tuya-ble-mesh",
+  "issue_tracker": "https://github.com/11z4t/tuya-ble-mesh/issues",
+  "codeowners": ["@11z4t"],
   "config_flow": true,
   "iot_class": "local_push",
   "bluetooth": [
@@ -12,6 +12,5 @@
     { "local_name": "tymesh*" },
     { "service_uuid": "00001828-0000-1000-8000-00805f9b34fb" }
   ],
-  "dependencies": ["bluetooth_adapters"],
-  "requirements": ["bleak>=0.21.0", "bleak-retry-connector>=3.0.0"]
+  "requirements": []
 }
