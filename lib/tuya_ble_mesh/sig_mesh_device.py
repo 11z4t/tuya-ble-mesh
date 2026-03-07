@@ -140,6 +140,7 @@ class SIGMeshDevice:
         self._seq = _INITIAL_SEQ
         self._seq_lock = asyncio.Lock()
         self._tid = 0
+        self._event_loop: asyncio.AbstractEventLoop | None = None
 
         self._onoff_callbacks: list[OnOffCallback] = []
         self._vendor_callbacks: list[VendorCallback] = []
@@ -267,6 +268,7 @@ class SIGMeshDevice:
             ConnectionError: If BLE connection fails after all retries.
         """
         await self._load_keys()
+        self._event_loop = asyncio.get_running_loop()
 
         last_error: Exception | None = None
         for attempt in range(1, max_retries + 1):
@@ -445,20 +447,21 @@ class SIGMeshDevice:
     # --- Private helpers ---
 
     async def _next_seq(self) -> int:
-        """Return and increment the sequence number.
+        """Return and increment the sequence number (24-bit wrap).
 
         Protected by asyncio.Lock to prevent nonce collision from
         concurrent callers.
         """
         async with self._seq_lock:
-            seq = self._seq
-            self._seq += 1
+            seq = self._seq & 0xFFFFFF
+            self._seq = (self._seq + 1) & 0xFFFFFF
             return seq
 
     async def _next_seqs(self, n: int) -> int:
         """Reserve n consecutive sequence numbers and return the first.
 
         Used for segmented messages that need a contiguous seq range.
+        Wraps at 24-bit boundary per SIG Mesh spec.
 
         Args:
             n: Number of sequence numbers to reserve.
@@ -467,8 +470,8 @@ class SIGMeshDevice:
             First sequence number of the reserved range.
         """
         async with self._seq_lock:
-            seq = self._seq
-            self._seq += n
+            seq = self._seq & 0xFFFFFF
+            self._seq = (self._seq + n) & 0xFFFFFF
             return seq
 
     async def send_config_appkey_add(
@@ -697,8 +700,8 @@ class SIGMeshDevice:
     def _on_notify(self, _sender: BleakGATTCharacteristic, data: bytearray) -> None:
         """Handle a GATT Proxy notification.
 
-        Decrypts the network PDU and dispatches to access layer.
-        Supports both unsegmented and segmented messages.
+        Schedules crypto processing as an asyncio task to avoid blocking
+        the event loop (or BLE callback thread on some platforms).
 
         Args:
             _sender: The characteristic that sent the notification.
@@ -706,9 +709,23 @@ class SIGMeshDevice:
         """
         if self._keys is None:
             return
+        data_copy = bytes(data)
+        if self._event_loop is not None and self._event_loop.is_running():
+            self._event_loop.create_task(self._process_notify(data_copy))
+
+    async def _process_notify(self, data: bytes) -> None:
+        """Decrypt and dispatch a GATT Proxy notification.
+
+        Supports both unsegmented and segmented messages.
+
+        Args:
+            data: Raw proxy PDU bytes.
+        """
+        if self._keys is None:
+            return
 
         try:
-            proxy = parse_proxy_pdu(bytes(data))
+            proxy = parse_proxy_pdu(data)
         except Exception:
             _LOGGER.debug("Failed to parse proxy PDU (%d bytes)", len(data), exc_info=True)
             return
@@ -871,7 +888,7 @@ class SIGMeshDevice:
                 src,
                 "ON" if on_state else "OFF",
             )
-            for callback in self._onoff_callbacks:
+            for callback in list(self._onoff_callbacks):
                 try:
                     callback(on_state)
                 except Exception:
@@ -886,7 +903,7 @@ class SIGMeshDevice:
                 len(params),
                 src,
             )
-            for vcb in self._vendor_callbacks:
+            for vcb in list(self._vendor_callbacks):
                 try:
                     vcb(opcode, params)
                 except Exception:
@@ -924,7 +941,7 @@ class SIGMeshDevice:
             comp.features,
         )
 
-        for callback in self._composition_callbacks:
+        for callback in list(self._composition_callbacks):
             try:
                 callback(comp)
             except Exception:
@@ -938,7 +955,7 @@ class SIGMeshDevice:
         """
         _LOGGER.warning("SIG Mesh device disconnected: %s", self._address)
         self._client = None
-        for callback in self._disconnect_callbacks:
+        for callback in list(self._disconnect_callbacks):
             try:
                 callback()
             except Exception:

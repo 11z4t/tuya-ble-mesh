@@ -8,8 +8,7 @@ and the device key is derived from the ECDH provisioning exchange.
 
 from __future__ import annotations
 
-import asyncio
-import json
+import ipaddress
 import logging
 import os
 import re
@@ -65,8 +64,17 @@ _LOGGER = logging.getLogger(__name__)
 
 _MAC_PATTERN = re.compile(r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 _HEX_KEY_PATTERN = re.compile(r"^[0-9A-Fa-f]{32}$")
-_BRIDGE_TEST_TIMEOUT = 5.0
-_MESH_KEYS_PATH = "/tmp/mesh_keys.json"
+_BRIDGE_TEST_TIMEOUT = 5
+
+# Allowed bridge host pattern: IPv4, IPv6, or hostname
+_BRIDGE_HOST_PATTERN = re.compile(
+    r"^(?:"
+    r"(?:\d{1,3}\.){3}\d{1,3}"  # IPv4
+    r"|(?:[0-9a-fA-F:]+)"  # IPv6
+    r"|(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?"
+    r"(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*)"  # hostname
+    r")$"
+)
 
 # Unicast addresses used during provisioning
 _UNICAST_PROVISIONER = 0x0001
@@ -79,30 +87,82 @@ _MODEL_GENERIC_ONOFF_SERVER = 0x1000
 _POST_PROV_REBOOT_DELAY = 6.0
 
 
-def _load_mesh_key_defaults() -> dict[str, str]:
-    """Try to load default mesh keys from /tmp/mesh_keys.json.
+def _parse_json_body(body: str) -> dict[str, object]:
+    """Parse a JSON string, returning an empty dict on failure.
+
+    Args:
+        body: JSON string to parse.
 
     Returns:
-        Dict with net_key, dev_key, app_key defaults (empty strings if missing).
+        Parsed dict, or empty dict on parse error.
     """
-    defaults: dict[str, str] = {"net_key": "", "dev_key": "", "app_key": ""}
-    try:
-        import os
+    import json
 
-        if os.path.exists(_MESH_KEYS_PATH):
-            with open(_MESH_KEYS_PATH) as f:
-                data = json.load(f)
-            defaults["net_key"] = data.get("net_key", "")
-            defaults["dev_key"] = data.get("dev_key", "")
-            defaults["app_key"] = data.get("app_key", "")
+    try:
+        result = json.loads(body)
+        return result if isinstance(result, dict) else {}
     except Exception:
-        _LOGGER.debug("Could not load mesh key defaults", exc_info=True)
-    return defaults
+        return {}
 
 
 def _validate_hex_key(value: str) -> bool:
     """Validate a 32-char hex key string."""
     return bool(_HEX_KEY_PATTERN.match(value))
+
+
+_PRIVATE_IP_NETS = (
+    ipaddress.ip_network("127.0.0.0/8"),   # loopback
+    ipaddress.ip_network("169.254.0.0/16"),  # link-local / AWS metadata
+    ipaddress.ip_network("::1/128"),         # IPv6 loopback
+    ipaddress.ip_network("fe80::/10"),       # IPv6 link-local
+)
+
+
+def _is_ssrf_risk(host: str) -> bool:
+    """Return True if host resolves to a private/loopback address (SSRF risk).
+
+    Checks numeric IP addresses only (hostnames are not resolved here).
+
+    Args:
+        host: Host string to check.
+
+    Returns:
+        True if the host is a known SSRF risk.
+    """
+    # Reject hex-encoded IP (e.g. "0x7f000001")
+    if host.startswith("0x") or host.startswith("0X"):
+        return True
+    try:
+        addr = ipaddress.ip_address(host)
+        return any(addr in net for net in _PRIVATE_IP_NETS)
+    except ValueError:
+        return False  # Not a numeric IP — hostname is allowed (RFC allows LAN hosts)
+
+
+def _validate_bridge_host(host: str) -> str | None:
+    """Validate bridge host is a plain hostname or IP, not a URL.
+
+    Rejects URLs (containing ://), paths (/), empty strings, and private/
+    loopback IP addresses to prevent SSRF via crafted bridge_host values.
+
+    Args:
+        host: Bridge host string to validate.
+
+    Returns:
+        None if valid, error key string if invalid.
+    """
+    host = host.strip()
+    if not host:
+        return "invalid_bridge_host"
+    # Reject URLs and path-like values
+    if "://" in host or "/" in host or "\\" in host:
+        return "invalid_bridge_host"
+    if not _BRIDGE_HOST_PATTERN.match(host):
+        return "invalid_bridge_host"
+    # SSRF protection: reject private/loopback IPs
+    if _is_ssrf_risk(host):
+        return "invalid_bridge_host"
+    return None
 
 
 def _validate_mac(mac: str) -> str | None:
@@ -119,36 +179,30 @@ def _validate_mac(mac: str) -> str | None:
     return None
 
 
-async def _test_bridge(host: str, port: int) -> bool:
-    """Test if bridge daemon is reachable.
+async def _test_bridge_with_session(hass: Any, host: str, port: int) -> bool:
+    """Test if bridge daemon is reachable using HA's aiohttp websession.
+
+    Uses HA's shared aiohttp session (inject-websession pattern) so that
+    HA can properly manage the session lifecycle and TLS settings.
 
     Args:
+        hass: Home Assistant instance (provides shared aiohttp session).
         host: Bridge hostname/IP.
         port: Bridge port.
 
     Returns:
         True if bridge responds with status ok.
     """
+    from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+    session = async_get_clientsession(hass)
+    url = f"http://{host}:{port}/health"
     try:
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(host, port),
-            timeout=_BRIDGE_TEST_TIMEOUT,
-        )
-        try:
-            request = f"GET /health HTTP/1.1\r\nHost: {host}\r\n\r\n"
-            writer.write(request.encode())
-            await writer.drain()
-            response = await asyncio.wait_for(
-                reader.read(4096),
-                timeout=_BRIDGE_TEST_TIMEOUT,
-            )
-            body = response.decode("utf-8", errors="replace")
-            parts = body.split("\r\n\r\n", 1)
-            if len(parts) > 1:
-                data = json.loads(parts[1])
-                return data.get("status") == "ok"
-        finally:
-            writer.close()
+        async with session.get(url, timeout=_BRIDGE_TEST_TIMEOUT) as resp:
+            if resp.status != 200:
+                return False
+            body = await resp.text()
+            return _parse_json_body(body).get("status") == "ok"
     except Exception:
         _LOGGER.debug("Bridge test failed for %s:%d", host, port, exc_info=True)
     return False
@@ -478,6 +532,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             ProvisioningError: If PB-GATT provisioning fails.
             Any exception from Phase 3 is logged but not re-raised.
         """
+        from bleak import BleakClient
+        from bleak_retry_connector import establish_connection
+        from homeassistant.components import bluetooth as ha_bluetooth
         from tuya_ble_mesh.secrets import DictSecretsManager
         from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
         from tuya_ble_mesh.sig_mesh_provisioner import SIGMeshProvisioner
@@ -492,12 +549,35 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             _UNICAST_DEVICE_DEFAULT,
         )
 
+        # HA Bluetooth callbacks — use retry-connector to avoid HA warning
+        def _ble_device_cb(address: str) -> Any:
+            """Look up BLEDevice via HA bluetooth registry (non-connectable OK)."""
+            device = ha_bluetooth.async_ble_device_from_address(
+                self.hass, address.upper(), connectable=True
+            )
+            if device is None:
+                device = ha_bluetooth.async_ble_device_from_address(
+                    self.hass, address.upper(), connectable=False
+                )
+            return device
+
+        async def _ble_connect_cb(ble_device: Any) -> BleakClient:
+            """Connect via bleak-retry-connector to avoid HA BleakClient warning."""
+            return await establish_connection(
+                BleakClient,
+                ble_device,
+                ble_device.address,
+                max_attempts=5,
+            )
+
         # Phase 1: PB-GATT provisioning
         provisioner = SIGMeshProvisioner(
             net_key=net_key,
             app_key=app_key,
             unicast_addr=_UNICAST_DEVICE_DEFAULT,
             iv_index=DEFAULT_IV_INDEX,
+            ble_device_callback=_ble_device_cb,
+            ble_connect_callback=_ble_connect_cb,
         )
         result = await provisioner.provision(mac)
 
@@ -571,7 +651,10 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None and self._discovery_info is not None:
             host = user_input.get(CONF_BRIDGE_HOST, "")
             port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
-            if not await _test_bridge(host, port):
+            host_error = _validate_bridge_host(host)
+            if host_error:
+                errors[CONF_BRIDGE_HOST] = host_error
+            elif not await _test_bridge_with_session(self.hass, host, port):
                 errors["base"] = "cannot_connect"
             else:
                 mac = self._discovery_info["address"]
@@ -618,7 +701,10 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
         if user_input is not None and self._discovery_info is not None:
             host = user_input.get(CONF_BRIDGE_HOST, "")
             port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
-            if not await _test_bridge(host, port):
+            host_error = _validate_bridge_host(host)
+            if host_error:
+                errors[CONF_BRIDGE_HOST] = host_error
+            elif not await _test_bridge_with_session(self.hass, host, port):
                 errors["base"] = "cannot_connect"
             else:
                 mac = self._discovery_info["address"]
@@ -645,5 +731,62 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders={
                 "name": (self._discovery_info.get("name", "") if self._discovery_info else ""),
             },
+            errors=errors,
+        )
+
+    async def async_step_reauth(self, entry_data: dict[str, Any]) -> dict[str, Any]:
+        """Handle reauth when mesh credentials fail.
+
+        Triggered by the coordinator when auth errors occur (e.g. wrong mesh
+        password after credentials are rotated on the device).
+
+        Args:
+            entry_data: Existing config entry data (unused — shown for context).
+
+        Returns:
+            Flow result dict.
+        """
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
+        """Re-enter mesh credentials after authentication failure.
+
+        Args:
+            user_input: New credentials from the user.
+
+        Returns:
+            Flow result dict.
+        """
+        errors: dict[str, str] = {}
+
+        entry = self.hass.config_entries.async_get_entry(self.context.get("entry_id", ""))
+
+        if user_input is not None and entry is not None:
+            new_data = {**entry.data, **user_input}
+            self.hass.config_entries.async_update_entry(entry, data=new_data)
+            await self.hass.config_entries.async_reload(entry.entry_id)
+            return self.async_abort(reason="reauth_successful")
+
+        device_type = entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT) if entry else DEVICE_TYPE_LIGHT
+        if device_type in (DEVICE_TYPE_SIG_BRIDGE_PLUG, DEVICE_TYPE_TELINK_BRIDGE_LIGHT):
+            schema = vol.Schema(
+                {
+                    vol.Required(CONF_BRIDGE_HOST): str,
+                    vol.Optional(CONF_BRIDGE_PORT, default=DEFAULT_BRIDGE_PORT): int,
+                }
+            )
+        else:
+            schema = vol.Schema(
+                {
+                    vol.Optional(CONF_MESH_NAME, default="out_of_mesh"): str,
+                    vol.Optional(CONF_MESH_PASSWORD, default=""): str,
+                }
+            )
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=schema,
             errors=errors,
         )
