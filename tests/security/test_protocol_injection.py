@@ -1,4 +1,3 @@
-
 """Protocol injection attack tests.
 
 Verifies that protocol parsers reject malformed inputs that could
