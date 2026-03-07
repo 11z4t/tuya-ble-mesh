@@ -19,7 +19,10 @@ from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     _BACKOFF_MULTIPLIER,
     _INITIAL_BACKOFF,
     _MAX_BACKOFF,
-    _RSSI_REFRESH_INTERVAL,
+    _RSSI_MIN_INTERVAL,
+    _RSSI_MAX_INTERVAL,
+    _RSSI_DEFAULT_INTERVAL,
+    _RSSI_STABILITY_THRESHOLD,
     _SEQ_PERSIST_INTERVAL,
     _SEQ_SAFETY_MARGIN,
     TuyaBLEMeshCoordinator,
@@ -1429,4 +1432,7 @@ class TestBackoffConstants:
         assert _BACKOFF_MULTIPLIER > 1.0
 
     def test_rssi_interval_positive(self) -> None:
-        assert _RSSI_REFRESH_INTERVAL > 0
+        assert _RSSI_DEFAULT_INTERVAL > 0
+        assert _RSSI_MIN_INTERVAL > 0
+        assert _RSSI_MAX_INTERVAL > _RSSI_MIN_INTERVAL
+        assert _RSSI_STABILITY_THRESHOLD > 0
