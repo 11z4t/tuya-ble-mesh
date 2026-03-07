@@ -51,17 +51,26 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
 
-    // Uncomment to test on Firefox
-    // {
-    //   name: 'firefox',
-    //   use: { ...devices['Desktop Firefox'] },
-    // },
+    {
+      name: 'firefox',
+      use: { ...devices['Desktop Firefox'] },
+    },
 
-    // Uncomment to test on Safari
-    // {
-    //   name: 'webkit',
-    //   use: { ...devices['Desktop Safari'] },
-    // },
+    {
+      name: 'webkit',
+      use: { ...devices['Desktop Safari'] },
+    },
+
+    // Mobile browsers
+    {
+      name: 'mobile-chrome',
+      use: { ...devices['Pixel 5'] },
+    },
+
+    {
+      name: 'mobile-safari',
+      use: { ...devices['iPhone 13'] },
+    },
   ],
 
   // Web server configuration (optional - for starting HA automatically)
