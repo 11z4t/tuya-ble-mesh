@@ -9,8 +9,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import time
+from collections import deque
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -59,6 +61,20 @@ class TuyaBLEMeshDeviceState:
     available: bool = False
 
 
+@dataclass
+class ConnectionStatistics:
+    """Connection and performance statistics for diagnostics."""
+
+    connect_time: float | None = None  # Unix timestamp of last successful connect
+    total_reconnects: int = 0
+    total_errors: int = 0
+    connection_errors: int = 0
+    command_errors: int = 0
+    response_times: deque = field(default_factory=lambda: deque(maxlen=100))
+    last_error: str | None = None
+    last_error_time: float | None = None
+
+
 class TuyaBLEMeshCoordinator:
     """Push-based coordinator for a single BLE mesh device.
 
@@ -94,6 +110,9 @@ class TuyaBLEMeshCoordinator:
         self._state_change_counter = 0
         self._stable_cycles = 0
 
+        # Connection statistics for diagnostics
+        self._stats = ConnectionStatistics()
+
     @property
     def device(self) -> Any:
         """Return the underlying mesh device (MeshDevice or SIGMeshDevice)."""
@@ -103,6 +122,11 @@ class TuyaBLEMeshCoordinator:
     def state(self) -> TuyaBLEMeshDeviceState:
         """Return the current device state."""
         return self._state
+
+    @property
+    def statistics(self) -> ConnectionStatistics:
+        """Return connection and performance statistics."""
+        return self._stats
 
     def add_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
         """Register a state change listener.
@@ -326,13 +350,21 @@ class TuyaBLEMeshCoordinator:
         self._device.register_disconnect_callback(self._on_disconnect)
 
         try:
+            start_time = time.monotonic()
             await self._device.connect()
+            response_time = time.monotonic() - start_time
+            self._stats.response_times.append(response_time)
+            self._stats.connect_time = time.time()
             self._state.available = True
             self._state.firmware_version = self._device.firmware_version
             self._backoff = _INITIAL_BACKOFF
             self._start_rssi_polling()
-            _LOGGER.info("Coordinator started for %s", self._device.address)
-        except Exception:
+            _LOGGER.info("Coordinator started for %s (%.2fs)", self._device.address, response_time)
+        except Exception as err:
+            self._stats.total_errors += 1
+            self._stats.connection_errors += 1
+            self._stats.last_error = str(err)
+            self._stats.last_error_time = time.time()
             _LOGGER.warning(
                 "Initial connection failed for %s, scheduling reconnect",
                 self._device.address,
@@ -398,15 +430,24 @@ class TuyaBLEMeshCoordinator:
                 break
 
             try:
+                start_time = time.monotonic()
                 await self._device.connect()
+                response_time = time.monotonic() - start_time
+                self._stats.response_times.append(response_time)
+                self._stats.connect_time = time.time()
+                self._stats.total_reconnects += 1
                 self._state.available = True
                 self._state.firmware_version = self._device.firmware_version
                 self._backoff = _INITIAL_BACKOFF
                 self._start_rssi_polling()
-                _LOGGER.info("Reconnected to %s", self._device.address)
+                _LOGGER.info("Reconnected to %s (%.2fs)", self._device.address, response_time)
                 self._notify_listeners()
                 return
-            except Exception:
+            except Exception as err:
+                self._stats.total_errors += 1
+                self._stats.connection_errors += 1
+                self._stats.last_error = str(err)
+                self._stats.last_error_time = time.time()
                 _LOGGER.warning(
                     "Reconnect failed for %s",
                     self._device.address,
