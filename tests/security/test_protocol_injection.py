@@ -7,10 +7,10 @@ injection, format string attacks, and path traversal.
 """
 
 from __future__ import annotations
-import typing
 
 import struct
 import sys
+import typing
 from pathlib import Path
 
 import pytest
