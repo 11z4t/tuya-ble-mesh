@@ -1,0 +1,29 @@
+Metadata-Version: 2.3
+Name: safety-schemas
+Version: 0.0.16
+Summary: Schemas for Safety tools
+Project-URL: Homepage, https://github.com/pyupio/safety_schemas
+Author-email: Yeison Vargas <support@safetycli.com>
+License: MIT
+Keywords: policy file,safety,safety models,safety policy file,safety schemas,schemas
+Classifier: Development Status :: 5 - Production/Stable
+Classifier: Intended Audience :: Developers
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Natural Language :: English
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Classifier: Programming Language :: Python :: 3.8
+Classifier: Programming Language :: Python :: 3.9
+Classifier: Programming Language :: Python :: 3.10
+Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Requires-Python: >=3.8
+Requires-Dist: dparse>=0.6.4
+Requires-Dist: packaging>=21.0
+Requires-Dist: pydantic>=2.6.0
+Requires-Dist: ruamel-yaml>=0.17.21
+Requires-Dist: typing-extensions>=4.7.1
+Description-Content-Type: text/markdown
+
+# safety_schemas
+Models and schemas used by Safety.
