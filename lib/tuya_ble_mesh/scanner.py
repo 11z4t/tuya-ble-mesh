@@ -20,8 +20,9 @@ from tuya_ble_mesh.const import (
     TUYA_MESH_SERVICE_UUID,
 )
 from tuya_ble_mesh.exceptions import DeviceNotFoundError
+from tuya_ble_mesh.logging_context import MeshLogAdapter
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = MeshLogAdapter(logging.getLogger(__name__), {})
 
 _DEFAULT_SCAN_TIMEOUT = 15.0
 
