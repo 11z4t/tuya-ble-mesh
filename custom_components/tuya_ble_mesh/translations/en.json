@@ -32,12 +32,14 @@
       },
       "sig_plug": {
         "title": "SIG Mesh Plug Configuration",
-        "description": "Configure SIG Mesh parameters for {name}.",
+        "description": "Configure SIG Mesh parameters for {name}.\n\nMesh keys are loaded from /tmp/mesh_keys.json if available.",
         "data": {
           "unicast_target": "Target Unicast Address (hex)",
           "unicast_our": "Our Unicast Address (hex)",
-          "op_item_prefix": "1Password Item Prefix",
-          "iv_index": "IV Index"
+          "iv_index": "IV Index",
+          "net_key": "Network Key (32 hex chars)",
+          "dev_key": "Device Key (32 hex chars)",
+          "app_key": "Application Key (32 hex chars)"
         }
       },
       "confirm": {
@@ -53,6 +55,7 @@
     },
     "error": {
       "invalid_mac": "Invalid MAC address format (expected XX:XX:XX:XX:XX:XX)",
+      "invalid_key": "Invalid key format (expected 32 hex characters)",
       "cannot_connect": "Cannot connect to bridge daemon. Verify the host/port and that the daemon is running."
     },
     "abort": {

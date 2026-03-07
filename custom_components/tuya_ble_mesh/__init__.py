@@ -12,22 +12,23 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from custom_components.tuya_ble_mesh.const import (
+    CONF_APP_KEY,
     CONF_BRIDGE_HOST,
     CONF_BRIDGE_PORT,
+    CONF_DEV_KEY,
     CONF_DEVICE_TYPE,
     CONF_IV_INDEX,
     CONF_MAC_ADDRESS,
     CONF_MESH_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
-    CONF_OP_ITEM_PREFIX,
+    CONF_NET_KEY,
     CONF_UNICAST_OUR,
     CONF_UNICAST_TARGET,
     CONF_VENDOR_ID,
     DEFAULT_BRIDGE_PORT,
     DEFAULT_IV_INDEX,
     DEFAULT_MESH_ADDRESS,
-    DEFAULT_OP_ITEM_PREFIX,
     DEFAULT_VENDOR_ID,
     DEVICE_TYPE_SIG_BRIDGE_PLUG,
     DEVICE_TYPE_SIG_PLUG,
@@ -96,19 +97,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             bridge_port,
         )
     elif device_type == DEVICE_TYPE_SIG_PLUG:
-        from tuya_ble_mesh.secrets import SecretsManager
+        from tuya_ble_mesh.secrets import DictSecretsManager
         from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
 
-        target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00aa"), 16)
+        target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
         our_addr = int(entry.data.get(CONF_UNICAST_OUR, "0001"), 16)
-        op_prefix: str = entry.data.get(CONF_OP_ITEM_PREFIX, DEFAULT_OP_ITEM_PREFIX)
         iv_index: int = entry.data.get(CONF_IV_INDEX, DEFAULT_IV_INDEX)
+
+        # Build secrets dict from config entry keys
+        target_hex = f"{target_addr:04x}"
+        op_prefix = "cfg"
+        secrets_dict = {
+            f"{op_prefix}-net-key/password": entry.data.get(CONF_NET_KEY, ""),
+            f"{op_prefix}-dev-key-{target_hex}/password": entry.data.get(CONF_DEV_KEY, ""),
+            f"{op_prefix}-app-key/password": entry.data.get(CONF_APP_KEY, ""),
+        }
 
         device = SIGMeshDevice(
             mac_address,
             target_addr,
             our_addr,
-            SecretsManager(),
+            DictSecretsManager(secrets_dict),
             op_item_prefix=op_prefix,
             iv_index=iv_index,
         )
