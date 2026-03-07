@@ -2,17 +2,19 @@
 
 Provides device diagnostics with automatic redaction of sensitive
 fields (mesh credentials, encryption keys, IP/MAC addresses).
-
-Better than Shelly: Full connection statistics, response time
-percentiles, error tracking, and complete IP/MAC redaction.
+Includes connection statistics, response time percentiles, and
+error tracking.
 """
 
 from __future__ import annotations
 
 import re
-from datetime import datetime
 from typing import Any
 
+from homeassistant.core import HomeAssistant
+from homeassistant.util import dt as dt_util
+
+from custom_components.tuya_ble_mesh import TuyaBLEMeshConfigEntry
 from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
     CONF_BRIDGE_HOST,
@@ -35,16 +37,13 @@ _SENSITIVE_KEYS = frozenset(
     }
 )
 
-# IP/MAC redaction patterns (Shelly exposes these - we don't)
+# IP/MAC redaction patterns
 _IP_PATTERN = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 _MAC_PATTERN = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
 
 
 def _redact_string(text: str) -> str:
-    """Redact IP addresses and MAC addresses from a string.
-
-    Unlike Shelly which exposes these, we fully redact network identifiers.
-    """
+    """Redact IP addresses and MAC addresses from a string."""
     text = _IP_PATTERN.sub("xxx.xxx.xxx.xxx", text)
     text = _MAC_PATTERN.sub("XX:XX:XX:XX:XX:XX", text)
     return text
@@ -87,15 +86,10 @@ def _calculate_percentiles(times: list[float]) -> dict[str, float]:
 
 
 async def async_get_config_entry_diagnostics(
-    hass: Any,
-    entry: Any,
+    hass: HomeAssistant,
+    entry: TuyaBLEMeshConfigEntry,
 ) -> dict[str, Any]:
-    """Return diagnostics for a config entry.
-
-    Better than Shelly: Includes full connection statistics, response time
-    percentiles, error tracking, firmware compatibility, and complete
-    IP/MAC redaction.
-    """
+    """Return diagnostics for a config entry."""
     diag: dict[str, Any] = {
         "entry_id": entry.entry_id,
         "data": _redact_data(dict(entry.data)),
@@ -111,7 +105,7 @@ async def async_get_config_entry_diagnostics(
         # Connection statistics (uptime, reconnects, errors)
         uptime_seconds = None
         if stats.connect_time is not None:
-            uptime_seconds = int(datetime.now().timestamp() - stats.connect_time)
+            uptime_seconds = int(dt_util.utcnow().timestamp() - stats.connect_time)
 
         diag["connection_statistics"] = {
             "uptime_seconds": uptime_seconds,
@@ -121,7 +115,7 @@ async def async_get_config_entry_diagnostics(
             "command_errors": stats.command_errors,
             "last_error": _redact_string(stats.last_error) if stats.last_error else None,
             "last_error_time": (
-                datetime.fromtimestamp(stats.last_error_time).isoformat()
+                dt_util.utc_from_timestamp(stats.last_error_time).isoformat()
                 if stats.last_error_time
                 else None
             ),
@@ -160,7 +154,7 @@ async def async_get_config_entry_diagnostics(
             "energy_kwh": state.energy_kwh,
         }
 
-        # Device info (with MAC redaction - Shelly exposes this, we don't)
+        # Device info (MAC redacted)
         device = coordinator.device
         diag["device_info"] = {
             "type": type(device).__name__,

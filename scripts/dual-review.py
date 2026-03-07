@@ -54,7 +54,7 @@ REVIEW_PROMPT = """You are a senior code reviewer for a Home Assistant BLE Mesh 
 Rate this commit 1-10 on: Quality, Security, Documentation, Maintainability, HA Best Practices.
 Give an overall score out of 100.
 List max 5 specific issues (file:line if possible).
-Compare to Shelly (HA's best Platinum integration).
+Compare to HA Platinum-quality integrations.
 Be concise — max 300 words.
 
 COMMIT DIFF:
