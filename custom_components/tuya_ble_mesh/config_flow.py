@@ -240,13 +240,13 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                 if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
                     self._discovery_info = {
                         "address": mac.upper(),
-                        "name": f"SIG Bridge {mac[-8:]}",
+                        "name": f"SIG Bridge Plug {mac[-8:]}",
                     }
                     return await self.async_step_sig_bridge(None)
                 if device_type == DEVICE_TYPE_TELINK_BRIDGE_LIGHT:
                     self._discovery_info = {
                         "address": mac.upper(),
-                        "name": f"Telink Bridge {mac[-8:]}",
+                        "name": f"Telink Bridge Light {mac[-8:]}",
                     }
                     return await self.async_step_telink_bridge(None)
                 if device_type == DEVICE_TYPE_SIG_PLUG:
@@ -379,7 +379,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             else:
                 mac = self._discovery_info["address"]
                 return self.async_create_entry(
-                    title=f"SIG Bridge {mac[-8:]}",
+                    title=f"SIG Bridge Plug {mac[-8:]}",
                     data={
                         CONF_MAC_ADDRESS: mac,
                         CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_BRIDGE_PLUG,
@@ -424,7 +424,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             else:
                 mac = self._discovery_info["address"]
                 return self.async_create_entry(
-                    title=f"Telink Bridge {mac[-8:]}",
+                    title=f"Telink Bridge Light {mac[-8:]}",
                     data={
                         CONF_MAC_ADDRESS: mac,
                         CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
