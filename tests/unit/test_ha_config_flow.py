@@ -698,53 +698,54 @@ class TestTelinkBridgeStep:
 
 
 class TestTestBridge:
-    """Test _test_bridge() connection helper."""
+    """Test _test_bridge_with_session() connection helper."""
 
     @pytest.mark.asyncio
     async def test_bridge_success(self) -> None:
         """Successful bridge connection returns True."""
-        mock_reader = AsyncMock()
-        response_body = json.dumps({"status": "ok"})
-        http_response = f"HTTP/1.1 200 OK\r\n\r\n{response_body}"
-        mock_reader.read = AsyncMock(return_value=http_response.encode())
+        mock_response = AsyncMock()
+        mock_response.status = 200
+        mock_response.text = AsyncMock(return_value='{"status": "ok"}')
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.__aexit__ = AsyncMock(return_value=None)
 
-        mock_writer = MagicMock()
-        mock_writer.write = MagicMock()
-        mock_writer.drain = AsyncMock()
-        mock_writer.close = MagicMock()
-        mock_writer.wait_closed = AsyncMock()
+        mock_session = MagicMock()
+        mock_session.get = MagicMock(return_value=mock_response)
 
-        with patch("asyncio.open_connection", return_value=(mock_reader, mock_writer)):
-            result = await _test_bridge("192.168.1.100", 8099)
+        with patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=mock_session):
+            mock_hass = MagicMock()
+            result = await _test_bridge_with_session(mock_hass, "192.168.1.100", 8099)
 
         assert result is True
-        mock_writer.write.assert_called_once()
-        mock_writer.close.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_bridge_bad_status(self) -> None:
         """Bridge returns non-ok status."""
-        mock_reader = AsyncMock()
-        response_body = json.dumps({"status": "error"})
-        http_response = f"HTTP/1.1 200 OK\r\n\r\n{response_body}"
-        mock_reader.read = AsyncMock(return_value=http_response.encode())
+        mock_response = AsyncMock()
+        mock_response.status = 500
+        mock_response.__aenter__ = AsyncMock(return_value=mock_response)
+        mock_response.__aexit__ = AsyncMock(return_value=None)
 
-        mock_writer = MagicMock()
-        mock_writer.write = MagicMock()
-        mock_writer.drain = AsyncMock()
-        mock_writer.close = MagicMock()
-        mock_writer.wait_closed = AsyncMock()
+        mock_session = MagicMock()
+        mock_session.get = MagicMock(return_value=mock_response)
 
-        with patch("asyncio.open_connection", return_value=(mock_reader, mock_writer)):
-            result = await _test_bridge("192.168.1.100", 8099)
+        with patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=mock_session):
+            mock_hass = MagicMock()
+            result = await _test_bridge_with_session(mock_hass, "192.168.1.100", 8099)
 
         assert result is False
 
     @pytest.mark.asyncio
     async def test_bridge_connection_refused(self) -> None:
         """Connection failure returns False."""
-        with patch("asyncio.open_connection", side_effect=ConnectionRefusedError):
-            result = await _test_bridge("192.168.1.100", 8099)
+        import aiohttp
+
+        mock_session = MagicMock()
+        mock_session.get = MagicMock(side_effect=aiohttp.ClientError)
+
+        with patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=mock_session):
+            mock_hass = MagicMock()
+            result = await _test_bridge_with_session(mock_hass, "192.168.1.100", 8099)
 
         assert result is False
 
@@ -753,8 +754,12 @@ class TestTestBridge:
         """Timeout returns False."""
         import asyncio as _asyncio
 
-        with patch("asyncio.open_connection", side_effect=_asyncio.TimeoutError):
-            result = await _test_bridge("192.168.1.100", 8099)
+        mock_session = MagicMock()
+        mock_session.get = MagicMock(side_effect=_asyncio.TimeoutError)
+
+        with patch("homeassistant.helpers.aiohttp_client.async_get_clientsession", return_value=mock_session):
+            mock_hass = MagicMock()
+            result = await _test_bridge_with_session(mock_hass, "192.168.1.100", 8099)
 
         assert result is False
 
