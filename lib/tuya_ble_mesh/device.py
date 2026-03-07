@@ -280,7 +280,7 @@ class MeshDevice:
             msg = "Not connected"
             raise DisconnectedError(msg)
 
-        seq = self._conn.next_sequence()
+        seq = await self._conn.next_sequence()
 
         packet = encode_command_packet(
             key,

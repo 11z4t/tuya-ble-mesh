@@ -239,10 +239,11 @@ class TestSIGMeshDeviceSequence:
         dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
         assert dev._seq == _INITIAL_SEQ
 
-    def test_next_seq_increments(self) -> None:
+    @pytest.mark.asyncio
+    async def test_next_seq_increments(self) -> None:
         dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
-        s1 = dev._next_seq()
-        s2 = dev._next_seq()
+        s1 = await dev._next_seq()
+        s2 = await dev._next_seq()
         assert s2 == s1 + 1
 
     def test_set_seq(self) -> None:
@@ -254,10 +255,11 @@ class TestSIGMeshDeviceSequence:
         dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
         assert dev.get_seq() == _INITIAL_SEQ
 
-    def test_set_seq_persists_through_next_seq(self) -> None:
+    @pytest.mark.asyncio
+    async def test_set_seq_persists_through_next_seq(self) -> None:
         dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
         dev.set_seq(9000)
-        seq = dev._next_seq()
+        seq = await dev._next_seq()
         assert seq == 9000
         assert dev.get_seq() == 9001
 

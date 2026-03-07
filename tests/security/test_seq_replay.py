@@ -28,22 +28,24 @@ from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
 class TestSeqNeverDecreases:
     """Verify sequence number never goes backward."""
 
-    def test_seq_never_decreases_during_send(self) -> None:
+    @pytest.mark.asyncio
+    async def test_seq_never_decreases_during_send(self) -> None:
         """Each _next_seq() call must return a larger value."""
         dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
-        prev = dev._next_seq()
+        prev = await dev._next_seq()
         for _ in range(100):
-            current = dev._next_seq()
+            current = await dev._next_seq()
             assert current > prev, f"seq went backward: {current} <= {prev}"
             prev = current
 
-    def test_seq_monotonic_after_set_seq(self) -> None:
+    @pytest.mark.asyncio
+    async def test_seq_monotonic_after_set_seq(self) -> None:
         """After set_seq, sequence should continue monotonically."""
         dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
         dev.set_seq(50000)
-        prev = dev._next_seq()
+        prev = await dev._next_seq()
         for _ in range(100):
-            current = dev._next_seq()
+            current = await dev._next_seq()
             assert current == prev + 1
             prev = current
 
