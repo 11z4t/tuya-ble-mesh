@@ -74,10 +74,10 @@ class TuyaBLEMeshRuntimeData:
 
 
 # Type alias for typed config entry access in platform files
-type TuyaBLEMeshConfigEntry = ConfigEntry[TuyaBLEMeshRuntimeData]
+TuyaBLEMeshConfigEntry = ConfigEntry[TuyaBLEMeshRuntimeData]
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) -> bool:
     """Set up Tuya BLE Mesh from a config entry.
 
     Creates a MeshDevice and TuyaBLEMeshCoordinator, starts the
@@ -314,12 +314,12 @@ def _get_coordinator_for_device(
     return None
 
 
-async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
+async def _async_update_listener(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) -> None:
     """Reload entry when options change."""
     await hass.config_entries.async_reload(entry.entry_id)
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) -> bool:
     """Unload a Tuya BLE Mesh config entry.
 
     Stops the coordinator and cleans up entry data.
