@@ -1,7 +1,7 @@
 {
   "domain": "tuya_ble_mesh",
   "name": "Tuya BLE Mesh",
-  "version": "0.13.1",
+  "version": "0.14.1",
   "documentation": "https://github.com/11z4t/tuya-ble-mesh",
   "issue_tracker": "https://github.com/11z4t/tuya-ble-mesh/issues",
   "codeowners": [
@@ -18,6 +18,9 @@
     },
     {
       "service_uuid": "00001828-0000-1000-8000-00805f9b34fb"
+    },
+    {
+      "service_uuid": "00001827-0000-1000-8000-00805f9b34fb"
     }
   ],
   "dependencies": [

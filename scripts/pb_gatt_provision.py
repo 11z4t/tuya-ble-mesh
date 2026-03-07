@@ -19,8 +19,7 @@ SECURITY: Generated keys are saved to a JSON file only — never printed.
 
 import argparse
 import asyncio
-import hashlib
-import hmac
+import contextlib
 import json
 import logging
 import os
@@ -32,14 +31,13 @@ from bleak import BleakClient, BleakScanner
 from cryptography.hazmat.primitives.asymmetric.ec import (
     ECDH,
     SECP256R1,
-    EllipticCurvePublicKey,
     generate_private_key,
 )
 from cryptography.hazmat.primitives.ciphers.aead import AESCCM
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "lib"))
 
-from tuya_ble_mesh.sig_mesh_crypto import aes_cmac, aes_ecb, k2, k3, k4, s1
+from tuya_ble_mesh.sig_mesh_crypto import aes_cmac, k2, k3, k4, s1
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -134,8 +132,8 @@ class PBGATTProvisioner:
         self._private_key = generate_private_key(SECP256R1())
         pub = self._private_key.public_key()
         pub_numbers = pub.public_numbers()
-        self._public_key_bytes = (
-            pub_numbers.x.to_bytes(32, "big") + pub_numbers.y.to_bytes(32, "big")
+        self._public_key_bytes = pub_numbers.x.to_bytes(32, "big") + pub_numbers.y.to_bytes(
+            32, "big"
         )
 
         # Provisioning state
@@ -155,7 +153,7 @@ class PBGATTProvisioner:
             return
 
         sar = (data[0] >> 6) & 0x03
-        pdu_type = data[0] & 0x3F
+        _pdu_type = data[0] & 0x3F
         payload = bytes(data[1:])
 
         if sar == PROXY_SAR_COMPLETE:
@@ -201,9 +199,7 @@ class PBGATTProvisioner:
         for attempt in range(1, 6):
             try:
                 print(f"    [{attempt}/5] Scanning...")
-                dev = await BleakScanner.find_device_by_address(
-                    address, timeout=timeout
-                )
+                dev = await BleakScanner.find_device_by_address(address, timeout=timeout)
                 if dev is None:
                     print(f"    [{attempt}/5] Not found in scan")
                     await asyncio.sleep(3)
@@ -217,9 +213,7 @@ class PBGATTProvisioner:
                 print(f"    [{attempt}/5] {type(exc).__name__}: {exc}")
                 self._client = None
                 if attempt == 5:
-                    raise RuntimeError(
-                        f"Failed to connect after 5 attempts"
-                    ) from exc
+                    raise RuntimeError("Failed to connect after 5 attempts") from exc
                 await asyncio.sleep(3)
 
         try:
@@ -242,30 +236,31 @@ class PBGATTProvisioner:
             oob_types = caps[5]
             output_oob_size = caps[6]
             output_oob_action = (caps[7] << 8) | caps[8]
-            input_oob_size = caps[9]
-            input_oob_action = (caps[10] << 8) | caps[11]
+            _input_oob_size = caps[9]
+            _input_oob_action = (caps[10] << 8) | caps[11]
             print(f"    Capabilities: {num_elements} elements, algorithms=0x{algorithms:04X}")
-            print(f"    PubKey={pub_key_type} OOB={oob_types} OutOOB={output_oob_size}/{output_oob_action:04X}")
+            out_oob = f"{output_oob_size}/{output_oob_action:04X}"
+            print(f"    PubKey={pub_key_type} OOB={oob_types} OutOOB={out_oob}")
 
             # Step 3: Start
             print("[3] Sending Provisioning Start...")
             # Algorithm 0 = FIPS P-256 (mandatory)
             # No OOB public key, No OOB auth
-            start_params = bytes([
-                0x00,  # Algorithm: FIPS P-256
-                0x00,  # Public Key: No OOB
-                0x00,  # Authentication Method: No OOB
-                0x00,  # Authentication Action: 0
-                0x00,  # Authentication Size: 0
-            ])
+            start_params = bytes(
+                [
+                    0x00,  # Algorithm: FIPS P-256
+                    0x00,  # Public Key: No OOB
+                    0x00,  # Authentication Method: No OOB
+                    0x00,  # Authentication Action: 0
+                    0x00,  # Authentication Size: 0
+                ]
+            )
             await self._send_prov(_prov_pdu(PROV_START, start_params))
             await asyncio.sleep(0.5)
 
             # Step 4: Exchange public keys
             print("[4] Exchanging ECDH public keys...")
-            await self._send_prov(
-                _prov_pdu(PROV_PUBLIC_KEY, self._public_key_bytes)
-            )
+            await self._send_prov(_prov_pdu(PROV_PUBLIC_KEY, self._public_key_bytes))
 
             dev_pub_pdu = await self._recv_prov(timeout=15)
             if dev_pub_pdu[0] == PROV_FAILED:
@@ -274,9 +269,7 @@ class PBGATTProvisioner:
                 raise RuntimeError(f"Expected PublicKey, got 0x{dev_pub_pdu[0]:02X}")
             self._device_public_key = dev_pub_pdu[1:]
             if len(self._device_public_key) != 64:
-                raise RuntimeError(
-                    f"Bad device public key length: {len(self._device_public_key)}"
-                )
+                raise RuntimeError(f"Bad device public key length: {len(self._device_public_key)}")
             print(f"    Device public key received ({len(self._device_public_key)} bytes)")
 
             # Compute ECDH shared secret
@@ -317,9 +310,7 @@ class PBGATTProvisioner:
             self._random_provisioner = os.urandom(16)
 
             # Confirmation = AES-CMAC(ConfirmationKey, Random || AuthValue)
-            conf_provisioner = aes_cmac(
-                conf_key, self._random_provisioner + self._auth_value
-            )
+            conf_provisioner = aes_cmac(conf_key, self._random_provisioner + self._auth_value)
 
             # Send confirmation
             await self._send_prov(_prov_pdu(PROV_CONFIRMATION, conf_provisioner))
@@ -335,9 +326,7 @@ class PBGATTProvisioner:
 
             # Step 6: Exchange random values
             print("[6] Exchanging random values...")
-            await self._send_prov(
-                _prov_pdu(PROV_RANDOM, self._random_provisioner)
-            )
+            await self._send_prov(_prov_pdu(PROV_RANDOM, self._random_provisioner))
 
             dev_random_pdu = await self._recv_prov(timeout=10)
             if dev_random_pdu[0] == PROV_FAILED:
@@ -347,9 +336,7 @@ class PBGATTProvisioner:
             self._random_device = dev_random_pdu[1:]
 
             # Verify device confirmation
-            expected_conf = aes_cmac(
-                conf_key, self._random_device + self._auth_value
-            )
+            expected_conf = aes_cmac(conf_key, self._random_device + self._auth_value)
             if expected_conf != dev_confirmation:
                 raise RuntimeError("Device confirmation mismatch! Auth may be wrong.")
             print("    Device confirmation verified OK")
@@ -424,14 +411,10 @@ class PBGATTProvisioner:
                 raise RuntimeError(f"Unexpected response: 0x{result_pdu[0]:02X}")
 
         finally:
-            try:
+            with contextlib.suppress(Exception):
                 await self._client.stop_notify(PROV_DATA_OUT)
-            except Exception:
-                pass
-            try:
+            with contextlib.suppress(Exception):
                 await self._client.disconnect()
-            except Exception:
-                pass
             print("    Disconnected")
 
 
@@ -465,8 +448,8 @@ async def run(args: argparse.Namespace) -> None:
     result["app_key"] = app_key.hex()
 
     # Derive network keys for reference
-    nid, enc_key, priv_key = k2(net_key, b"\x00")
-    network_id = k3(net_key)
+    nid, _enc_key, _priv_key = k2(net_key, b"\x00")
+    _network_id = k3(net_key)
     aid = k4(app_key)
     result["nid"] = f"0x{nid:02X}"
     result["aid"] = f"0x{aid:02X}"
@@ -475,8 +458,8 @@ async def run(args: argparse.Namespace) -> None:
     OUTPUT_FILE.write_text(json.dumps(result, indent=2))
     print(f"\nKeys saved to {OUTPUT_FILE}")
     print(f"  NID=0x{nid:02X} AID=0x{aid:02X}")
-    print(f"\nNext steps:")
-    print(f"  1. Power cycle the device (it will switch to Proxy Service)")
+    print("\nNext steps:")
+    print("  1. Power cycle the device (it will switch to Proxy Service)")
     print(f"  2. Run: python scripts/mesh_proxy_cmd.py setup --mac {args.mac}")
 
 
@@ -512,7 +495,8 @@ def main() -> None:
         help="BLE connection timeout (default: 15s)",
     )
     parser.add_argument(
-        "-v", "--verbose",
+        "-v",
+        "--verbose",
         action="store_true",
         help="Enable debug logging",
     )
@@ -531,6 +515,7 @@ def main() -> None:
         print(f"\nFATAL: {type(exc).__name__}: {exc}")
         if args.verbose:
             import traceback
+
             traceback.print_exc()
         sys.exit(1)
 

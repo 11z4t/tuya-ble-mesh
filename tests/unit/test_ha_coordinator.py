@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from typing import Any
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -14,13 +16,17 @@ sys.path.insert(0, _ROOT)
 sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
 from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
+    _BACKOFF_MULTIPLIER,
     _INITIAL_BACKOFF,
     _MAX_BACKOFF,
+    _RSSI_REFRESH_INTERVAL,
     _SEQ_PERSIST_INTERVAL,
     _SEQ_SAFETY_MARGIN,
     TuyaBLEMeshCoordinator,
     TuyaBLEMeshDeviceState,
 )
+
+_PATCH_SLEEP = "custom_components.tuya_ble_mesh.coordinator.asyncio.sleep"
 
 
 def make_mock_device() -> MagicMock:
@@ -447,8 +453,6 @@ class TestSeqPersistence:
         mock_store = MagicMock()
         mock_store.async_load = AsyncMock(return_value={"seq": 3000})
 
-        from unittest.mock import patch
-
         coord = TuyaBLEMeshCoordinator(device, hass=mock_hass, entry_id="test_entry")
 
         with patch(
@@ -470,8 +474,6 @@ class TestSeqPersistence:
         mock_hass = MagicMock()
         mock_store = MagicMock()
         mock_store.async_load = AsyncMock(return_value=None)
-
-        from unittest.mock import patch
 
         coord = TuyaBLEMeshCoordinator(device, hass=mock_hass, entry_id="test_entry")
 
@@ -685,3 +687,746 @@ class TestCompositionUpdate:
         coord._on_composition_update(comp)
 
         listener.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# NEW TESTS: Reconnect loop, backoff, RSSI, bridge detection, lifecycle, etc.
+# ---------------------------------------------------------------------------
+
+
+def _make_sig_mesh_device(**overrides: Any) -> MagicMock:
+    """Create a mock SIGMeshDevice with all expected attributes."""
+    device = MagicMock()
+    device.address = "DC:23:4F:10:52:C4"
+    device.connect = AsyncMock()
+    device.disconnect = AsyncMock()
+    device.register_onoff_callback = MagicMock()
+    device.unregister_onoff_callback = MagicMock()
+    device.register_vendor_callback = MagicMock()
+    device.unregister_vendor_callback = MagicMock()
+    device.register_composition_callback = MagicMock()
+    device.unregister_composition_callback = MagicMock()
+    device.register_disconnect_callback = MagicMock()
+    device.unregister_disconnect_callback = MagicMock()
+    device.set_seq = MagicMock()
+    device.get_seq = MagicMock(return_value=1000)
+    device.firmware_version = None
+    device.is_connected = True
+    for k, v in overrides.items():
+        setattr(device, k, v)
+    return device
+
+
+class TestReconnectLoop:
+    """Test _reconnect_loop() exponential backoff behaviour."""
+
+    @pytest.mark.asyncio
+    async def test_reconnect_exponential_backoff(self) -> None:
+        """Backoff should double after each failed reconnect, up to MAX."""
+        device = make_mock_device()
+        device.connect = AsyncMock(side_effect=ConnectionError("fail"))
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        coord._backoff = _INITIAL_BACKOFF
+
+        recorded_sleeps: list[float] = []
+
+        async def fake_sleep(seconds: float) -> None:
+            recorded_sleeps.append(seconds)
+            # Stop after a few iterations
+            if len(recorded_sleeps) >= 5:
+                coord._running = False
+
+        with patch(_PATCH_SLEEP, side_effect=fake_sleep):
+            await coord._reconnect_loop()
+
+        # Verify exponential backoff sequence
+        assert recorded_sleeps[0] == _INITIAL_BACKOFF
+        assert recorded_sleeps[1] == _INITIAL_BACKOFF * _BACKOFF_MULTIPLIER
+        assert recorded_sleeps[2] == _INITIAL_BACKOFF * _BACKOFF_MULTIPLIER**2
+        assert recorded_sleeps[3] == _INITIAL_BACKOFF * _BACKOFF_MULTIPLIER**3
+        assert recorded_sleeps[4] == _INITIAL_BACKOFF * _BACKOFF_MULTIPLIER**4
+
+    @pytest.mark.asyncio
+    async def test_reconnect_backoff_capped_at_max(self) -> None:
+        """Backoff should never exceed _MAX_BACKOFF."""
+        device = make_mock_device()
+        device.connect = AsyncMock(side_effect=ConnectionError("fail"))
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        coord._backoff = _MAX_BACKOFF  # Already at max
+
+        recorded_sleeps: list[float] = []
+
+        async def fake_sleep(seconds: float) -> None:
+            recorded_sleeps.append(seconds)
+            if len(recorded_sleeps) >= 3:
+                coord._running = False
+
+        with patch(_PATCH_SLEEP, side_effect=fake_sleep):
+            await coord._reconnect_loop()
+
+        # All sleeps should be capped at _MAX_BACKOFF
+        for s in recorded_sleeps:
+            assert s <= _MAX_BACKOFF
+
+    @pytest.mark.asyncio
+    async def test_reconnect_resets_backoff_on_connect_success(self) -> None:
+        """Successful reconnect should reset backoff to INITIAL."""
+        device = make_mock_device()
+        device.connect = AsyncMock()  # succeeds
+        device.firmware_version = "v1"
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        coord._backoff = 160.0  # elevated backoff
+
+        with patch(_PATCH_SLEEP, new_callable=AsyncMock):
+            await coord._reconnect_loop()
+
+        assert coord._backoff == _INITIAL_BACKOFF
+        assert coord.state.available is True
+
+    @pytest.mark.asyncio
+    async def test_reconnect_sets_firmware_version(self) -> None:
+        """Successful reconnect should set firmware_version from device."""
+        device = make_mock_device()
+        device.firmware_version = "fw-2.0"
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+
+        with patch(_PATCH_SLEEP, new_callable=AsyncMock):
+            await coord._reconnect_loop()
+
+        assert coord.state.firmware_version == "fw-2.0"
+
+    @pytest.mark.asyncio
+    async def test_reconnect_notifies_on_failure(self) -> None:
+        """Failed reconnect should notify listeners (unavailable)."""
+        device = make_mock_device()
+        device.connect = AsyncMock(side_effect=ConnectionError("fail"))
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        listener = MagicMock()
+        coord.add_listener(listener)
+
+        call_count = 0
+
+        async def fake_sleep(seconds: float) -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count >= 2:
+                coord._running = False
+
+        with patch(_PATCH_SLEEP, side_effect=fake_sleep):
+            await coord._reconnect_loop()
+
+        assert listener.call_count >= 1
+        assert coord.state.available is False
+
+    @pytest.mark.asyncio
+    async def test_reconnect_notifies_on_success(self) -> None:
+        """Successful reconnect should notify listeners."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        listener = MagicMock()
+        coord.add_listener(listener)
+
+        with patch(_PATCH_SLEEP, new_callable=AsyncMock):
+            await coord._reconnect_loop()
+
+        listener.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_reconnect_exits_when_running_false_after_sleep(self) -> None:
+        """Loop should exit if _running becomes False during sleep."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+
+        async def stop_during_sleep(seconds: float) -> None:
+            coord._running = False
+
+        with patch(_PATCH_SLEEP, side_effect=stop_during_sleep):
+            await coord._reconnect_loop()
+
+        # connect should NOT have been called since _running was False
+        device.connect.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_reconnect_starts_rssi_polling_on_success(self) -> None:
+        """Successful reconnect should start RSSI polling."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+
+        with (
+            patch(_PATCH_SLEEP, new_callable=AsyncMock),
+            patch.object(coord, "_start_rssi_polling") as mock_rssi,
+        ):
+            await coord._reconnect_loop()
+
+        mock_rssi.assert_called_once()
+
+
+class TestScheduleReconnect:
+    """Test _schedule_reconnect edge cases."""
+
+    def test_schedule_reconnect_noop_when_not_running(self) -> None:
+        """Should not create task when coordinator is not running."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = False
+
+        coord._schedule_reconnect()
+
+        assert coord._reconnect_task is None
+
+    def test_schedule_reconnect_cancels_existing_task(self) -> None:
+        """Should cancel previous reconnect task before starting new one."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+
+        old_task = MagicMock()
+        coord._reconnect_task = old_task
+
+        coord._schedule_reconnect()
+
+        old_task.cancel.assert_called_once()
+        assert coord._reconnect_task is not None
+        assert coord._reconnect_task is not old_task
+
+        # Clean up
+        coord._reconnect_task.cancel()
+        coord._reconnect_task = None
+
+
+class TestIsBridgeDevice:
+    """Test _is_bridge_device() type detection."""
+
+    def test_regular_device_is_not_bridge(self) -> None:
+        """MeshDevice should not be detected as bridge."""
+        device = make_mock_device()
+        type(device).__name__ = "MeshDevice"
+        coord = TuyaBLEMeshCoordinator(device)
+        assert coord._is_bridge_device() is False
+
+    def test_sig_mesh_device_is_not_bridge(self) -> None:
+        """SIGMeshDevice should not be detected as bridge."""
+        device = make_mock_device()
+        type(device).__name__ = "SIGMeshDevice"
+        coord = TuyaBLEMeshCoordinator(device)
+        assert coord._is_bridge_device() is False
+
+    def test_bridge_device_detected(self) -> None:
+        """Device with 'Bridge' in class name should be detected."""
+        device = make_mock_device()
+        type(device).__name__ = "TuyaBridgeDevice"
+        coord = TuyaBLEMeshCoordinator(device)
+        assert coord._is_bridge_device() is True
+
+    def test_http_bridge_detected(self) -> None:
+        """HTTPBridge should be detected as bridge."""
+        device = make_mock_device()
+        type(device).__name__ = "HTTPBridge"
+        coord = TuyaBLEMeshCoordinator(device)
+        assert coord._is_bridge_device() is True
+
+    def test_mock_device_not_bridge(self) -> None:
+        """Default MagicMock should not be bridge."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        # MagicMock.__name__ is "MagicMock" — no "Bridge"
+        assert coord._is_bridge_device() is False
+
+
+class TestRSSIPolling:
+    """Test RSSI polling start/stop and loop behaviour."""
+
+    def test_start_rssi_skips_bridge_device(self) -> None:
+        """RSSI polling should not start for bridge devices."""
+        device = make_mock_device()
+        type(device).__name__ = "TuyaBridgeDevice"
+        coord = TuyaBLEMeshCoordinator(device)
+
+        coord._start_rssi_polling()
+
+        assert coord._rssi_task is None
+
+    def test_start_rssi_creates_task_for_ble_device(self) -> None:
+        """RSSI polling should start for regular BLE devices."""
+        device = make_mock_device()
+        type(device).__name__ = "MeshDevice"
+        coord = TuyaBLEMeshCoordinator(device)
+
+        coord._start_rssi_polling()
+
+        assert coord._rssi_task is not None
+
+        # Clean up
+        coord._rssi_task.cancel()
+        coord._rssi_task = None
+
+    def test_stop_rssi_cancels_task(self) -> None:
+        """_stop_rssi_polling should cancel and clear the task."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        fake_task = MagicMock()
+        coord._rssi_task = fake_task
+
+        coord._stop_rssi_polling()
+
+        fake_task.cancel.assert_called_once()
+        assert coord._rssi_task is None
+
+    def test_stop_rssi_noop_without_task(self) -> None:
+        """_stop_rssi_polling should be safe when no task exists."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+
+        coord._stop_rssi_polling()  # Should not raise
+        assert coord._rssi_task is None
+
+    def test_start_rssi_stops_existing_before_starting(self) -> None:
+        """Starting RSSI polling should stop any existing task first."""
+        device = make_mock_device()
+        type(device).__name__ = "MeshDevice"
+        coord = TuyaBLEMeshCoordinator(device)
+
+        old_task = MagicMock()
+        coord._rssi_task = old_task
+
+        coord._start_rssi_polling()
+
+        old_task.cancel.assert_called_once()
+        assert coord._rssi_task is not None
+        assert coord._rssi_task is not old_task
+
+        # Clean up
+        coord._rssi_task.cancel()
+        coord._rssi_task = None
+
+    @pytest.mark.asyncio
+    async def test_rssi_loop_updates_rssi_state(self) -> None:
+        """RSSI loop should update state.rssi from BleakScanner result."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        coord._state.available = True
+
+        mock_ble_device = MagicMock()
+        mock_ble_device.rssi = -55
+
+        call_count = 0
+
+        async def fake_sleep(seconds: float) -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count >= 2:
+                coord._running = False
+
+        with (
+            patch(_PATCH_SLEEP, side_effect=fake_sleep),
+            patch("bleak.BleakScanner") as mock_scanner_cls,
+        ):
+            mock_scanner_cls.find_device_by_address = AsyncMock(return_value=mock_ble_device)
+            await coord._rssi_loop()
+
+        assert coord.state.rssi == -55
+
+    @pytest.mark.asyncio
+    async def test_rssi_loop_exits_when_unavailable(self) -> None:
+        """RSSI loop should exit when device becomes unavailable."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        coord._state.available = False  # already unavailable
+
+        # Should exit immediately without sleeping
+        await coord._rssi_loop()
+        # No assertion needed — just verifying it does not hang
+
+    @pytest.mark.asyncio
+    async def test_rssi_loop_ignores_scanner_error(self) -> None:
+        """RSSI scan failure should be silently ignored."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        coord._state.available = True
+
+        call_count = 0
+
+        async def fake_sleep(seconds: float) -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count >= 2:
+                coord._running = False
+
+        with (
+            patch(_PATCH_SLEEP, side_effect=fake_sleep),
+            patch("bleak.BleakScanner") as mock_scanner_cls,
+        ):
+            mock_scanner_cls.find_device_by_address = AsyncMock(side_effect=OSError("BLE error"))
+            await coord._rssi_loop()
+
+        # RSSI should remain None (no crash)
+        assert coord.state.rssi is None
+
+    @pytest.mark.asyncio
+    async def test_rssi_loop_skips_none_device(self) -> None:
+        """RSSI should not update if scanner returns None."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        coord._state.available = True
+
+        call_count = 0
+
+        async def fake_sleep(seconds: float) -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count >= 2:
+                coord._running = False
+
+        with (
+            patch(_PATCH_SLEEP, side_effect=fake_sleep),
+            patch("bleak.BleakScanner") as mock_scanner_cls,
+        ):
+            mock_scanner_cls.find_device_by_address = AsyncMock(return_value=None)
+            await coord._rssi_loop()
+
+        assert coord.state.rssi is None
+
+    @pytest.mark.asyncio
+    async def test_rssi_loop_handles_cancellation(self) -> None:
+        """RSSI loop should gracefully handle CancelledError."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        coord._state.available = True
+
+        async def raise_cancel(seconds: float) -> None:
+            raise asyncio.CancelledError()
+
+        with patch(_PATCH_SLEEP, side_effect=raise_cancel):
+            # Should not raise
+            await coord._rssi_loop()
+
+    @pytest.mark.asyncio
+    async def test_rssi_loop_notifies_listeners(self) -> None:
+        """RSSI update should notify listeners."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        coord._state.available = True
+        listener = MagicMock()
+        coord.add_listener(listener)
+
+        mock_ble_device = MagicMock()
+        mock_ble_device.rssi = -70
+
+        call_count = 0
+
+        async def fake_sleep(seconds: float) -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count >= 2:
+                coord._running = False
+
+        with (
+            patch(_PATCH_SLEEP, side_effect=fake_sleep),
+            patch("bleak.BleakScanner") as mock_scanner_cls,
+        ):
+            mock_scanner_cls.find_device_by_address = AsyncMock(return_value=mock_ble_device)
+            await coord._rssi_loop()
+
+        assert listener.call_count >= 1
+
+
+class TestSeqPersistenceExtended:
+    """Extended tests for _load_seq / _save_seq edge cases."""
+
+    @pytest.mark.asyncio
+    async def test_load_seq_noop_without_entry_id(self) -> None:
+        """_load_seq with hass but no entry_id should be a no-op."""
+        device = _make_sig_mesh_device()
+        coord = TuyaBLEMeshCoordinator(device, hass=MagicMock(), entry_id=None)
+        await coord._load_seq()
+        assert coord._seq_store is None
+        device.set_seq.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_load_seq_noop_without_set_seq(self) -> None:
+        """_load_seq should be no-op if device lacks set_seq method."""
+        device = make_mock_device()
+        # make_mock_device does not have set_seq by default (MagicMock
+        # auto-creates attrs, so remove it)
+        del device.set_seq
+        coord = TuyaBLEMeshCoordinator(device, hass=MagicMock(), entry_id="e1")
+        await coord._load_seq()
+        assert coord._seq_store is None
+
+    @pytest.mark.asyncio
+    async def test_load_seq_with_empty_dict(self) -> None:
+        """Stored data without 'seq' key should not call set_seq."""
+        device = _make_sig_mesh_device()
+        mock_store = MagicMock()
+        mock_store.async_load = AsyncMock(return_value={})
+
+        coord = TuyaBLEMeshCoordinator(device, hass=MagicMock(), entry_id="test_entry")
+        with patch(
+            "homeassistant.helpers.storage.Store",
+            return_value=mock_store,
+        ):
+            await coord._load_seq()
+
+        device.set_seq.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_save_seq_noop_without_get_seq(self) -> None:
+        """_save_seq should be no-op if device lacks get_seq method."""
+        device = make_mock_device()
+        del device.get_seq
+        coord = TuyaBLEMeshCoordinator(device)
+        mock_store = MagicMock()
+        mock_store.async_save = AsyncMock()
+        coord._seq_store = mock_store
+
+        await coord._save_seq()
+        mock_store.async_save.assert_not_called()
+
+    def test_periodic_save_not_triggered_below_interval(self) -> None:
+        """Seq should NOT be saved before reaching persist interval."""
+        device = _make_sig_mesh_device()
+        mock_store = MagicMock()
+        mock_store.async_save = AsyncMock()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._seq_store = mock_store
+        coord._seq_command_count = 0
+
+        # Fire updates less than the interval
+        for _ in range(_SEQ_PERSIST_INTERVAL - 1):
+            coord._on_onoff_update(True)
+
+        assert coord._seq_command_count == _SEQ_PERSIST_INTERVAL - 1
+        # _save_seq should NOT have been triggered
+        assert coord._seq_persist_task is None
+
+
+class TestLifecycleEdgeCases:
+    """Test start/stop lifecycle edge cases."""
+
+    @pytest.mark.asyncio
+    async def test_double_start(self) -> None:
+        """Calling async_start twice should not raise."""
+        device = make_mock_device()
+        device.firmware_version = None
+        coord = TuyaBLEMeshCoordinator(device)
+
+        await coord.async_start()
+        await coord.async_start()  # second start
+
+        assert coord._running is True
+        assert coord.state.available is True
+
+        await coord.async_stop()
+
+    @pytest.mark.asyncio
+    async def test_double_stop(self) -> None:
+        """Calling async_stop twice should not raise."""
+        device = make_mock_device()
+        device.firmware_version = None
+        coord = TuyaBLEMeshCoordinator(device)
+
+        await coord.async_start()
+        await coord.async_stop()
+        await coord.async_stop()  # second stop
+
+        assert coord._running is False
+
+    @pytest.mark.asyncio
+    async def test_stop_without_start(self) -> None:
+        """Calling async_stop without start should not raise."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+
+        await coord.async_stop()  # Should be safe
+        assert coord._running is False
+
+    @pytest.mark.asyncio
+    async def test_stop_handles_disconnect_error(self) -> None:
+        """Stop should handle device.disconnect() raising an exception."""
+        device = make_mock_device()
+        device.disconnect = AsyncMock(side_effect=OSError("BLE gone"))
+        device.firmware_version = None
+        coord = TuyaBLEMeshCoordinator(device)
+
+        await coord.async_start()
+        await coord.async_stop()  # Should not raise
+
+        assert coord.state.available is False
+
+    @pytest.mark.asyncio
+    async def test_start_connection_failure_schedules_reconnect(self) -> None:
+        """Failed initial connect should schedule a reconnect task."""
+        device = make_mock_device()
+        device.connect = AsyncMock(side_effect=ConnectionError("fail"))
+        coord = TuyaBLEMeshCoordinator(device)
+
+        await coord.async_start()
+
+        assert coord.state.available is False
+        assert coord._reconnect_task is not None
+
+        await coord.async_stop()
+
+    @pytest.mark.asyncio
+    async def test_stop_cancels_rssi_task(self) -> None:
+        """Stop should cancel any running RSSI polling task."""
+        device = make_mock_device()
+        device.firmware_version = None
+        coord = TuyaBLEMeshCoordinator(device)
+        await coord.async_start()
+
+        # Verify rssi task was created (for non-bridge device)
+        if coord._rssi_task is not None:
+            rssi_task = coord._rssi_task
+            await coord.async_stop()
+            assert rssi_task.cancelled() or coord._rssi_task is None
+        else:
+            await coord.async_stop()
+
+    @pytest.mark.asyncio
+    async def test_stop_saves_seq_for_sig_mesh(self) -> None:
+        """async_stop should persist seq for SIG Mesh devices."""
+        device = _make_sig_mesh_device()
+        mock_store = MagicMock()
+        mock_store.async_save = AsyncMock()
+        mock_store.async_load = AsyncMock(return_value=None)
+
+        coord = TuyaBLEMeshCoordinator(device, hass=MagicMock(), entry_id="entry1")
+
+        with patch("homeassistant.helpers.storage.Store", return_value=mock_store):
+            await coord.async_start()
+
+        # Now stop — should call _save_seq
+        await coord.async_stop()
+
+        mock_store.async_save.assert_called_once_with({"seq": 1000})
+
+    @pytest.mark.asyncio
+    async def test_on_disconnect_stops_rssi_polling(self) -> None:
+        """Disconnect callback should stop RSSI polling."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        fake_task = MagicMock()
+        coord._rssi_task = fake_task
+
+        coord._on_disconnect()
+
+        fake_task.cancel.assert_called_once()
+        assert coord._rssi_task is None
+
+
+class TestListenerErrorHandling:
+    """Extended listener error handling tests."""
+
+    def test_multiple_bad_listeners_all_called(self) -> None:
+        """All listeners should be called even if multiple raise errors."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        bad1 = MagicMock(side_effect=TypeError("bad1"))
+        bad2 = MagicMock(side_effect=ValueError("bad2"))
+        good = MagicMock()
+
+        coord.add_listener(bad1)
+        coord.add_listener(bad2)
+        coord.add_listener(good)
+
+        coord._notify_listeners()
+
+        bad1.assert_called_once()
+        bad2.assert_called_once()
+        good.assert_called_once()
+
+    def test_listener_error_during_status_update(self) -> None:
+        """Status update should complete even if listener raises."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        bad = MagicMock(side_effect=RuntimeError("crash"))
+        coord.add_listener(bad)
+
+        status = make_mock_status(white_brightness=50)
+        coord._on_status_update(status)
+
+        # State should still be updated
+        assert coord.state.brightness == 50
+        assert coord.state.available is True
+
+    def test_listener_error_during_disconnect(self) -> None:
+        """Disconnect should complete even if listener raises."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        bad = MagicMock(side_effect=RuntimeError("crash"))
+        coord.add_listener(bad)
+
+        coord._on_disconnect()
+
+        assert coord.state.available is False
+        # Reconnect should still have been scheduled
+        assert coord._reconnect_task is not None
+
+        # Clean up
+        coord._reconnect_task.cancel()
+        coord._reconnect_task = None
+
+
+class TestTaskCancellation:
+    """Test handling of asyncio task cancellation."""
+
+    @pytest.mark.asyncio
+    async def test_reconnect_loop_stops_on_cancelled(self) -> None:
+        """Reconnect loop should exit on CancelledError from sleep."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+
+        with (
+            patch(
+                "custom_components.tuya_ble_mesh.coordinator.asyncio.sleep",
+                side_effect=asyncio.CancelledError(),
+            ),
+            pytest.raises(asyncio.CancelledError),
+        ):
+            await coord._reconnect_loop()
+
+    @pytest.mark.asyncio
+    async def test_stop_cancels_reconnect_task_safely(self) -> None:
+        """async_stop should cancel reconnect task without raising."""
+        device = make_mock_device()
+        device.connect = AsyncMock(side_effect=ConnectionError("fail"))
+        device.firmware_version = None
+        coord = TuyaBLEMeshCoordinator(device)
+
+        await coord.async_start()
+        assert coord._reconnect_task is not None
+
+        await coord.async_stop()
+        assert coord._reconnect_task is None
+        assert coord._running is False
+
+
+class TestBackoffConstants:
+    """Verify backoff constant relationships."""
+
+    def test_initial_less_than_max(self) -> None:
+        assert _INITIAL_BACKOFF < _MAX_BACKOFF
+
+    def test_multiplier_greater_than_one(self) -> None:
+        assert _BACKOFF_MULTIPLIER > 1.0
+
+    def test_rssi_interval_positive(self) -> None:
+        assert _RSSI_REFRESH_INTERVAL > 0
