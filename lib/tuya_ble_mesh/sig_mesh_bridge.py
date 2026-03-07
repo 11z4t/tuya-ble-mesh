@@ -54,8 +54,17 @@ class SIGMeshBridgeDevice:
             address: BLE MAC address of the mesh device.
             target_addr: Target unicast address in the mesh network.
             bridge_host: Hostname/IP of the RPi running ble_mesh_daemon.
+                SECURITY: Must be on trusted network. No authentication.
             bridge_port: HTTP port of the bridge daemon.
+
+        Raises:
+            ValueError: If bridge_host contains CRLF characters (injection risk).
         """
+        # SECURITY: Reject CRLF to prevent HTTP header injection
+        if "\r" in bridge_host or "\n" in bridge_host:
+            msg = f"Invalid bridge_host: contains CRLF characters"
+            raise ValueError(msg)
+
         self._address = address.upper()
         self._target_addr = target_addr
         self._bridge_host = bridge_host
@@ -317,8 +326,17 @@ class TelinkBridgeDevice:
         Args:
             address: BLE MAC address of the mesh device.
             bridge_host: Hostname/IP of the RPi running ble_mesh_daemon.
+                SECURITY: Must be on trusted network. No authentication.
             bridge_port: HTTP port of the bridge daemon.
+
+        Raises:
+            ValueError: If bridge_host contains CRLF characters (injection risk).
         """
+        # SECURITY: Reject CRLF to prevent HTTP header injection
+        if "\r" in bridge_host or "\n" in bridge_host:
+            msg = f"Invalid bridge_host: contains CRLF characters"
+            raise ValueError(msg)
+
         self._address = address.upper()
         self._bridge_host = bridge_host
         self._bridge_port = bridge_port
