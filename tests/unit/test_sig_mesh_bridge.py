@@ -35,6 +35,7 @@ def _make_mock_connection(response_body: dict) -> tuple[AsyncMock, MagicMock]:
     writer.write = MagicMock()
     writer.drain = AsyncMock()
     writer.close = MagicMock()
+    writer.wait_closed = AsyncMock()
 
     return reader, writer
 
@@ -233,12 +234,12 @@ class TestSIGBridgeHTTPParsing:
         assert json.loads(body) == {"ok": True}
 
     def test_parse_http_body_no_separator(self) -> None:
-        body = SIGMeshBridgeDevice._parse_http_body("no separator here")
-        assert body == "{}"
+        with pytest.raises(MeshConnectionError):
+            SIGMeshBridgeDevice._parse_http_body("no separator here")
 
     def test_parse_http_body_empty(self) -> None:
-        body = SIGMeshBridgeDevice._parse_http_body("")
-        assert body == "{}"
+        with pytest.raises(MeshConnectionError):
+            SIGMeshBridgeDevice._parse_http_body("")
 
 
 # --- TelinkBridgeDevice ---

@@ -17,7 +17,6 @@ sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
 from homeassistant.components.light import ColorMode  # noqa: E402
 
-from custom_components.tuya_ble_mesh.const import DOMAIN  # noqa: E402
 from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     TuyaBLEMeshDeviceState,
 )
@@ -394,9 +393,10 @@ class TestLightPlatformSetup:
     async def test_setup_entry_creates_one_light(self) -> None:
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
+        entry.runtime_data.coordinator = coord
+        entry.runtime_data.device_info = MagicMock()
         add_entities = MagicMock()
 
         await async_setup_entry(hass, entry, add_entities)
@@ -407,12 +407,13 @@ class TestLightPlatformSetup:
         assert isinstance(entities[0], TuyaBLEMeshLight)
 
     @pytest.mark.asyncio
-    async def test_setup_entry_uses_coordinator_from_hass_data(self) -> None:
+    async def test_setup_entry_uses_coordinator_from_runtime_data(self) -> None:
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
+        entry.runtime_data.coordinator = coord
+        entry.runtime_data.device_info = MagicMock()
         add_entities = MagicMock()
 
         await async_setup_entry(hass, entry, add_entities)
@@ -424,9 +425,10 @@ class TestLightPlatformSetup:
     async def test_setup_skips_plug_device_type(self) -> None:
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
+        entry.runtime_data.coordinator = coord
+        entry.runtime_data.device_info = MagicMock()
         entry.data = {"device_type": "plug"}
         add_entities = MagicMock()
 

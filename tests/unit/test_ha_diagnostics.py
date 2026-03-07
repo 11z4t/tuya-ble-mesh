@@ -19,7 +19,6 @@ from custom_components.tuya_ble_mesh.const import (  # noqa: E402
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
     CONF_NET_KEY,
-    DOMAIN,
 )
 from custom_components.tuya_ble_mesh.diagnostics import (  # noqa: E402
     REDACTED,
@@ -129,10 +128,11 @@ class TestAsyncGetDiagnostics:
 
     @pytest.mark.asyncio
     async def test_no_coordinator_key_without_coordinator(self) -> None:
-        """Without a coordinator, result has no 'coordinator' key."""
+        """Without runtime_data, result has no 'coordinator' key."""
         entry = make_mock_entry()
+        # Remove runtime_data to simulate entry with no coordinator
+        del entry.runtime_data
         hass = MagicMock()
-        hass.data = {}
 
         result = await async_get_config_entry_diagnostics(hass, entry)
 
@@ -162,8 +162,9 @@ class TestAsyncGetDiagnostics:
         coordinator.device.address = "DC:23:4F:10:52:C4"
         type(coordinator.device).__name__ = "SIGMeshDevice"
 
+        entry.runtime_data = MagicMock()
+        entry.runtime_data.coordinator = coordinator
         hass = MagicMock()
-        hass.data = {DOMAIN: {"coord_entry": {"coordinator": coordinator}}}
 
         result = await async_get_config_entry_diagnostics(hass, entry)
 
@@ -181,15 +182,15 @@ class TestAsyncGetDiagnostics:
     async def test_includes_device_info(self) -> None:
         """Device type name and address are included."""
         entry = make_mock_entry(entry_id="dev_entry")
-        state = MagicMock()
         coordinator = MagicMock()
-        coordinator.state = state
+        coordinator.state = MagicMock()
         coordinator.device = MagicMock()
         coordinator.device.address = "AA:BB:CC:DD:EE:FF"
         type(coordinator.device).__name__ = "SIGMeshDevice"
 
+        entry.runtime_data = MagicMock()
+        entry.runtime_data.coordinator = coordinator
         hass = MagicMock()
-        hass.data = {DOMAIN: {"dev_entry": {"coordinator": coordinator}}}
 
         result = await async_get_config_entry_diagnostics(hass, entry)
 

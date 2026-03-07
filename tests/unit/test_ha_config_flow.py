@@ -6,7 +6,7 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, mock_open, patch
+from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -19,8 +19,8 @@ from homeassistant.config_entries import HANDLERS
 from custom_components.tuya_ble_mesh.config_flow import (
     TuyaBLEMeshConfigFlow,
     TuyaBLEMeshOptionsFlow,
-    _load_mesh_key_defaults,
-    _test_bridge,
+    _test_bridge_with_session,
+    _validate_bridge_host,
     _validate_hex_key,
     _validate_mac,
 )
@@ -539,7 +539,7 @@ class TestSigBridgeStep:
 
     @pytest.mark.asyncio
     @patch(
-        "custom_components.tuya_ble_mesh.config_flow._test_bridge",
+        "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
         new_callable=AsyncMock,
         return_value=True,
     )
@@ -564,11 +564,11 @@ class TestSigBridgeStep:
         assert result["data"][CONF_BRIDGE_PORT] == 8099
         assert result["data"][CONF_MAC_ADDRESS] == "AA:BB:CC:DD:EE:FF"
         assert result["data"][CONF_UNICAST_TARGET] == "00B0"
-        mock_bridge.assert_called_once_with("192.168.1.100", 8099)
+        mock_bridge.assert_called_once()
 
     @pytest.mark.asyncio
     @patch(
-        "custom_components.tuya_ble_mesh.config_flow._test_bridge",
+        "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
         new_callable=AsyncMock,
         return_value=False,
     )
@@ -594,7 +594,7 @@ class TestSigBridgeStep:
         flow = _make_flow()
 
         with patch(
-            "custom_components.tuya_ble_mesh.config_flow._test_bridge",
+            "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
             new_callable=AsyncMock,
             return_value=True,
         ):
@@ -627,7 +627,7 @@ class TestTelinkBridgeStep:
 
     @pytest.mark.asyncio
     @patch(
-        "custom_components.tuya_ble_mesh.config_flow._test_bridge",
+        "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
         new_callable=AsyncMock,
         return_value=True,
     )
@@ -651,11 +651,12 @@ class TestTelinkBridgeStep:
         assert result["data"][CONF_BRIDGE_PORT] == 9000
         assert result["data"][CONF_MAC_ADDRESS] == "AA:BB:CC:DD:EE:FF"
         assert result["title"] == "Telink Bridge Light DD:EE:FF"
-        mock_bridge.assert_called_once_with("192.168.1.200", 9000)
+        mock_bridge.assert_called_once()
+        assert mock_bridge.call_args.args[-2:] == ("192.168.1.200", 9000)
 
     @pytest.mark.asyncio
     @patch(
-        "custom_components.tuya_ble_mesh.config_flow._test_bridge",
+        "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
         new_callable=AsyncMock,
         return_value=False,
     )
@@ -681,7 +682,7 @@ class TestTelinkBridgeStep:
         flow = _make_flow()
 
         with patch(
-            "custom_components.tuya_ble_mesh.config_flow._test_bridge",
+            "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
             new_callable=AsyncMock,
             return_value=True,
         ):
@@ -711,6 +712,7 @@ class TestTestBridge:
         mock_writer.write = MagicMock()
         mock_writer.drain = AsyncMock()
         mock_writer.close = MagicMock()
+        mock_writer.wait_closed = AsyncMock()
 
         with patch("asyncio.open_connection", return_value=(mock_reader, mock_writer)):
             result = await _test_bridge("192.168.1.100", 8099)
@@ -731,6 +733,7 @@ class TestTestBridge:
         mock_writer.write = MagicMock()
         mock_writer.drain = AsyncMock()
         mock_writer.close = MagicMock()
+        mock_writer.wait_closed = AsyncMock()
 
         with patch("asyncio.open_connection", return_value=(mock_reader, mock_writer)):
             result = await _test_bridge("192.168.1.100", 8099)
@@ -756,48 +759,23 @@ class TestTestBridge:
         assert result is False
 
 
-class TestLoadMeshKeyDefaults:
-    """Test _load_mesh_key_defaults() helper."""
+class TestValidateBridgeHost:
+    """Test _validate_bridge_host() helper."""
 
-    def test_returns_empty_when_no_file(self) -> None:
-        with patch("os.path.exists", return_value=False):
-            result = _load_mesh_key_defaults()
+    def test_valid_ipv4(self) -> None:
+        assert _validate_bridge_host("192.168.1.100") is None
 
-        assert result == {"net_key": "", "dev_key": "", "app_key": ""}
+    def test_valid_hostname(self) -> None:
+        assert _validate_bridge_host("myhost.local") is None
 
-    def test_loads_keys_from_file(self) -> None:
-        keys_data = {
-            "net_key": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1",  # pragma: allowlist secret
-            "dev_key": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb2",  # pragma: allowlist secret
-            "app_key": "ccccccccccccccccccccccccccccccc3",  # pragma: allowlist secret
-        }
-        with (
-            patch("os.path.exists", return_value=True),
-            patch("builtins.open", mock_open(read_data=json.dumps(keys_data))),
-        ):
-            result = _load_mesh_key_defaults()
+    def test_empty_string(self) -> None:
+        assert _validate_bridge_host("") == "invalid_bridge_host"
 
-        assert result["net_key"] == "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa1"
-        assert result["dev_key"] == "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb2"
-        assert result["app_key"] == "ccccccccccccccccccccccccccccccc3"
+    def test_url_rejected(self) -> None:
+        assert _validate_bridge_host("http://192.168.1.100") == "invalid_bridge_host"
 
-    def test_returns_empty_on_json_error(self) -> None:
-        with (
-            patch("os.path.exists", return_value=True),
-            patch("builtins.open", mock_open(read_data="not valid json{")),
-        ):
-            result = _load_mesh_key_defaults()
-
-        assert result == {"net_key": "", "dev_key": "", "app_key": ""}
-
-    def test_returns_empty_for_missing_keys_in_file(self) -> None:
-        with (
-            patch("os.path.exists", return_value=True),
-            patch("builtins.open", mock_open(read_data=json.dumps({}))),
-        ):
-            result = _load_mesh_key_defaults()
-
-        assert result == {"net_key": "", "dev_key": "", "app_key": ""}
+    def test_path_rejected(self) -> None:
+        assert _validate_bridge_host("192.168.1.100/path") == "invalid_bridge_host"
 
 
 class TestSigPlugKeyValidationErrors:

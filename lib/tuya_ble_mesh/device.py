@@ -207,7 +207,7 @@ class MeshDevice:
             status.white_temp,
         )
 
-        for callback in self._status_callbacks:
+        for callback in list(self._status_callbacks):
             try:
                 callback(status)
             except Exception:
@@ -216,7 +216,7 @@ class MeshDevice:
     def _on_disconnect(self) -> None:
         """Handle disconnect from BLEConnection."""
         _LOGGER.warning("Device disconnected: %s", self._address)
-        for callback in self._disconnect_callbacks:
+        for callback in list(self._disconnect_callbacks):
             try:
                 callback()
             except Exception:
@@ -312,7 +312,7 @@ class MeshDevice:
             msg = f"Command queue full ({_QUEUE_MAX_SIZE})"
             raise CommandQueueFullError(msg)
 
-        future: asyncio.Future[None] = asyncio.get_event_loop().create_future()
+        future: asyncio.Future[None] = asyncio.get_running_loop().create_future()
         cmd = _QueuedCommand(opcode, params, dest_id, future)
         self._queue.append(cmd)
         _LOGGER.debug("Queued command 0x%02X (queue size: %d)", opcode, len(self._queue))
@@ -347,7 +347,7 @@ class MeshDevice:
             except Exception as exc:
                 if not cmd.future.done():
                     cmd.future.set_exception(exc)
-                break  # Stop draining on failure
+                # Continue draining remaining commands even after a failure
 
     # --- High-level commands (0xD2 compact DP format) ---
 

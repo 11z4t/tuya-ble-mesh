@@ -8,8 +8,11 @@ from __future__ import annotations
 
 import logging
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
+
+from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
@@ -38,8 +41,13 @@ from custom_components.tuya_ble_mesh.const import (
 )
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from homeassistant.config_entries import ConfigEntry
-    from homeassistant.core import HomeAssistant
+    from homeassistant.core import HomeAssistant, ServiceCall
+    from homeassistant.helpers.device_registry import DeviceInfo
+
+    from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -50,6 +58,23 @@ for _lib_dir in (_BUNDLED_LIB, _DEV_LIB):
     if Path(_lib_dir).is_dir() and _lib_dir not in sys.path:
         sys.path.insert(0, _lib_dir)
         break
+
+
+@dataclass
+class TuyaBLEMeshRuntimeData:
+    """Runtime data stored in config entry for Tuya BLE Mesh.
+
+    Typed container replacing the untyped hass.data dict.
+    Accessible as entry.runtime_data in all platform setup functions.
+    """
+
+    coordinator: TuyaBLEMeshCoordinator
+    device_info: DeviceInfo
+    cancel_listeners: list[Callable[[], None]] = field(default_factory=list)
+
+
+# Type alias for typed config entry access in platform files
+type TuyaBLEMeshConfigEntry = ConfigEntry[TuyaBLEMeshRuntimeData]
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -170,11 +195,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         connections={("mac", mac_address)},
     )
 
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = {
-        "coordinator": coordinator,
-        "device_info": device_info,
-    }
+    # Store runtime data in entry (typed, modern HA pattern)
+    entry.runtime_data = TuyaBLEMeshRuntimeData(
+        coordinator=coordinator,
+        device_info=device_info,
+    )
 
     await coordinator.async_start()
 
@@ -189,11 +214,104 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
+    # Register services
+    await _async_register_services(hass)
+
     # Reload entry when options are changed
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
     _LOGGER.info("Tuya BLE Mesh entry set up: %s", entry.title)
     return True
+
+
+async def _async_register_services(hass: HomeAssistant) -> None:
+    """Register integration services if not already registered.
+
+    Args:
+        hass: Home Assistant instance.
+    """
+    import voluptuous as vol
+
+    if hass.services.has_service(DOMAIN, "identify"):
+        return  # Already registered
+
+    async def handle_identify(call: ServiceCall) -> None:
+        """Flash device LED for identification.
+
+        Args:
+            call: Service call with device_id field.
+        """
+        device_id: str = call.data.get("device_id", "")
+        coordinator = _get_coordinator_for_device(hass, device_id)
+        if coordinator is None:
+            raise HomeAssistantError(f"Device not found: {device_id}")
+        try:
+            device = coordinator.device
+            if hasattr(device, "send_power"):
+                # Flash: off → on → off → on
+                for _ in range(3):
+                    await device.send_power(False)
+                    await device.send_power(True)
+        except Exception as exc:
+            raise HomeAssistantError(f"Failed to identify device: {exc}") from exc
+
+    async def handle_set_log_level(call: ServiceCall) -> None:
+        """Change BLE mesh logging verbosity without HA restart.
+
+        Args:
+            call: Service call with level field (debug/info/warning/error).
+        """
+        import logging as _logging
+
+        level_str: str = call.data.get("level", "info").upper()
+        level = getattr(_logging, level_str, _logging.INFO)
+        _logging.getLogger("tuya_ble_mesh").setLevel(level)
+        _LOGGER.info("Log level set to %s", level_str)
+
+    hass.services.async_register(
+        DOMAIN,
+        "identify",
+        handle_identify,
+        schema=vol.Schema({vol.Required("device_id"): str}),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "set_log_level",
+        handle_set_log_level,
+        schema=vol.Schema(
+            {
+                vol.Required("level"): vol.In(["debug", "info", "warning", "error"]),
+            }
+        ),
+    )
+
+
+def _get_coordinator_for_device(
+    hass: HomeAssistant, device_id: str
+) -> TuyaBLEMeshCoordinator | None:
+    """Find coordinator for a given device_id from the device registry.
+
+    Args:
+        hass: Home Assistant instance.
+        device_id: HA device registry device_id.
+
+    Returns:
+        Coordinator if found, None otherwise.
+    """
+    from homeassistant.helpers import device_registry as dr
+
+    dev_reg = dr.async_get(hass)
+    device = dev_reg.async_get(device_id)
+    if device is None:
+        return None
+
+    # Match by config entry ID
+    for entry_id in device.config_entries:
+        entry = hass.config_entries.async_get_entry(entry_id)
+        if entry is not None and hasattr(entry, "runtime_data"):
+            runtime: TuyaBLEMeshRuntimeData = entry.runtime_data
+            return runtime.coordinator
+    return None
 
 
 async def _async_update_listener(hass: HomeAssistant, entry: ConfigEntry) -> None:
@@ -215,16 +333,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """
     _LOGGER.info("Unloading Tuya BLE Mesh entry: %s", entry.title)
 
-    entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
-    coordinator = entry_data.get("coordinator")
-    if coordinator is not None:
-        await coordinator.async_stop()
+    runtime: TuyaBLEMeshRuntimeData | None = getattr(entry, "runtime_data", None)
+    if runtime is not None:
+        for cancel in runtime.cancel_listeners:
+            cancel()
+        await runtime.coordinator.async_stop()
 
     unload_ok: bool = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id, None)
-        if not hass.data[DOMAIN]:
-            hass.data.pop(DOMAIN, None)
-
+    _LOGGER.info("Tuya BLE Mesh entry unloaded: %s (ok=%s)", entry.title, unload_ok)
     return unload_ok

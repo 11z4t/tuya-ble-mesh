@@ -173,7 +173,7 @@ class SIGMeshBridgeDevice:
                 status = result.get("status")
                 on_state = status == "ON"
                 self._last_on_state = on_state
-                for callback in self._onoff_callbacks:
+                for callback in list(self._onoff_callbacks):
                     try:
                         callback(on_state)
                     except Exception:
@@ -219,7 +219,7 @@ class SIGMeshBridgeDevice:
                 continue
 
         self._connected = False
-        for callback in self._disconnect_callbacks:
+        for callback in list(self._disconnect_callbacks):
             try:
                 callback()
             except Exception:
@@ -243,6 +243,7 @@ class SIGMeshBridgeDevice:
             return result
         finally:
             writer.close()
+            await writer.wait_closed()
 
     async def _http_post(
         self,
@@ -273,12 +274,20 @@ class SIGMeshBridgeDevice:
             return result
         finally:
             writer.close()
+            await writer.wait_closed()
 
     @staticmethod
     def _parse_http_body(response: str) -> str:
-        """Extract body from raw HTTP response."""
+        """Extract body from raw HTTP response.
+
+        Raises:
+            MeshConnectionError: If response has no HTTP body separator.
+        """
         parts = response.split("\r\n\r\n", 1)
-        return parts[1] if len(parts) > 1 else "{}"
+        if len(parts) < 2:
+            msg = "Malformed HTTP response: missing body separator"
+            raise MeshConnectionError(msg)
+        return parts[1]
 
 
 # Callback types for Telink bridge (matching MeshDevice interface)
@@ -388,7 +397,7 @@ class TelinkBridgeDevice:
 
     def _fire_disconnect(self) -> None:
         """Fire disconnect callbacks."""
-        for callback in self._disconnect_callbacks:
+        for callback in list(self._disconnect_callbacks):
             try:
                 callback()
             except Exception:
@@ -408,7 +417,7 @@ class TelinkBridgeDevice:
             green=self._green,
             blue=self._blue,
         )
-        for callback in self._status_callbacks:
+        for callback in list(self._status_callbacks):
             try:
                 callback(status)
             except Exception:
@@ -517,6 +526,7 @@ class TelinkBridgeDevice:
             return result
         finally:
             writer.close()
+            await writer.wait_closed()
 
     async def _http_post(
         self,
@@ -547,3 +557,4 @@ class TelinkBridgeDevice:
             return result
         finally:
             writer.close()
+            await writer.wait_closed()

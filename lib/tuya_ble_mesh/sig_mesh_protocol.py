@@ -90,7 +90,7 @@ class MeshKeys:
         # Derive app key AID
         self.aid = k4(self.app_key) if self.app_key else 0
 
-        _LOGGER.info(
+        _LOGGER.debug(
             "Keys derived: NID=0x%02X AID=0x%02X ivIdx=%d",
             self.nid,
             self.aid,
@@ -642,10 +642,15 @@ def config_model_app_bind(
 
     8-byte payload — fits unsegmented transport.
 
+    Note: Only SIG Model IDs (16-bit, 0x0000-0xFFFF) are supported.
+    Vendor Model IDs (32-bit, company code + model ID) use a different
+    10-byte payload format and are not supported by this function.
+    Passing a value > 0xFFFF raises ProtocolError rather than truncating.
+
     Args:
         element_addr: Element unicast address.
         app_idx: Application key index.
-        model_id: SIG Model ID (16-bit).
+        model_id: SIG Model ID (16-bit, 0x0000-0xFFFF).
 
     Returns:
         Access layer payload.

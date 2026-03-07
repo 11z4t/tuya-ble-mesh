@@ -1,0 +1,119 @@
+[33m2026-03-07 09:11:28.211 WARNING (SyncWorker_0) [homeassistant.loader] We found a custom integration tuya_ble_mesh which has not been tested by Home Assistant. This component might cause stability problems, be sure to disable it if you experience issues with Home Assistant[0m
+[33m2026-03-07 10:35:20.451 WARNING (SyncWorker_8) [homeassistant.loader] We found a custom integration tuya_ble_mesh which has not been tested by Home Assistant. This component might cause stability problems, be sure to disable it if you experience issues with Home Assistant[0m
+[33m2026-03-07 10:35:56.995 WARNING (SyncWorker_0) [homeassistant.loader] We found a custom integration tuya_ble_mesh which has not been tested by Home Assistant. This component might cause stability problems, be sure to disable it if you experience issues with Home Assistant[0m
+[31m2026-03-07 10:36:40.012 ERROR (MainThread) [homeassistant.config_entries] Error occurred loading flow for integration tuya_ble_mesh: No module named 'custom_components.tuya_ble_mesh'[0m
+[31m2026-03-07 10:36:40.014 ERROR (MainThread) [homeassistant.config_entries] Error occurred loading flow for integration tuya_ble_mesh: No module named 'custom_components.tuya_ble_mesh'[0m
+ModuleNotFoundError: No module named 'custom_components.tuya_ble_mesh'
+[31m2026-03-07 10:38:13.970 ERROR (MainThread) [homeassistant.config_entries] Error occurred loading flow for integration tuya_ble_mesh: No module named 'custom_components.tuya_ble_mesh'[0m
+[33m2026-03-07 10:45:29.704 WARNING (SyncWorker_3) [homeassistant.loader] We found a custom integration tuya_ble_mesh which has not been tested by Home Assistant. This component might cause stability problems, be sure to disable it if you experience issues with Home Assistant[0m
+[33m2026-03-07 10:47:50.772 WARNING (SyncWorker_0) [homeassistant.loader] We found a custom integration tuya_ble_mesh which has not been tested by Home Assistant. This component might cause stability problems, be sure to disable it if you experience issues with Home Assistant[0m
+[32m2026-03-07 10:50:13.222 INFO (MainThread) [homeassistant.setup] Setting up tuya_ble_mesh[0m
+[33m2026-03-07 10:50:13.265 WARNING (MainThread) [custom_components.tuya_ble_mesh.coordinator] Initial connection failed for DC:23:4F:10:52:C4, scheduling reconnect
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 442, in _load_keys
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/secrets.py", line 67, in get
+tuya_ble_mesh.exceptions.SecretAccessError: 1Password CLI (op) is not installed or not on PATH
+  File "/config/custom_components/tuya_ble_mesh/coordinator.py", line 296, in async_start
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 255, in connect
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 456, in _load_keys
+tuya_ble_mesh.exceptions.SIGMeshKeyError: Failed to load SIG Mesh keys for prefix 's17'[0m
+[33m2026-03-07 10:50:13.280 WARNING (MainThread) [homeassistant.util.loop] Detected blocking call to import_module with args ('custom_components.tuya_ble_mesh.light',) inside the event loop by custom integration 'tuya_ble_mesh' at custom_components/tuya_ble_mesh/__init__.py, line 142: await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS) (offender: /usr/src/homeassistant/homeassistant/loader.py, line 1312: return importlib.import_module(f"{self.pkg_path}.{platform_name}")), please create a bug report at https://github.com/11z4t/tuya-ble-mesh/issues
+  File "/config/custom_components/tuya_ble_mesh/__init__.py", line 142, in async_setup_entry
+[31m2026-03-07 10:50:13.281 ERROR (MainThread) [homeassistant.config_entries] Error setting up entry SIG Mesh 10:52:C4 for tuya_ble_mesh
+  File "/config/custom_components/tuya_ble_mesh/__init__.py", line 142, in async_setup_entry
+  File "/config/custom_components/tuya_ble_mesh/light.py", line 16, in <module>
+[33m2026-03-07 10:50:18.267 WARNING (MainThread) [custom_components.tuya_ble_mesh.coordinator] Reconnect failed for DC:23:4F:10:52:C4
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 442, in _load_keys
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/secrets.py", line 67, in get
+tuya_ble_mesh.exceptions.SecretAccessError: 1Password CLI (op) is not installed or not on PATH
+  File "/config/custom_components/tuya_ble_mesh/coordinator.py", line 368, in _reconnect_loop
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 255, in connect
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 456, in _load_keys
+tuya_ble_mesh.exceptions.SIGMeshKeyError: Failed to load SIG Mesh keys for prefix 's17'[0m
+[33m2026-03-07 10:50:28.270 WARNING (MainThread) [custom_components.tuya_ble_mesh.coordinator] Reconnect failed for DC:23:4F:10:52:C4
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 442, in _load_keys
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/secrets.py", line 67, in get
+tuya_ble_mesh.exceptions.SecretAccessError: 1Password CLI (op) is not installed or not on PATH
+  File "/config/custom_components/tuya_ble_mesh/coordinator.py", line 368, in _reconnect_loop
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 255, in connect
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 456, in _load_keys
+tuya_ble_mesh.exceptions.SIGMeshKeyError: Failed to load SIG Mesh keys for prefix 's17'[0m
+[33m2026-03-07 10:50:48.272 WARNING (MainThread) [custom_components.tuya_ble_mesh.coordinator] Reconnect failed for DC:23:4F:10:52:C4
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 442, in _load_keys
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/secrets.py", line 67, in get
+tuya_ble_mesh.exceptions.SecretAccessError: 1Password CLI (op) is not installed or not on PATH
+  File "/config/custom_components/tuya_ble_mesh/coordinator.py", line 368, in _reconnect_loop
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 255, in connect
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 456, in _load_keys
+tuya_ble_mesh.exceptions.SIGMeshKeyError: Failed to load SIG Mesh keys for prefix 's17'[0m
+[31m2026-03-07 10:51:25.765 ERROR (MainThread) [homeassistant.config_entries] Error setting up entry BLE Mesh Plug 21:43:A5 for tuya_ble_mesh
+  File "/config/custom_components/tuya_ble_mesh/__init__.py", line 142, in async_setup_entry
+  File "/config/custom_components/tuya_ble_mesh/light.py", line 16, in <module>
+[33m2026-03-07 10:51:28.273 WARNING (MainThread) [custom_components.tuya_ble_mesh.coordinator] Reconnect failed for DC:23:4F:10:52:C4
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 442, in _load_keys
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/secrets.py", line 67, in get
+tuya_ble_mesh.exceptions.SecretAccessError: 1Password CLI (op) is not installed or not on PATH
+  File "/config/custom_components/tuya_ble_mesh/coordinator.py", line 368, in _reconnect_loop
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 255, in connect
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 456, in _load_keys
+tuya_ble_mesh.exceptions.SIGMeshKeyError: Failed to load SIG Mesh keys for prefix 's17'[0m
+[33m2026-03-07 10:52:48.275 WARNING (MainThread) [custom_components.tuya_ble_mesh.coordinator] Reconnect failed for DC:23:4F:10:52:C4
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 442, in _load_keys
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/secrets.py", line 67, in get
+tuya_ble_mesh.exceptions.SecretAccessError: 1Password CLI (op) is not installed or not on PATH
+  File "/config/custom_components/tuya_ble_mesh/coordinator.py", line 368, in _reconnect_loop
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 255, in connect
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 456, in _load_keys
+tuya_ble_mesh.exceptions.SIGMeshKeyError: Failed to load SIG Mesh keys for prefix 's17'[0m
+[33m2026-03-07 10:54:15.454 WARNING (SyncWorker_9) [homeassistant.loader] We found a custom integration tuya_ble_mesh which has not been tested by Home Assistant. This component might cause stability problems, be sure to disable it if you experience issues with Home Assistant[0m
+[33m2026-03-07 10:55:28.276 WARNING (MainThread) [custom_components.tuya_ble_mesh.coordinator] Reconnect failed for DC:23:4F:10:52:C4
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 442, in _load_keys
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/secrets.py", line 67, in get
+tuya_ble_mesh.exceptions.SecretAccessError: 1Password CLI (op) is not installed or not on PATH
+  File "/config/custom_components/tuya_ble_mesh/coordinator.py", line 368, in _reconnect_loop
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 255, in connect
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 456, in _load_keys
+tuya_ble_mesh.exceptions.SIGMeshKeyError: Failed to load SIG Mesh keys for prefix 's17'[0m
+[33m2026-03-07 10:57:55.951 WARNING (SyncWorker_0) [homeassistant.loader] We found a custom integration tuya_ble_mesh which has not been tested by Home Assistant. This component might cause stability problems, be sure to disable it if you experience issues with Home Assistant[0m
+[33m2026-03-07 11:26:54.065 WARNING (SyncWorker_5) [homeassistant.loader] We found a custom integration tuya_ble_mesh which has not been tested by Home Assistant. This component might cause stability problems, be sure to disable it if you experience issues with Home Assistant[0m
+[33m2026-03-07 11:27:36.006 WARNING (SyncWorker_0) [homeassistant.loader] We found a custom integration tuya_ble_mesh which has not been tested by Home Assistant. This component might cause stability problems, be sure to disable it if you experience issues with Home Assistant[0m
+[32m2026-03-07 11:30:51.573 INFO (MainThread) [homeassistant.setup] Setting up tuya_ble_mesh[0m
+[33m2026-03-07 11:30:53.285 WARNING (MainThread) [homeassistant.util.loop] Detected blocking call to import_module with args ('custom_components.tuya_ble_mesh.light',) inside the event loop by custom integration 'tuya_ble_mesh' at custom_components/tuya_ble_mesh/__init__.py, line 157: await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS) (offender: /usr/src/homeassistant/homeassistant/loader.py, line 1312: return importlib.import_module(f"{self.pkg_path}.{platform_name}")), please create a bug report at https://github.com/11z4t/tuya-ble-mesh/issues
+  File "/config/custom_components/tuya_ble_mesh/__init__.py", line 157, in async_setup_entry
+[31m2026-03-07 11:30:53.286 ERROR (MainThread) [homeassistant.config_entries] Error setting up entry BLE Mesh Light 21:43:A5 for tuya_ble_mesh
+  File "/config/custom_components/tuya_ble_mesh/__init__.py", line 157, in async_setup_entry
+  File "/config/custom_components/tuya_ble_mesh/light.py", line 16, in <module>
+[33m2026-03-07 11:31:31.056 WARNING (MainThread) [custom_components.tuya_ble_mesh.coordinator] Initial connection failed for DC:23:4F:10:52:C4, scheduling reconnect
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 442, in _load_keys
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/secrets.py", line 67, in get
+tuya_ble_mesh.exceptions.SecretAccessError: 1Password CLI (op) is not installed or not on PATH
+  File "/config/custom_components/tuya_ble_mesh/coordinator.py", line 296, in async_start
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 255, in connect
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 456, in _load_keys
+tuya_ble_mesh.exceptions.SIGMeshKeyError: Failed to load SIG Mesh keys for prefix 's17'[0m
+[31m2026-03-07 11:31:31.067 ERROR (MainThread) [homeassistant.config_entries] Error setting up entry SIG Mesh 10:52:C4 for tuya_ble_mesh
+  File "/config/custom_components/tuya_ble_mesh/__init__.py", line 157, in async_setup_entry
+  File "/config/custom_components/tuya_ble_mesh/light.py", line 16, in <module>
+[33m2026-03-07 11:31:36.058 WARNING (MainThread) [custom_components.tuya_ble_mesh.coordinator] Reconnect failed for DC:23:4F:10:52:C4
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 442, in _load_keys
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/secrets.py", line 67, in get
+tuya_ble_mesh.exceptions.SecretAccessError: 1Password CLI (op) is not installed or not on PATH
+  File "/config/custom_components/tuya_ble_mesh/coordinator.py", line 368, in _reconnect_loop
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 255, in connect
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 456, in _load_keys
+tuya_ble_mesh.exceptions.SIGMeshKeyError: Failed to load SIG Mesh keys for prefix 's17'[0m
+[33m2026-03-07 11:31:46.060 WARNING (MainThread) [custom_components.tuya_ble_mesh.coordinator] Reconnect failed for DC:23:4F:10:52:C4
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 442, in _load_keys
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/secrets.py", line 67, in get
+tuya_ble_mesh.exceptions.SecretAccessError: 1Password CLI (op) is not installed or not on PATH
+  File "/config/custom_components/tuya_ble_mesh/coordinator.py", line 368, in _reconnect_loop
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 255, in connect
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 456, in _load_keys
+tuya_ble_mesh.exceptions.SIGMeshKeyError: Failed to load SIG Mesh keys for prefix 's17'[0m
+[33m2026-03-07 11:32:06.061 WARNING (MainThread) [custom_components.tuya_ble_mesh.coordinator] Reconnect failed for DC:23:4F:10:52:C4
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 442, in _load_keys
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/secrets.py", line 67, in get
+tuya_ble_mesh.exceptions.SecretAccessError: 1Password CLI (op) is not installed or not on PATH
+  File "/config/custom_components/tuya_ble_mesh/coordinator.py", line 368, in _reconnect_loop
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 255, in connect
+  File "/config/custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/sig_mesh_device.py", line 456, in _load_keys
+tuya_ble_mesh.exceptions.SIGMeshKeyError: Failed to load SIG Mesh keys for prefix 's17'[0m

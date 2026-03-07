@@ -1,0 +1,32 @@
+{
+  "entity": {
+    "light": {
+      "mesh_light": {
+        "default": "mdi:lightbulb-group"
+      }
+    },
+    "switch": {
+      "mesh_switch": {
+        "default": "mdi:power-socket"
+      }
+    },
+    "sensor": {
+      "rssi": {
+        "default": "mdi:signal"
+      },
+      "firmware": {
+        "default": "mdi:chip"
+      },
+      "power": {
+        "default": "mdi:lightning-bolt"
+      },
+      "energy": {
+        "default": "mdi:lightning-bolt-circle"
+      }
+    }
+  },
+  "services": {
+    "identify": "mdi:magnify",
+    "set_log_level": "mdi:text-box-outline"
+  }
+}
