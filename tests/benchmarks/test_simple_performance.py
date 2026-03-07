@@ -114,10 +114,7 @@ class TestProtocolPerformance:
         params = b"\x01\x00"
 
         # Pre-generate packets
-        packets = [
-            build_command_packet(key, mac, seq, 0x01, 0xC1, params)
-            for seq in range(100)
-        ]
+        packets = [build_command_packet(key, mac, seq, 0x01, 0xC1, params) for seq in range(100)]
 
         iterations = 1000
         start = time.perf_counter()
@@ -292,9 +289,7 @@ class TestBulkOperationPerformance:
         start = time.perf_counter()
 
         for _ in range(iterations):
-            filtered = [
-                ad for ad in advertisements if ad["name"].startswith("Tuya_")
-            ]
+            filtered = [ad for ad in advertisements if ad["name"].startswith("Tuya_")]
             assert len(filtered) > 0
 
         elapsed = time.perf_counter() - start

@@ -23,8 +23,8 @@ class TestEntityBasicIntegration:
     @pytest.mark.asyncio
     async def test_light_entity_has_required_attributes(self) -> None:
         """Light entity should have required HA attributes."""
-        from custom_components.tuya_ble_mesh.light import TuyaBLEMeshLight
         from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
+        from custom_components.tuya_ble_mesh.light import TuyaBLEMeshLight
 
         mock_device = MagicMock()
         mock_device.address = "DC:23:4D:21:43:A5"
@@ -46,8 +46,8 @@ class TestEntityBasicIntegration:
     @pytest.mark.asyncio
     async def test_sensor_entity_has_required_attributes(self) -> None:
         """Sensor entity should have required HA attributes."""
-        from custom_components.tuya_ble_mesh.sensor import TuyaBLEMeshSensor
         from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
+        from custom_components.tuya_ble_mesh.sensor import TuyaBLEMeshSensor
 
         mock_device = MagicMock()
         mock_device.address = "DC:23:4D:21:43:A5"
@@ -68,8 +68,8 @@ class TestEntityBasicIntegration:
     @pytest.mark.asyncio
     async def test_switch_entity_has_required_attributes(self) -> None:
         """Switch entity should have required HA attributes."""
-        from custom_components.tuya_ble_mesh.switch import TuyaBLEMeshSwitch
         from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
+        from custom_components.tuya_ble_mesh.switch import TuyaBLEMeshSwitch
 
         mock_device = MagicMock()
         mock_device.address = "DC:23:4D:21:43:A5"
@@ -94,8 +94,8 @@ class TestEntityServiceCalls:
     @pytest.mark.asyncio
     async def test_light_turn_on_calls_device(self) -> None:
         """Light turn_on should delegate to device."""
-        from custom_components.tuya_ble_mesh.light import TuyaBLEMeshLight
         from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
+        from custom_components.tuya_ble_mesh.light import TuyaBLEMeshLight
 
         mock_device = MagicMock()
         mock_device.address = "DC:23:4D:21:43:A5"
@@ -116,8 +116,8 @@ class TestEntityServiceCalls:
     @pytest.mark.asyncio
     async def test_light_turn_off_calls_device(self) -> None:
         """Light turn_off should delegate to device."""
-        from custom_components.tuya_ble_mesh.light import TuyaBLEMeshLight
         from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
+        from custom_components.tuya_ble_mesh.light import TuyaBLEMeshLight
 
         mock_device = MagicMock()
         mock_device.address = "DC:23:4D:21:43:A5"
@@ -138,8 +138,8 @@ class TestEntityServiceCalls:
     @pytest.mark.asyncio
     async def test_switch_turn_on_calls_device(self) -> None:
         """Switch turn_on should delegate to device."""
-        from custom_components.tuya_ble_mesh.switch import TuyaBLEMeshSwitch
         from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
+        from custom_components.tuya_ble_mesh.switch import TuyaBLEMeshSwitch
 
         mock_device = MagicMock()
         mock_device.address = "DC:23:4D:21:43:A5"
@@ -270,8 +270,8 @@ class TestDiagnosticsBasics:
     async def test_diagnostics_returns_dict(self) -> None:
         """Diagnostics should return dictionary."""
         from custom_components.tuya_ble_mesh import diagnostics
-        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
         from custom_components.tuya_ble_mesh.const import DOMAIN
+        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
 
         mock_hass = MagicMock()
         mock_config_entry = MagicMock()
@@ -284,9 +284,7 @@ class TestDiagnosticsBasics:
         coord = TuyaBLEMeshCoordinator(mock_device)
         mock_hass.data = {DOMAIN: {mock_config_entry.entry_id: coord}}
 
-        result = await diagnostics.async_get_config_entry_diagnostics(
-            mock_hass, mock_config_entry
-        )
+        result = await diagnostics.async_get_config_entry_diagnostics(mock_hass, mock_config_entry)
 
         assert isinstance(result, dict)
 

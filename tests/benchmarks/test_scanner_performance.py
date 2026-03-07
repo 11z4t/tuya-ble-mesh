@@ -181,9 +181,7 @@ class TestBulkOperationsPerformance:
 
             # Filter for Tuya devices with good RSSI
             filtered = [
-                ad
-                for ad in advertisements
-                if ad["name"].startswith("Tuya_") or ad["rssi"] > -70
+                ad for ad in advertisements if ad["name"].startswith("Tuya_") or ad["rssi"] > -70
             ]
             return len(filtered)
 
@@ -194,8 +192,7 @@ class TestBulkOperationsPerformance:
         """Benchmark sorting devices by RSSI."""
 
         devices = [
-            {"address": f"AA:BB:CC:DD:EE:{i:02X}", "rssi": -60 - (i % 40)}
-            for i in range(100)
+            {"address": f"AA:BB:CC:DD:EE:{i:02X}", "rssi": -60 - (i % 40)} for i in range(100)
         ]
 
         def sort_devices() -> int:
