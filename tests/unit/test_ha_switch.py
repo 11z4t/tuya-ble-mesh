@@ -150,7 +150,7 @@ class TestSwitchPlatformSetup:
     async def test_setup_creates_switch_for_plug(self) -> None:
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
         entry.data = {"device_type": "plug"}
@@ -167,7 +167,7 @@ class TestSwitchPlatformSetup:
     async def test_setup_skips_light_device_type(self) -> None:
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
         entry.data = {"device_type": "light"}
@@ -182,7 +182,7 @@ class TestSwitchPlatformSetup:
         """SIG plug device type should also create switch entity."""
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
         entry.data = {"device_type": "sig_plug"}

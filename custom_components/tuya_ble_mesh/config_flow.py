@@ -208,11 +208,11 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                     vol.Required(CONF_MAC_ADDRESS): str,
                     vol.Required(CONF_DEVICE_TYPE, default=DEVICE_TYPE_LIGHT): vol.In(
                         {
-                            DEVICE_TYPE_LIGHT: "Light (Telink direct)",
-                            DEVICE_TYPE_PLUG: "Plug (Telink direct)",
-                            DEVICE_TYPE_SIG_PLUG: "SIG Mesh Plug (direct)",
-                            DEVICE_TYPE_SIG_BRIDGE_PLUG: "SIG Mesh Bridge Plug",
-                            DEVICE_TYPE_TELINK_BRIDGE_LIGHT: "Telink Bridge Light",
+                            DEVICE_TYPE_SIG_BRIDGE_PLUG: "SIG Mesh Plug (via bridge)",
+                            DEVICE_TYPE_TELINK_BRIDGE_LIGHT: "Telink Light (via bridge)",
+                            DEVICE_TYPE_LIGHT: "Light (direct BLE, requires adapter)",
+                            DEVICE_TYPE_PLUG: "Plug (direct BLE, requires adapter)",
+                            DEVICE_TYPE_SIG_PLUG: "SIG Mesh Plug (direct BLE)",
                         }
                     ),
                     vol.Optional(CONF_MESH_NAME, default="out_of_mesh"): str,

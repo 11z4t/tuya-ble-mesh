@@ -393,7 +393,7 @@ class TestLightPlatformSetup:
     async def test_setup_entry_creates_one_light(self) -> None:
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
         add_entities = MagicMock()
@@ -409,7 +409,7 @@ class TestLightPlatformSetup:
     async def test_setup_entry_uses_coordinator_from_hass_data(self) -> None:
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
         add_entities = MagicMock()
@@ -423,7 +423,7 @@ class TestLightPlatformSetup:
     async def test_setup_skips_plug_device_type(self) -> None:
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord}}}
+        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
         entry.data = {"device_type": "plug"}

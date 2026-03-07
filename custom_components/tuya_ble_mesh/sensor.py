@@ -13,6 +13,7 @@ from homeassistant.components.sensor import (
     SensorEntity,
     SensorStateClass,
 )
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
 
 from custom_components.tuya_ble_mesh.const import (
@@ -46,18 +47,20 @@ async def async_setup_entry(
         entry: Config entry being set up.
         async_add_entities: Callback to register new entities.
     """
-    coordinator: TuyaBLEMeshCoordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
+    entry_data = hass.data[DOMAIN][entry.entry_id]
+    coordinator: TuyaBLEMeshCoordinator = entry_data["coordinator"]
+    device_info: DeviceInfo = entry_data["device_info"]
 
     entities: list[SensorEntity] = [
-        TuyaBLEMeshRSSISensor(coordinator, entry.entry_id),
-        TuyaBLEMeshFirmwareSensor(coordinator, entry.entry_id),
+        TuyaBLEMeshRSSISensor(coordinator, entry.entry_id, device_info),
+        TuyaBLEMeshFirmwareSensor(coordinator, entry.entry_id, device_info),
     ]
 
     # Add power/energy sensors for plug device types
     device_type = entry.data.get(CONF_DEVICE_TYPE, "")
     if device_type in PLUG_DEVICE_TYPES:
-        entities.append(TuyaBLEMeshPowerSensor(coordinator, entry.entry_id))
-        entities.append(TuyaBLEMeshEnergySensor(coordinator, entry.entry_id))
+        entities.append(TuyaBLEMeshPowerSensor(coordinator, entry.entry_id, device_info))
+        entities.append(TuyaBLEMeshEnergySensor(coordinator, entry.entry_id, device_info))
 
     async_add_entities(entities)
 
@@ -67,11 +70,18 @@ class TuyaBLEMeshRSSISensor(SensorEntity):
 
     _attr_should_poll = False
 
-    def __init__(self, coordinator: TuyaBLEMeshCoordinator, entry_id: str) -> None:
+    def __init__(
+        self,
+        coordinator: TuyaBLEMeshCoordinator,
+        entry_id: str,
+        device_info: DeviceInfo | None = None,
+    ) -> None:
         self._coordinator = coordinator
         self._entry_id = entry_id
         self._attr_unique_id = f"{coordinator.device.address}_rssi"
         self._attr_name = f"Tuya BLE Mesh {coordinator.device.address[-8:]} RSSI"
+        if device_info is not None:
+            self._attr_device_info = device_info
         self._remove_listener: Any = None
 
     @property
@@ -129,11 +139,18 @@ class TuyaBLEMeshFirmwareSensor(SensorEntity):
 
     _attr_should_poll = False
 
-    def __init__(self, coordinator: TuyaBLEMeshCoordinator, entry_id: str) -> None:
+    def __init__(
+        self,
+        coordinator: TuyaBLEMeshCoordinator,
+        entry_id: str,
+        device_info: DeviceInfo | None = None,
+    ) -> None:
         self._coordinator = coordinator
         self._entry_id = entry_id
         self._attr_unique_id = f"{coordinator.device.address}_firmware"
         self._attr_name = f"Tuya BLE Mesh {coordinator.device.address[-8:]} Firmware"
+        if device_info is not None:
+            self._attr_device_info = device_info
         self._remove_listener: Any = None
 
     @property
@@ -181,11 +198,18 @@ class TuyaBLEMeshPowerSensor(SensorEntity):
 
     _attr_should_poll = False
 
-    def __init__(self, coordinator: TuyaBLEMeshCoordinator, entry_id: str) -> None:
+    def __init__(
+        self,
+        coordinator: TuyaBLEMeshCoordinator,
+        entry_id: str,
+        device_info: DeviceInfo | None = None,
+    ) -> None:
         self._coordinator = coordinator
         self._entry_id = entry_id
         self._attr_unique_id = f"{coordinator.device.address}_power"
         self._attr_name = f"Tuya BLE Mesh {coordinator.device.address[-8:]} Power"
+        if device_info is not None:
+            self._attr_device_info = device_info
         self._remove_listener: Any = None
 
     @property
@@ -243,11 +267,18 @@ class TuyaBLEMeshEnergySensor(SensorEntity):
 
     _attr_should_poll = False
 
-    def __init__(self, coordinator: TuyaBLEMeshCoordinator, entry_id: str) -> None:
+    def __init__(
+        self,
+        coordinator: TuyaBLEMeshCoordinator,
+        entry_id: str,
+        device_info: DeviceInfo | None = None,
+    ) -> None:
         self._coordinator = coordinator
         self._entry_id = entry_id
         self._attr_unique_id = f"{coordinator.device.address}_energy"
         self._attr_name = f"Tuya BLE Mesh {coordinator.device.address[-8:]} Energy"
+        if device_info is not None:
+            self._attr_device_info = device_info
         self._remove_listener: Any = None
 
     @property
