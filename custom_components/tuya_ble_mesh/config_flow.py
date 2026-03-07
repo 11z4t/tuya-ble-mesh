@@ -319,6 +319,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
 
             if not errors:
                 mac = self._discovery_info["address"]
+                await self.async_set_unique_id(mac)
+                self._abort_if_unique_id_configured()
                 return self.async_create_entry(
                     title=f"SIG Mesh {mac[-8:]}",
                     data={
@@ -380,6 +382,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             else:
                 mac = self._discovery_info["address"]
+                await self.async_set_unique_id(mac)
+                self._abort_if_unique_id_configured()
                 return self.async_create_entry(
                     title=f"SIG Bridge Plug {mac[-8:]}",
                     data={
@@ -425,6 +429,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
                 errors["base"] = "cannot_connect"
             else:
                 mac = self._discovery_info["address"]
+                await self.async_set_unique_id(mac)
+                self._abort_if_unique_id_configured()
                 return self.async_create_entry(
                     title=f"Telink Bridge Light {mac[-8:]}",
                     data={
