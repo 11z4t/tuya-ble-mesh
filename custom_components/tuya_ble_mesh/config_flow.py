@@ -26,6 +26,7 @@ for _lib_dir in (_BUNDLED_LIB, _DEV_LIB):
         break
 
 import voluptuous as vol  # noqa: E402
+from homeassistant import config_entries  # noqa: E402
 from homeassistant.config_entries import ConfigFlow  # noqa: E402
 
 if TYPE_CHECKING:
@@ -153,10 +154,96 @@ async def _test_bridge(host: str, port: int) -> bool:
     return False
 
 
+class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):
+    """Handle options for a Tuya BLE Mesh entry."""
+
+    def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        self._config_entry = config_entry
+
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> dict[str, Any]:
+        """Manage device options.
+
+        Args:
+            user_input: User-provided option values.
+
+        Returns:
+            Flow result dict.
+        """
+        if user_input is not None:
+            # Merge new data into config entry
+            new_data = {**self._config_entry.data, **user_input}
+            self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
+            return self.async_create_entry(title="", data={})
+
+        device_type = self._config_entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
+
+        # Build schema based on device type
+        if device_type in (
+            DEVICE_TYPE_SIG_BRIDGE_PLUG,
+            DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
+        ):
+            schema = vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_BRIDGE_HOST,
+                        default=self._config_entry.data.get(CONF_BRIDGE_HOST, ""),
+                    ): str,
+                    vol.Optional(
+                        CONF_BRIDGE_PORT,
+                        default=self._config_entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT),
+                    ): int,
+                }
+            )
+        elif device_type == DEVICE_TYPE_SIG_PLUG:
+            schema = vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_UNICAST_TARGET,
+                        default=self._config_entry.data.get(CONF_UNICAST_TARGET, "00B0"),
+                    ): str,
+                    vol.Optional(
+                        CONF_IV_INDEX,
+                        default=self._config_entry.data.get(CONF_IV_INDEX, DEFAULT_IV_INDEX),
+                    ): int,
+                }
+            )
+        else:
+            schema = vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_MESH_NAME,
+                        default=self._config_entry.data.get(CONF_MESH_NAME, "out_of_mesh"),
+                    ): str,
+                    vol.Optional(
+                        CONF_MESH_PASSWORD,
+                        default=self._config_entry.data.get(
+                            CONF_MESH_PASSWORD,
+                            "123456",  # pragma: allowlist secret
+                        ),
+                    ): str,
+                    vol.Optional(
+                        CONF_MESH_ADDRESS,
+                        default=self._config_entry.data.get(
+                            CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS
+                        ),
+                    ): int,
+                }
+            )
+
+        return self.async_show_form(step_id="init", data_schema=schema)
+
+
 class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Tuya BLE Mesh."""
 
     VERSION = 1
+
+    @staticmethod
+    def async_get_options_flow(
+        config_entry: config_entries.ConfigEntry,
+    ) -> TuyaBLEMeshOptionsFlow:
+        """Return the options flow handler."""
+        return TuyaBLEMeshOptionsFlow(config_entry)
 
     def __init__(self) -> None:
         super().__init__()
