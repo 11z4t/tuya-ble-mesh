@@ -13,6 +13,33 @@
           "mesh_address": "Mesh-adress (0 = auto)"
         }
       },
+      "sig_bridge": {
+        "title": "SIG Mesh Bridge-konfiguration",
+        "description": "Konfigurera BLE bridge-daemon f\u00f6r {name}.",
+        "data": {
+          "bridge_host": "Bridge-v\u00e4rd (RPi IP-adress)",
+          "bridge_port": "Bridge-port",
+          "unicast_target": "M\u00e5l-unicast-adress (hex)"
+        }
+      },
+      "telink_bridge": {
+        "title": "Telink Bridge-ljus",
+        "description": "Konfigurera BLE bridge-daemon f\u00f6r {name}.",
+        "data": {
+          "bridge_host": "Bridge-v\u00e4rd (RPi IP-adress)",
+          "bridge_port": "Bridge-port"
+        }
+      },
+      "sig_plug": {
+        "title": "SIG Mesh Plug-konfiguration",
+        "description": "Konfigurera SIG Mesh-parametrar f\u00f6r {name}.",
+        "data": {
+          "unicast_target": "M\u00e5l-unicast-adress (hex)",
+          "unicast_our": "V\u00e5r unicast-adress (hex)",
+          "op_item_prefix": "1Password-objektprefix",
+          "iv_index": "IV-index"
+        }
+      },
       "confirm": {
         "title": "Bekr\u00e4fta enhet",
         "description": "Hittade {name}. V\u00e4lj enhetstyp och mesh-uppgifter.",
