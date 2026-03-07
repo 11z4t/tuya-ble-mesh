@@ -43,9 +43,10 @@ from cryptography.hazmat.primitives.asymmetric.ec import (
 )
 
 from tuya_ble_mesh.exceptions import ProvisioningError
+from tuya_ble_mesh.logging_context import MeshLogAdapter, mesh_operation
 from tuya_ble_mesh.sig_mesh_crypto import aes_cmac, k1, mesh_aes_ccm_encrypt, s1
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = MeshLogAdapter(logging.getLogger(__name__), {})
 
 # PB-GATT characteristics (Mesh Profile 7.1)
 PROV_SERVICE = "00001827-0000-1000-8000-00805f9b34fb"
@@ -241,15 +242,16 @@ class SIGMeshProvisioner:
         Raises:
             ProvisioningError: If provisioning fails at any step.
         """
-        client = await self._connect(address, timeout, max_retries)
-        try:
-            return await self._run_exchange(client)
-        finally:
-            with contextlib.suppress(Exception):
-                await client.stop_notify(PROV_DATA_OUT)
-            with contextlib.suppress(Exception):
-                await client.disconnect()
-            _LOGGER.info("Provisioning session disconnected from %s", address.upper())
+        async with mesh_operation(address.upper(), "provision"):
+            client = await self._connect(address, timeout, max_retries)
+            try:
+                return await self._run_exchange(client)
+            finally:
+                with contextlib.suppress(Exception):
+                    await client.stop_notify(PROV_DATA_OUT)
+                with contextlib.suppress(Exception):
+                    await client.disconnect()
+                _LOGGER.info("Provisioning session disconnected from %s", address.upper())
 
     # ------------------------------------------------------------------ #
     # Private helpers                                                      #
