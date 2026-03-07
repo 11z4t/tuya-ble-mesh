@@ -42,10 +42,13 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# Make lib/tuya_ble_mesh importable alongside the HA component
-_LIB_DIR = str(Path(__file__).resolve().parent.parent.parent / "lib")
-if _LIB_DIR not in sys.path:
-    sys.path.insert(0, _LIB_DIR)
+# Make lib/tuya_ble_mesh importable — check bundled copy first, then dev layout
+_BUNDLED_LIB = str(Path(__file__).resolve().parent / "lib")
+_DEV_LIB = str(Path(__file__).resolve().parent.parent.parent / "lib")
+for _lib_dir in (_BUNDLED_LIB, _DEV_LIB):
+    if Path(_lib_dir).is_dir() and _lib_dir not in sys.path:
+        sys.path.insert(0, _lib_dir)
+        break
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:

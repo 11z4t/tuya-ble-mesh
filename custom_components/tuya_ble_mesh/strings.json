@@ -30,6 +30,16 @@
           "bridge_port": "Bridge Port"
         }
       },
+      "sig_plug": {
+        "title": "SIG Mesh Plug Configuration",
+        "description": "Configure SIG Mesh parameters for {name}.",
+        "data": {
+          "unicast_target": "Target Unicast Address (hex)",
+          "unicast_our": "Our Unicast Address (hex)",
+          "op_item_prefix": "1Password Item Prefix",
+          "iv_index": "IV Index"
+        }
+      },
       "confirm": {
         "title": "Confirm Device",
         "description": "Found {name}. Choose device type and mesh credentials.",
