@@ -31,16 +31,9 @@
         }
       },
       "sig_plug": {
-        "title": "SIG Mesh Plug Configuration",
-        "description": "Configure SIG Mesh parameters for {name}.\n\nMesh keys are loaded from /tmp/mesh_keys.json if available.",
-        "data": {
-          "unicast_target": "Target Unicast Address (hex)",
-          "unicast_our": "Our Unicast Address (hex)",
-          "iv_index": "IV Index",
-          "net_key": "Network Key (32 hex chars)",
-          "dev_key": "Device Key (32 hex chars)",
-          "app_key": "Application Key (32 hex chars)"
-        }
+        "title": "SIG Mesh Plug — Auto Provisioning",
+        "description": "The device **{name}** will be provisioned automatically.\n\nA random NetKey and AppKey are generated. The DevKey is derived from the ECDH provisioning exchange. All keys are saved in the Home Assistant config database.\n\nEnsure the device is in factory-reset state (advertising Provisioning Service 0x1827) and within BLE range, then click Submit.",
+        "data": {}
       },
       "confirm": {
         "title": "Confirm Device",
@@ -56,7 +49,8 @@
     "error": {
       "invalid_mac": "Invalid MAC address format (expected XX:XX:XX:XX:XX:XX)",
       "invalid_key": "Invalid key format (expected 32 hex characters)",
-      "cannot_connect": "Cannot connect to bridge daemon. Verify the host/port and that the daemon is running."
+      "cannot_connect": "Cannot connect to bridge daemon. Verify the host/port and that the daemon is running.",
+      "provisioning_failed": "Provisioning failed. Ensure the device is in factory-reset state, within BLE range, and try again."
     },
     "abort": {
       "already_configured": "This device is already configured"

@@ -34,13 +34,17 @@ from tuya_ble_mesh.exceptions import (
 )
 from tuya_ble_mesh.sig_mesh_protocol import (
     _OPCODE_COMPOSITION_STATUS,
+    SEG_DATA_SIZE,
     CompositionData,
     MeshKeys,
+    config_appkey_add,
     config_composition_get,
+    config_model_app_bind,
     decrypt_access_payload,
     decrypt_network_pdu,
     encrypt_network_pdu,
     generic_onoff_set,
+    make_access_segmented,
     make_access_unsegmented,
     make_proxy_pdu,
     parse_access_opcode,
@@ -57,8 +61,10 @@ SIG_MESH_PROXY_SERVICE = "00001828-0000-1000-8000-00805f9b34fb"
 SIG_MESH_PROXY_DATA_IN = "00002add-0000-1000-8000-00805f9b34fb"
 SIG_MESH_PROXY_DATA_OUT = "00002ade-0000-1000-8000-00805f9b34fb"
 
-# GenericOnOff Status opcode
+# Opcodes for status responses
 _OPCODE_ONOFF_STATUS = 0x8204
+_OPCODE_APPKEY_STATUS = 0x8003
+_OPCODE_MODEL_APP_STATUS = 0x803E
 
 # Callback types
 OnOffCallback = Callable[[bool], Any]
@@ -146,6 +152,9 @@ class SIGMeshDevice:
 
         # Segmented message reassembly buffers: (src, seq_zero) -> buffer
         self._segment_buffers: dict[tuple[int, int], _ReassemblyBuffer] = {}
+
+        # Pending response futures: opcode -> Future(params)
+        self._pending_responses: dict[int, asyncio.Future[bytes]] = {}
 
     @property
     def address(self) -> str:
@@ -446,6 +455,208 @@ class SIGMeshDevice:
             self._seq += 1
             return seq
 
+    async def _next_seqs(self, n: int) -> int:
+        """Reserve n consecutive sequence numbers and return the first.
+
+        Used for segmented messages that need a contiguous seq range.
+
+        Args:
+            n: Number of sequence numbers to reserve.
+
+        Returns:
+            First sequence number of the reserved range.
+        """
+        async with self._seq_lock:
+            seq = self._seq
+            self._seq += n
+            return seq
+
+    async def send_config_appkey_add(
+        self,
+        app_key: bytes,
+        *,
+        net_idx: int = 0,
+        app_idx: int = 0,
+        response_timeout: float = 15.0,
+    ) -> bool:
+        """Send Config AppKey Add (opcode 0x00) and wait for Status response.
+
+        The 20-byte access payload requires segmented transport (2 segments).
+        Uses device key (akf=0) as required for config messages.
+
+        Args:
+            app_key: 16-byte application key to add.
+            net_idx: Network key index (0-4095).
+            app_idx: Application key index (0-4095).
+            response_timeout: Seconds to wait for AppKey Status response.
+
+        Returns:
+            True if device responded with Success (0x00), False otherwise.
+
+        Raises:
+            SIGMeshError: If not connected or keys not loaded.
+            TimeoutError: If no response within response_timeout.
+        """
+        if self._client is None or self._keys is None:
+            msg = "Not connected"
+            raise SIGMeshError(msg)
+
+        access_payload = config_appkey_add(net_idx, app_idx, app_key)
+
+        # Pre-compute n_segs to reserve contiguous sequence numbers
+        upper_len = len(access_payload) + 4  # + 4-byte MIC (szmic=0)
+        n_segs = (upper_len + SEG_DATA_SIZE - 1) // SEG_DATA_SIZE
+        seq_start = await self._next_seqs(n_segs)
+
+        segments = make_access_segmented(
+            self._keys.dev_key,
+            self._our_addr,
+            self._target_addr,
+            seq_start,
+            self._keys.iv_index,
+            access_payload,
+            akf=0,
+            aid=0,
+        )
+
+        # Register response future BEFORE sending
+        loop = asyncio.get_running_loop()
+        future: asyncio.Future[bytes] = loop.create_future()
+        self._pending_responses[_OPCODE_APPKEY_STATUS] = future
+
+        try:
+            for seg_seq, transport_pdu in segments:
+                network_pdu = encrypt_network_pdu(
+                    self._keys.enc_key,
+                    self._keys.priv_key,
+                    self._keys.nid,
+                    ctl=0,
+                    ttl=_DEFAULT_TTL,
+                    seq=seg_seq,
+                    src=self._our_addr,
+                    dst=self._target_addr,
+                    transport_pdu=transport_pdu,
+                    iv_index=self._keys.iv_index,
+                )
+                proxy_pdu = make_proxy_pdu(network_pdu)
+                await self._client.write_gatt_char(
+                    SIG_MESH_PROXY_DATA_IN, proxy_pdu, response=False
+                )
+                await asyncio.sleep(0.1)
+
+            _LOGGER.info(
+                "AppKey Add sent to 0x%04X (%d segments, seq_start=%d)",
+                self._target_addr,
+                len(segments),
+                seq_start,
+            )
+
+            params = await asyncio.wait_for(asyncio.shield(future), timeout=response_timeout)
+        except TimeoutError:
+            msg = "Timeout waiting for AppKey Status response"
+            raise SIGMeshError(msg) from None
+        finally:
+            self._pending_responses.pop(_OPCODE_APPKEY_STATUS, None)
+
+        status = params[0] if params else 0xFF
+        _LOGGER.info(
+            "AppKey Status from 0x%04X: 0x%02X (%s)",
+            self._target_addr,
+            status,
+            "Success" if status == 0x00 else "Error",
+        )
+        return status == 0x00
+
+    async def send_config_model_app_bind(
+        self,
+        element_addr: int,
+        app_idx: int,
+        model_id: int,
+        *,
+        response_timeout: float = 10.0,
+    ) -> bool:
+        """Send Config Model App Bind (opcode 0x803D) and wait for Status.
+
+        The 8-byte access payload fits in an unsegmented message.
+        Uses device key (akf=0) as required for config messages.
+
+        Args:
+            element_addr: Element unicast address.
+            app_idx: Application key index to bind.
+            model_id: SIG Model ID (e.g. 0x1000 for GenericOnOff Server).
+            response_timeout: Seconds to wait for Model App Status response.
+
+        Returns:
+            True if device responded with Success (0x00), False otherwise.
+
+        Raises:
+            SIGMeshError: If not connected or keys not loaded.
+            TimeoutError: If no response within response_timeout.
+        """
+        if self._client is None or self._keys is None:
+            msg = "Not connected"
+            raise SIGMeshError(msg)
+
+        access_payload = config_model_app_bind(element_addr, app_idx, model_id)
+        seq = await self._next_seq()
+
+        transport_pdu = make_access_unsegmented(
+            self._keys.dev_key,
+            self._our_addr,
+            self._target_addr,
+            seq,
+            self._keys.iv_index,
+            access_payload,
+            akf=0,
+            aid=0,
+        )
+        network_pdu = encrypt_network_pdu(
+            self._keys.enc_key,
+            self._keys.priv_key,
+            self._keys.nid,
+            ctl=0,
+            ttl=_DEFAULT_TTL,
+            seq=seq,
+            src=self._our_addr,
+            dst=self._target_addr,
+            transport_pdu=transport_pdu,
+            iv_index=self._keys.iv_index,
+        )
+        proxy_pdu = make_proxy_pdu(network_pdu)
+
+        # Register response future BEFORE sending
+        loop = asyncio.get_running_loop()
+        future_bind: asyncio.Future[bytes] = loop.create_future()
+        self._pending_responses[_OPCODE_MODEL_APP_STATUS] = future_bind
+
+        try:
+            await self._client.write_gatt_char(SIG_MESH_PROXY_DATA_IN, proxy_pdu, response=False)
+            _LOGGER.info(
+                "Model App Bind sent: element=0x%04X app_idx=%d model=0x%04X (seq=%d)",
+                element_addr,
+                app_idx,
+                model_id,
+                seq,
+            )
+
+            params_bind = await asyncio.wait_for(
+                asyncio.shield(future_bind), timeout=response_timeout
+            )
+        except TimeoutError:
+            msg = "Timeout waiting for Model App Status response"
+            raise SIGMeshError(msg) from None
+        finally:
+            self._pending_responses.pop(_OPCODE_MODEL_APP_STATUS, None)
+
+        status_bind = params_bind[0] if params_bind else 0xFF
+        _LOGGER.info(
+            "Model App Status from 0x%04X: 0x%02X (%s)",
+            self._target_addr,
+            status_bind,
+            "Success" if status_bind == 0x00 else "Error",
+        )
+        return status_bind == 0x00
+
     async def _load_keys(self) -> None:
         """Load mesh keys from 1Password via SecretsManager.
 
@@ -634,6 +845,7 @@ class SIGMeshDevice:
         """Parse opcode and route to appropriate handler.
 
         Shared by both unsegmented and reassembled segmented paths.
+        Pending response futures (from send_config_*) are resolved first.
 
         Args:
             src: Source unicast address.
@@ -643,6 +855,13 @@ class SIGMeshDevice:
             opcode, params = parse_access_opcode(access_payload)
         except Exception:
             _LOGGER.debug("Failed to parse access opcode", exc_info=True)
+            return
+
+        # Resolve pending config response futures (AppKey Status, Model App Status)
+        if opcode in self._pending_responses:
+            future = self._pending_responses.pop(opcode)
+            if not future.done():
+                future.set_result(params)
             return
 
         if opcode == _OPCODE_ONOFF_STATUS and params:
