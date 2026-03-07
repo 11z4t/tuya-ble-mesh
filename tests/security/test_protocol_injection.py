@@ -1,4 +1,4 @@
-import typing
+
 """Protocol injection attack tests.
 
 Verifies that protocol parsers reject malformed inputs that could
@@ -7,6 +7,7 @@ injection, format string attacks, and path traversal.
 """
 
 from __future__ import annotations
+import typing
 
 import struct
 import sys
