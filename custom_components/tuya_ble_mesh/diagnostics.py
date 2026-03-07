@@ -1,7 +1,7 @@
 """Diagnostics for the Tuya BLE Mesh integration.
 
 Provides device diagnostics with automatic redaction of sensitive
-fields (mesh_name, mesh_password).
+fields (mesh credentials, encryption keys).
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
     CONF_NET_KEY,
+    DOMAIN,
 )
 
 REDACTED = "**REDACTED**"
@@ -33,7 +34,30 @@ async def async_get_config_entry_diagnostics(
     entry: Any,
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
-    return {
+    diag: dict[str, Any] = {
         "entry_id": entry.entry_id,
         "data": _redact_data(dict(entry.data)),
     }
+
+    # Add coordinator state if available
+    entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
+    coordinator = entry_data.get("coordinator")
+    if coordinator is not None:
+        state = coordinator.state
+        diag["coordinator"] = {
+            "available": state.available,
+            "is_on": state.is_on,
+            "brightness": state.brightness,
+            "color_temp": state.color_temp,
+            "mode": state.mode,
+            "rssi": state.rssi,
+            "firmware_version": state.firmware_version,
+            "power_w": state.power_w,
+            "energy_kwh": state.energy_kwh,
+        }
+        diag["device"] = {
+            "type": type(coordinator.device).__name__,
+            "address": coordinator.device.address,
+        }
+
+    return diag
