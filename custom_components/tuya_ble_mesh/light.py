@@ -14,7 +14,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.light import (
-    ATTR_COLOR_TEMP,
+    ATTR_COLOR_TEMP_KELVIN,
     ATTR_RGB_COLOR,
     ATTR_TRANSITION,
     ColorMode,
@@ -193,11 +193,12 @@ class TuyaBLEMeshLight(LightEntity):
         return brightness_to_ha(self._coordinator.state.brightness)
 
     @property
-    def color_temp(self) -> int | None:
-        """Return the current color temperature in mireds."""
+    def color_temp_kelvin(self) -> int | None:
+        """Return the current color temperature in kelvin."""
         if not self._coordinator.state.is_on:
             return None
-        return color_temp_to_ha(self._coordinator.state.color_temp)
+        mired = color_temp_to_ha(self._coordinator.state.color_temp)
+        return round(1_000_000 / mired)
 
     _attr_min_color_temp_kelvin = 2703  # warmest (370 mireds)
     _attr_max_color_temp_kelvin = 6535  # coolest (153 mireds)
@@ -235,7 +236,8 @@ class TuyaBLEMeshLight(LightEntity):
         transition: float | None = kwargs.get(ATTR_TRANSITION)
 
         brightness = kwargs.get("brightness")
-        color_temp = kwargs.get(ATTR_COLOR_TEMP)
+        color_temp_kelvin: int | None = kwargs.get(ATTR_COLOR_TEMP_KELVIN)
+        color_temp = round(1_000_000 / color_temp_kelvin) if color_temp_kelvin is not None else None
         rgb_color: tuple[int, int, int] | None = kwargs.get(ATTR_RGB_COLOR)
 
         has_target = brightness is not None or color_temp is not None or rgb_color is not None
