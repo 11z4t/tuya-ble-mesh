@@ -68,7 +68,7 @@ class TestSeqRestoreWithMargin:
         coord = TuyaBLEMeshCoordinator(device, hass=mock_hass, entry_id="test_entry")
 
         with patch(
-            "custom_components.tuya_ble_mesh.coordinator.Store",
+            "homeassistant.helpers.storage.Store",
             return_value=mock_store,
         ):
             await coord._load_seq()
@@ -98,7 +98,7 @@ class TestSeqRestoreWithMargin:
         coord = TuyaBLEMeshCoordinator(device, hass=mock_hass, entry_id="test_entry")
 
         with patch(
-            "custom_components.tuya_ble_mesh.coordinator.Store",
+            "homeassistant.helpers.storage.Store",
             return_value=mock_store,
         ):
             await coord._load_seq()
