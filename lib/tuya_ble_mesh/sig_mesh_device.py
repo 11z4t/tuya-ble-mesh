@@ -363,10 +363,9 @@ class SIGMeshDevice:
             try:
                 for attr in ("net_key", "dev_key", "app_key", "enc_key", "priv_key", "network_id"):
                     val = getattr(self._keys, attr, None)
-                    if isinstance(val, (bytes, bytearray)) and len(val) > 0:
-                        # Overwrite mutable bytearray if possible
-                        if isinstance(val, bytearray):
-                            val[:] = b"\x00" * len(val)
+                    # Overwrite mutable bytearray if possible
+                    if isinstance(val, bytearray) and len(val) > 0:
+                        val[:] = b"\x00" * len(val)
             except Exception:
                 pass  # Frozen dataclass, best effort only
             self._keys = None
