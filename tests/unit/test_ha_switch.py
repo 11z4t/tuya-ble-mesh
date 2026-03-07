@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -16,7 +15,6 @@ sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
 from homeassistant.components.switch import SwitchDeviceClass  # noqa: E402
 
-from custom_components.tuya_ble_mesh.const import DOMAIN  # noqa: E402
 from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     TuyaBLEMeshDeviceState,
 )
@@ -150,9 +148,10 @@ class TestSwitchPlatformSetup:
     async def test_setup_creates_switch_for_plug(self) -> None:
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
+        entry.runtime_data.coordinator = coord
+        entry.runtime_data.device_info = MagicMock()
         entry.data = {"device_type": "plug"}
         add_entities = MagicMock()
 
@@ -167,9 +166,10 @@ class TestSwitchPlatformSetup:
     async def test_setup_skips_light_device_type(self) -> None:
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
+        entry.runtime_data.coordinator = coord
+        entry.runtime_data.device_info = MagicMock()
         entry.data = {"device_type": "light"}
         add_entities = MagicMock()
 
@@ -182,9 +182,10 @@ class TestSwitchPlatformSetup:
         """SIG plug device type should also create switch entity."""
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
+        entry.runtime_data.coordinator = coord
+        entry.runtime_data.device_info = MagicMock()
         entry.data = {"device_type": "sig_plug"}
         add_entities = MagicMock()
 
@@ -200,9 +201,10 @@ class TestSwitchPlatformSetup:
         """Default (no device_type) should not create switch."""
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data: dict[str, Any] = {DOMAIN: {"entry1": {"coordinator": coord}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
+        entry.runtime_data.coordinator = coord
+        entry.runtime_data.device_info = MagicMock()
         entry.data = {}
         add_entities = MagicMock()
 

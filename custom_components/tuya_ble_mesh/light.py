@@ -29,7 +29,6 @@ from custom_components.tuya_ble_mesh.const import (
     DEVICE_BRIGHTNESS_MIN,
     DEVICE_COLOR_TEMP_MAX,
     DEVICE_COLOR_TEMP_MIN,
-    DOMAIN,
     HA_BRIGHTNESS_MAX,
     HA_BRIGHTNESS_MIN,
     HA_MIRED_MAX,
@@ -43,11 +42,15 @@ if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
 
+    from custom_components.tuya_ble_mesh.__init__ import TuyaBLEMeshConfigEntry  # noqa: F401
     from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
 
     AddEntitiesCallback = Callable[..., None]
 
 _LOGGER = logging.getLogger(__name__)
+
+# BLE mesh serializes commands — limit to one concurrent update
+PARALLEL_UPDATES = 1
 
 
 def brightness_to_ha(device_value: int) -> int:
@@ -140,9 +143,9 @@ async def async_setup_entry(
     """
     if entry.data.get(CONF_DEVICE_TYPE) in PLUG_DEVICE_TYPES:
         return
-    entry_data = hass.data[DOMAIN][entry.entry_id]
-    coordinator: TuyaBLEMeshCoordinator = entry_data["coordinator"]
-    device_info: DeviceInfo = entry_data["device_info"]
+    runtime_data = entry.runtime_data  # type: ignore[attr-defined]
+    coordinator: TuyaBLEMeshCoordinator = runtime_data.coordinator
+    device_info: DeviceInfo = runtime_data.device_info
     async_add_entities([TuyaBLEMeshLight(coordinator, entry.entry_id, device_info)])
 
 
@@ -198,6 +201,8 @@ class TuyaBLEMeshLight(LightEntity):
         if not self._coordinator.state.is_on:
             return None
         mired = color_temp_to_ha(self._coordinator.state.color_temp)
+        if mired == 0:
+            return None
         return round(1_000_000 / mired)
 
     _attr_min_color_temp_kelvin = 2703  # warmest (370 mireds)

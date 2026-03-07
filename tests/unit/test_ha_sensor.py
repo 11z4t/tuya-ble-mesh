@@ -13,7 +13,6 @@ _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
 sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
-from custom_components.tuya_ble_mesh.const import DOMAIN  # noqa: E402
 from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     TuyaBLEMeshDeviceState,
 )
@@ -213,9 +212,10 @@ class TestSensorPlatformSetup:
     async def test_setup_entry_creates_two_sensors(self) -> None:
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
+        entry.runtime_data.coordinator = coord
+        entry.runtime_data.device_info = MagicMock()
         entry.data = {"device_type": "light"}
         add_entities = MagicMock()
 
@@ -229,9 +229,10 @@ class TestSensorPlatformSetup:
     async def test_setup_entry_creates_rssi_and_firmware(self) -> None:
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
+        entry.runtime_data.coordinator = coord
+        entry.runtime_data.device_info = MagicMock()
         entry.data = {"device_type": "light"}
         add_entities = MagicMock()
 
@@ -243,12 +244,13 @@ class TestSensorPlatformSetup:
         assert TuyaBLEMeshFirmwareSensor in types
 
     @pytest.mark.asyncio
-    async def test_setup_entry_uses_coordinator_from_hass_data(self) -> None:
+    async def test_setup_entry_uses_coordinator_from_runtime_data(self) -> None:
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
+        entry.runtime_data.coordinator = coord
+        entry.runtime_data.device_info = MagicMock()
         entry.data = {"device_type": "light"}
         add_entities = MagicMock()
 
@@ -264,9 +266,10 @@ class TestSensorPlatformSetup:
         coord = make_mock_coordinator()
         coord.device.supports_power_monitoring = True
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
+        entry.runtime_data.coordinator = coord
+        entry.runtime_data.device_info = MagicMock()
         entry.data = {"device_type": "sig_plug"}
         add_entities = MagicMock()
 
@@ -283,9 +286,10 @@ class TestSensorPlatformSetup:
         """Light devices get RSSI + Firmware = 2 sensors (no power/energy)."""
         coord = make_mock_coordinator()
         hass = MagicMock()
-        hass.data = {DOMAIN: {"entry1": {"coordinator": coord, "device_info": None}}}
         entry = MagicMock()
         entry.entry_id = "entry1"
+        entry.runtime_data.coordinator = coord
+        entry.runtime_data.device_info = MagicMock()
         entry.data = {"device_type": "light"}
         add_entities = MagicMock()
 
