@@ -166,10 +166,11 @@ class TestLightProperties:
         light = TuyaBLEMeshLight(coord, "test_entry")
         assert "DC:23:4D:21:43:A5" in light.unique_id
 
-    def test_name(self) -> None:
+    def test_has_entity_name(self) -> None:
         coord = make_mock_coordinator()
         light = TuyaBLEMeshLight(coord, "test_entry")
-        assert "21:43:A5" in light.name
+        assert light.has_entity_name is True
+        assert light.name is None  # Uses device name
 
     def test_available(self) -> None:
         coord = make_mock_coordinator(available=True)
