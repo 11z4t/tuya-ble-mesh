@@ -1,17 +1,51 @@
+# Python
 __pycache__/
-*.pyc
-.pytest_cache/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 *.egg-info/
-tests/hardware/results/
-tests/hardware/*.log
+.installed.cfg
+*.egg
+MANIFEST
 
-# Internal project files (keep locally, not in repo)
-CLAUDE.md
-TODO.md
-PROJECT_SPEC.md
-docs/SECURITY.md
-scripts/setup-1password-vault.sh
-scripts/verify_creds.py
-scripts/git-setup-remote.sh
-.secrets.baseline
-.venv/
+# Virtual environments
+venv/
+ENV/
+env/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+*.cover
+.hypothesis/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Node / npm / Playwright
+node_modules/
+package-lock.json
+playwright-report/
+test-results/
+playwright/.cache/
+
+# OS
+.DS_Store
+Thumbs.db
