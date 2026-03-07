@@ -56,9 +56,9 @@ async def async_setup_entry(
         TuyaBLEMeshFirmwareSensor(coordinator, entry.entry_id, device_info),
     ]
 
-    # Add power/energy sensors for plug device types
-    device_type = entry.data.get(CONF_DEVICE_TYPE, "")
-    if device_type in PLUG_DEVICE_TYPES:
+    # Add power/energy sensors only if the device supports power monitoring.
+    # Most BLE Mesh plugs (e.g. Malmbergs S17) do NOT have power metering.
+    if getattr(coordinator.device, "supports_power_monitoring", False):
         entities.append(TuyaBLEMeshPowerSensor(coordinator, entry.entry_id, device_info))
         entities.append(TuyaBLEMeshEnergySensor(coordinator, entry.entry_id, device_info))
 
