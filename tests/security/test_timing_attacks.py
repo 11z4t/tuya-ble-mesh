@@ -13,8 +13,6 @@ import sys
 import time
 from pathlib import Path
 
-import pytest
-
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
 from tuya_ble_mesh.crypto import make_checksum, verify_checksum
@@ -51,7 +49,7 @@ class TestConstantTimeChecksum:
         # Standard deviation should be small relative to mean
         assert stddev < mean_time * 0.5, (
             f"Checksum verification shows high timing variance: "
-            f"mean={mean_time*1e6:.2f}µs, stddev={stddev*1e6:.2f}µs"
+            f"mean={mean_time * 1e6:.2f}µs, stddev={stddev * 1e6:.2f}µs"
         )
 
     def test_verify_checksum_timing_invalid(self) -> None:
@@ -80,7 +78,7 @@ class TestConstantTimeChecksum:
         # Invalid checksums should take similar time regardless of differences
         assert stddev < mean_time * 0.5, (
             f"Invalid checksum timing varies too much: "
-            f"stddev={stddev*1e6:.2f}µs (mean={mean_time*1e6:.2f}µs)"
+            f"stddev={stddev * 1e6:.2f}µs (mean={mean_time * 1e6:.2f}µs)"
         )
 
     def test_valid_vs_invalid_timing_similar(self) -> None:
@@ -115,8 +113,8 @@ class TestConstantTimeChecksum:
         ratio = max(valid_mean, invalid_mean) / min(valid_mean, invalid_mean)
         assert ratio < 2.0, (
             f"Valid vs invalid checksum timing differs too much: "
-            f"ratio={ratio:.2f} (valid={valid_mean*1e6:.2f}µs, "
-            f"invalid={invalid_mean*1e6:.2f}µs)"
+            f"ratio={ratio:.2f} (valid={valid_mean * 1e6:.2f}µs, "
+            f"invalid={invalid_mean * 1e6:.2f}µs)"
         )
 
 
@@ -159,8 +157,8 @@ class TestNoTimingLeaksInComparison:
         # Both should take similar time (constant-time compare)
         ratio = max(first_mean, second_mean) / min(first_mean, second_mean)
         assert ratio < 1.8, (
-            f"Checksum position affects timing: first={first_mean*1e6:.2f}µs, "
-            f"second={second_mean*1e6:.2f}µs, ratio={ratio:.2f}"
+            f"Checksum position affects timing: first={first_mean * 1e6:.2f}µs, "
+            f"second={second_mean * 1e6:.2f}µs, ratio={ratio:.2f}"
         )
 
 
@@ -207,6 +205,6 @@ class TestCacheTimingChannels:
         ratio = max_mean / min_mean
 
         assert ratio < 1.8, (
-            f"Key pattern affects timing: zeros={mean_zeros*1e6:.2f}µs, "
-            f"ones={mean_ones*1e6:.2f}µs, alt={mean_alt*1e6:.2f}µs"
+            f"Key pattern affects timing: zeros={mean_zeros * 1e6:.2f}µs, "
+            f"ones={mean_ones * 1e6:.2f}µs, alt={mean_alt * 1e6:.2f}µs"
         )
