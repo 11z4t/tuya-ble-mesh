@@ -157,7 +157,6 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
 
         # Check if already configured
         await self.async_set_unique_id(address)
-        self._abort_if_unique_id_configured()
 
         self._discovery_info = {
             "address": address,
@@ -238,7 +237,6 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             else:
                 device_type = user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
                 await self.async_set_unique_id(mac.upper())
-                self._abort_if_unique_id_configured()
                 if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
                     self._discovery_info = {
                         "address": mac.upper(),
