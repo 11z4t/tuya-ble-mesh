@@ -107,6 +107,7 @@ class SIGMeshDevice:
         *,
         op_item_prefix: str = "s17",
         iv_index: int = 0,
+        ble_device_callback: Any = None,
     ) -> None:
         """Initialize a SIG Mesh device interface.
 
@@ -117,6 +118,8 @@ class SIGMeshDevice:
             secrets: SecretsManager instance for key loading.
             op_item_prefix: 1Password item name prefix for keys.
             iv_index: Mesh IV Index.
+            ble_device_callback: Optional callback(address) → BLEDevice for
+                HA Bluetooth Proxy support. If None, uses BleakScanner.
         """
         self._address = address.upper()
         self._target_addr = target_addr
@@ -124,6 +127,7 @@ class SIGMeshDevice:
         self._secrets = secrets
         self._op_item_prefix = op_item_prefix
         self._iv_index = iv_index
+        self._ble_device_callback = ble_device_callback
 
         self._client: BleakClient | None = None
         self._keys: MeshKeys | None = None
@@ -263,7 +267,12 @@ class SIGMeshDevice:
                     attempt,
                     max_retries,
                 )
-                device = await BleakScanner.find_device_by_address(self._address, timeout=timeout)
+                if self._ble_device_callback is not None:
+                    device = self._ble_device_callback(self._address)
+                else:
+                    device = await BleakScanner.find_device_by_address(
+                        self._address, timeout=timeout
+                    )
                 if device is None:
                     msg = f"Device {self._address} not found"
                     raise MeshConnectionError(msg)
