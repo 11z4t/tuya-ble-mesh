@@ -1,4 +1,4 @@
-"""Unit tests for the Tuya BLE Mesh sensor entities."""
+"""Unit tests for the Tuya BLE Mesh sensor entities (EntityDescription pattern)."""
 
 from __future__ import annotations
 
@@ -13,14 +13,20 @@ _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
 sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
+from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass  # noqa: E402
+from homeassistant.const import (  # noqa: E402
+    SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+    UnitOfEnergy,
+    UnitOfPower,
+)
+from homeassistant.helpers.entity import EntityCategory  # noqa: E402
+
 from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     TuyaBLEMeshDeviceState,
 )
 from custom_components.tuya_ble_mesh.sensor import (  # noqa: E402
-    TuyaBLEMeshEnergySensor,
-    TuyaBLEMeshFirmwareSensor,
-    TuyaBLEMeshPowerSensor,
-    TuyaBLEMeshRSSISensor,
+    SENSOR_DESCRIPTIONS,
+    TuyaBLEMeshSensor,
     async_setup_entry,
 )
 
@@ -29,6 +35,8 @@ def make_mock_coordinator(
     *,
     rssi: int | None = -65,
     firmware_version: str | None = "1.6",
+    power_w: float | None = None,
+    energy_kwh: float | None = None,
     available: bool = True,
 ) -> MagicMock:
     """Create a mock coordinator."""
@@ -36,6 +44,8 @@ def make_mock_coordinator(
     coord.state = TuyaBLEMeshDeviceState(
         rssi=rssi,
         firmware_version=firmware_version,
+        power_w=power_w,
+        energy_kwh=energy_kwh,
         available=available,
     )
     coord.device = MagicMock()
@@ -45,114 +55,269 @@ def make_mock_coordinator(
     return coord
 
 
+class TestSensorDescriptions:
+    """Test SENSOR_DESCRIPTIONS configuration."""
+
+    def test_sensor_descriptions_count(self) -> None:
+        """Verify we have exactly 4 sensor descriptions."""
+        assert len(SENSOR_DESCRIPTIONS) == 4
+
+    def test_rssi_description(self) -> None:
+        """Test RSSI sensor description."""
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
+        assert desc.translation_key == "rssi"
+        assert desc.device_class == SensorDeviceClass.SIGNAL_STRENGTH
+        assert desc.native_unit_of_measurement == SIGNAL_STRENGTH_DECIBELS_MILLIWATT
+        assert desc.entity_category == EntityCategory.DIAGNOSTIC
+        assert desc.value_fn is not None
+        assert desc.available_fn is None
+
+    def test_firmware_description(self) -> None:
+        """Test firmware sensor description."""
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "firmware")
+        assert desc.translation_key == "firmware"
+        assert desc.entity_category == EntityCategory.DIAGNOSTIC
+        assert desc.entity_registry_enabled_default is False
+        assert desc.value_fn is not None
+        assert desc.available_fn is None
+
+    def test_power_description(self) -> None:
+        """Test power sensor description."""
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "power")
+        assert desc.translation_key == "power"
+        assert desc.device_class == SensorDeviceClass.POWER
+        assert desc.native_unit_of_measurement == UnitOfPower.WATT
+        assert desc.state_class == SensorStateClass.MEASUREMENT
+        assert desc.suggested_display_precision == 1
+        assert desc.value_fn is not None
+        assert desc.available_fn is not None
+
+    def test_energy_description(self) -> None:
+        """Test energy sensor description."""
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "energy")
+        assert desc.translation_key == "energy"
+        assert desc.device_class == SensorDeviceClass.ENERGY
+        assert desc.native_unit_of_measurement == UnitOfEnergy.KILO_WATT_HOUR
+        assert desc.state_class == SensorStateClass.TOTAL_INCREASING
+        assert desc.suggested_display_precision == 2
+        assert desc.value_fn is not None
+        assert desc.available_fn is not None
+
+
 class TestRSSISensor:
-    """Test TuyaBLEMeshRSSISensor."""
+    """Test TuyaBLEMeshSensor with RSSI description."""
 
     def test_unique_id(self) -> None:
         coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshRSSISensor(coord, "entry1")
-        assert "rssi" in sensor.unique_id
-        assert "DC:23:4D:21:43:A5" in sensor.unique_id
-
-    def test_name(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshRSSISensor(coord, "entry1")
-        assert "RSSI" in sensor.name
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.unique_id == "DC:23:4D:21:43:A5_rssi"
 
     def test_available(self) -> None:
         coord = make_mock_coordinator(available=True)
-        sensor = TuyaBLEMeshRSSISensor(coord, "entry1")
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
         assert sensor.available is True
 
     def test_not_available(self) -> None:
         coord = make_mock_coordinator(available=False)
-        sensor = TuyaBLEMeshRSSISensor(coord, "entry1")
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
         assert sensor.available is False
 
     def test_native_value(self) -> None:
         coord = make_mock_coordinator(rssi=-65)
-        sensor = TuyaBLEMeshRSSISensor(coord, "entry1")
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
         assert sensor.native_value == -65
 
     def test_native_value_none(self) -> None:
         coord = make_mock_coordinator(rssi=None)
-        sensor = TuyaBLEMeshRSSISensor(coord, "entry1")
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
         assert sensor.native_value is None
-
-    def test_unit(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshRSSISensor(coord, "entry1")
-        assert sensor.native_unit_of_measurement == "dBm"
 
     def test_device_class(self) -> None:
         coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshRSSISensor(coord, "entry1")
-        assert sensor.device_class == "signal_strength"
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.device_class == SensorDeviceClass.SIGNAL_STRENGTH
 
     def test_entity_category(self) -> None:
         coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshRSSISensor(coord, "entry1")
-        assert sensor.entity_category == "diagnostic"
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.entity_category == EntityCategory.DIAGNOSTIC
 
     def test_should_poll_false(self) -> None:
         coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshRSSISensor(coord, "entry1")
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
         assert sensor.should_poll is False
 
 
 class TestFirmwareSensor:
-    """Test TuyaBLEMeshFirmwareSensor."""
+    """Test TuyaBLEMeshSensor with firmware description."""
 
     def test_unique_id(self) -> None:
         coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshFirmwareSensor(coord, "entry1")
-        assert "firmware" in sensor.unique_id
-        assert "DC:23:4D:21:43:A5" in sensor.unique_id
-
-    def test_name(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshFirmwareSensor(coord, "entry1")
-        assert "Firmware" in sensor.name
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "firmware")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.unique_id == "DC:23:4D:21:43:A5_firmware"
 
     def test_native_value(self) -> None:
         coord = make_mock_coordinator(firmware_version="1.6")
-        sensor = TuyaBLEMeshFirmwareSensor(coord, "entry1")
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "firmware")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
         assert sensor.native_value == "1.6"
 
     def test_native_value_none(self) -> None:
         coord = make_mock_coordinator(firmware_version=None)
-        sensor = TuyaBLEMeshFirmwareSensor(coord, "entry1")
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "firmware")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
         assert sensor.native_value is None
 
     def test_entity_category(self) -> None:
         coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshFirmwareSensor(coord, "entry1")
-        assert sensor.entity_category == "diagnostic"
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "firmware")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.entity_category == EntityCategory.DIAGNOSTIC
 
     def test_should_poll_false(self) -> None:
         coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshFirmwareSensor(coord, "entry1")
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "firmware")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
         assert sensor.should_poll is False
+
+
+class TestPowerSensor:
+    """Test TuyaBLEMeshSensor with power description."""
+
+    def test_unique_id(self) -> None:
+        coord = make_mock_coordinator()
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "power")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.unique_id == "DC:23:4D:21:43:A5_power"
+
+    def test_native_value(self) -> None:
+        coord = make_mock_coordinator(power_w=42.5)
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "power")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.native_value == 42.5
+
+    def test_native_value_none(self) -> None:
+        coord = make_mock_coordinator(power_w=None)
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "power")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.native_value is None
+
+    def test_device_class(self) -> None:
+        coord = make_mock_coordinator()
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "power")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.device_class == SensorDeviceClass.POWER
+
+    def test_state_class(self) -> None:
+        coord = make_mock_coordinator()
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "power")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.state_class == SensorStateClass.MEASUREMENT
+
+    def test_should_poll_false(self) -> None:
+        coord = make_mock_coordinator()
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "power")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.should_poll is False
+
+    def test_available_when_power_none(self) -> None:
+        """Power sensor should be unavailable when power_w is None."""
+        coord = make_mock_coordinator(available=True, power_w=None)
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "power")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.available is False
+
+    def test_available_when_power_present(self) -> None:
+        """Power sensor should be available when power_w has a value."""
+        coord = make_mock_coordinator(available=True, power_w=42.5)
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "power")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.available is True
+
+
+class TestEnergySensor:
+    """Test TuyaBLEMeshSensor with energy description."""
+
+    def test_unique_id(self) -> None:
+        coord = make_mock_coordinator()
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "energy")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.unique_id == "DC:23:4D:21:43:A5_energy"
+
+    def test_native_value(self) -> None:
+        coord = make_mock_coordinator(energy_kwh=12.34)
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "energy")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.native_value == 12.34
+
+    def test_native_value_none(self) -> None:
+        coord = make_mock_coordinator(energy_kwh=None)
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "energy")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.native_value is None
+
+    def test_device_class(self) -> None:
+        coord = make_mock_coordinator()
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "energy")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.device_class == SensorDeviceClass.ENERGY
+
+    def test_state_class(self) -> None:
+        coord = make_mock_coordinator()
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "energy")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.state_class == SensorStateClass.TOTAL_INCREASING
+
+    def test_should_poll_false(self) -> None:
+        coord = make_mock_coordinator()
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "energy")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.should_poll is False
+
+    def test_available_when_energy_none(self) -> None:
+        """Energy sensor should be unavailable when energy_kwh is None."""
+        coord = make_mock_coordinator(available=True, energy_kwh=None)
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "energy")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.available is False
+
+    def test_available_when_energy_present(self) -> None:
+        """Energy sensor should be available when energy_kwh has a value."""
+        coord = make_mock_coordinator(available=True, energy_kwh=12.34)
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "energy")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.available is True
 
 
 class TestSensorLifecycle:
     """Test HA lifecycle methods for sensors."""
 
     @pytest.mark.asyncio
-    async def test_rssi_added_to_hass(self) -> None:
+    async def test_added_to_hass(self) -> None:
         coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshRSSISensor(coord, "entry1")
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
 
         await sensor.async_added_to_hass()
 
         coord.add_listener.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_rssi_removed_from_hass(self) -> None:
+    async def test_removed_from_hass(self) -> None:
         coord = make_mock_coordinator()
         remove_fn = MagicMock()
         coord.add_listener.return_value = remove_fn
-        sensor = TuyaBLEMeshRSSISensor(coord, "entry1")
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
 
         await sensor.async_added_to_hass()
         await sensor.async_will_remove_from_hass()
@@ -160,42 +325,10 @@ class TestSensorLifecycle:
         remove_fn.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_firmware_added_to_hass(self) -> None:
+    async def test_update_triggers_ha_state_write(self) -> None:
         coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshFirmwareSensor(coord, "entry1")
-
-        await sensor.async_added_to_hass()
-
-        coord.add_listener.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_firmware_removed_from_hass(self) -> None:
-        coord = make_mock_coordinator()
-        remove_fn = MagicMock()
-        coord.add_listener.return_value = remove_fn
-        sensor = TuyaBLEMeshFirmwareSensor(coord, "entry1")
-
-        await sensor.async_added_to_hass()
-        await sensor.async_will_remove_from_hass()
-
-        remove_fn.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_rssi_update_triggers_ha_state_write(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshRSSISensor(coord, "entry1")
-        sensor.async_write_ha_state = MagicMock()
-
-        await sensor.async_added_to_hass()
-        callback = coord.add_listener.call_args[0][0]
-        callback()
-
-        sensor.async_write_ha_state.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_firmware_update_triggers_ha_state_write(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshFirmwareSensor(coord, "entry1")
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
         sensor.async_write_ha_state = MagicMock()
 
         await sensor.async_added_to_hass()
@@ -209,7 +342,8 @@ class TestSensorPlatformSetup:
     """Test async_setup_entry for the sensor platform."""
 
     @pytest.mark.asyncio
-    async def test_setup_entry_creates_two_sensors(self) -> None:
+    async def test_setup_entry_creates_two_sensors_for_light(self) -> None:
+        """Light devices get RSSI + Firmware = 2 sensors (no power/energy)."""
         coord = make_mock_coordinator()
         hass = MagicMock()
         entry = MagicMock()
@@ -224,24 +358,34 @@ class TestSensorPlatformSetup:
         add_entities.assert_called_once()
         entities = add_entities.call_args[0][0]
         assert len(entities) == 2
+        keys = {e.entity_description.key for e in entities}
+        assert "rssi" in keys
+        assert "firmware" in keys
+        assert "power" not in keys
+        assert "energy" not in keys
 
     @pytest.mark.asyncio
-    async def test_setup_entry_creates_rssi_and_firmware(self) -> None:
+    async def test_setup_entry_creates_four_sensors_for_plug(self) -> None:
+        """Plug devices with power monitoring get RSSI + Firmware + Power + Energy = 4."""
         coord = make_mock_coordinator()
+        coord.device.supports_power_monitoring = True
         hass = MagicMock()
         entry = MagicMock()
         entry.entry_id = "entry1"
         entry.runtime_data.coordinator = coord
         entry.runtime_data.device_info = MagicMock()
-        entry.data = {"device_type": "light"}
+        entry.data = {"device_type": "sig_plug"}
         add_entities = MagicMock()
 
         await async_setup_entry(hass, entry, add_entities)
 
         entities = add_entities.call_args[0][0]
-        types = {type(e) for e in entities}
-        assert TuyaBLEMeshRSSISensor in types
-        assert TuyaBLEMeshFirmwareSensor in types
+        assert len(entities) == 4
+        keys = {e.entity_description.key for e in entities}
+        assert "rssi" in keys
+        assert "firmware" in keys
+        assert "power" in keys
+        assert "energy" in keys
 
     @pytest.mark.asyncio
     async def test_setup_entry_uses_coordinator_from_runtime_data(self) -> None:
@@ -261,204 +405,29 @@ class TestSensorPlatformSetup:
             assert entity._coordinator is coord
 
     @pytest.mark.asyncio
-    async def test_setup_entry_creates_four_sensors_for_plug(self) -> None:
-        """Plug devices get RSSI + Firmware + Power + Energy = 4 sensors."""
-        coord = make_mock_coordinator()
-        coord.device.supports_power_monitoring = True
-        hass = MagicMock()
-        entry = MagicMock()
-        entry.entry_id = "entry1"
-        entry.runtime_data.coordinator = coord
-        entry.runtime_data.device_info = MagicMock()
-        entry.data = {"device_type": "sig_plug"}
-        add_entities = MagicMock()
-
-        await async_setup_entry(hass, entry, add_entities)
-
-        entities = add_entities.call_args[0][0]
-        assert len(entities) == 4
-        types = {type(e) for e in entities}
-        assert TuyaBLEMeshPowerSensor in types
-        assert TuyaBLEMeshEnergySensor in types
-
-    @pytest.mark.asyncio
-    async def test_setup_entry_creates_two_sensors_for_light(self) -> None:
-        """Light devices get RSSI + Firmware = 2 sensors (no power/energy)."""
+    async def test_setup_entry_sets_device_info(self) -> None:
         coord = make_mock_coordinator()
         hass = MagicMock()
         entry = MagicMock()
         entry.entry_id = "entry1"
         entry.runtime_data.coordinator = coord
-        entry.runtime_data.device_info = MagicMock()
+        device_info = MagicMock()
+        entry.runtime_data.device_info = device_info
         entry.data = {"device_type": "light"}
         add_entities = MagicMock()
 
         await async_setup_entry(hass, entry, add_entities)
 
         entities = add_entities.call_args[0][0]
-        assert len(entities) == 2
-        types = {type(e) for e in entities}
-        assert TuyaBLEMeshPowerSensor not in types
-        assert TuyaBLEMeshEnergySensor not in types
+        for entity in entities:
+            assert entity._attr_device_info is device_info
 
 
-class TestPowerSensor:
-    """Test TuyaBLEMeshPowerSensor."""
+class TestSensorHasEntityName:
+    """Test that sensors use has_entity_name pattern."""
 
-    def test_unique_id(self) -> None:
+    def test_has_entity_name_true(self) -> None:
         coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshPowerSensor(coord, "entry1")
-        assert "power" in sensor.unique_id
-        assert "DC:23:4D:21:43:A5" in sensor.unique_id
-
-    def test_name(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshPowerSensor(coord, "entry1")
-        assert "Power" in sensor.name
-
-    def test_native_value(self) -> None:
-        coord = make_mock_coordinator()
-        coord.state.power_w = 42.5
-        sensor = TuyaBLEMeshPowerSensor(coord, "entry1")
-        assert sensor.native_value == 42.5
-
-    def test_native_value_none(self) -> None:
-        coord = make_mock_coordinator()
-        coord.state.power_w = None
-        sensor = TuyaBLEMeshPowerSensor(coord, "entry1")
-        assert sensor.native_value is None
-
-    def test_unit(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshPowerSensor(coord, "entry1")
-        assert sensor.native_unit_of_measurement == "W"
-
-    def test_device_class(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshPowerSensor(coord, "entry1")
-        assert sensor.device_class == "power"
-
-    def test_state_class(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshPowerSensor(coord, "entry1")
-        assert sensor.state_class == "measurement"
-
-    def test_should_poll_false(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshPowerSensor(coord, "entry1")
-        assert sensor.should_poll is False
-
-    def test_available(self) -> None:
-        coord = make_mock_coordinator(available=True)
-        sensor = TuyaBLEMeshPowerSensor(coord, "entry1")
-        assert sensor.available is True
-
-    def test_not_available(self) -> None:
-        coord = make_mock_coordinator(available=False)
-        sensor = TuyaBLEMeshPowerSensor(coord, "entry1")
-        assert sensor.available is False
-
-
-class TestEnergySensor:
-    """Test TuyaBLEMeshEnergySensor."""
-
-    def test_unique_id(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshEnergySensor(coord, "entry1")
-        assert "energy" in sensor.unique_id
-        assert "DC:23:4D:21:43:A5" in sensor.unique_id
-
-    def test_name(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshEnergySensor(coord, "entry1")
-        assert "Energy" in sensor.name
-
-    def test_native_value(self) -> None:
-        coord = make_mock_coordinator()
-        coord.state.energy_kwh = 12.34
-        sensor = TuyaBLEMeshEnergySensor(coord, "entry1")
-        assert sensor.native_value == 12.34
-
-    def test_native_value_none(self) -> None:
-        coord = make_mock_coordinator()
-        coord.state.energy_kwh = None
-        sensor = TuyaBLEMeshEnergySensor(coord, "entry1")
-        assert sensor.native_value is None
-
-    def test_unit(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshEnergySensor(coord, "entry1")
-        assert sensor.native_unit_of_measurement == "kWh"
-
-    def test_device_class(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshEnergySensor(coord, "entry1")
-        assert sensor.device_class == "energy"
-
-    def test_state_class(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshEnergySensor(coord, "entry1")
-        assert sensor.state_class == "total_increasing"
-
-    def test_should_poll_false(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshEnergySensor(coord, "entry1")
-        assert sensor.should_poll is False
-
-
-class TestPowerEnergySensorLifecycle:
-    """Test HA lifecycle methods for power/energy sensors."""
-
-    @pytest.mark.asyncio
-    async def test_power_added_to_hass(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshPowerSensor(coord, "entry1")
-        await sensor.async_added_to_hass()
-        coord.add_listener.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_power_removed_from_hass(self) -> None:
-        coord = make_mock_coordinator()
-        remove_fn = MagicMock()
-        coord.add_listener.return_value = remove_fn
-        sensor = TuyaBLEMeshPowerSensor(coord, "entry1")
-        await sensor.async_added_to_hass()
-        await sensor.async_will_remove_from_hass()
-        remove_fn.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_energy_added_to_hass(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshEnergySensor(coord, "entry1")
-        await sensor.async_added_to_hass()
-        coord.add_listener.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_energy_removed_from_hass(self) -> None:
-        coord = make_mock_coordinator()
-        remove_fn = MagicMock()
-        coord.add_listener.return_value = remove_fn
-        sensor = TuyaBLEMeshEnergySensor(coord, "entry1")
-        await sensor.async_added_to_hass()
-        await sensor.async_will_remove_from_hass()
-        remove_fn.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_power_update_triggers_ha_state_write(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshPowerSensor(coord, "entry1")
-        sensor.async_write_ha_state = MagicMock()
-        await sensor.async_added_to_hass()
-        callback = coord.add_listener.call_args[0][0]
-        callback()
-        sensor.async_write_ha_state.assert_called_once()
-
-    @pytest.mark.asyncio
-    async def test_energy_update_triggers_ha_state_write(self) -> None:
-        coord = make_mock_coordinator()
-        sensor = TuyaBLEMeshEnergySensor(coord, "entry1")
-        sensor.async_write_ha_state = MagicMock()
-        await sensor.async_added_to_hass()
-        callback = coord.add_listener.call_args[0][0]
-        callback()
-        sensor.async_write_ha_state.assert_called_once()
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
+        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        assert sensor.has_entity_name is True
