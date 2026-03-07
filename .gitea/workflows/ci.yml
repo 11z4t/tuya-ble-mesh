@@ -91,9 +91,32 @@ jobs:
               print('No secrets detected')
           "
 
-  notify:
+  dual-review:
     runs-on: ubuntu-latest
     needs: [lint, typecheck, test, secrets-scan]
+    if: github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install review dependencies
+        run: pip install httpx
+
+      - name: Dual AI Review (Claude + GPT)
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          REPO_PATH: ${{ github.workspace }}
+        run: python scripts/dual-review.py
+
+  notify:
+    runs-on: ubuntu-latest
+    needs: [lint, typecheck, test, secrets-scan, dual-review]
     if: always()
     steps:
       - name: Notify Slack
