@@ -125,3 +125,43 @@ class SecretsManager:
     def _op_available() -> bool:
         """Check if the op CLI is on PATH."""
         return shutil.which("op") is not None
+
+
+class DictSecretsManager(SecretsManager):
+    """Secrets manager that reads from a dict instead of 1Password.
+
+    Used when keys are stored in HA config entry data rather than
+    1Password (e.g. on HA VMs without ``op`` CLI).
+
+    Args:
+        secrets: Mapping of ``item/field`` to secret value.
+        vault: Vault name (metadata only).
+    """
+
+    def __init__(
+        self,
+        secrets: dict[str, str],
+        vault: str = "config-entry",
+    ) -> None:
+        super().__init__(vault=vault)
+        self._secrets = secrets
+
+    async def get(self, item: str, field: str = "password") -> str:
+        """Read a secret from the dict.
+
+        Args:
+            item: Item name.
+            field: Field name.
+
+        Returns:
+            The secret value.
+
+        Raises:
+            SecretAccessError: If key not found in dict.
+        """
+        key = f"{item}/{field}"
+        if key not in self._secrets:
+            msg = f"Key '{key}' not found in config entry secrets"
+            raise SecretAccessError(msg)
+        _LOGGER.debug("Secret loaded from dict: %s [REDACTED]", key)
+        return self._secrets[key]

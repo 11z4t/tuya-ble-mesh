@@ -133,12 +133,27 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
     coordinator = TuyaBLEMeshCoordinator(device, hass=hass, entry_id=entry.entry_id)
 
+    from homeassistant.helpers.device_registry import DeviceInfo
+
+    device_info = DeviceInfo(
+        identifiers={(DOMAIN, mac_address)},
+        name=entry.title,
+        manufacturer="Malmbergs / Tuya",
+        model=device_type or "BLE Mesh",
+        sw_version=device.firmware_version,
+        connections={("mac", mac_address)},
+    )
+
     hass.data.setdefault(DOMAIN, {})
     hass.data[DOMAIN][entry.entry_id] = {
         "coordinator": coordinator,
+        "device_info": device_info,
     }
 
     await coordinator.async_start()
+
+    # Forward platform setup even if device is unavailable —
+    # entities will show as "unavailable" until connection succeeds
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     _LOGGER.info("Tuya BLE Mesh entry set up: %s", entry.title)
