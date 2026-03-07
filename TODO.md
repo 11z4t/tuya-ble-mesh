@@ -1,4 +1,4 @@
-# TODO — Malmbergs BT Project
+# TODO — Tuya BLE Mesh Project
 
 ## 1Password Setup (manual steps required)
 
