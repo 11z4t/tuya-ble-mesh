@@ -62,7 +62,7 @@ class SIGMeshBridgeDevice:
         """
         # SECURITY: Reject CRLF to prevent HTTP header injection
         if "\r" in bridge_host or "\n" in bridge_host:
-            msg = f"Invalid bridge_host: contains CRLF characters"
+            msg = "Invalid bridge_host: contains CRLF characters"
             raise ValueError(msg)
 
         self._address = address.upper()
@@ -334,7 +334,7 @@ class TelinkBridgeDevice:
         """
         # SECURITY: Reject CRLF to prevent HTTP header injection
         if "\r" in bridge_host or "\n" in bridge_host:
-            msg = f"Invalid bridge_host: contains CRLF characters"
+            msg = "Invalid bridge_host: contains CRLF characters"
             raise ValueError(msg)
 
         self._address = address.upper()
