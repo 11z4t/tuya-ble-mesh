@@ -52,7 +52,8 @@
       }
     },
     "error": {
-      "invalid_mac": "Invalid MAC address format (expected XX:XX:XX:XX:XX:XX)"
+      "invalid_mac": "Invalid MAC address format (expected XX:XX:XX:XX:XX:XX)",
+      "cannot_connect": "Cannot connect to bridge daemon. Verify the host/port and that the daemon is running."
     },
     "abort": {
       "already_configured": "This device is already configured"

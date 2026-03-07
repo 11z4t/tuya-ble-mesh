@@ -69,6 +69,8 @@ class TuyaBLEMeshRSSISensor(SensorEntity):
     """RSSI signal strength sensor for a Tuya BLE Mesh device."""
 
     _attr_should_poll = False
+    _attr_has_entity_name = True
+    _attr_name = "RSSI"
 
     def __init__(
         self,
@@ -79,7 +81,6 @@ class TuyaBLEMeshRSSISensor(SensorEntity):
         self._coordinator = coordinator
         self._entry_id = entry_id
         self._attr_unique_id = f"{coordinator.device.address}_rssi"
-        self._attr_name = f"Tuya BLE Mesh {coordinator.device.address[-8:]} RSSI"
         if device_info is not None:
             self._attr_device_info = device_info
         self._remove_listener: Any = None
@@ -88,11 +89,6 @@ class TuyaBLEMeshRSSISensor(SensorEntity):
     def unique_id(self) -> str:
         """Return unique ID."""
         return self._attr_unique_id
-
-    @property
-    def name(self) -> str:
-        """Return entity name."""
-        return self._attr_name
 
     @property
     def available(self) -> bool:
@@ -138,6 +134,8 @@ class TuyaBLEMeshFirmwareSensor(SensorEntity):
     """Firmware version sensor for a Tuya BLE Mesh device."""
 
     _attr_should_poll = False
+    _attr_has_entity_name = True
+    _attr_name = "Firmware"
 
     def __init__(
         self,
@@ -148,7 +146,6 @@ class TuyaBLEMeshFirmwareSensor(SensorEntity):
         self._coordinator = coordinator
         self._entry_id = entry_id
         self._attr_unique_id = f"{coordinator.device.address}_firmware"
-        self._attr_name = f"Tuya BLE Mesh {coordinator.device.address[-8:]} Firmware"
         if device_info is not None:
             self._attr_device_info = device_info
         self._remove_listener: Any = None
@@ -157,11 +154,6 @@ class TuyaBLEMeshFirmwareSensor(SensorEntity):
     def unique_id(self) -> str:
         """Return unique ID."""
         return self._attr_unique_id
-
-    @property
-    def name(self) -> str:
-        """Return entity name."""
-        return self._attr_name
 
     @property
     def available(self) -> bool:
@@ -197,6 +189,8 @@ class TuyaBLEMeshPowerSensor(SensorEntity):
     """Power consumption sensor (W) for a Tuya BLE Mesh plug."""
 
     _attr_should_poll = False
+    _attr_has_entity_name = True
+    _attr_name = "Power"
 
     def __init__(
         self,
@@ -207,7 +201,6 @@ class TuyaBLEMeshPowerSensor(SensorEntity):
         self._coordinator = coordinator
         self._entry_id = entry_id
         self._attr_unique_id = f"{coordinator.device.address}_power"
-        self._attr_name = f"Tuya BLE Mesh {coordinator.device.address[-8:]} Power"
         if device_info is not None:
             self._attr_device_info = device_info
         self._remove_listener: Any = None
@@ -216,11 +209,6 @@ class TuyaBLEMeshPowerSensor(SensorEntity):
     def unique_id(self) -> str:
         """Return unique ID."""
         return self._attr_unique_id
-
-    @property
-    def name(self) -> str:
-        """Return entity name."""
-        return self._attr_name
 
     @property
     def available(self) -> bool:
@@ -266,6 +254,8 @@ class TuyaBLEMeshEnergySensor(SensorEntity):
     """Energy consumption sensor (kWh) for a Tuya BLE Mesh plug."""
 
     _attr_should_poll = False
+    _attr_has_entity_name = True
+    _attr_name = "Energy"
 
     def __init__(
         self,
@@ -276,7 +266,6 @@ class TuyaBLEMeshEnergySensor(SensorEntity):
         self._coordinator = coordinator
         self._entry_id = entry_id
         self._attr_unique_id = f"{coordinator.device.address}_energy"
-        self._attr_name = f"Tuya BLE Mesh {coordinator.device.address[-8:]} Energy"
         if device_info is not None:
             self._attr_device_info = device_info
         self._remove_listener: Any = None
@@ -285,11 +274,6 @@ class TuyaBLEMeshEnergySensor(SensorEntity):
     def unique_id(self) -> str:
         """Return unique ID."""
         return self._attr_unique_id
-
-    @property
-    def name(self) -> str:
-        """Return entity name."""
-        return self._attr_name
 
     @property
     def available(self) -> bool:
