@@ -100,10 +100,13 @@ jobs:
     if: always()
     steps:
       - name: Notify Slack
-        if: env.SLACK_WEBHOOK_URL != ''
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
+          if [ -z "$SLACK_WEBHOOK_URL" ]; then
+            echo "No SLACK_WEBHOOK_URL secret configured — skipping"
+            exit 0
+          fi
           STATUS="success"
           if [ "${{ needs.lint.result }}" != "success" ] || \
              [ "${{ needs.test.result }}" != "success" ] || \
@@ -112,4 +115,4 @@ jobs:
           fi
           curl -X POST "$SLACK_WEBHOOK_URL" \
             -H 'Content-Type: application/json' \
-            -d "{\"text\":\"CI ${STATUS} for tuya-ble-mesh (${{ gitea.ref_name }}) - ${STATUS}\"}"
+            -d "{\"text\":\"CI ${STATUS} for tuya-ble-mesh (${{ github.ref_name }}) - ${STATUS}\"}"
