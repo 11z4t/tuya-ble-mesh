@@ -55,5 +55,21 @@
     "abort": {
       "already_configured": "This device is already configured"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tuya BLE Mesh Options",
+        "data": {
+          "mesh_name": "Mesh Name",
+          "mesh_password": "Mesh Password",
+          "mesh_address": "Mesh Address (0 = auto)",
+          "bridge_host": "Bridge Host",
+          "bridge_port": "Bridge Port",
+          "unicast_target": "Target Unicast Address (hex)",
+          "iv_index": "IV Index"
+        }
+      }
+    }
   }
 }

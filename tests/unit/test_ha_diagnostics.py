@@ -19,6 +19,7 @@ from custom_components.tuya_ble_mesh.const import (  # noqa: E402
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
     CONF_NET_KEY,
+    DOMAIN,
 )
 from custom_components.tuya_ble_mesh.diagnostics import (  # noqa: E402
     REDACTED,
@@ -125,6 +126,75 @@ class TestAsyncGetDiagnostics:
         result = await async_get_config_entry_diagnostics(hass, entry)
 
         assert result["data"][CONF_MAC_ADDRESS] == "DC:23:4D:21:43:A5"
+
+    @pytest.mark.asyncio
+    async def test_no_coordinator_key_without_coordinator(self) -> None:
+        """Without a coordinator, result has no 'coordinator' key."""
+        entry = make_mock_entry()
+        hass = MagicMock()
+        hass.data = {}
+
+        result = await async_get_config_entry_diagnostics(hass, entry)
+
+        assert "coordinator" not in result
+        assert "device" not in result
+        assert "entry_id" in result
+        assert "data" in result
+
+    @pytest.mark.asyncio
+    async def test_includes_coordinator_state(self) -> None:
+        """Coordinator state fields are included when coordinator exists."""
+        entry = make_mock_entry(entry_id="coord_entry")
+        state = MagicMock()
+        state.available = True
+        state.is_on = True
+        state.brightness = 80
+        state.color_temp = 42
+        state.mode = "white"
+        state.rssi = -55
+        state.firmware_version = "1.2.3"
+        state.power_w = 5.2
+        state.energy_kwh = 12.3
+
+        coordinator = MagicMock()
+        coordinator.state = state
+        coordinator.device = MagicMock()
+        coordinator.device.address = "DC:23:4F:10:52:C4"
+        type(coordinator.device).__name__ = "SIGMeshDevice"
+
+        hass = MagicMock()
+        hass.data = {DOMAIN: {"coord_entry": {"coordinator": coordinator}}}
+
+        result = await async_get_config_entry_diagnostics(hass, entry)
+
+        assert result["coordinator"]["available"] is True
+        assert result["coordinator"]["is_on"] is True
+        assert result["coordinator"]["brightness"] == 80
+        assert result["coordinator"]["color_temp"] == 42
+        assert result["coordinator"]["mode"] == "white"
+        assert result["coordinator"]["rssi"] == -55
+        assert result["coordinator"]["firmware_version"] == "1.2.3"
+        assert result["coordinator"]["power_w"] == 5.2
+        assert result["coordinator"]["energy_kwh"] == 12.3
+
+    @pytest.mark.asyncio
+    async def test_includes_device_info(self) -> None:
+        """Device type name and address are included."""
+        entry = make_mock_entry(entry_id="dev_entry")
+        state = MagicMock()
+        coordinator = MagicMock()
+        coordinator.state = state
+        coordinator.device = MagicMock()
+        coordinator.device.address = "AA:BB:CC:DD:EE:FF"
+        type(coordinator.device).__name__ = "SIGMeshDevice"
+
+        hass = MagicMock()
+        hass.data = {DOMAIN: {"dev_entry": {"coordinator": coordinator}}}
+
+        result = await async_get_config_entry_diagnostics(hass, entry)
+
+        assert result["device"]["type"] == "SIGMeshDevice"
+        assert result["device"]["address"] == "AA:BB:CC:DD:EE:FF"
 
 
 class TestSecurityVerification:

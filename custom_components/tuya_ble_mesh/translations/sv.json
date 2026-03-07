@@ -61,5 +61,21 @@
     "abort": {
       "already_configured": "Enheten \u00e4r redan konfigurerad"
     }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tuya BLE Mesh-alternativ",
+        "data": {
+          "mesh_name": "Mesh-namn",
+          "mesh_password": "Mesh-l\u00f6senord",
+          "mesh_address": "Mesh-adress (0 = auto)",
+          "bridge_host": "Bridge-v\u00e4rd",
+          "bridge_port": "Bridge-port",
+          "unicast_target": "M\u00e5l-unicast-adress (hex)",
+          "iv_index": "IV-index"
+        }
+      }
+    }
   }
 }
