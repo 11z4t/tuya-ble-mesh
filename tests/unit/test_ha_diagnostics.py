@@ -33,8 +33,17 @@ def make_mock_entry(
     mac: str = "DC:23:4D:21:43:A5",
     mesh_name: str = "my_mesh",
     mesh_password: str = "secret123",  # pragma: allowlist secret
+    with_coordinator: bool = False,
 ) -> MagicMock:
-    """Create a mock config entry."""
+    """Create a mock config entry.
+
+    Args:
+        entry_id: The entry ID
+        mac: MAC address
+        mesh_name: Mesh network name
+        mesh_password: Mesh password
+        with_coordinator: If True, add a mocked coordinator with statistics
+    """
     entry = MagicMock()
     entry.entry_id = entry_id
     entry.data = {
@@ -42,6 +51,28 @@ def make_mock_entry(
         CONF_MESH_NAME: mesh_name,
         CONF_MESH_PASSWORD: mesh_password,  # pragma: allowlist secret
     }
+
+    if with_coordinator:
+        stats = MagicMock()
+        stats.connect_time = None
+        stats.total_reconnects = 0
+        stats.total_errors = 0
+        stats.connection_errors = 0
+        stats.command_errors = 0
+        stats.last_error = None
+        stats.last_error_time = None
+        stats.response_times = []
+
+        coordinator = MagicMock()
+        coordinator.state = MagicMock()
+        coordinator.statistics = stats
+        coordinator.device = MagicMock()
+        coordinator.device.address = mac
+        type(coordinator.device).__name__ = "SIGMeshDevice"
+
+        entry.runtime_data = MagicMock()
+        entry.runtime_data.coordinator = coordinator
+
     return entry
 
 
@@ -59,14 +90,15 @@ class TestRedactData:
         result = _redact_data(data)
         assert result[CONF_MESH_PASSWORD] == REDACTED
 
-    def test_preserves_mac_address(self) -> None:
+    def test_redacts_mac_address(self) -> None:
+        """MAC addresses should be redacted for privacy."""
         data = {
             CONF_MAC_ADDRESS: "DC:23:4D:21:43:A5",
             CONF_MESH_NAME: "mesh",
             CONF_MESH_PASSWORD: "pass",  # pragma: allowlist secret
         }
         result = _redact_data(data)
-        assert result[CONF_MAC_ADDRESS] == "DC:23:4D:21:43:A5"
+        assert result[CONF_MAC_ADDRESS] == "XX:XX:XX:XX:XX:XX"
 
     def test_does_not_modify_original(self) -> None:
         data = {CONF_MESH_NAME: "original", CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF"}
@@ -97,7 +129,7 @@ class TestAsyncGetDiagnostics:
 
     @pytest.mark.asyncio
     async def test_returns_entry_id(self) -> None:
-        entry = make_mock_entry(entry_id="my_entry")
+        entry = make_mock_entry(entry_id="my_entry", with_coordinator=True)
         hass = MagicMock()
 
         result = await async_get_config_entry_diagnostics(hass, entry)
@@ -109,6 +141,7 @@ class TestAsyncGetDiagnostics:
         entry = make_mock_entry(
             mesh_name="secret_mesh",
             mesh_password="secret_pass",  # pragma: allowlist secret
+            with_coordinator=True,
         )
         hass = MagicMock()
 
@@ -118,13 +151,14 @@ class TestAsyncGetDiagnostics:
         assert result["data"][CONF_MESH_PASSWORD] == REDACTED
 
     @pytest.mark.asyncio
-    async def test_preserves_non_sensitive_fields(self) -> None:
-        entry = make_mock_entry(mac="DC:23:4D:21:43:A5")
+    async def test_redacts_mac_in_diagnostics(self) -> None:
+        """MAC addresses should be redacted in diagnostics output."""
+        entry = make_mock_entry(mac="DC:23:4D:21:43:A5", with_coordinator=True)
         hass = MagicMock()
 
         result = await async_get_config_entry_diagnostics(hass, entry)
 
-        assert result["data"][CONF_MAC_ADDRESS] == "DC:23:4D:21:43:A5"
+        assert result["data"][CONF_MAC_ADDRESS] == "XX:XX:XX:XX:XX:XX"
 
     @pytest.mark.asyncio
     async def test_no_coordinator_key_without_coordinator(self) -> None:
@@ -156,8 +190,19 @@ class TestAsyncGetDiagnostics:
         state.power_w = 5.2
         state.energy_kwh = 12.3
 
+        stats = MagicMock()
+        stats.connect_time = None
+        stats.total_reconnects = 0
+        stats.total_errors = 0
+        stats.connection_errors = 0
+        stats.command_errors = 0
+        stats.last_error = None
+        stats.last_error_time = None
+        stats.response_times = []
+
         coordinator = MagicMock()
         coordinator.state = state
+        coordinator.statistics = stats
         coordinator.device = MagicMock()
         coordinator.device.address = "DC:23:4F:10:52:C4"
         type(coordinator.device).__name__ = "SIGMeshDevice"
@@ -168,22 +213,34 @@ class TestAsyncGetDiagnostics:
 
         result = await async_get_config_entry_diagnostics(hass, entry)
 
-        assert result["coordinator"]["available"] is True
-        assert result["coordinator"]["is_on"] is True
-        assert result["coordinator"]["brightness"] == 80
-        assert result["coordinator"]["color_temp"] == 42
-        assert result["coordinator"]["mode"] == "white"
-        assert result["coordinator"]["rssi"] == -55
-        assert result["coordinator"]["firmware_version"] == "1.2.3"
-        assert result["coordinator"]["power_w"] == 5.2
-        assert result["coordinator"]["energy_kwh"] == 12.3
+        assert result["device_state"]["available"] is True
+        assert result["device_state"]["is_on"] is True
+        assert result["device_state"]["brightness"] == 80
+        assert result["device_state"]["color_temp"] == 42
+        assert result["device_state"]["mode"] == "white"
+        assert result["device_state"]["rssi"] == -55
+        assert result["device_state"]["firmware_version"] == "1.2.3"
+        assert result["device_state"]["power_w"] == 5.2
+        assert result["device_state"]["energy_kwh"] == 12.3
 
     @pytest.mark.asyncio
     async def test_includes_device_info(self) -> None:
-        """Device type name and address are included."""
+        """Device type name is included, but address is redacted."""
         entry = make_mock_entry(entry_id="dev_entry")
+
+        stats = MagicMock()
+        stats.connect_time = None
+        stats.total_reconnects = 0
+        stats.total_errors = 0
+        stats.connection_errors = 0
+        stats.command_errors = 0
+        stats.last_error = None
+        stats.last_error_time = None
+        stats.response_times = []
+
         coordinator = MagicMock()
         coordinator.state = MagicMock()
+        coordinator.statistics = stats
         coordinator.device = MagicMock()
         coordinator.device.address = "AA:BB:CC:DD:EE:FF"
         type(coordinator.device).__name__ = "SIGMeshDevice"
@@ -194,8 +251,9 @@ class TestAsyncGetDiagnostics:
 
         result = await async_get_config_entry_diagnostics(hass, entry)
 
-        assert result["device"]["type"] == "SIGMeshDevice"
-        assert result["device"]["address"] == "AA:BB:CC:DD:EE:FF"
+        assert result["device_info"]["type"] == "SIGMeshDevice"
+        # Address should be redacted for privacy
+        assert result["device_info"]["address"] == "XX:XX:XX:XX:XX:XX"
 
 
 class TestSecurityVerification:
@@ -209,6 +267,7 @@ class TestSecurityVerification:
         entry = make_mock_entry(
             mesh_name=secret_mesh,
             mesh_password=secret_pass,  # pragma: allowlist secret
+            with_coordinator=True,
         )
         hass = MagicMock()
 
@@ -233,6 +292,28 @@ class TestSecurityVerification:
             CONF_DEV_KEY: secret_dev,
             CONF_APP_KEY: secret_app,
         }
+
+        # Add coordinator with statistics
+        stats = MagicMock()
+        stats.connect_time = None
+        stats.total_reconnects = 0
+        stats.total_errors = 0
+        stats.connection_errors = 0
+        stats.command_errors = 0
+        stats.last_error = None
+        stats.last_error_time = None
+        stats.response_times = []
+
+        coordinator = MagicMock()
+        coordinator.state = MagicMock()
+        coordinator.statistics = stats
+        coordinator.device = MagicMock()
+        coordinator.device.address = "AA:BB:CC:DD:EE:FF"
+        type(coordinator.device).__name__ = "SIGMeshDevice"
+
+        entry.runtime_data = MagicMock()
+        entry.runtime_data.coordinator = coordinator
+
         hass = MagicMock()
 
         result = await async_get_config_entry_diagnostics(hass, entry)
@@ -245,7 +326,7 @@ class TestSecurityVerification:
     @pytest.mark.asyncio
     async def test_redacted_placeholder_present(self) -> None:
         """Verify redacted fields use the REDACTED constant, not empty/None."""
-        entry = make_mock_entry()
+        entry = make_mock_entry(with_coordinator=True)
         hass = MagicMock()
 
         result = await async_get_config_entry_diagnostics(hass, entry)
