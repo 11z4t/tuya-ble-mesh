@@ -1,7 +1,8 @@
 {
   "domain": "tuya_ble_mesh",
   "name": "Tuya BLE Mesh",
-  "version": "0.15.0",
+  "version": "0.17.0",
+  "integration_type": "hub",
   "documentation": "https://github.com/11z4t/tuya-ble-mesh",
   "issue_tracker": "https://github.com/11z4t/tuya-ble-mesh/issues",
   "codeowners": [
@@ -9,6 +10,8 @@
   ],
   "config_flow": true,
   "iot_class": "local_push",
+  "quality_scale": "platinum",
+  "loggers": ["tuya_ble_mesh"],
   "bluetooth": [
     {
       "local_name": "out_of_mesh*"

@@ -1,0 +1,26 @@
+identify:
+  name: Identify device
+  description: Flash the device LED to make it easy to identify in a room.
+  fields:
+    device_id:
+      name: Device
+      description: The Tuya BLE Mesh device to identify.
+      required: true
+      selector:
+        text:
+
+set_log_level:
+  name: Set log level
+  description: Change BLE mesh logging verbosity without restarting Home Assistant.
+  fields:
+    level:
+      name: Level
+      description: Logging level (debug, info, warning, error).
+      required: true
+      selector:
+        select:
+          options:
+            - debug
+            - info
+            - warning
+            - error

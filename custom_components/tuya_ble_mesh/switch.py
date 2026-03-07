@@ -10,7 +10,6 @@ from homeassistant.helpers.device_registry import DeviceInfo
 
 from custom_components.tuya_ble_mesh.const import (
     CONF_DEVICE_TYPE,
-    DOMAIN,
     PLUG_DEVICE_TYPES,
 )
 
@@ -25,6 +24,9 @@ if TYPE_CHECKING:
     AddEntitiesCallback = Callable[..., None]
 
 _LOGGER = logging.getLogger(__name__)
+
+# BLE mesh serializes commands — limit to one concurrent update
+PARALLEL_UPDATES = 1
 
 
 async def async_setup_entry(
@@ -41,9 +43,9 @@ async def async_setup_entry(
     """
     if entry.data.get(CONF_DEVICE_TYPE) not in PLUG_DEVICE_TYPES:
         return
-    entry_data = hass.data[DOMAIN][entry.entry_id]
-    coordinator: TuyaBLEMeshCoordinator = entry_data["coordinator"]
-    device_info: DeviceInfo = entry_data["device_info"]
+    runtime_data = entry.runtime_data  # type: ignore[attr-defined]
+    coordinator: TuyaBLEMeshCoordinator = runtime_data.coordinator
+    device_info: DeviceInfo = runtime_data.device_info
     async_add_entities([TuyaBLEMeshSwitch(coordinator, entry.entry_id, device_info)])
 
 

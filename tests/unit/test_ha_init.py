@@ -99,7 +99,7 @@ class TestAsyncSetupEntry:
         mock_coord.async_start.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_setup_stores_coordinator_in_hass_data(self) -> None:
+    async def test_setup_stores_runtime_data_on_entry(self) -> None:
         hass = make_mock_hass()
         entry = make_mock_entry()
         mock_device, mock_coord = _make_patches()
@@ -110,9 +110,7 @@ class TestAsyncSetupEntry:
         ):
             await async_setup_entry(hass, entry)
 
-        assert DOMAIN in hass.data
-        assert entry.entry_id in hass.data[DOMAIN]
-        assert hass.data[DOMAIN][entry.entry_id]["coordinator"] is mock_coord
+        assert entry.runtime_data.coordinator is mock_coord
 
     @pytest.mark.asyncio
     async def test_setup_forwards_platforms(self) -> None:
@@ -129,9 +127,12 @@ class TestAsyncSetupEntry:
         hass.config_entries.async_forward_entry_setups.assert_called_once_with(entry, PLATFORMS)
 
     @pytest.mark.asyncio
-    async def test_setup_preserves_existing_entries(self) -> None:
+    async def test_setup_registers_services(self) -> None:
+        """Setup should register identify and set_log_level services."""
         hass = make_mock_hass()
-        hass.data[DOMAIN] = {"existing_entry": {}}
+        hass.services = MagicMock()
+        hass.services.has_service = MagicMock(return_value=False)
+        hass.services.async_register = MagicMock()
         entry = make_mock_entry()
         mock_device, mock_coord = _make_patches()
 
@@ -141,8 +142,7 @@ class TestAsyncSetupEntry:
         ):
             await async_setup_entry(hass, entry)
 
-        assert "existing_entry" in hass.data[DOMAIN]
-        assert entry.entry_id in hass.data[DOMAIN]
+        assert hass.services.async_register.call_count >= 2
 
 
 class TestAsyncSetupEntrySIGMesh:
@@ -190,66 +190,58 @@ class TestAsyncSetupEntrySIGMesh:
         assert call_kwargs[0][2] == 0x0001
 
 
+def _make_entry_with_runtime(
+    entry_id: str = "test_entry_id",
+    cancel_listeners: list | None = None,
+) -> tuple[MagicMock, MagicMock]:
+    """Create a mock entry with runtime_data and a mock coordinator."""
+    mock_coord = MagicMock()
+    mock_coord.async_stop = AsyncMock()
+
+    entry = make_mock_entry(entry_id=entry_id)
+    entry.runtime_data = MagicMock()
+    entry.runtime_data.coordinator = mock_coord
+    entry.runtime_data.cancel_listeners = cancel_listeners or []
+
+    return entry, mock_coord
+
+
 class TestAsyncUnloadEntry:
     """Test async_unload_entry."""
 
     @pytest.mark.asyncio
     async def test_unload_stops_coordinator(self) -> None:
         hass = make_mock_hass()
-        entry = make_mock_entry()
-        mock_coord = MagicMock()
-        mock_coord.async_stop = AsyncMock()
-        hass.data[DOMAIN] = {entry.entry_id: {"coordinator": mock_coord}}
+        entry, mock_coord = _make_entry_with_runtime()
 
         await async_unload_entry(hass, entry)
 
         mock_coord.async_stop.assert_called_once()
 
     @pytest.mark.asyncio
-    async def test_unload_removes_entry_data(self) -> None:
+    async def test_unload_returns_true_on_success(self) -> None:
         hass = make_mock_hass()
-        entry = make_mock_entry()
-        mock_coord = MagicMock()
-        mock_coord.async_stop = AsyncMock()
-        hass.data[DOMAIN] = {entry.entry_id: {"coordinator": mock_coord}}
+        entry, _ = _make_entry_with_runtime()
 
         result = await async_unload_entry(hass, entry)
 
         assert result is True
-        assert entry.entry_id not in hass.data.get(DOMAIN, {})
 
     @pytest.mark.asyncio
-    async def test_unload_removes_domain_when_last_entry(self) -> None:
+    async def test_unload_calls_cancel_listeners(self) -> None:
+        """Cancel listeners should be called during unload."""
         hass = make_mock_hass()
-        entry = make_mock_entry()
-        mock_coord = MagicMock()
-        mock_coord.async_stop = AsyncMock()
-        hass.data[DOMAIN] = {entry.entry_id: {"coordinator": mock_coord}}
+        cancel_fn = MagicMock()
+        entry, _ = _make_entry_with_runtime(cancel_listeners=[cancel_fn])
 
         await async_unload_entry(hass, entry)
 
-        assert DOMAIN not in hass.data
-
-    @pytest.mark.asyncio
-    async def test_unload_preserves_domain_with_other_entries(self) -> None:
-        hass = make_mock_hass()
-        entry = make_mock_entry()
-        mock_coord = MagicMock()
-        mock_coord.async_stop = AsyncMock()
-        hass.data[DOMAIN] = {entry.entry_id: {"coordinator": mock_coord}, "other_entry": {}}
-
-        await async_unload_entry(hass, entry)
-
-        assert DOMAIN in hass.data
-        assert "other_entry" in hass.data[DOMAIN]
+        cancel_fn.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_unload_calls_async_unload_platforms(self) -> None:
         hass = make_mock_hass()
-        entry = make_mock_entry()
-        mock_coord = MagicMock()
-        mock_coord.async_stop = AsyncMock()
-        hass.data[DOMAIN] = {entry.entry_id: {"coordinator": mock_coord}}
+        entry, _ = _make_entry_with_runtime()
 
         await async_unload_entry(hass, entry)
 
@@ -258,24 +250,20 @@ class TestAsyncUnloadEntry:
     @pytest.mark.asyncio
     async def test_unload_returns_false_on_failure(self) -> None:
         hass = make_mock_hass()
-        entry = make_mock_entry()
-        mock_coord = MagicMock()
-        mock_coord.async_stop = AsyncMock()
-        hass.data[DOMAIN] = {entry.entry_id: {"coordinator": mock_coord}}
+        entry, _ = _make_entry_with_runtime()
         hass.config_entries.async_unload_platforms = AsyncMock(return_value=False)
 
         result = await async_unload_entry(hass, entry)
 
         assert result is False
-        # Data should NOT be removed on failure
-        assert entry.entry_id in hass.data[DOMAIN]
 
     @pytest.mark.asyncio
-    async def test_unload_handles_missing_coordinator(self) -> None:
-        """Unload should handle entries without a coordinator gracefully."""
+    async def test_unload_handles_missing_runtime_data(self) -> None:
+        """Unload should handle entries without runtime_data gracefully."""
         hass = make_mock_hass()
         entry = make_mock_entry()
-        hass.data[DOMAIN] = {entry.entry_id: {}}
+        # Ensure runtime_data is not set (simulate partial setup)
+        del entry.runtime_data
 
         result = await async_unload_entry(hass, entry)
 
