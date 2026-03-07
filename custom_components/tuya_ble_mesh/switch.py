@@ -52,6 +52,8 @@ class TuyaBLEMeshSwitch(SwitchEntity):
 
     _attr_should_poll = False
     _attr_device_class = SwitchDeviceClass.OUTLET
+    _attr_has_entity_name = True
+    _attr_name = None  # Use device name as entity name
 
     def __init__(
         self,
@@ -62,7 +64,6 @@ class TuyaBLEMeshSwitch(SwitchEntity):
         self._coordinator = coordinator
         self._entry_id = entry_id
         self._attr_unique_id = f"{coordinator.device.address}_switch"
-        self._attr_name = f"Tuya BLE Mesh {coordinator.device.address[-8:]}"
         if device_info is not None:
             self._attr_device_info = device_info
         self._remove_listener: Any = None
@@ -71,11 +72,6 @@ class TuyaBLEMeshSwitch(SwitchEntity):
     def unique_id(self) -> str:
         """Return unique ID."""
         return self._attr_unique_id
-
-    @property
-    def name(self) -> str:
-        """Return entity name."""
-        return self._attr_name
 
     @property
     def available(self) -> bool:
