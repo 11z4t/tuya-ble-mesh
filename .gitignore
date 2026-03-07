@@ -4,3 +4,13 @@ __pycache__/
 *.egg-info/
 tests/hardware/results/
 tests/hardware/*.log
+
+# Internal project files (keep locally, not in repo)
+CLAUDE.md
+TODO.md
+PROJECT_SPEC.md
+docs/SECURITY.md
+scripts/setup-1password-vault.sh
+scripts/verify_creds.py
+scripts/git-setup-remote.sh
+.secrets.baseline
