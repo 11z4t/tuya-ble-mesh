@@ -57,7 +57,9 @@ def wifi_down() -> bool:
     try:
         subprocess.run(
             ["sudo", "ip", "link", "set", WLAN_IFACE, "down"],
-            check=True, capture_output=True, timeout=5,
+            check=True,
+            capture_output=True,
+            timeout=5,
         )
         _LOGGER.info("WiFi DOWN")
         return True
@@ -71,7 +73,9 @@ def wifi_up() -> bool:
     try:
         subprocess.run(
             ["sudo", "ip", "link", "set", WLAN_IFACE, "up"],
-            check=True, capture_output=True, timeout=5,
+            check=True,
+            capture_output=True,
+            timeout=5,
         )
     except Exception as exc:
         _LOGGER.error("Failed to enable WiFi: %s", exc)
@@ -82,7 +86,9 @@ def wifi_up() -> bool:
         time.sleep(1)
         result = subprocess.run(
             ["ip", "addr", "show", WLAN_IFACE],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True,
+            text=True,
+            timeout=5,
         )
         if "inet " in result.stdout:
             _LOGGER.info("WiFi UP (got IP on attempt %d)", attempt + 1)
@@ -105,12 +111,16 @@ def _restart_bluetooth() -> bool:
     try:
         subprocess.run(
             ["sudo", "systemctl", "restart", "bluetooth"],
-            check=True, capture_output=True, timeout=10,
+            check=True,
+            capture_output=True,
+            timeout=10,
         )
         time.sleep(2)
         subprocess.run(
             ["sudo", "hciconfig", "hci0", "up"],
-            check=True, capture_output=True, timeout=5,
+            check=True,
+            capture_output=True,
+            timeout=5,
         )
         time.sleep(1)
         return True
@@ -128,13 +138,19 @@ def _execute_sig_mesh(action: str, mac: str, target: str) -> dict:
     try:
         result = subprocess.run(
             [
-                sys.executable, script,
+                sys.executable,
+                script,
                 action,
-                "--mac", mac,
-                "--target", target,
-                "--wait", "5",
+                "--mac",
+                mac,
+                "--target",
+                target,
+                "--wait",
+                "5",
             ],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True,
+            text=True,
+            timeout=60,
             cwd=str(Path(__file__).parent.parent),
             env=env,
         )
@@ -172,7 +188,7 @@ def _execute_telink(action: str, mac: str, params: dict) -> dict:
     """
     script_code = f"""
 import asyncio, sys, json
-sys.path.insert(0, "{Path(__file__).resolve().parent.parent / 'lib'}")
+sys.path.insert(0, "{Path(__file__).resolve().parent.parent / "lib"}")
 from tuya_ble_mesh.device import MeshDevice
 
 async def run():
@@ -226,7 +242,9 @@ asyncio.run(run())
     try:
         result = subprocess.run(
             [sys.executable, "-c", script_code],
-            capture_output=True, text=True, timeout=60,
+            capture_output=True,
+            text=True,
+            timeout=60,
             env=env,
         )
         stdout = result.stdout.strip()
@@ -256,11 +274,22 @@ def execute_ble_command(cmd: dict) -> dict:
 
     _LOGGER.info(
         "Executing BLE command: type=%s action=%s target=%s mac=%s",
-        device_type, action, target, mac,
+        device_type,
+        action,
+        target,
+        mac,
     )
 
     sig_actions = ("on", "off", "status", "setup", "composition")
-    telink_actions = ("on", "off", "brightness", "color_temp", "color", "light_mode", "color_brightness")
+    telink_actions = (
+        "on",
+        "off",
+        "brightness",
+        "color_temp",
+        "color",
+        "light_mode",
+        "color_brightness",
+    )
 
     if device_type == "telink" and action not in telink_actions:
         return {"success": False, "error": f"Unknown telink action: {action}"}
@@ -287,13 +316,15 @@ def execute_ble_command(cmd: dict) -> dict:
     # Phase 4: Re-enable WiFi
     wifi_up()
 
-    result.update({
-        "action": action,
-        "target": target,
-        "device_type": device_type,
-        "mac": mac,
-        "timestamp": time.time(),
-    })
+    result.update(
+        {
+            "action": action,
+            "target": target,
+            "device_type": device_type,
+            "mac": mac,
+            "timestamp": time.time(),
+        }
+    )
     return result
 
 
@@ -319,9 +350,21 @@ def process_pending() -> None:
     # Write result
     try:
         LAST_RESULT.write_text(json.dumps(result, indent=2))
-        _LOGGER.info("Result written: success=%s status=%s", result["success"], result.get("status"))
+        _LOGGER.info(
+            "Result written: success=%s status=%s", result["success"], result.get("status")
+        )
     except Exception as exc:
         _LOGGER.error("Failed to write result: %s", exc)
+
+
+def _http_response(status: str, body: str) -> str:
+    """Build a minimal HTTP/1.1 response."""
+    return (
+        f"HTTP/1.1 {status}\r\n"
+        f"Content-Type: application/json\r\n"
+        f"Content-Length: {len(body)}\r\n"
+        f"\r\n{body}"
+    )
 
 
 async def http_handler(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
@@ -338,41 +381,38 @@ async def http_handler(reader: asyncio.StreamReader, writer: asyncio.StreamWrite
         path = parts[1] if len(parts) > 1 else "/"
 
         if method == "GET" and path == "/health":
-            # Health check
             body = json.dumps({"status": "ok", "timestamp": time.time()})
-            response = f"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {len(body)}\r\n\r\n{body}"
+            response = _http_response("200 OK", body)
             writer.write(response.encode())
 
         elif method == "GET" and path == "/result":
-            # Get last result
             if LAST_RESULT.exists():
                 body = LAST_RESULT.read_text()
             else:
                 body = json.dumps({"error": "No result available"})
-            response = f"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {len(body)}\r\n\r\n{body}"
+            response = _http_response("200 OK", body)
             writer.write(response.encode())
 
         elif method == "POST" and path == "/command":
-            # Submit command
             body_start = request_str.find("\r\n\r\n")
             if body_start >= 0:
-                body_str = request_str[body_start + 4:]
+                body_str = request_str[body_start + 4 :]
                 try:
                     cmd = json.loads(body_str)
                     PENDING_CMD.write_text(json.dumps(cmd))
                     resp_body = json.dumps({"queued": True})
-                    response = f"HTTP/1.1 202 Accepted\r\nContent-Type: application/json\r\nContent-Length: {len(resp_body)}\r\n\r\n{resp_body}"
+                    response = _http_response("202 Accepted", resp_body)
                 except json.JSONDecodeError:
                     resp_body = json.dumps({"error": "Invalid JSON"})
-                    response = f"HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {len(resp_body)}\r\n\r\n{resp_body}"
+                    response = _http_response("400 Bad Request", resp_body)
             else:
                 resp_body = json.dumps({"error": "No body"})
-                response = f"HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nContent-Length: {len(resp_body)}\r\n\r\n{resp_body}"
+                response = _http_response("400 Bad Request", resp_body)
             writer.write(response.encode())
 
         else:
             resp_body = json.dumps({"error": "Not found"})
-            response = f"HTTP/1.1 404 Not Found\r\nContent-Type: application/json\r\nContent-Length: {len(resp_body)}\r\n\r\n{resp_body}"
+            response = _http_response("404 Not Found", resp_body)
             writer.write(response.encode())
 
         await writer.drain()
@@ -411,7 +451,8 @@ async def main() -> None:
     if keys:
         _LOGGER.info(
             "Keys loaded: MAC=%s unicast=%s",
-            keys.get("mac"), keys.get("unicast"),
+            keys.get("mac"),
+            keys.get("unicast"),
         )
     else:
         _LOGGER.warning("No keys found — provisioning needed first")
