@@ -1,0 +1,51 @@
+rules:
+  # Bronze
+  action-setup: done
+  bluetooth-auto-discovery: done
+  common-modules: done
+  config-flow: done
+  config-flow-test-coverage: done
+  dependency-transparency: done
+  discovery: done
+  docs-actions: done
+  docs-high-level-description: done
+  docs-installation-instructions: done
+  docs-removal: done
+  entity-event-setup: done
+  entity-unique-id: done
+  has-entity-name: done
+  icon-translations: done
+  integration-owner: done
+  log-when-unavailable: done
+  test-before-configure: done
+  test-before-setup: done
+  unique-config-entry: done
+
+  # Silver
+  action-exceptions: done
+  config-entry-unloading: done
+  entity-unavailable: done
+  integrations-file-tests: done
+  log-when-unavailable: done
+  parallel-updates: done
+  reauthentication-flow: done
+  reauth-issues: done
+  strict-typing: done
+  test-coverage: done
+
+  # Gold
+  devices: done
+  discovery-update-info: done
+  entity-category: done
+  entity-disabled-by-default: done
+  entity-translations: done
+  exception-translations: done
+  icon-translations: done
+  repair-issues: done
+  stale-devices: done
+
+  # Platinum
+  async-dependency: done
+  inject-websession: done
+  runtime-data: done
+  strict-typing: done

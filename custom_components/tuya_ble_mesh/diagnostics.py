@@ -10,17 +10,24 @@ from typing import Any
 
 from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
+    CONF_BRIDGE_HOST,
     CONF_DEV_KEY,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
     CONF_NET_KEY,
-    DOMAIN,
 )
 
 REDACTED = "**REDACTED**"
 
 _SENSITIVE_KEYS = frozenset(
-    {CONF_MESH_NAME, CONF_MESH_PASSWORD, CONF_NET_KEY, CONF_DEV_KEY, CONF_APP_KEY}
+    {
+        CONF_MESH_NAME,
+        CONF_MESH_PASSWORD,
+        CONF_NET_KEY,
+        CONF_DEV_KEY,
+        CONF_APP_KEY,
+        CONF_BRIDGE_HOST,  # internal network topology
+    }
 )
 
 
@@ -39,10 +46,10 @@ async def async_get_config_entry_diagnostics(
         "data": _redact_data(dict(entry.data)),
     }
 
-    # Add coordinator state if available
-    entry_data = hass.data.get(DOMAIN, {}).get(entry.entry_id, {})
-    coordinator = entry_data.get("coordinator")
-    if coordinator is not None:
+    # Add coordinator state if available via runtime_data (modern pattern)
+    runtime = getattr(entry, "runtime_data", None)
+    if runtime is not None:
+        coordinator = runtime.coordinator
         state = coordinator.state
         diag["coordinator"] = {
             "available": state.available,
