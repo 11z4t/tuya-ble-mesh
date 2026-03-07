@@ -1,4 +1,4 @@
-"""Unit tests for SecretsManager (1Password integration)."""
+"""Unit tests for SecretsManager and DictSecretsManager."""
 
 import asyncio
 import sys
@@ -7,10 +7,12 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
+_ROOT = Path(__file__).resolve().parent.parent.parent
+sys.path.insert(0, str(_ROOT))
+sys.path.insert(0, str(_ROOT / "lib"))
 
-from tuya_ble_mesh.exceptions import SecretAccessError
-from tuya_ble_mesh.secrets import SecretsManager
+from tuya_ble_mesh.exceptions import SecretAccessError  # noqa: E402
+from tuya_ble_mesh.secrets import DictSecretsManager, SecretsManager  # noqa: E402
 
 # --- Initialization ---
 
@@ -266,3 +268,122 @@ class TestNoSecretLeakage:
 
         assert isinstance(result, str)
         assert len(result) > 0
+
+
+# --- DictSecretsManager ---
+
+
+class TestDictSecretsManagerInit:
+    """Test DictSecretsManager initialization."""
+
+    def test_default_vault(self) -> None:
+        dsm = DictSecretsManager(secrets={})
+        assert dsm.vault == "config-entry"
+
+    def test_custom_vault(self) -> None:
+        dsm = DictSecretsManager(secrets={}, vault="custom")
+        assert dsm.vault == "custom"
+
+    def test_empty_dict(self) -> None:
+        dsm = DictSecretsManager(secrets={})
+        assert isinstance(dsm, DictSecretsManager)
+
+    def test_single_entry(self) -> None:
+        dsm = DictSecretsManager(secrets={"item/password": "val"})
+        assert isinstance(dsm, DictSecretsManager)
+
+    def test_multiple_entries(self) -> None:
+        secrets = {
+            "mesh-net-key/password": "aabb",  # pragma: allowlist secret
+            "mesh-app-key/password": "ccdd",  # pragma: allowlist secret
+            "device/uuid": "1234",
+        }
+        dsm = DictSecretsManager(secrets=secrets)
+        assert isinstance(dsm, DictSecretsManager)
+
+
+class TestDictSecretsManagerGet:
+    """Test DictSecretsManager.get() retrieval."""
+
+    @pytest.mark.asyncio
+    async def test_basic_get(self) -> None:
+        dsm = DictSecretsManager(secrets={"mesh-key/password": "secret123"})
+        result = await dsm.get("mesh-key", "password")
+        assert result == "secret123"
+
+    @pytest.mark.asyncio
+    async def test_default_field_is_password(self) -> None:
+        dsm = DictSecretsManager(secrets={"item/password": "val"})
+        result = await dsm.get("item")
+        assert result == "val"
+
+    @pytest.mark.asyncio
+    async def test_custom_field(self) -> None:
+        dsm = DictSecretsManager(secrets={"item/hex-key": "aabbcc"})
+        result = await dsm.get("item", "hex-key")
+        assert result == "aabbcc"
+
+    @pytest.mark.asyncio
+    async def test_missing_key_raises(self) -> None:
+        dsm = DictSecretsManager(secrets={"item/password": "val"})
+        with pytest.raises(SecretAccessError, match="not found"):
+            await dsm.get("nonexistent")
+
+    @pytest.mark.asyncio
+    async def test_empty_dict_raises(self) -> None:
+        dsm = DictSecretsManager(secrets={})
+        with pytest.raises(SecretAccessError, match="not found"):
+            await dsm.get("anything")
+
+    @pytest.mark.asyncio
+    async def test_wrong_field_raises(self) -> None:
+        dsm = DictSecretsManager(secrets={"item/password": "val"})
+        with pytest.raises(SecretAccessError, match="not found"):
+            await dsm.get("item", "wrong-field")
+
+    @pytest.mark.asyncio
+    async def test_key_format_prefix_style(self) -> None:
+        """Keys using prefix-net-key/password style work correctly."""
+        secrets = {
+            "malmbergs-net-key/password": "net_secret",  # pragma: allowlist secret
+            "malmbergs-app-key/password": "app_secret",  # pragma: allowlist secret
+            "malmbergs-dev-key/password": "dev_secret",  # pragma: allowlist secret
+        }
+        dsm = DictSecretsManager(secrets=secrets)
+        assert await dsm.get("malmbergs-net-key") == "net_secret"
+        assert await dsm.get("malmbergs-app-key") == "app_secret"
+        assert await dsm.get("malmbergs-dev-key") == "dev_secret"
+
+    @pytest.mark.asyncio
+    async def test_error_message_includes_key(self) -> None:
+        dsm = DictSecretsManager(secrets={})
+        with pytest.raises(SecretAccessError) as exc_info:
+            await dsm.get("my-item", "my-field")
+        msg = str(exc_info.value)
+        assert "my-item/my-field" in msg
+
+
+class TestDictSecretsManagerInterface:
+    """Verify DictSecretsManager matches the SecretsManager interface."""
+
+    def test_is_subclass(self) -> None:
+        assert issubclass(DictSecretsManager, SecretsManager)
+
+    def test_is_instance(self) -> None:
+        dsm = DictSecretsManager(secrets={})
+        assert isinstance(dsm, SecretsManager)
+
+    def test_has_async_get(self) -> None:
+        dsm = DictSecretsManager(secrets={})
+        assert asyncio.iscoroutinefunction(dsm.get)
+
+    def test_has_async_get_bytes(self) -> None:
+        dsm = DictSecretsManager(secrets={})
+        assert asyncio.iscoroutinefunction(dsm.get_bytes)
+
+    @pytest.mark.asyncio
+    async def test_get_bytes_delegates_to_get(self) -> None:
+        """get_bytes inherited from SecretsManager works with DictSecretsManager."""
+        dsm = DictSecretsManager(secrets={"hex-item/password": "aabbccdd"})
+        result = await dsm.get_bytes("hex-item")
+        assert result == bytes.fromhex("aabbccdd")
