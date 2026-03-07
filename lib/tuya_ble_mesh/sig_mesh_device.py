@@ -355,8 +355,21 @@ class SIGMeshDevice:
                 await self._client.disconnect()
             self._client = None
 
-        # Zero key material
-        self._keys = None
+        # Zero-fill key material before clearing (defense in depth)
+        if self._keys is not None:
+            # Attempt to overwrite key bytes in memory with zeros
+            # Note: Python's memory management may not guarantee immediate zeroing,
+            # but this is best-effort defense-in-depth against memory forensics.
+            try:
+                for attr in ("net_key", "dev_key", "app_key", "enc_key", "priv_key", "network_id"):
+                    val = getattr(self._keys, attr, None)
+                    if isinstance(val, (bytes, bytearray)) and len(val) > 0:
+                        # Overwrite mutable bytearray if possible
+                        if isinstance(val, bytearray):
+                            val[:] = b"\x00" * len(val)
+            except Exception:
+                pass  # Frozen dataclass, best effort only
+            self._keys = None
         _LOGGER.info("Disconnected from %s", self._address)
 
     async def send_power(self, on: bool) -> None:
@@ -470,10 +483,16 @@ class SIGMeshDevice:
 
         Protected by asyncio.Lock to prevent nonce collision from
         concurrent callers.
+
+        Raises:
+            SIGMeshError: If sequence number exhausted (> 0xFFFFFF).
         """
         async with self._seq_lock:
-            seq = self._seq & 0xFFFFFF
-            self._seq = (self._seq + 1) & 0xFFFFFF
+            if self._seq > 0xFFFFFF:
+                msg = "Sequence number exhausted — reconnect required"
+                raise SIGMeshError(msg)
+            seq = self._seq
+            self._seq += 1
             return seq
 
     async def _next_seqs(self, n: int) -> int:
@@ -487,10 +506,16 @@ class SIGMeshDevice:
 
         Returns:
             First sequence number of the reserved range.
+
+        Raises:
+            SIGMeshError: If sequence number exhausted (> 0xFFFFFF).
         """
         async with self._seq_lock:
-            seq = self._seq & 0xFFFFFF
-            self._seq = (self._seq + n) & 0xFFFFFF
+            if self._seq > 0xFFFFFF or (self._seq + n) > 0xFFFFFF:
+                msg = "Sequence number exhausted — reconnect required"
+                raise SIGMeshError(msg)
+            seq = self._seq
+            self._seq += n
             return seq
 
     async def send_config_appkey_add(
