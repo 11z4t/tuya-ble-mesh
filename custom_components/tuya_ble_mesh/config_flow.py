@@ -31,6 +31,7 @@ from homeassistant.config_entries import ConfigFlow  # noqa: E402
 
 if TYPE_CHECKING:
     from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
+    from homeassistant.data_entry_flow import FlowResult
 
 from custom_components.tuya_ble_mesh.const import (  # noqa: E402
     CONF_APP_KEY,
@@ -216,7 +217,7 @@ async def _test_bridge_with_session(hass: Any, host: str, port: int) -> bool:
     return False
 
 
-class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):
+class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
     """Handle options for a Tuya BLE Mesh entry."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
@@ -227,7 +228,7 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):
         """
         self._config_entry = config_entry
 
-    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Manage device options.
 
         Args:
@@ -300,7 +301,7 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):
         return self.async_show_form(step_id="init", data_schema=schema)
 
 
-class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
+class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, call-arg]
     """Handle a config flow for Tuya BLE Mesh."""
 
     VERSION = 1
@@ -324,7 +325,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
     async def async_step_bluetooth(
         self,
         discovery_info: BluetoothServiceInfoBleak,
-    ) -> dict[str, Any]:
+    ) -> FlowResult:
         """Handle bluetooth discovery.
 
         Args:
@@ -356,7 +357,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return await self.async_step_confirm()
 
-    async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Confirm bluetooth discovery and choose device type.
 
         Args:
@@ -403,7 +404,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             },
         )
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle manual setup.
 
         Args:
@@ -479,7 +480,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_sig_plug(self, user_input: dict[str, Any] | None = None) -> dict[str, Any]:
+    async def async_step_sig_plug(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle SIG Mesh plug — auto-provisions and generates all keys.
 
         The device is provisioned via PB-GATT (Service UUID 0x1827).
@@ -650,9 +651,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
 
         return net_key.hex(), result.dev_key.hex(), app_key.hex()
 
-    async def async_step_sig_bridge(
-        self, user_input: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    async def async_step_sig_bridge(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle SIG Mesh Bridge plug configuration.
 
         Args:
@@ -702,7 +701,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_telink_bridge(
         self, user_input: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    ) -> FlowResult:
         """Handle Telink Bridge light configuration.
 
         Args:
@@ -748,7 +747,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_reauth(self, entry_data: dict[str, Any]) -> dict[str, Any]:
+    async def async_step_reauth(self, entry_data: dict[str, Any]) -> FlowResult:
         """Handle reauth when mesh credentials fail.
 
         Triggered by the coordinator when auth errors occur (e.g. wrong mesh
@@ -764,7 +763,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_reauth_confirm(
         self, user_input: dict[str, Any] | None = None
-    ) -> dict[str, Any]:
+    ) -> FlowResult:
         """Re-enter mesh credentials after authentication failure.
 
         Args:
