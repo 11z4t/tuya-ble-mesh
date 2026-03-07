@@ -311,6 +311,13 @@ class TelinkBridgeDevice:
         bridge_host: str,
         bridge_port: int = _DEFAULT_BRIDGE_PORT,
     ) -> None:
+        """Initialize Telink bridge device.
+
+        Args:
+            address: BLE MAC address of the mesh device.
+            bridge_host: Hostname/IP of the RPi running ble_mesh_daemon.
+            bridge_port: HTTP port of the bridge daemon.
+        """
         self._address = address.upper()
         self._bridge_host = bridge_host
         self._bridge_port = bridge_port
@@ -335,34 +342,59 @@ class TelinkBridgeDevice:
 
     @property
     def address(self) -> str:
+        """Return the device BLE MAC address."""
         return self._address
 
     @property
     def is_connected(self) -> bool:
+        """Return True if the bridge daemon is reachable."""
         return self._connected
 
     @property
     def firmware_version(self) -> str | None:
+        """Return firmware version string (always 'bridge-telink' when connected)."""
         return self._firmware_version
 
     @property
     def mesh_id(self) -> int:
+        """Return the target mesh address used in synthetic status responses."""
         return self._mesh_id
 
     @mesh_id.setter
     def mesh_id(self, value: int) -> None:
+        """Set the target mesh address."""
         self._mesh_id = value
 
     def register_status_callback(self, callback: StatusCallback) -> None:
+        """Register a callback for synthetic status updates.
+
+        Args:
+            callback: Called with a ``StatusResponse`` after each command.
+        """
         self._status_callbacks.append(callback)
 
     def unregister_status_callback(self, callback: StatusCallback) -> None:
+        """Remove a previously registered status callback.
+
+        Args:
+            callback: The callback to remove.
+        """
         self._status_callbacks.remove(callback)
 
     def register_disconnect_callback(self, callback: DisconnectCallback) -> None:
+        """Register a callback for disconnect events.
+
+        Args:
+            callback: Called when the bridge daemon times out.
+        """
         self._disconnect_callbacks.append(callback)
 
     def unregister_disconnect_callback(self, callback: DisconnectCallback) -> None:
+        """Remove a previously registered disconnect callback.
+
+        Args:
+            callback: The callback to remove.
+        """
         self._disconnect_callbacks.remove(callback)
 
     async def connect(self, timeout: float = 10.0, max_retries: int = 3) -> None:
@@ -393,6 +425,7 @@ class TelinkBridgeDevice:
         raise MeshConnectionError(msg)
 
     async def disconnect(self) -> None:
+        """Mark device as disconnected (no active BLE teardown for bridge)."""
         self._connected = False
 
     def _fire_disconnect(self) -> None:
@@ -424,6 +457,14 @@ class TelinkBridgeDevice:
                 _LOGGER.warning("Status callback error", exc_info=True)
 
     async def send_power(self, on: bool) -> None:
+        """Turn the device on or off via bridge daemon.
+
+        Args:
+            on: True to turn on, False to turn off.
+
+        Raises:
+            SIGMeshError: If bridge command fails or times out.
+        """
         action = "on" if on else "off"
         await self._send_telink_cmd(action)
         self._is_on = on
@@ -432,18 +473,44 @@ class TelinkBridgeDevice:
         self._fire_status()
 
     async def send_brightness(self, level: int) -> None:
+        """Set white brightness level via bridge daemon.
+
+        Args:
+            level: Brightness percentage (1-100).
+
+        Raises:
+            SIGMeshError: If bridge command fails or times out.
+        """
         await self._send_telink_cmd("brightness", {"level": level})
         self._brightness = level
         self._is_on = True
         self._fire_status()
 
     async def send_color_temp(self, temp: int) -> None:
+        """Set white color temperature via bridge daemon.
+
+        Args:
+            temp: Color temperature value (0-255).
+
+        Raises:
+            SIGMeshError: If bridge command fails or times out.
+        """
         await self._send_telink_cmd("color_temp", {"temp": temp})
         self._color_temp = temp
         self._is_on = True
         self._fire_status()
 
     async def send_color(self, red: int, green: int, blue: int) -> None:
+        """Set RGB color via bridge daemon.
+
+        Args:
+            red: Red channel (0-255).
+            green: Green channel (0-255).
+            blue: Blue channel (0-255).
+
+        Raises:
+            SIGMeshError: If bridge command fails or times out.
+        """
         await self._send_telink_cmd("color", {"r": red, "g": green, "b": blue})
         self._red = red
         self._green = green
@@ -452,11 +519,27 @@ class TelinkBridgeDevice:
         self._fire_status()
 
     async def send_light_mode(self, mode: int) -> None:
+        """Set light mode (0=white, 1=color) via bridge daemon.
+
+        Args:
+            mode: Light mode integer.
+
+        Raises:
+            SIGMeshError: If bridge command fails or times out.
+        """
         await self._send_telink_cmd("light_mode", {"mode": mode})
         self._mode = mode
         self._fire_status()
 
     async def send_color_brightness(self, level: int) -> None:
+        """Set color mode brightness via bridge daemon.
+
+        Args:
+            level: Color brightness value (0-255).
+
+        Raises:
+            SIGMeshError: If bridge command fails or times out.
+        """
         await self._send_telink_cmd("color_brightness", {"level": level})
         self._color_brightness = level
         self._is_on = True
@@ -510,6 +593,18 @@ class TelinkBridgeDevice:
             raise SIGMeshError(msg)
 
     async def _http_get(self, path: str, timeout: float = 5.0) -> dict[str, Any]:
+        """Make an HTTP GET request to the bridge daemon.
+
+        Args:
+            path: URL path (e.g. ``/health``, ``/result``).
+            timeout: Socket connect and read timeout in seconds.
+
+        Returns:
+            Parsed JSON response dict.
+
+        Raises:
+            MeshConnectionError: If connection fails or response is malformed.
+        """
         reader, writer = await asyncio.wait_for(
             asyncio.open_connection(self._bridge_host, self._bridge_port),
             timeout=timeout,
@@ -534,6 +629,19 @@ class TelinkBridgeDevice:
         data: dict[str, Any],
         timeout: float = 5.0,
     ) -> dict[str, Any]:
+        """Make an HTTP POST request to the bridge daemon.
+
+        Args:
+            path: URL path (e.g. ``/command``).
+            data: JSON-serialisable dict to POST.
+            timeout: Socket connect and read timeout in seconds.
+
+        Returns:
+            Parsed JSON response dict.
+
+        Raises:
+            MeshConnectionError: If connection fails or response is malformed.
+        """
         body = json.dumps(data)
         reader, writer = await asyncio.wait_for(
             asyncio.open_connection(self._bridge_host, self._bridge_port),
