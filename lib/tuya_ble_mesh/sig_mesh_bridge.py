@@ -18,8 +18,9 @@ from typing import Any
 
 from tuya_ble_mesh.exceptions import ConnectionError as MeshConnectionError
 from tuya_ble_mesh.exceptions import SIGMeshError
+from tuya_ble_mesh.logging_context import MeshLogAdapter, mesh_operation
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = MeshLogAdapter(logging.getLogger(__name__), {})
 
 # Callback types (matching SIGMeshDevice interface)
 OnOffCallback = Callable[[bool], Any]
@@ -165,7 +166,7 @@ class SIGMeshBridgeDevice:
             msg = "Bridge not connected"
             raise SIGMeshError(msg)
 
-        async with self._cmd_lock:
+        async with self._cmd_lock, mesh_operation(self._address, "send_power"):
             action = "on" if on else "off"
             result = await self._send_and_wait(action)
 
@@ -465,8 +466,9 @@ class TelinkBridgeDevice:
         Raises:
             SIGMeshError: If bridge command fails or times out.
         """
-        action = "on" if on else "off"
-        await self._send_telink_cmd(action)
+        async with mesh_operation(self._address, "send_power"):
+            action = "on" if on else "off"
+            await self._send_telink_cmd(action)
         self._is_on = on
         if on and self._brightness == 0:
             self._brightness = 100  # Default brightness when turning on
