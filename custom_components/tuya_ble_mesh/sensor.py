@@ -119,7 +119,7 @@ async def async_setup_entry(
         entry: Config entry being set up.
         async_add_entities: Callback to register new entities.
     """
-    runtime_data = entry.runtime_data  # type: ignore[attr-defined]
+    runtime_data = entry.runtime_data
     coordinator: TuyaBLEMeshCoordinator = runtime_data.coordinator
     device_info: DeviceInfo = runtime_data.device_info
 
