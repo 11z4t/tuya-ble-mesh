@@ -21,8 +21,11 @@ if TYPE_CHECKING:
     from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
     from tuya_ble_mesh.sig_mesh_protocol import CompositionData
 
-# RSSI refresh interval (seconds)
-_RSSI_REFRESH_INTERVAL = 60.0
+# RSSI refresh interval (seconds) - adaptive
+_RSSI_MIN_INTERVAL = 30.0  # Minimum when values change frequently
+_RSSI_MAX_INTERVAL = 300.0  # Maximum when stable
+_RSSI_DEFAULT_INTERVAL = 60.0  # Initial/fallback
+_RSSI_STABILITY_THRESHOLD = 3  # No changes for N cycles = stable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -86,6 +89,11 @@ class TuyaBLEMeshCoordinator:
         self._seq_command_count = 0
         self._seq_persist_task: asyncio.Task[None] | None = None
 
+        # Adaptive polling - track state change frequency
+        self._rssi_interval = _RSSI_DEFAULT_INTERVAL
+        self._state_change_counter = 0
+        self._stable_cycles = 0
+
     @property
     def device(self) -> Any:
         """Return the underlying mesh device (MeshDevice or SIGMeshDevice)."""
@@ -127,9 +135,16 @@ class TuyaBLEMeshCoordinator:
         Args:
             on: True if device is on, False if off.
         """
+        changed = self._state.is_on != on
         self._state.is_on = on
         self._state.available = True
         self._backoff = _INITIAL_BACKOFF
+
+        # Adaptive polling: track state changes
+        if changed:
+            self._state_change_counter += 1
+            self._stable_cycles = 0
+            self._adjust_polling_interval()
 
         # Periodic seq persistence
         self._seq_command_count += 1
@@ -137,7 +152,7 @@ class TuyaBLEMeshCoordinator:
             self._seq_command_count = 0
             self._seq_persist_task = asyncio.ensure_future(self._save_seq())
 
-        _LOGGER.debug("OnOff update: on=%s", on)
+        _LOGGER.debug("OnOff update: on=%s (changed=%s)", on, changed)
         self._notify_listeners()
 
     def _on_status_update(self, status: StatusResponse) -> None:
@@ -146,6 +161,17 @@ class TuyaBLEMeshCoordinator:
         Args:
             status: Decoded status from BLE notification.
         """
+        # Detect changes for adaptive polling
+        changed = (
+            self._state.mode != status.mode
+            or self._state.brightness != status.white_brightness
+            or self._state.color_temp != status.white_temp
+            or self._state.red != status.red
+            or self._state.green != status.green
+            or self._state.blue != status.blue
+            or self._state.color_brightness != status.color_brightness
+        )
+
         self._state.mode = status.mode
         self._state.brightness = status.white_brightness
         self._state.color_temp = status.white_temp
@@ -157,8 +183,14 @@ class TuyaBLEMeshCoordinator:
         self._state.available = True
         self._backoff = _INITIAL_BACKOFF
 
+        # Adaptive polling: track state changes
+        if changed:
+            self._state_change_counter += 1
+            self._stable_cycles = 0
+            self._adjust_polling_interval()
+
         _LOGGER.debug(
-            "Status update: on=%s mode=%d bright=%d temp=%d rgb=(%d,%d,%d) cbright=%d",
+            "Status update: on=%s mode=%d bright=%d temp=%d rgb=(%d,%d,%d) cbright=%d (changed=%s)",
             self._state.is_on,
             self._state.mode,
             self._state.brightness,
@@ -167,6 +199,7 @@ class TuyaBLEMeshCoordinator:
             self._state.green,
             self._state.blue,
             self._state.color_brightness,
+            changed,
         )
 
         self._notify_listeners()
@@ -383,6 +416,39 @@ class TuyaBLEMeshCoordinator:
                 self._backoff = min(self._backoff * _BACKOFF_MULTIPLIER, _MAX_BACKOFF)
                 self._notify_listeners()
 
+    # --- Adaptive polling ---
+
+    def _adjust_polling_interval(self) -> None:
+        """Adjust RSSI polling interval based on state change frequency.
+
+        Decreases interval when values change frequently (more responsive),
+        increases when stable (lower overhead).
+        """
+        # More changes = shorter interval (faster polling)
+        if self._state_change_counter >= 2:
+            # Frequent changes detected
+            self._rssi_interval = max(
+                _RSSI_MIN_INTERVAL,
+                self._rssi_interval * 0.75,  # Decrease by 25%
+            )
+            _LOGGER.debug(
+                "Adaptive polling: frequent changes detected, interval=%.1fs",
+                self._rssi_interval,
+            )
+        elif self._stable_cycles >= _RSSI_STABILITY_THRESHOLD:
+            # Stable state - increase interval
+            self._rssi_interval = min(
+                _RSSI_MAX_INTERVAL,
+                self._rssi_interval * 1.5,  # Increase by 50%
+            )
+            _LOGGER.debug(
+                "Adaptive polling: stable state, interval=%.1fs",
+                self._rssi_interval,
+            )
+
+        # Reset change counter after adjustment
+        self._state_change_counter = 0
+
     # --- RSSI polling ---
 
     def _is_bridge_device(self) -> bool:
@@ -404,21 +470,32 @@ class TuyaBLEMeshCoordinator:
             self._rssi_task = None
 
     async def _rssi_loop(self) -> None:
-        """Periodically scan for device to update RSSI."""
+        """Periodically scan for device to update RSSI with adaptive interval."""
         from bleak import BleakScanner
 
         try:
             while self._running and self._state.available:
-                await asyncio.sleep(_RSSI_REFRESH_INTERVAL)
+                await asyncio.sleep(self._rssi_interval)
                 if not self._running or not self._state.available:
                     break
+
                 try:
+                    prev_rssi = self._state.rssi
                     device = await BleakScanner.find_device_by_address(
                         self._device.address, timeout=10.0
                     )
                     if device is not None and device.rssi is not None:
                         self._state.rssi = device.rssi
                         self._notify_listeners()
+
+                        # Track stability: if RSSI similar (±2 dBm) = stable cycle
+                        if prev_rssi is not None and abs(device.rssi - prev_rssi) <= 2:
+                            self._stable_cycles += 1
+                            if self._stable_cycles >= _RSSI_STABILITY_THRESHOLD:
+                                self._adjust_polling_interval()
+                        else:
+                            self._stable_cycles = 0
+
                 except Exception:
                     _LOGGER.debug("RSSI scan failed (ignored)", exc_info=True)
         except asyncio.CancelledError:
