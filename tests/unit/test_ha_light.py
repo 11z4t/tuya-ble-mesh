@@ -206,12 +206,12 @@ class TestLightProperties:
     def test_color_temp_when_on(self) -> None:
         coord = make_mock_coordinator(is_on=True, color_temp=64)
         light = TuyaBLEMeshLight(coord, "test_entry")
-        assert light.color_temp is not None
+        assert light.color_temp_kelvin is not None
 
     def test_color_temp_none_when_off(self) -> None:
         coord = make_mock_coordinator(is_on=False)
         light = TuyaBLEMeshLight(coord, "test_entry")
-        assert light.color_temp is None
+        assert light.color_temp_kelvin is None
 
     def test_min_max_color_temp_kelvin(self) -> None:
         coord = make_mock_coordinator()
@@ -292,7 +292,7 @@ class TestLightActions:
         coord = make_mock_coordinator()
         light = TuyaBLEMeshLight(coord, "test_entry")
 
-        await light.async_turn_on(color_temp=262)
+        await light.async_turn_on(color_temp_kelvin=3817)  # ~262 mireds
 
         coord.device.send_color_temp.assert_called_once()
         args = coord.device.send_color_temp.call_args[0]
@@ -303,7 +303,7 @@ class TestLightActions:
         coord = make_mock_coordinator()
         light = TuyaBLEMeshLight(coord, "test_entry")
 
-        await light.async_turn_on(brightness=200, color_temp=200)
+        await light.async_turn_on(brightness=200, color_temp_kelvin=5000)  # 200 mireds
 
         coord.device.send_brightness.assert_called_once()
         coord.device.send_color_temp.assert_called_once()
@@ -343,7 +343,7 @@ class TestLightActions:
         coord = make_mock_coordinator(mode=1)
         light = TuyaBLEMeshLight(coord, "test_entry")
 
-        await light.async_turn_on(color_temp=262)
+        await light.async_turn_on(color_temp_kelvin=3817)  # ~262 mireds
 
         coord.device.send_light_mode.assert_called_once_with(0)
         coord.device.send_color_temp.assert_called_once()
@@ -463,8 +463,8 @@ class TestTransitions:
         coord = make_mock_coordinator(color_temp=0)
         light = TuyaBLEMeshLight(coord, "test_entry")
 
-        # 153 mireds (coolest) -> device 127
-        await light.async_turn_on(color_temp=153, transition=0.2)
+        # 6535 K (coolest, ~153 mireds) -> device 127
+        await light.async_turn_on(color_temp_kelvin=6535, transition=0.2)
         assert light._transition_task is not None
         await light._transition_task
 
