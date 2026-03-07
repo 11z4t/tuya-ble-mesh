@@ -167,3 +167,16 @@ class ShellyPowerController:
         if self._session and not self._session.closed:
             await self._session.close()
             self._session = None
+
+    async def __aenter__(self) -> "ShellyPowerController":
+        """Async context manager entry."""
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
+        """Async context manager exit — close HTTP session."""
+        await self.close()

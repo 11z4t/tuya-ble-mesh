@@ -30,6 +30,7 @@ import contextlib
 import logging
 import os
 import struct
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -171,6 +172,7 @@ class SIGMeshProvisioner:
         iv_index: int = 0,
         flags: int = 0,
         ble_device_callback: Any | None = None,
+        ble_connect_callback: Callable[[Any], Awaitable[BleakClient]] | None = None,
     ) -> None:
         """Initialize the provisioner.
 
@@ -183,6 +185,11 @@ class SIGMeshProvisioner:
             flags: Provisioning flags (bit 0=Key Refresh, bit 1=IV Update).
             ble_device_callback: Optional callback(address) → BLEDevice for
                 HA Bluetooth proxy support. If None, uses BleakScanner.
+            ble_connect_callback: Optional async callback(BLEDevice) →
+                connected BleakClient. If provided, used instead of
+                BleakClient.connect() directly. Pass a callback that uses
+                bleak-retry-connector to avoid the "BleakClient.connect()
+                called without bleak-retry-connector" warning in HA.
 
         Raises:
             ProvisioningError: If key lengths are invalid.
@@ -201,6 +208,7 @@ class SIGMeshProvisioner:
         self._iv_index = iv_index
         self._flags = flags
         self._ble_device_callback = ble_device_callback
+        self._ble_connect_callback = ble_connect_callback
 
         # Generate ECDH P-256 key pair
         self._private_key = generate_private_key(SECP256R1())
@@ -284,8 +292,12 @@ class SIGMeshProvisioner:
                     msg = f"Device {address} not found in BLE scan"
                     raise ProvisioningError(msg)
 
-                client = BleakClient(device, timeout=timeout)
-                await client.connect()
+                if self._ble_connect_callback is not None:
+                    # Use caller-supplied connector (e.g. bleak-retry-connector)
+                    client = await self._ble_connect_callback(device)
+                else:
+                    client = BleakClient(device, timeout=timeout)
+                    await client.connect()
                 _LOGGER.info(
                     "PB-GATT connected to %s (MTU=%d)",
                     address,

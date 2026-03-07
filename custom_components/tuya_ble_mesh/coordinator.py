@@ -115,7 +115,7 @@ class TuyaBLEMeshCoordinator:
 
     def _notify_listeners(self) -> None:
         """Notify all registered listeners of state change."""
-        for callback in self._listeners:
+        for callback in list(self._listeners):
             try:
                 callback()
             except Exception:

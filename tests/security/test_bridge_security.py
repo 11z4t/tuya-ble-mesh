@@ -10,8 +10,11 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
+from tuya_ble_mesh.exceptions import ConnectionError as MeshConnectionError
 from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice, TelinkBridgeDevice
 
 
@@ -58,14 +61,14 @@ class TestPathTraversal:
     """Verify HTTP path inputs are not vulnerable to traversal."""
 
     def test_parse_http_body_empty_response(self) -> None:
-        """Empty response should return empty JSON object string."""
-        result = SIGMeshBridgeDevice._parse_http_body("")
-        assert result == "{}"
+        """Empty response (no HTTP separator) raises MeshConnectionError."""
+        with pytest.raises(MeshConnectionError):
+            SIGMeshBridgeDevice._parse_http_body("")
 
     def test_parse_http_body_no_separator(self) -> None:
-        """Response without header separator returns empty JSON."""
-        result = SIGMeshBridgeDevice._parse_http_body("HTTP/1.1 200 OK")
-        assert result == "{}"
+        """Response without header separator raises MeshConnectionError."""
+        with pytest.raises(MeshConnectionError):
+            SIGMeshBridgeDevice._parse_http_body("HTTP/1.1 200 OK")
 
     def test_parse_http_body_malicious_body(self) -> None:
         """Malicious body content should be returned as-is for json.loads to reject."""

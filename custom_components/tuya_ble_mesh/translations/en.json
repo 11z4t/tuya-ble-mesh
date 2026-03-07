@@ -9,7 +9,7 @@
           "mesh_name": "Mesh Name",
           "mesh_password": "Mesh Password",
           "vendor_id": "Vendor ID (hex, e.g. 0x1001)",
-          "device_type": "Device Type (light or plug)",
+          "device_type": "Device Type",
           "mesh_address": "Mesh Address (0 = auto)"
         }
       },
@@ -31,7 +31,7 @@
         }
       },
       "sig_plug": {
-        "title": "SIG Mesh Plug — Auto Provisioning",
+        "title": "SIG Mesh Plug \u2014 Auto Provisioning",
         "description": "The device **{name}** will be provisioned automatically.\n\nA random NetKey and AppKey are generated. The DevKey is derived from the ECDH provisioning exchange. All keys are saved in the Home Assistant config database.\n\nEnsure the device is in factory-reset state (advertising Provisioning Service 0x1827) and within BLE range, then click Submit.",
         "data": {}
       },
@@ -44,16 +44,28 @@
           "mesh_password": "Mesh Password",
           "mesh_address": "Mesh Address (0 = auto)"
         }
+      },
+      "reauth_confirm": {
+        "title": "Re-enter Mesh Credentials",
+        "description": "Authentication failed. Please re-enter the mesh credentials to reconnect.",
+        "data": {
+          "mesh_name": "Mesh Name",
+          "mesh_password": "Mesh Password",
+          "bridge_host": "Bridge Host",
+          "bridge_port": "Bridge Port"
+        }
       }
     },
     "error": {
       "invalid_mac": "Invalid MAC address format (expected XX:XX:XX:XX:XX:XX)",
       "invalid_key": "Invalid key format (expected 32 hex characters)",
+      "invalid_bridge_host": "Invalid bridge host. Use a hostname or IP address (not a URL). Private/loopback addresses are not allowed.",
       "cannot_connect": "Cannot connect to bridge daemon. Verify the host/port and that the daemon is running.",
       "provisioning_failed": "Provisioning failed. Ensure the device is in factory-reset state, within BLE range, and try again."
     },
     "abort": {
-      "already_configured": "This device is already configured"
+      "already_configured": "This device is already configured",
+      "reauth_successful": "Re-authentication successful"
     }
   },
   "options": {
@@ -70,6 +82,78 @@
           "iv_index": "IV Index"
         }
       }
+    }
+  },
+  "entity": {
+    "light": {
+      "mesh_light": {
+        "name": "Light"
+      }
+    },
+    "switch": {
+      "mesh_switch": {
+        "name": "Switch"
+      }
+    },
+    "sensor": {
+      "rssi": {
+        "name": "Signal strength"
+      },
+      "firmware": {
+        "name": "Firmware version"
+      },
+      "power": {
+        "name": "Power"
+      },
+      "energy": {
+        "name": "Energy"
+      }
+    }
+  },
+  "exceptions": {
+    "connection_failed": {
+      "message": "Failed to connect to {device}: {error}"
+    },
+    "command_timeout": {
+      "message": "Command timed out for {device}"
+    },
+    "provisioning_failed": {
+      "message": "Provisioning failed for {device}: {error}"
+    },
+    "invalid_key": {
+      "message": "Invalid mesh key format"
+    }
+  },
+  "services": {
+    "identify": {
+      "name": "Identify device",
+      "description": "Flash the device LED to make it easy to find.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The device to identify (flash LED)."
+        }
+      }
+    },
+    "set_log_level": {
+      "name": "Set log level",
+      "description": "Change BLE mesh logging verbosity without restarting Home Assistant.",
+      "fields": {
+        "level": {
+          "name": "Level",
+          "description": "Logging level: debug, info, warning, or error."
+        }
+      }
+    }
+  },
+  "issues": {
+    "provisioning_failed": {
+      "title": "Device provisioning failed",
+      "description": "Could not provision {device}. Ensure it is in factory-reset state and within BLE range, then reconfigure the integration."
+    },
+    "bridge_unreachable": {
+      "title": "Bridge unreachable",
+      "description": "Cannot reach the BLE bridge at {host}:{port}. Check network connectivity and that the bridge daemon is running."
     }
   }
 }
