@@ -32,6 +32,7 @@ from tuya_ble_mesh.exceptions import (
     SIGMeshError,
     SIGMeshKeyError,
 )
+from tuya_ble_mesh.logging_context import MeshLogAdapter, mesh_operation
 from tuya_ble_mesh.sig_mesh_protocol import (
     _OPCODE_COMPOSITION_STATUS,
     SEG_DATA_SIZE,
@@ -54,7 +55,7 @@ from tuya_ble_mesh.sig_mesh_protocol import (
     reassemble_and_decrypt_segments,
 )
 
-_LOGGER = logging.getLogger(__name__)
+_LOGGER = MeshLogAdapter(logging.getLogger(__name__), {})
 
 # SIG Mesh GATT Proxy UUIDs
 SIG_MESH_PROXY_SERVICE = "00001828-0000-1000-8000-00805f9b34fb"
@@ -265,6 +266,24 @@ class SIGMeshDevice:
 
         Raises:
             SIGMeshKeyError: If keys cannot be loaded from 1Password.
+            ConnectionError: If BLE connection fails after all retries.
+        """
+        async with mesh_operation(self._address, "connect"):
+            await self._connect_impl(timeout=timeout, max_retries=max_retries)
+
+    async def _connect_impl(
+        self,
+        timeout: float = 30.0,
+        max_retries: int = 5,
+    ) -> None:
+        """Internal connect implementation (called within mesh_operation context).
+
+        Args:
+            timeout: Connection timeout per attempt in seconds.
+            max_retries: Maximum number of connection attempts.
+
+        Raises:
+            SIGMeshKeyError: If keys cannot be loaded.
             ConnectionError: If BLE connection fails after all retries.
         """
         await self._load_keys()
