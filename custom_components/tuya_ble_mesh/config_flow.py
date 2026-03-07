@@ -8,6 +8,7 @@ and the device key is derived from the ECDH provisioning exchange.
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import logging
 import os
@@ -106,7 +107,14 @@ def _parse_json_body(body: str) -> dict[str, object]:
 
 
 def _validate_hex_key(value: str) -> bool:
-    """Validate a 32-char hex key string."""
+    """Validate a 32-char hex key string.
+
+    Args:
+        value: String to check.
+
+    Returns:
+        True if value matches 32 lowercase or uppercase hex characters.
+    """
     return bool(_HEX_KEY_PATTERN.match(value))
 
 
@@ -212,6 +220,11 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):
     """Handle options for a Tuya BLE Mesh entry."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
+        """Initialize options flow with the existing config entry.
+
+        Args:
+            config_entry: The config entry whose options are being edited.
+        """
         self._config_entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -300,6 +313,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
         return TuyaBLEMeshOptionsFlow(config_entry)
 
     def __init__(self) -> None:
+        """Initialize config flow state for a new Tuya BLE Mesh entry."""
         super().__init__()
         self._discovery_info: dict[str, Any] | None = None
         # Stored provisioning keys set by _run_provision
@@ -769,7 +783,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             await self.hass.config_entries.async_reload(entry.entry_id)
             return self.async_abort(reason="reauth_successful")
 
-        device_type = entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT) if entry else DEVICE_TYPE_LIGHT
+        device_type = (
+            entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT) if entry else DEVICE_TYPE_LIGHT
+        )
         if device_type in (DEVICE_TYPE_SIG_BRIDGE_PLUG, DEVICE_TYPE_TELINK_BRIDGE_LIGHT):
             schema = vol.Schema(
                 {
