@@ -19,17 +19,24 @@ from custom_components.tuya_ble_mesh.config_flow import (
     _validate_mac,
 )
 from custom_components.tuya_ble_mesh.const import (
+    CONF_APP_KEY,
+    CONF_DEV_KEY,
     CONF_DEVICE_TYPE,
     CONF_IV_INDEX,
     CONF_MAC_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
-    CONF_OP_ITEM_PREFIX,
+    CONF_NET_KEY,
     CONF_UNICAST_OUR,
     CONF_UNICAST_TARGET,
     DOMAIN,
     SIG_MESH_PROXY_UUID,
 )
+
+# Test keys (not real secrets — random hex for unit tests)
+_TEST_NET_KEY = "00112233445566778899aabbccddeeff"  # pragma: allowlist secret
+_TEST_DEV_KEY = "ffeeddccbbaa99887766554433221100"  # pragma: allowlist secret
+_TEST_APP_KEY = "aabbccddeeff00112233445566778899"  # pragma: allowlist secret
 
 
 class TestValidateMac:
@@ -305,8 +312,10 @@ class TestSIGPlugStep:
             {
                 CONF_UNICAST_TARGET: "00aa",
                 CONF_UNICAST_OUR: "0001",
-                CONF_OP_ITEM_PREFIX: "s17",
                 CONF_IV_INDEX: 0,
+                CONF_NET_KEY: _TEST_NET_KEY,
+                CONF_DEV_KEY: _TEST_DEV_KEY,
+                CONF_APP_KEY: _TEST_APP_KEY,
             }
         )
 
@@ -314,8 +323,8 @@ class TestSIGPlugStep:
         assert result["data"][CONF_DEVICE_TYPE] == "sig_plug"
         assert result["data"][CONF_UNICAST_TARGET] == "00aa"
         assert result["data"][CONF_UNICAST_OUR] == "0001"
-        assert result["data"][CONF_OP_ITEM_PREFIX] == "s17"
         assert result["data"][CONF_IV_INDEX] == 0
+        assert result["data"][CONF_NET_KEY] == _TEST_NET_KEY
         assert result["data"][CONF_MAC_ADDRESS] == "AA:BB:CC:DD:EE:FF"
 
     @pytest.mark.asyncio
@@ -326,12 +335,18 @@ class TestSIGPlugStep:
             "name": "SIG Mesh FF",
         }
 
-        result = await flow.async_step_sig_plug({})
+        # With keys provided, entry should be created with defaults
+        result = await flow.async_step_sig_plug(
+            {
+                CONF_NET_KEY: _TEST_NET_KEY,
+                CONF_DEV_KEY: _TEST_DEV_KEY,
+                CONF_APP_KEY: _TEST_APP_KEY,
+            }
+        )
 
         assert result["type"] == "create_entry"
-        assert result["data"][CONF_UNICAST_TARGET] == "00aa"
+        assert result["data"][CONF_UNICAST_TARGET] == "00B0"
         assert result["data"][CONF_UNICAST_OUR] == "0001"
-        assert result["data"][CONF_OP_ITEM_PREFIX] == "s17"
         assert result["data"][CONF_IV_INDEX] == 0
 
     @pytest.mark.asyncio
@@ -436,8 +451,14 @@ class TestAutoDiscovery:
         result = await flow.async_step_bluetooth(service_info)
         assert result["step_id"] == "sig_plug"
 
-        # Step 2: submit sig_plug form → entry created
-        result = await flow.async_step_sig_plug({})
+        # Step 2: submit sig_plug form with keys → entry created
+        result = await flow.async_step_sig_plug(
+            {
+                CONF_NET_KEY: _TEST_NET_KEY,
+                CONF_DEV_KEY: _TEST_DEV_KEY,
+                CONF_APP_KEY: _TEST_APP_KEY,
+            }
+        )
         assert result["type"] == "create_entry"
         assert result["data"][CONF_DEVICE_TYPE] == "sig_plug"
         assert result["data"][CONF_MAC_ADDRESS] == "AA:BB:CC:DD:EE:FF"
