@@ -1,10 +1,13 @@
 """Config flow for Tuya BLE Mesh integration.
 
 Supports bluetooth discovery (out_of_mesh*, tymesh*) and manual MAC entry.
+Bridge connectivity is validated before creating config entries.
 """
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import re
 from typing import TYPE_CHECKING, Any
@@ -45,6 +48,7 @@ from custom_components.tuya_ble_mesh.const import (
 _LOGGER = logging.getLogger(__name__)
 
 _MAC_PATTERN = re.compile(r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
+_BRIDGE_TEST_TIMEOUT = 5.0
 
 
 def _validate_mac(mac: str) -> str | None:
@@ -59,6 +63,41 @@ def _validate_mac(mac: str) -> str | None:
     if not _MAC_PATTERN.match(mac):
         return "invalid_mac"
     return None
+
+
+async def _test_bridge(host: str, port: int) -> bool:
+    """Test if bridge daemon is reachable.
+
+    Args:
+        host: Bridge hostname/IP.
+        port: Bridge port.
+
+    Returns:
+        True if bridge responds with status ok.
+    """
+    try:
+        reader, writer = await asyncio.wait_for(
+            asyncio.open_connection(host, port),
+            timeout=_BRIDGE_TEST_TIMEOUT,
+        )
+        try:
+            request = f"GET /health HTTP/1.1\r\nHost: {host}\r\n\r\n"
+            writer.write(request.encode())
+            await writer.drain()
+            response = await asyncio.wait_for(
+                reader.read(4096),
+                timeout=_BRIDGE_TEST_TIMEOUT,
+            )
+            body = response.decode("utf-8", errors="replace")
+            parts = body.split("\r\n\r\n", 1)
+            if len(parts) > 1:
+                data = json.loads(parts[1])
+                return data.get("status") == "ok"
+        finally:
+            writer.close()
+    except Exception:
+        _LOGGER.debug("Bridge test failed for %s:%d", host, port, exc_info=True)
+    return False
 
 
 class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
@@ -276,18 +315,24 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
         Returns:
             Flow result dict.
         """
+        errors: dict[str, str] = {}
         if user_input is not None and self._discovery_info is not None:
-            mac = self._discovery_info["address"]
-            return self.async_create_entry(
-                title=f"SIG Bridge {mac[-8:]}",
-                data={
-                    CONF_MAC_ADDRESS: mac,
-                    CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_BRIDGE_PLUG,
-                    CONF_UNICAST_TARGET: user_input.get(CONF_UNICAST_TARGET, "00B0"),
-                    CONF_BRIDGE_HOST: user_input.get(CONF_BRIDGE_HOST, ""),
-                    CONF_BRIDGE_PORT: user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT),
-                },
-            )
+            host = user_input.get(CONF_BRIDGE_HOST, "")
+            port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+            if not await _test_bridge(host, port):
+                errors["base"] = "cannot_connect"
+            else:
+                mac = self._discovery_info["address"]
+                return self.async_create_entry(
+                    title=f"SIG Bridge {mac[-8:]}",
+                    data={
+                        CONF_MAC_ADDRESS: mac,
+                        CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_BRIDGE_PLUG,
+                        CONF_UNICAST_TARGET: user_input.get(CONF_UNICAST_TARGET, "00B0"),
+                        CONF_BRIDGE_HOST: host,
+                        CONF_BRIDGE_PORT: port,
+                    },
+                )
 
         return self.async_show_form(
             step_id="sig_bridge",
@@ -301,6 +346,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders={
                 "name": (self._discovery_info.get("name", "") if self._discovery_info else ""),
             },
+            errors=errors,
         )
 
     async def async_step_telink_bridge(
@@ -314,17 +360,23 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
         Returns:
             Flow result dict.
         """
+        errors: dict[str, str] = {}
         if user_input is not None and self._discovery_info is not None:
-            mac = self._discovery_info["address"]
-            return self.async_create_entry(
-                title=f"Telink Bridge {mac[-8:]}",
-                data={
-                    CONF_MAC_ADDRESS: mac,
-                    CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
-                    CONF_BRIDGE_HOST: user_input.get(CONF_BRIDGE_HOST, ""),
-                    CONF_BRIDGE_PORT: user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT),
-                },
-            )
+            host = user_input.get(CONF_BRIDGE_HOST, "")
+            port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+            if not await _test_bridge(host, port):
+                errors["base"] = "cannot_connect"
+            else:
+                mac = self._discovery_info["address"]
+                return self.async_create_entry(
+                    title=f"Telink Bridge {mac[-8:]}",
+                    data={
+                        CONF_MAC_ADDRESS: mac,
+                        CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
+                        CONF_BRIDGE_HOST: host,
+                        CONF_BRIDGE_PORT: port,
+                    },
+                )
 
         return self.async_show_form(
             step_id="telink_bridge",
@@ -337,4 +389,5 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
             description_placeholders={
                 "name": (self._discovery_info.get("name", "") if self._discovery_info else ""),
             },
+            errors=errors,
         )

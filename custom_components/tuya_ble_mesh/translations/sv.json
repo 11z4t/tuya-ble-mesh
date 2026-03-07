@@ -52,7 +52,8 @@
       }
     },
     "error": {
-      "invalid_mac": "Ogiltigt MAC-adressformat (f\u00f6rv\u00e4ntat XX:XX:XX:XX:XX:XX)"
+      "invalid_mac": "Ogiltigt MAC-adressformat (f\u00f6rv\u00e4ntat XX:XX:XX:XX:XX:XX)",
+      "cannot_connect": "Kan inte ansluta till bridge-daemon. Kontrollera v\u00e4rd/port och att daemon k\u00f6r."
     },
     "abort": {
       "already_configured": "Enheten \u00e4r redan konfigurerad"
