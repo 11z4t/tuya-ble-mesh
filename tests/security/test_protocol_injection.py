@@ -1,3 +1,4 @@
+import typing
 """Protocol injection attack tests.
 
 Verifies that protocol parsers reject malformed inputs that could
@@ -15,6 +16,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
+import contextlib
+
 from tuya_ble_mesh.exceptions import TuyaBLEMeshError
 from tuya_ble_mesh.protocol import (
     decode_command_packet,
@@ -31,7 +34,7 @@ _ALLOWED_EXCEPTIONS = (TuyaBLEMeshError,)
 class TestSQLInjectionPatterns:
     """Test protocol parsers reject SQL injection patterns."""
 
-    _SQL_INJECTION_PATTERNS = [
+    _SQL_INJECTION_PATTERNS: typing.ClassVar[list[bytes]] = [
         b"'; DROP TABLE devices; --",
         b"' OR '1'='1",
         b"admin'--",
@@ -63,16 +66,14 @@ class TestSQLInjectionPatterns:
         for pattern in self._SQL_INJECTION_PATTERNS:
             # Pad to valid notification size
             data = pattern[:30].ljust(20, b"\x00")
-            try:
+            with contextlib.suppress(_ALLOWED_EXCEPTIONS):
                 decrypt_notification(_FUZZ_KEY, _FUZZ_MAC, data)
-            except _ALLOWED_EXCEPTIONS:
-                pass
 
 
 class TestCommandInjectionPatterns:
     """Test protocol parsers reject command injection patterns."""
 
-    _COMMAND_INJECTION_PATTERNS = [
+    _COMMAND_INJECTION_PATTERNS: typing.ClassVar[list[bytes]] = [
         b"; rm -rf /",
         b"| cat /etc/passwd",
         b"`whoami`",
@@ -102,16 +103,14 @@ class TestCommandInjectionPatterns:
         """Pair responses with shell commands must not execute."""
         for pattern in self._COMMAND_INJECTION_PATTERNS:
             data = b"\x0d" + pattern[:8].ljust(8, b"\x00")
-            try:
+            with contextlib.suppress(_ALLOWED_EXCEPTIONS):
                 parse_pair_response(data)
-            except _ALLOWED_EXCEPTIONS:
-                pass
 
 
 class TestFormatStringAttacks:
     """Test protocol parsers reject format string attack patterns."""
 
-    _FORMAT_STRING_PATTERNS = [
+    _FORMAT_STRING_PATTERNS: typing.ClassVar[list[bytes]] = [
         b"%s%s%s%s%s%s%s%s",
         b"%x%x%x%x%x%x%x%x",
         b"%n%n%n%n%n%n%n%n",
@@ -139,16 +138,14 @@ class TestFormatStringAttacks:
         """Notifications with format strings must not leak memory."""
         for pattern in self._FORMAT_STRING_PATTERNS:
             data = pattern[:20].ljust(20, b"\x00")
-            try:
+            with contextlib.suppress(_ALLOWED_EXCEPTIONS):
                 decrypt_notification(_FUZZ_KEY, _FUZZ_MAC, data)
-            except _ALLOWED_EXCEPTIONS:
-                pass
 
 
 class TestPathTraversalAttacks:
     """Test protocol parsers reject path traversal patterns."""
 
-    _PATH_TRAVERSAL_PATTERNS = [
+    _PATH_TRAVERSAL_PATTERNS: typing.ClassVar[list[bytes]] = [
         b"../../etc/passwd",
         b"..\\..\\windows\\system32",
         b"....//....//etc/shadow",
@@ -187,7 +184,7 @@ class TestNullByteInjection:
         data = header + payload
 
         try:
-            dp_id_out, dp_type_out, value = decode_dp_value(data)
+            _dp_id_out, _dp_type_out, value = decode_dp_value(data)
             # If parsed successfully, ensure full length is preserved
             if isinstance(value, bytes):
                 assert len(value) == len(payload), "Null byte caused truncation"
@@ -197,10 +194,8 @@ class TestNullByteInjection:
     def test_null_byte_in_packet(self) -> None:
         """Null bytes in packet should not cause buffer issues."""
         packet = b"\x00" * 10 + b"\xff" * 10
-        try:
+        with contextlib.suppress(_ALLOWED_EXCEPTIONS):
             decode_command_packet(_FUZZ_KEY, _FUZZ_MAC, packet)
-        except _ALLOWED_EXCEPTIONS:
-            pass
 
 
 class TestBufferOverflowPatterns:
@@ -238,16 +233,14 @@ class TestBufferOverflowPatterns:
             header = struct.pack(">BBH", dp_id, dp_type, claimed_len)
             data = header + b"X" * 10
 
-            try:
+            with contextlib.suppress(_ALLOWED_EXCEPTIONS):
                 decode_dp_value(data)
-            except _ALLOWED_EXCEPTIONS:
-                pass
 
 
 class TestUnicodeExploits:
     """Test protocol parsers handle dangerous Unicode correctly."""
 
-    _UNICODE_EXPLOITS = [
+    _UNICODE_EXPLOITS: typing.ClassVar[list[bytes]] = [
         b"\xc0\x80",  # Overlong encoding of NULL
         b"\xf0\x9f\x92\xa9" * 100,  # Many emoji (memory test)
         b"\xe2\x80\x8f" * 50,  # RTL override spam
@@ -263,7 +256,5 @@ class TestUnicodeExploits:
             header = struct.pack(">BBH", dp_id, dp_type, val_len)
             data = header + exploit
 
-            try:
+            with contextlib.suppress(_ALLOWED_EXCEPTIONS):
                 decode_dp_value(data)
-            except _ALLOWED_EXCEPTIONS:
-                pass
