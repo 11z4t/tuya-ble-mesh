@@ -77,7 +77,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     def _ble_device_from_ha(address: str) -> Any:
         from homeassistant.components.bluetooth import async_ble_device_from_address
 
-        return async_ble_device_from_address(hass, address, connectable=True)
+        # Try connectable first, fall back to any advertisement
+        device = async_ble_device_from_address(hass, address, connectable=True)
+        if device is None:
+            device = async_ble_device_from_address(hass, address, connectable=False)
+        if device is None:
+            _LOGGER.warning("BLE device %s not found via HA bluetooth stack", address)
+        else:
+            _LOGGER.debug("BLE device %s resolved via HA bluetooth stack", address)
+        return device
 
     if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
         from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice
