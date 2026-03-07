@@ -42,11 +42,11 @@ jobs:
       - name: Install dependencies
         run: |
           pip install --break-system-packages pytest pytest-asyncio pytest-cov
-          pip install --break-system-packages bleak cryptography pyserial
+          pip install --break-system-packages bleak bleak-retry-connector cryptography aiohttp pyserial
           pip install --break-system-packages homeassistant || true
 
       - name: Run unit and security tests
-        run: pytest tests/unit tests/security -v --tb=short --timeout=30 || true
+        run: pytest tests/unit tests/security -v --tb=short --timeout=30
 
   secrets-scan:
     runs-on: ubuntu-latest
