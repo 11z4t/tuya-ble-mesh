@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from homeassistant.const import Platform
+
 DOMAIN = "tuya_ble_mesh"
 
-PLATFORMS: list[str] = ["light", "sensor", "switch"]
+PLATFORMS: list[Platform] = [Platform.LIGHT, Platform.SENSOR, Platform.SWITCH]
 
 # Config entry data keys
 CONF_DEVICE_TYPE = "device_type"
