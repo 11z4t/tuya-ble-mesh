@@ -15,6 +15,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
+import contextlib
+
 from tuya_ble_mesh.crypto import make_checksum, verify_checksum
 from tuya_ble_mesh.exceptions import AuthenticationError
 
@@ -65,10 +67,8 @@ class TestConstantTimeChecksum:
             invalid_checksum = bytes([(valid_checksum[j] ^ (i % 256)) for j in range(2)])
 
             start = time.perf_counter()
-            try:
+            with contextlib.suppress(AuthenticationError):
                 verify_checksum(key, nonce, data, invalid_checksum)
-            except AuthenticationError:
-                pass
             elapsed = time.perf_counter() - start
             times.append(elapsed)
 
@@ -100,10 +100,8 @@ class TestConstantTimeChecksum:
 
             # Time invalid checksum
             start = time.perf_counter()
-            try:
+            with contextlib.suppress(AuthenticationError):
                 verify_checksum(key, nonce, data, invalid_checksum)
-            except AuthenticationError:
-                pass
             invalid_times.append(time.perf_counter() - start)
 
         valid_mean = statistics.mean(valid_times)
@@ -138,17 +136,13 @@ class TestNoTimingLeaksInComparison:
 
         for _ in range(_TIMING_ITERATIONS):
             start = time.perf_counter()
-            try:
+            with contextlib.suppress(AuthenticationError):
                 verify_checksum(key, nonce, data, first_diff)
-            except AuthenticationError:
-                pass
             first_times.append(time.perf_counter() - start)
 
             start = time.perf_counter()
-            try:
+            with contextlib.suppress(AuthenticationError):
                 verify_checksum(key, nonce, data, second_diff)
-            except AuthenticationError:
-                pass
             second_times.append(time.perf_counter() - start)
 
         first_mean = statistics.mean(first_times)
