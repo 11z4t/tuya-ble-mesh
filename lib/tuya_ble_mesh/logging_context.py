@@ -24,7 +24,7 @@ import contextvars
 import logging
 import random
 import string
-from collections.abc import AsyncGenerator, Generator
+from collections.abc import AsyncGenerator, Generator, MutableMapping
 from typing import Any
 
 # --- Context variables ---
@@ -138,7 +138,7 @@ async def mesh_operation(mac: str, operation: str) -> AsyncGenerator[str, None]:
         reset_context(tokens)
 
 
-class MeshLogAdapter(logging.LoggerAdapter):
+class MeshLogAdapter(logging.LoggerAdapter[logging.Logger]):
     """LoggerAdapter that automatically injects mesh context into records.
 
     Wraps any logger and prepends ``[corr=XXXX mac=... op=...]`` to the
@@ -153,8 +153,8 @@ class MeshLogAdapter(logging.LoggerAdapter):
     """
 
     def process(
-        self, msg: str, kwargs: dict[str, Any]
-    ) -> tuple[str, dict[str, Any]]:
+        self, msg: str, kwargs: MutableMapping[str, Any]
+    ) -> tuple[str, MutableMapping[str, Any]]:
         """Prepend context prefix to log message.
 
         Args:
