@@ -163,6 +163,13 @@ class TuyaBLEMeshLight(LightEntity):
         entry_id: str,
         device_info: DeviceInfo | None = None,
     ) -> None:
+        """Initialize the light entity.
+
+        Args:
+            coordinator: Coordinator managing the BLE mesh device state.
+            entry_id: Config entry ID used to scope the unique entity ID.
+            device_info: Device registry info for grouping entities under a device.
+        """
         self._coordinator = coordinator
         self._entry_id = entry_id
         self._attr_unique_id = f"{coordinator.device.address}_light"
