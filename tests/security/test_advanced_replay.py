@@ -57,9 +57,7 @@ class TestCrossSessionReplayProtection:
 
         # All old sequences should be behind new sequence
         for old_seq in old_seqs:
-            assert (
-                old_seq < new_seq
-            ), f"Old seq {old_seq} not safely behind new seq {new_seq}"
+            assert old_seq < new_seq, f"Old seq {old_seq} not safely behind new seq {new_seq}"
 
     @pytest.mark.asyncio
     async def test_no_gap_in_safety_margin(self) -> None:

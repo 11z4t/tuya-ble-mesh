@@ -7,7 +7,6 @@ injection, format string attacks, and path traversal.
 
 from __future__ import annotations
 
-import os
 import struct
 import sys
 from pathlib import Path
@@ -20,8 +19,6 @@ from tuya_ble_mesh.exceptions import TuyaBLEMeshError
 from tuya_ble_mesh.protocol import (
     decode_command_packet,
     decode_dp_value,
-    decode_dps_response,
-    decode_status,
     decrypt_notification,
     parse_pair_response,
 )
