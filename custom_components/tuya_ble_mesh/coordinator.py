@@ -70,7 +70,7 @@ class ConnectionStatistics:
     total_errors: int = 0
     connection_errors: int = 0
     command_errors: int = 0
-    response_times: deque = field(default_factory=lambda: deque(maxlen=100))
+    response_times: deque[float] = field(default_factory=lambda: deque(maxlen=100))
     last_error: str | None = None
     last_error_time: float | None = None
 
