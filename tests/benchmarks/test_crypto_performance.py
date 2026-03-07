@@ -14,6 +14,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
+import contextlib
+
 from tuya_ble_mesh.crypto import crypt_payload, make_checksum, verify_checksum
 
 # Test data
@@ -40,10 +42,8 @@ class TestCryptoPerformance:
         invalid = b"\xff\xff"
 
         def verify_invalid() -> None:
-            try:
+            with contextlib.suppress(Exception):
                 verify_checksum(_KEY, _NONCE, _PAYLOAD, invalid)
-            except Exception:
-                pass
 
         benchmark(verify_invalid)
 
