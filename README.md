@@ -4,71 +4,105 @@
 [![HA 2024.1+](https://img.shields.io/badge/HA-2024.1%2B-blue.svg)](https://www.home-assistant.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Fully local BLE mesh control of Tuya/Telink-based devices from Home Assistant.
-No cloud dependency. No Tuya account required.
+A fully local Home Assistant integration for controlling Tuya BLE Mesh devices — including **Malmbergs BT Smart** lighting products. No cloud. No Tuya account required for daily use.
 
-## Supported Devices
+## What is this?
 
-Devices that advertise the Tuya BLE Mesh service (`fe07`) with Telink firmware:
+Many affordable smart lighting products (sold under brands like Malmbergs, AwoX, and others) use **Tuya BLE Mesh** firmware internally. They're typically controlled via the Tuya Smart app through Tuya's cloud servers.
+
+This integration replaces cloud control with **direct BLE communication**, keeping everything local on your network. Your smart lights respond faster, work without internet, and don't depend on any external servers.
+
+### How it works
+
+The integration uses a **bridge architecture**:
+
+```
+Home Assistant  ←HTTP→  Bridge Daemon (RPi)  ←BLE Mesh→  Devices
+```
+
+1. A Raspberry Pi with Bluetooth runs the **bridge daemon** near your BLE mesh devices
+2. The HA integration communicates with the bridge over your local network
+3. The bridge translates commands to/from the BLE mesh protocol
+
+This means Home Assistant itself doesn't need Bluetooth — only the bridge RPi does.
+
+## Tested Devices
+
+| Device | Brand | Type | MAC | Status |
+|--------|-------|------|-----|--------|
+| LED Driver 9952126 | Malmbergs BT Smart | Dimmable LED driver | DC:23:4D:21:43:A5 | Tested — on/off, brightness |
+| Smart Plug S17 | Malmbergs BT Smart | BLE Mesh relay plug | DC:23:4F:10:52:C4 | Tested — on/off, SIG Mesh provisioned |
+
+### Potentially Compatible
+
+Devices using the Tuya BLE Mesh / Telink stack with service UUID `fe07`:
 
 | Brand | Example Products | Vendor ID | Status |
 |-------|-----------------|-----------|--------|
-| **Malmbergs BT Smart** | LED Driver 9952126 | `0x1001` | Tested |
-| **AwoX** | Mesh lights | `0x0160` | Untested |
-| **Dimond/retsimx** | Mesh lights | `0x0211` | Untested |
-
-Other Tuya BLE Mesh devices using the Telink stack may work by specifying the
-correct vendor ID during setup.
+| **Malmbergs BT Smart** | LED drivers, plugs | `0x1001` | Hardware tested |
+| **AwoX** | Mesh lights | `0x0160` | Protocol compatible, untested |
+| **Dimond/retsimx** | Mesh lights | `0x0211` | Protocol compatible, untested |
 
 ## Features
 
-- Power on/off
-- Brightness control (1-100%)
-- Color temperature (warm-cool)
-- Automatic BLE discovery (`out_of_mesh*`, `tymesh*`)
-- Push-based status updates via BLE notifications
-- Configurable vendor ID for multi-brand support
-- Auto-reconnect with exponential backoff
-- Keep-alive to maintain BLE connection
+- **Power on/off** — instant local control
+- **Brightness** — 1-100% dimming
+- **Color temperature** — warm to cool white
+- **Auto-discovery** — finds `out_of_mesh*` and `tymesh*` devices via BLE
+- **Status feedback** — push-based updates via BLE notifications
+- **Auto-reconnect** — exponential backoff on connection loss
+- **Keep-alive** — maintains BLE connections proactively
+- **Dual protocol** — supports both Tuya proprietary BLE and SIG Mesh (via bridge)
+- **Command queue** — reliable delivery even under rapid HA automations
 
 ## Installation
 
-### HACS (recommended)
+### Via HACS (recommended)
 
-1. Open HACS in Home Assistant
-2. Go to **Integrations** > **Custom repositories**
-3. Add `https://git.malmgrens.me/bormal/malmbergs-bt` as an **Integration**
-4. Search for "Tuya BLE Mesh" and install
-5. Restart Home Assistant
+1. Open **HACS** in Home Assistant
+2. Go to **Integrations** → three-dot menu → **Custom repositories**
+3. Add URL: `https://github.com/11z4t/tuya-ble-mesh`
+4. Category: **Integration**
+5. Search for **"Tuya BLE Mesh"** and click **Download**
+6. **Restart Home Assistant**
 
 ### Manual
 
-1. Copy `custom_components/tuya_ble_mesh/` and `lib/tuya_ble_mesh/` to your
-   Home Assistant config directory
+1. Copy `custom_components/tuya_ble_mesh/` to your HA `config/custom_components/` directory
 2. Restart Home Assistant
 
 ## Configuration
 
-### Automatic (Bluetooth discovery)
+### Adding a device
 
-If your device advertises as `out_of_mesh*` or `tymesh*`, Home Assistant will
-detect it automatically and prompt you to confirm.
-
-### Manual setup
-
-Go to **Settings** > **Devices & Services** > **Add Integration** > **Tuya BLE Mesh**.
+**Settings** → **Devices & Services** → **Add Integration** → search **"Tuya BLE Mesh"**
 
 | Field | Description | Default |
 |-------|-------------|---------|
-| MAC Address | BLE address (XX:XX:XX:XX:XX:XX) | *required* |
+| Device type | Light or Plug | Light |
+| MAC Address | BLE MAC (XX:XX:XX:XX:XX:XX) | *required* |
+| Bridge Host | IP/hostname of the bridge RPi | *required* |
+| Bridge Port | Bridge daemon HTTP port | `8787` |
 | Mesh Name | Mesh network name | `out_of_mesh` |
 | Mesh Password | Mesh network password | `123456` |
-| Vendor ID | Vendor identifier in hex | `0x1001` |
+| Vendor ID | Vendor identifier (hex) | `0x1001` |
 
-### Vendor ID
+### Bridge Daemon
 
-Different brands use different vendor IDs in the Telink mesh protocol.
-If your device is not Malmbergs, set the correct vendor ID:
+The bridge daemon runs on a Raspberry Pi with Bluetooth, close to your mesh devices:
+
+```bash
+# On the RPi
+cd ~/malmbergs-bt
+source ~/malmbergs-ble/bin/activate
+python scripts/ble_mesh_daemon.py --host 0.0.0.0 --port 8787
+```
+
+The daemon exposes a simple HTTP API that the HA integration uses to send commands and receive status.
+
+### Vendor IDs
+
+Different brands embed different vendor IDs in the Telink mesh protocol:
 
 | Brand | Vendor ID |
 |-------|-----------|
@@ -76,9 +110,7 @@ If your device is not Malmbergs, set the correct vendor ID:
 | AwoX | `0x0160` |
 | Dimond/retsimx | `0x0211` |
 
-The vendor ID is written as little-endian bytes into every command packet.
-If commands don't work with the default, try the vendor ID from your device's
-original app (check BLE snoop logs for the bytes at payload offset [3:5]).
+If commands don't work with the default, check BLE snoop logs for vendor bytes at payload offset `[3:5]`.
 
 ## Entities
 
@@ -87,36 +119,80 @@ Each device creates:
 | Entity | Type | Description |
 |--------|------|-------------|
 | `light.<name>` | Light | Power, brightness, color temperature |
+| `switch.<name>` | Switch | Power on/off (plugs only) |
 | `sensor.<name>_signal` | Sensor | BLE signal strength (RSSI) |
 
-## Requirements
+## Hardware Setup
 
-- Home Assistant 2024.1 or later
-- Bluetooth adapter (built-in or USB)
-- Python 3.11+
-- bleak >= 0.21.0
+### What you need
+
+- **Home Assistant** 2024.1 or later (any installation method)
+- **Raspberry Pi** (3B+ or 4) with built-in Bluetooth — runs the bridge daemon
+- **Tuya BLE Mesh devices** — Malmbergs BT Smart or compatible
+
+### Optional hardware (for development/debugging)
+
+- **Adafruit nRF51822 BLE Sniffer** — passive packet capture via serial
+- **Shelly Plug S** — remote power cycling for factory reset procedures
+
+### Network diagram
+
+```
+┌──────────────┐     HTTP      ┌──────────────┐     BLE Mesh     ┌─────────┐
+│ Home         │◄─────────────►│ Raspberry Pi │◄────────────────►│ Light 1 │
+│ Assistant    │   (port 8787) │ (Bridge)     │                  ├─────────┤
+│              │               │              │◄────────────────►│ Light 2 │
+└──────────────┘               └──────────────┘                  ├─────────┤
+                                                                 │ Plug 1  │
+                                                                 └─────────┘
+```
 
 ## Architecture
 
-The integration is split into two layers:
+The codebase is split into two independent layers:
 
-- **`lib/tuya_ble_mesh/`** - Standalone BLE mesh library (no HA dependency)
-- **`custom_components/tuya_ble_mesh/`** - Home Assistant integration wrapper
+```
+lib/tuya_ble_mesh/          ← Standalone BLE mesh library (no HA dependency)
+├── protocol.py             ← Tuya BLE Mesh packet encoding/decoding
+├── crypto.py               ← Mesh encryption (AES-based)
+├── connection.py           ← BLE GATT connection management
+├── device.py               ← High-level device abstraction
+├── scanner.py              ← BLE device discovery
+├── sig_mesh_protocol.py    ← SIG Mesh standard protocol
+├── sig_mesh_crypto.py      ← SIG Mesh encryption
+├── sig_mesh_device.py      ← SIG Mesh device with GATT proxy
+└── sig_mesh_bridge.py      ← HTTP bridge for remote BLE access
 
-This separation allows the core library to be used independently of Home
-Assistant (scripts, testing, other platforms).
+custom_components/tuya_ble_mesh/   ← Home Assistant integration
+├── __init__.py             ← Setup, config entry handling
+├── config_flow.py          ← UI configuration wizard
+├── coordinator.py          ← Data update coordinator
+├── light.py                ← Light entity platform
+├── switch.py               ← Switch entity platform (plugs)
+├── sensor.py               ← Signal strength sensor
+└── lib/                    ← Bundled copy of the core library
+```
+
+The core library can be used independently — for scripts, testing, or other platforms.
 
 ## Development
 
 ```bash
-# Activate venv
-source ~/malmbergs-ble/bin/activate && cd ~/malmbergs-bt
+# Activate virtual environment
+source ~/malmbergs-ble/bin/activate
+cd ~/malmbergs-bt
 
-# Run all checks (must pass before committing)
+# Run full check pipeline (must pass before committing)
 bash scripts/run-checks.sh
 
-# Scan for BLE devices
+# Scan for nearby BLE mesh devices
 python scripts/scan.py
+
+# Passive BLE sniffing (requires nRF51822 sniffer)
+python scripts/sniff.py
+
+# Power cycle device via Shelly plug
+python scripts/power_cycle.py
 
 # Run tests only
 python -m pytest tests/unit/ -q
@@ -124,16 +200,22 @@ python -m pytest tests/unit/ -q
 
 ### Check pipeline
 
-All 7 checks must pass: ruff, ruff format, mypy --strict, bandit, safety,
-detect-secrets, pytest.
+All checks must pass: **ruff** (lint + format), **mypy --strict**, **bandit**, **safety**, **detect-secrets**, **pytest**.
 
 ## Known Limitations
 
-- Color temperature DP ID not yet confirmed for all devices
-- Only one device tested end-to-end (Malmbergs LED Driver 9952126)
-- BlueZ 5.x may require `bluetoothctl remove` between reconnects (handled
-  automatically)
-- AwoX and Dimond vendor IDs are known but not hardware-verified
+- **Bridge required** — HA cannot talk BLE mesh directly; the RPi bridge daemon must be running
+- **Single LED driver tested** — color temperature DP ID not confirmed for all devices
+- **Factory reset** — some devices need 5x rapid power cycling to enter provisioning mode; not all respond reliably
+- **BlueZ quirks** — on older BlueZ versions, `bluetoothctl remove` may be needed between reconnects (handled automatically)
+- **No OTA** — firmware updates are out of scope
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Ensure `bash scripts/run-checks.sh` passes
+4. Submit a pull request
 
 ## License
 
