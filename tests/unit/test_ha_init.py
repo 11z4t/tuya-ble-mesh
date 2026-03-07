@@ -14,7 +14,7 @@ sys.path.insert(0, _ROOT)
 sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
 from custom_components.tuya_ble_mesh import async_setup_entry, async_unload_entry  # noqa: E402
-from custom_components.tuya_ble_mesh.const import DOMAIN, PLATFORMS  # noqa: E402
+from custom_components.tuya_ble_mesh.const import PLATFORMS  # noqa: E402
 
 
 def make_mock_hass() -> MagicMock:
