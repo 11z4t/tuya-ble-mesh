@@ -31,6 +31,11 @@ DEFAULT_OP_ITEM_PREFIX = "s17"
 DEFAULT_IV_INDEX = 0
 DEFAULT_BRIDGE_PORT = 8099
 
+# SIG Mesh key config keys (stored in config entry data)
+CONF_NET_KEY = "net_key"
+CONF_DEV_KEY = "dev_key"
+CONF_APP_KEY = "app_key"
+
 DEVICE_TYPE_SIG_BRIDGE_PLUG = "sig_bridge_plug"
 DEVICE_TYPE_TELINK_BRIDGE_LIGHT = "telink_bridge_light"
 

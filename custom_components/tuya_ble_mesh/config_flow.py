@@ -19,22 +19,23 @@ if TYPE_CHECKING:
     from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 
 from custom_components.tuya_ble_mesh.const import (
+    CONF_APP_KEY,
     CONF_BRIDGE_HOST,
     CONF_BRIDGE_PORT,
+    CONF_DEV_KEY,
     CONF_DEVICE_TYPE,
     CONF_IV_INDEX,
     CONF_MAC_ADDRESS,
     CONF_MESH_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
-    CONF_OP_ITEM_PREFIX,
+    CONF_NET_KEY,
     CONF_UNICAST_OUR,
     CONF_UNICAST_TARGET,
     CONF_VENDOR_ID,
     DEFAULT_BRIDGE_PORT,
     DEFAULT_IV_INDEX,
     DEFAULT_MESH_ADDRESS,
-    DEFAULT_OP_ITEM_PREFIX,
     DEFAULT_VENDOR_ID,
     DEVICE_TYPE_LIGHT,
     DEVICE_TYPE_PLUG,
@@ -48,7 +49,35 @@ from custom_components.tuya_ble_mesh.const import (
 _LOGGER = logging.getLogger(__name__)
 
 _MAC_PATTERN = re.compile(r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
+_HEX_KEY_PATTERN = re.compile(r"^[0-9A-Fa-f]{32}$")
 _BRIDGE_TEST_TIMEOUT = 5.0
+_MESH_KEYS_PATH = "/tmp/mesh_keys.json"
+
+
+def _load_mesh_key_defaults() -> dict[str, str]:
+    """Try to load default mesh keys from /tmp/mesh_keys.json.
+
+    Returns:
+        Dict with net_key, dev_key, app_key defaults (empty strings if missing).
+    """
+    defaults: dict[str, str] = {"net_key": "", "dev_key": "", "app_key": ""}
+    try:
+        import os
+
+        if os.path.exists(_MESH_KEYS_PATH):
+            with open(_MESH_KEYS_PATH) as f:
+                data = json.load(f)
+            defaults["net_key"] = data.get("net_key", "")
+            defaults["dev_key"] = data.get("dev_key", "")
+            defaults["app_key"] = data.get("app_key", "")
+    except Exception:
+        _LOGGER.debug("Could not load mesh key defaults", exc_info=True)
+    return defaults
+
+
+def _validate_hex_key(value: str) -> bool:
+    """Validate a 32-char hex key string."""
+    return bool(_HEX_KEY_PATTERN.match(value))
 
 
 def _validate_mac(mac: str) -> str | None:
@@ -273,35 +302,61 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):
         Returns:
             Flow result dict.
         """
+        errors: dict[str, str] = {}
         if user_input is not None and self._discovery_info is not None:
-            mac = self._discovery_info["address"]
-            return self.async_create_entry(
-                title=f"SIG Mesh {mac[-8:]}",
-                data={
-                    CONF_MAC_ADDRESS: mac,
-                    CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG,
-                    CONF_UNICAST_TARGET: user_input.get(CONF_UNICAST_TARGET, "00aa"),
-                    CONF_UNICAST_OUR: user_input.get(CONF_UNICAST_OUR, "0001"),
-                    CONF_OP_ITEM_PREFIX: user_input.get(
-                        CONF_OP_ITEM_PREFIX, DEFAULT_OP_ITEM_PREFIX
-                    ),
-                    CONF_IV_INDEX: user_input.get(CONF_IV_INDEX, DEFAULT_IV_INDEX),
-                },
-            )
+            # Validate hex keys
+            net_key = user_input.get(CONF_NET_KEY, "")
+            dev_key = user_input.get(CONF_DEV_KEY, "")
+            app_key = user_input.get(CONF_APP_KEY, "")
+            if not _validate_hex_key(net_key):
+                errors[CONF_NET_KEY] = "invalid_key"
+            if not _validate_hex_key(dev_key):
+                errors[CONF_DEV_KEY] = "invalid_key"
+            if not _validate_hex_key(app_key):
+                errors[CONF_APP_KEY] = "invalid_key"
 
+            if not errors:
+                mac = self._discovery_info["address"]
+                return self.async_create_entry(
+                    title=f"SIG Mesh {mac[-8:]}",
+                    data={
+                        CONF_MAC_ADDRESS: mac,
+                        CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG,
+                        CONF_UNICAST_TARGET: user_input.get(CONF_UNICAST_TARGET, "00B0"),
+                        CONF_UNICAST_OUR: user_input.get(CONF_UNICAST_OUR, "0001"),
+                        CONF_IV_INDEX: user_input.get(CONF_IV_INDEX, DEFAULT_IV_INDEX),
+                        CONF_NET_KEY: net_key,
+                        CONF_DEV_KEY: dev_key,
+                        CONF_APP_KEY: app_key,
+                    },
+                )
+
+        key_defaults = _load_mesh_key_defaults()
         return self.async_show_form(
             step_id="sig_plug",
             data_schema=vol.Schema(
                 {
                     vol.Optional(CONF_UNICAST_TARGET, default="00B0"): str,
                     vol.Optional(CONF_UNICAST_OUR, default="0001"): str,
-                    vol.Optional(CONF_OP_ITEM_PREFIX, default=DEFAULT_OP_ITEM_PREFIX): str,
                     vol.Optional(CONF_IV_INDEX, default=DEFAULT_IV_INDEX): int,
+                    vol.Required(
+                        CONF_NET_KEY,
+                        default=key_defaults["net_key"],
+                    ): str,
+                    vol.Required(
+                        CONF_DEV_KEY,
+                        default=key_defaults["dev_key"],
+                    ): str,
+                    vol.Required(
+                        CONF_APP_KEY,
+                        default=key_defaults["app_key"],
+                    ): str,
                 }
             ),
             description_placeholders={
                 "name": (self._discovery_info.get("name", "") if self._discovery_info else ""),
             },
+            errors=errors,
         )
 
     async def async_step_sig_bridge(
