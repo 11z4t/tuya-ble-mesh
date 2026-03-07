@@ -7,7 +7,6 @@ on:
     branches: [main]
 
 env:
-  PATH: /usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
   PIP_BREAK_SYSTEM_PACKAGES: "1"
 
 jobs:
@@ -15,13 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install linting tools
-        run: pip3 install ruff
-
       - name: Ruff check
         run: python3 -m ruff check .
-
       - name: Ruff format check
         run: python3 -m ruff format --check .
 
@@ -29,12 +23,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          pip3 install mypy
-          pip3 install homeassistant-stubs bleak-stubs || true
-
       - name: MyPy type check
         run: python3 -m mypy custom_components/tuya_ble_mesh --ignore-missing-imports || true
 
@@ -42,13 +30,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install dependencies
-        run: |
-          pip3 install pytest pytest-asyncio pytest-cov pytest-timeout
-          pip3 install bleak bleak-retry-connector cryptography aiohttp pyserial
-          pip3 install homeassistant || true
-
+      - name: Install test dependencies
+        run: python3 -m pip install bleak bleak-retry-connector cryptography aiohttp pyserial pytest-timeout
       - name: Run unit and security tests
         run: python3 -m pytest tests/unit tests/security -v --tb=short --timeout=30
 
@@ -56,39 +39,26 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install detect-secrets
-        run: pip3 install detect-secrets
-
       - name: Scan for secrets
         run: |
+          python3 -m pip install detect-secrets
           python3 -m detect_secrets scan --all-files --exclude-files "(\.git/.*|strings\.json|translations/.*\.json)" > /tmp/secrets-report.json
           python3 -c "
           import json
-          with open('/tmp/secrets-report.json') as f:
+          with open(/tmp/secrets-report.json) as f:
               data = json.load(f)
-          results = data.get('results', {})
+          results = data.get(results, {})
           total = sum(len(v) for v in results.values())
-          if total > 0:
-              print(f'WARNING: {total} potential secret(s) found')
-              for fname, items in results.items():
-                  for item in items:
-                      print(f'  {fname}:{item[\"line_number\"]} - {item[\"type\"]}')
-              exit(1)
-          else:
-              print('No secrets detected')
+          print(fFound {total} potential secrets if total else No secrets detected)
+          exit(1 if total else 0)
           "
 
   dual-review:
     runs-on: ubuntu-latest
     needs: [lint, typecheck, test, secrets-scan]
-    if: github.event_name == 'push'
+    if: github.event_name == push
     steps:
       - uses: actions/checkout@v4
-
-      - name: Install review dependencies
-        run: pip3 install httpx
-
       - name: Dual AI Review (Claude + GPT)
         env:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
@@ -106,16 +76,7 @@ jobs:
         env:
           SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
         run: |
-          if [ -z "$SLACK_WEBHOOK_URL" ]; then
-            echo "No SLACK_WEBHOOK_URL secret configured — skipping"
-            exit 0
-          fi
+          [ -z "$SLACK_WEBHOOK_URL" ] && echo "No webhook" && exit 0
           STATUS="success"
-          if [ "${{ needs.lint.result }}" \!= "success" ] || \
-             [ "${{ needs.test.result }}" \!= "success" ] || \
-             [ "${{ needs.secrets-scan.result }}" \!= "success" ]; then
-            STATUS="failure"
-          fi
-          curl -X POST "$SLACK_WEBHOOK_URL" \
-            -H "Content-Type: application/json" \
-            -d "{\"text\":\"CI ${STATUS} for tuya-ble-mesh (${{ github.ref_name }}) - ${STATUS}\"}"
+          [ "${{ needs.lint.result }}" \!= "success" ] || [ "${{ needs.test.result }}" \!= "success" ] || [ "${{ needs.secrets-scan.result }}" \!= "success" ] && STATUS="failure"
+          curl -s -X POST "$SLACK_WEBHOOK_URL" -H "Content-Type: application/json" -d "{\"text\":\"CI $STATUS for tuya-ble-mesh (${{ github.ref_name }})\"}" || true
