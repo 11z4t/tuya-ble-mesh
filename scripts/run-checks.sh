@@ -69,8 +69,12 @@ if found:
 "'
 
 # Step 7: Unit tests
-run_step "pytest" \
+run_step "pytest unit" \
     pytest tests/unit/ -v --tb=short
+
+# Step 8: Security tests
+run_step "pytest security" \
+    pytest tests/security/ -v --tb=short
 
 # Summary
 printf "\n╔══════════════════════════════════════════╗\n"

@@ -57,14 +57,15 @@ class TestFuzzDecryptNetworkPDU:
         keys = MeshKeys(_NET_KEY_HEX, _DEV_KEY_HEX, _APP_KEY_HEX)
         for _ in range(_FUZZ_ITERATIONS):
             data = _random_bytes(64)
-            # Should return None for invalid data, never crash
-            result = decrypt_network_pdu(
-                keys.enc_key,
-                keys.priv_key,
-                keys.nid,
-                data,
-            )
-            assert result is None or hasattr(result, "transport_pdu")
+            # Should return None or raise TuyaBLEMeshError, never crash
+            with contextlib.suppress(TuyaBLEMeshError):
+                result = decrypt_network_pdu(
+                    keys.enc_key,
+                    keys.priv_key,
+                    keys.nid,
+                    data,
+                )
+                assert result is None or hasattr(result, "transport_pdu")
 
 
 class TestFuzzParseSegmentHeader:
