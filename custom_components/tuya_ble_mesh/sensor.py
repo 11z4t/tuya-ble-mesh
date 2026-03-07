@@ -16,11 +16,7 @@ from homeassistant.components.sensor import (
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
 
-from custom_components.tuya_ble_mesh.const import (
-    CONF_DEVICE_TYPE,
-    DOMAIN,
-    PLUG_DEVICE_TYPES,
-)
+from custom_components.tuya_ble_mesh.const import DOMAIN
 
 if TYPE_CHECKING:
     from collections.abc import Callable
