@@ -238,6 +238,18 @@ class TestLightProperties:
         light = TuyaBLEMeshLight(coord, "test_entry")
         assert light.should_poll is False
 
+    def test_with_device_info(self) -> None:
+        """Test that device_info is set when provided."""
+        from homeassistant.helpers.device_registry import DeviceInfo
+
+        coord = make_mock_coordinator()
+        device_info: DeviceInfo = {
+            "identifiers": {("tuya_ble_mesh", "DC:23:4D:21:43:A5")},
+            "name": "Test Light",
+        }
+        light = TuyaBLEMeshLight(coord, "test_entry", device_info)
+        assert light._attr_device_info == device_info
+
 
 @pytest.mark.requires_ha
 class TestRGBColorMode:
@@ -333,6 +345,18 @@ class TestLightActions:
 
         coord.device.send_color.assert_called_once_with(255, 0, 128)
         coord.device.send_light_mode.assert_called_once_with(1)
+
+    @pytest.mark.asyncio
+    async def test_turn_on_with_rgb_color_and_brightness(self) -> None:
+        """Test RGB color with brightness set simultaneously."""
+        coord = make_mock_coordinator()
+        light = TuyaBLEMeshLight(coord, "test_entry")
+
+        await light.async_turn_on(rgb_color=(255, 0, 128), brightness=200)
+
+        coord.device.send_color.assert_called_once_with(255, 0, 128)
+        coord.device.send_light_mode.assert_called_once_with(1)
+        coord.device.send_color_brightness.assert_called_once_with(200)
 
     @pytest.mark.asyncio
     async def test_turn_on_brightness_in_rgb_mode(self) -> None:
@@ -501,6 +525,36 @@ class TestTransitions:
         assert last_val == 1
         # Then power off
         coord.device.send_power.assert_called_once_with(False)
+
+    @pytest.mark.asyncio
+    async def test_turn_on_with_rgb_transition(self) -> None:
+        """RGB transition sends multiple color steps."""
+        coord = make_mock_coordinator(mode=1, red=0, green=0, blue=0)
+        light = TuyaBLEMeshLight(coord, "test_entry")
+
+        await light.async_turn_on(rgb_color=(255, 128, 64), transition=0.2)
+        assert light._transition_task is not None
+        await light._transition_task
+
+        # Should have called send_color multiple times
+        assert coord.device.send_color.call_count >= 2
+        # Last call should be close to target
+        last_call = coord.device.send_color.call_args_list[-1]
+        assert last_call[0] == (255, 128, 64)
+
+    @pytest.mark.asyncio
+    async def test_transition_with_very_short_duration(self) -> None:
+        """Very short duration should still use minimum 2 steps."""
+        coord = make_mock_coordinator(brightness=10)
+        light = TuyaBLEMeshLight(coord, "test_entry")
+
+        # Duration 0.1s -> would give 1 step, but min is 2
+        await light.async_turn_on(brightness=100, transition=0.1)
+        assert light._transition_task is not None
+        await light._transition_task
+
+        # Should have at least 2 steps
+        assert coord.device.send_brightness.call_count >= 2
 
     @pytest.mark.asyncio
     async def test_transition_cancelled_by_new_command(self) -> None:
