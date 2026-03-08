@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 from custom_components.tuya_ble_mesh.config_flow import _validate_mac
 
 
+@pytest.mark.requires_ha
 class TestMACValidation:
     """Verify MAC validation rejects all invalid formats."""
 
@@ -75,6 +76,7 @@ class TestMACValidation:
         assert _validate_mac("AA;rm -rf /") == "invalid_mac"
 
 
+@pytest.mark.requires_ha
 class TestBridgeHostInjection:
     """Test bridge host parameter for injection attacks.
 

@@ -15,7 +15,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
 from tuya_ble_mesh.protocol import (
-    build_command_packet,
+    encode_command_packet,
     decode_command_packet,
     decode_dp_value,
     decode_status,
@@ -40,11 +40,11 @@ class TestProtocolEncodingPerformance:
         result = benchmark(encode_command_payload, _DEST_ID, _OPCODE, params)
         assert len(result) > 0
 
-    def test_benchmark_build_command_packet(self, benchmark) -> None:
+    def test_benchmark_encode_command_packet(self, benchmark) -> None:
         """Benchmark full command packet construction."""
         params = b"\x01\x00"
 
-        result = benchmark(build_command_packet, _KEY, _MAC, _SEQUENCE, _DEST_ID, _OPCODE, params)
+        result = benchmark(encode_command_packet, _KEY, _MAC, _SEQUENCE, _DEST_ID, _OPCODE, params)
         assert len(result) == 20
 
 
@@ -53,7 +53,7 @@ class TestProtocolDecodingPerformance:
 
     def test_benchmark_decode_command_packet(self, benchmark) -> None:
         """Benchmark command packet decoding."""
-        packet = build_command_packet(_KEY, _MAC, _SEQUENCE, _DEST_ID, _OPCODE, b"\x01\x00")
+        packet = encode_command_packet(_KEY, _MAC, _SEQUENCE, _DEST_ID, _OPCODE, b"\x01\x00")
 
         result = benchmark(decode_command_packet, _KEY, _MAC, packet)
         assert result.sequence == _SEQUENCE
@@ -99,7 +99,7 @@ class TestProtocolRoundtripPerformance:
         """Benchmark full command encode + decode cycle."""
 
         def roundtrip() -> int:
-            packet = build_command_packet(_KEY, _MAC, _SEQUENCE, _DEST_ID, _OPCODE, b"\x01\x00")
+            packet = encode_command_packet(_KEY, _MAC, _SEQUENCE, _DEST_ID, _OPCODE, b"\x01\x00")
             decoded = decode_command_packet(_KEY, _MAC, packet)
             return decoded.sequence
 
@@ -112,7 +112,7 @@ class TestProtocolRoundtripPerformance:
         def roundtrip_bulk() -> int:
             count = 0
             for seq in range(1000):
-                packet = build_command_packet(_KEY, _MAC, seq, _DEST_ID, _OPCODE, b"\x01\x00")
+                packet = encode_command_packet(_KEY, _MAC, seq, _DEST_ID, _OPCODE, b"\x01\x00")
                 decoded = decode_command_packet(_KEY, _MAC, packet)
                 assert decoded.sequence == seq
                 count += 1
@@ -130,7 +130,7 @@ class TestProtocolPayloadSizes:
         """Benchmark encoding with varying parameter sizes."""
         params = os.urandom(param_len)
 
-        result = benchmark(build_command_packet, _KEY, _MAC, _SEQUENCE, _DEST_ID, _OPCODE, params)
+        result = benchmark(encode_command_packet, _KEY, _MAC, _SEQUENCE, _DEST_ID, _OPCODE, params)
         assert len(result) == 20
 
 
@@ -147,7 +147,7 @@ class TestProtocolStressBenchmarks:
         def encode_stress() -> int:
             count = 0
             for seq in range(100_000):
-                build_command_packet(_KEY, _MAC, seq % 0xFFFFFF, _DEST_ID, _OPCODE, b"\x01\x00")
+                encode_command_packet(_KEY, _MAC, seq % 0xFFFFFF, _DEST_ID, _OPCODE, b"\x01\x00")
                 count += 1
             return count
 
@@ -158,7 +158,7 @@ class TestProtocolStressBenchmarks:
         """Benchmark decoding 100,000 packets."""
         # Pre-generate packets
         packets = [
-            build_command_packet(_KEY, _MAC, seq % 0xFFFFFF, _DEST_ID, _OPCODE, b"\x01\x00")
+            encode_command_packet(_KEY, _MAC, seq % 0xFFFFFF, _DEST_ID, _OPCODE, b"\x01\x00")
             for seq in range(1000)
         ]
 
