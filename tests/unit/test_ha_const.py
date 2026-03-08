@@ -3,6 +3,8 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 # Add project root so `custom_components.tuya_ble_mesh` is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
@@ -23,6 +25,7 @@ from custom_components.tuya_ble_mesh.const import (
 )
 
 
+@pytest.mark.requires_ha
 class TestDomain:
     """Test DOMAIN constant."""
 
@@ -33,6 +36,7 @@ class TestDomain:
         assert DOMAIN == "tuya_ble_mesh"
 
 
+@pytest.mark.requires_ha
 class TestPlatforms:
     """Test PLATFORMS constant."""
 
@@ -46,6 +50,7 @@ class TestPlatforms:
         assert "sensor" in PLATFORMS
 
 
+@pytest.mark.requires_ha
 class TestConfigKeys:
     """Test config entry data keys."""
 
@@ -59,6 +64,7 @@ class TestConfigKeys:
         assert len(keys) == len(set(keys))
 
 
+@pytest.mark.requires_ha
 class TestBrightnessMapping:
     """Test brightness mapping constants."""
 
@@ -77,6 +83,7 @@ class TestBrightnessMapping:
         assert HA_BRIGHTNESS_MIN < HA_BRIGHTNESS_MAX
 
 
+@pytest.mark.requires_ha
 class TestColorTempMapping:
     """Test color temperature mapping constants."""
 
