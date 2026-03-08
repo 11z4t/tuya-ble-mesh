@@ -94,6 +94,57 @@ class TestDiscoveredDevice:
         assert dd.is_tuya_mesh is True
 
 
+# --- _make_discovered ---
+
+
+class TestMakeDiscovered:
+    """Test _make_discovered helper function."""
+
+    def test_make_discovered_with_all_fields(self) -> None:
+        from unittest.mock import MagicMock
+
+        from tuya_ble_mesh.scanner import _make_discovered
+
+        device = MagicMock()
+        device.name = "out_of_mesh_test"
+        device.address = "AA:BB:CC:DD:EE:FF"
+
+        adv = MagicMock()
+        adv.rssi = -50
+        adv.service_uuids = ["0000fe07-0000-1000-8000-00805f9b34fb"]
+        adv.manufacturer_data = {0x07A0: b"\x01\x02"}
+
+        result = _make_discovered(device, adv)
+
+        assert result.name == "out_of_mesh_test"
+        assert result.address == "AA:BB:CC:DD:EE:FF"
+        assert result.rssi == -50
+        assert result.service_uuids == ("0000fe07-0000-1000-8000-00805f9b34fb",)
+        assert result.manufacturer_data == {0x07A0: b"\x01\x02"}
+        assert result.is_tuya_mesh is True
+
+    def test_make_discovered_with_none_name(self) -> None:
+        from unittest.mock import MagicMock
+
+        from tuya_ble_mesh.scanner import _make_discovered
+
+        device = MagicMock()
+        device.name = None
+        device.address = "AA:BB:CC:DD:EE:FF"
+
+        adv = MagicMock()
+        adv.rssi = -60
+        adv.service_uuids = None
+        adv.manufacturer_data = None
+
+        result = _make_discovered(device, adv)
+
+        assert result.name == ""
+        assert result.service_uuids == ()
+        assert result.manufacturer_data == {}
+        assert result.is_tuya_mesh is False
+
+
 # --- mac_to_bytes ---
 
 
@@ -134,3 +185,110 @@ class TestMacToBytes:
     def test_no_colons_raises(self) -> None:
         with pytest.raises(ProtocolError, match="Invalid MAC"):
             mac_to_bytes("AABBCCDDEEFF")
+
+
+# --- Async scan functions ---
+
+
+class TestScanForDevices:
+    """Test scan_for_devices function."""
+
+    @pytest.mark.asyncio
+    async def test_scan_for_devices(self) -> None:
+        """Test basic scan functionality."""
+        from unittest.mock import AsyncMock, MagicMock, patch
+
+        from tuya_ble_mesh.scanner import _make_discovered, scan_for_devices
+
+        # Mock BleakScanner
+        with patch("tuya_ble_mesh.scanner.BleakScanner") as mock_scanner_class, patch(
+            "tuya_ble_mesh.scanner.asyncio.sleep", new_callable=AsyncMock
+        ):
+            mock_scanner = MagicMock()
+            mock_scanner.__aenter__ = AsyncMock(return_value=mock_scanner)
+            mock_scanner.__aexit__ = AsyncMock(return_value=None)
+            mock_scanner_class.return_value = mock_scanner
+
+            # Capture the callback
+            callback = None
+
+            def capture_callback(detection_callback=None):
+                nonlocal callback
+                callback = detection_callback
+                return mock_scanner
+
+            mock_scanner_class.side_effect = capture_callback
+
+            devices = await scan_for_devices(timeout=0.1)
+
+            assert isinstance(devices, list)
+
+    @pytest.mark.asyncio
+    async def test_scan_for_tuya_devices(self) -> None:
+        """Test scanning only for Tuya devices."""
+        from unittest.mock import AsyncMock, patch
+
+        from tuya_ble_mesh.scanner import DiscoveredDevice, scan_for_tuya_devices
+
+        mock_devices = [
+            DiscoveredDevice(
+                name="out_of_mesh",
+                address="AA:BB:CC:DD:EE:F1",
+                rssi=-50,
+                service_uuids=(),
+                is_tuya_mesh=True,
+            ),
+            DiscoveredDevice(
+                name="other_device",
+                address="AA:BB:CC:DD:EE:F2",
+                rssi=-60,
+                service_uuids=(),
+                is_tuya_mesh=False,
+            ),
+        ]
+
+        with patch("tuya_ble_mesh.scanner.scan_for_devices", return_value=mock_devices):
+            result = await scan_for_tuya_devices(timeout=1.0)
+
+        assert len(result) == 1
+        assert result[0].name == "out_of_mesh"
+
+    @pytest.mark.asyncio
+    async def test_find_device_by_mac_success(self) -> None:
+        """Test finding a device by MAC address."""
+        from unittest.mock import AsyncMock, patch
+
+        from tuya_ble_mesh.scanner import DiscoveredDevice, find_device_by_mac
+
+        mock_devices = [
+            DiscoveredDevice(
+                name="device1",
+                address="AA:BB:CC:DD:EE:F1",
+                rssi=-50,
+                service_uuids=(),
+            ),
+            DiscoveredDevice(
+                name="device2",
+                address="AA:BB:CC:DD:EE:F2",
+                rssi=-60,
+                service_uuids=(),
+            ),
+        ]
+
+        with patch("tuya_ble_mesh.scanner.scan_for_devices", return_value=mock_devices):
+            result = await find_device_by_mac("aa:bb:cc:dd:ee:f1", timeout=1.0)
+
+        assert result.address == "AA:BB:CC:DD:EE:F1"
+        assert result.name == "device1"
+
+    @pytest.mark.asyncio
+    async def test_find_device_by_mac_not_found(self) -> None:
+        """Test DeviceNotFoundError when device is not found."""
+        from unittest.mock import AsyncMock, patch
+
+        from tuya_ble_mesh.exceptions import DeviceNotFoundError
+        from tuya_ble_mesh.scanner import find_device_by_mac
+
+        with patch("tuya_ble_mesh.scanner.scan_for_devices", return_value=[]):
+            with pytest.raises(DeviceNotFoundError, match="not found"):
+                await find_device_by_mac("AA:BB:CC:DD:EE:FF", timeout=1.0)
