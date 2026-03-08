@@ -82,8 +82,22 @@ pre-commit install
 #### Testing
 - Write unit tests for new functions
 - Write integration tests for new features
+- Add E2E tests for UI changes (see `tests/e2e/README.md`)
+- Run accessibility tests for frontend changes
 - Ensure all tests pass
 - Aim for >80% coverage
+
+**Run all tests:**
+```bash
+# Unit and integration tests
+pytest tests/unit tests/security
+
+# E2E tests (requires running HA instance)
+npx playwright test
+
+# Accessibility tests
+npx playwright test accessibility
+```
 
 #### Documentation
 - Update README.md if needed
