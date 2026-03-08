@@ -42,8 +42,11 @@ _IP_PATTERN = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 _MAC_PATTERN = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
 
 
-def _redact_string(text: str) -> str:
+def _redact_string(text: str | Any) -> str:
     """Redact IP addresses and MAC addresses from a string."""
+    # Handle non-string types gracefully (e.g., MagicMock in tests)
+    if not isinstance(text, str):
+        text = str(text)
     text = _IP_PATTERN.sub("xxx.xxx.xxx.xxx", text)
     text = _MAC_PATTERN.sub("XX:XX:XX:XX:XX:XX", text)
     return text
