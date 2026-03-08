@@ -60,24 +60,18 @@ class TestProtocolDecodingPerformance:
 
     def test_benchmark_decode_status(self, benchmark) -> None:
         """Benchmark status response parsing."""
-        # Valid 20-byte status (all fields present)
-        status_data = (
-            bytes(
-                [
-                    0x01,  # mesh_id
-                    0x02,  # mode
-                    0x64,  # white_brightness
-                    0x32,  # white_temp
-                    0x80,  # color_brightness
-                    0xFF,  # red
-                    0x00,  # green
-                    0x00,  # blue
-                ]
-            )
-            + b"\x00" * 12
-        )
+        # Valid 20-byte status buffer with correct offsets per STATUS_OFFSET_* constants
+        status_data = bytearray(20)
+        status_data[3] = 0x01   # mesh_id at offset 3
+        status_data[12] = 0x02  # mode at offset 12
+        status_data[13] = 0x64  # white_brightness at offset 13
+        status_data[14] = 0x32  # white_temp at offset 14
+        status_data[15] = 0x80  # color_brightness at offset 15
+        status_data[16] = 0xFF  # red at offset 16
+        status_data[17] = 0x00  # green at offset 17
+        status_data[18] = 0x00  # blue at offset 18
 
-        result = benchmark(decode_status, status_data)
+        result = benchmark(decode_status, bytes(status_data))
         assert result.mesh_id == 0x01
 
     def test_benchmark_decode_dp_value(self, benchmark) -> None:
