@@ -99,6 +99,7 @@ class TestDeviceInitializationPerformance:
         assert result == 100
 
 
+@pytest.mark.requires_ha
 class TestCoordinatorCreationPerformance:
     """Benchmark coordinator instantiation."""
 

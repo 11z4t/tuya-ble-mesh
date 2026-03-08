@@ -42,6 +42,7 @@ testpaths = ["tests"]
 asyncio_mode = "auto"
 markers = [
     "integration: requires real hardware (Shelly, BLE, sniffer)",
+    "requires_ha: requires Home Assistant dependencies",
 ]
 
 [tool.bandit]

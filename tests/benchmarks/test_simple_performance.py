@@ -87,7 +87,7 @@ class TestProtocolPerformance:
 
     def test_protocol_encode_throughput(self) -> None:
         """Measure protocol encoding throughput."""
-        from tuya_ble_mesh.protocol import build_command_packet
+        from tuya_ble_mesh.protocol import encode_command_packet
 
         key = b"0123456789ABCDEF"
         mac = b"\xdc\x23\x4d\x21\x43\xa5"
@@ -97,7 +97,7 @@ class TestProtocolPerformance:
         start = time.perf_counter()
 
         for seq in range(iterations):
-            build_command_packet(key, mac, seq, 0x01, 0xC1, params)
+            encode_command_packet(key, mac, seq, 0x01, 0xC1, params)
 
         elapsed = time.perf_counter() - start
         ops_per_sec = iterations / elapsed
@@ -107,14 +107,14 @@ class TestProtocolPerformance:
 
     def test_protocol_decode_throughput(self) -> None:
         """Measure protocol decoding throughput."""
-        from tuya_ble_mesh.protocol import build_command_packet, decode_command_packet
+        from tuya_ble_mesh.protocol import encode_command_packet, decode_command_packet
 
         key = b"0123456789ABCDEF"
         mac = b"\xdc\x23\x4d\x21\x43\xa5"
         params = b"\x01\x00"
 
         # Pre-generate packets
-        packets = [build_command_packet(key, mac, seq, 0x01, 0xC1, params) for seq in range(100)]
+        packets = [encode_command_packet(key, mac, seq, 0x01, 0xC1, params) for seq in range(100)]
 
         iterations = 1000
         start = time.perf_counter()
@@ -130,7 +130,7 @@ class TestProtocolPerformance:
 
     def test_protocol_roundtrip_throughput(self) -> None:
         """Measure full encode+decode cycle throughput."""
-        from tuya_ble_mesh.protocol import build_command_packet, decode_command_packet
+        from tuya_ble_mesh.protocol import encode_command_packet, decode_command_packet
 
         key = b"0123456789ABCDEF"
         mac = b"\xdc\x23\x4d\x21\x43\xa5"
@@ -140,7 +140,7 @@ class TestProtocolPerformance:
         start = time.perf_counter()
 
         for seq in range(iterations):
-            packet = build_command_packet(key, mac, seq, 0x01, 0xC1, params)
+            packet = encode_command_packet(key, mac, seq, 0x01, 0xC1, params)
             decoded = decode_command_packet(key, mac, packet)
             assert decoded.sequence == seq
 
@@ -193,6 +193,7 @@ class TestDeviceCreationPerformance:
         assert ops_per_sec > 10_000, f"Too slow: {ops_per_sec:.0f} devices/sec"
 
 
+@pytest.mark.requires_ha
 class TestCoordinatorPerformance:
     """Test coordinator performance."""
 

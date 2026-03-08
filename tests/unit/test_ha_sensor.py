@@ -55,6 +55,7 @@ def make_mock_coordinator(
     return coord
 
 
+@pytest.mark.requires_ha
 class TestSensorDescriptions:
     """Test SENSOR_DESCRIPTIONS configuration."""
 
@@ -104,6 +105,7 @@ class TestSensorDescriptions:
         assert desc.available_fn is not None
 
 
+@pytest.mark.requires_ha
 class TestRSSISensor:
     """Test TuyaBLEMeshSensor with RSSI description."""
 
@@ -156,6 +158,7 @@ class TestRSSISensor:
         assert sensor.should_poll is False
 
 
+@pytest.mark.requires_ha
 class TestFirmwareSensor:
     """Test TuyaBLEMeshSensor with firmware description."""
 
@@ -190,6 +193,7 @@ class TestFirmwareSensor:
         assert sensor.should_poll is False
 
 
+@pytest.mark.requires_ha
 class TestPowerSensor:
     """Test TuyaBLEMeshSensor with power description."""
 
@@ -244,6 +248,7 @@ class TestPowerSensor:
         assert sensor.available is True
 
 
+@pytest.mark.requires_ha
 class TestEnergySensor:
     """Test TuyaBLEMeshSensor with energy description."""
 
@@ -298,6 +303,7 @@ class TestEnergySensor:
         assert sensor.available is True
 
 
+@pytest.mark.requires_ha
 class TestSensorLifecycle:
     """Test HA lifecycle methods for sensors."""
 
@@ -338,6 +344,7 @@ class TestSensorLifecycle:
         sensor.async_write_ha_state.assert_called_once()
 
 
+@pytest.mark.requires_ha
 class TestSensorPlatformSetup:
     """Test async_setup_entry for the sensor platform."""
 
@@ -423,6 +430,7 @@ class TestSensorPlatformSetup:
             assert entity._attr_device_info is device_info
 
 
+@pytest.mark.requires_ha
 class TestSensorHasEntityName:
     """Test that sensors use has_entity_name pattern."""
 

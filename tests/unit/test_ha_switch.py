@@ -42,6 +42,7 @@ def make_mock_coordinator(
     return coord
 
 
+@pytest.mark.requires_ha
 class TestSwitchProperties:
     """Test TuyaBLEMeshSwitch properties."""
 
@@ -82,6 +83,7 @@ class TestSwitchProperties:
         assert switch.should_poll is False
 
 
+@pytest.mark.requires_ha
 class TestSwitchActions:
     """Test switch turn_on/turn_off actions."""
 
@@ -104,6 +106,7 @@ class TestSwitchActions:
         coord.device.send_power.assert_called_once_with(False)
 
 
+@pytest.mark.requires_ha
 class TestSwitchLifecycle:
     """Test HA lifecycle methods."""
 
@@ -141,6 +144,7 @@ class TestSwitchLifecycle:
         switch.async_write_ha_state.assert_called_once()
 
 
+@pytest.mark.requires_ha
 class TestSwitchPlatformSetup:
     """Test async_setup_entry for the switch platform."""
 
