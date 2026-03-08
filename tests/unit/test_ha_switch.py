@@ -82,6 +82,19 @@ class TestSwitchProperties:
         switch = TuyaBLEMeshSwitch(coord, "test_entry")
         assert switch.should_poll is False
 
+    def test_switch_with_device_info(self) -> None:
+        """Test that device_info is properly set when provided."""
+        from homeassistant.helpers.device_registry import DeviceInfo
+
+        coord = make_mock_coordinator()
+        device_info: DeviceInfo = {
+            "identifiers": {("tuya_ble_mesh", "DC:23:4D:21:43:A5")},
+            "name": "Test Plug",
+            "manufacturer": "Tuya",
+        }
+        switch = TuyaBLEMeshSwitch(coord, "test_entry", device_info)
+        assert switch._attr_device_info == device_info
+
 
 @pytest.mark.requires_ha
 class TestSwitchActions:
