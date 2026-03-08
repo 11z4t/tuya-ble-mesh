@@ -46,18 +46,33 @@ class TestEntityBasicIntegration:
     @pytest.mark.asyncio
     async def test_sensor_entity_has_required_attributes(self) -> None:
         """Sensor entity should have required HA attributes."""
+        from homeassistant.components.sensor import SensorDeviceClass
+        from homeassistant.const import EntityCategory
+
         from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
-        from custom_components.tuya_ble_mesh.sensor import TuyaBLEMeshSensor
+        from custom_components.tuya_ble_mesh.sensor import (
+            TuyaBLEMeshSensor,
+            TuyaBLEMeshSensorEntityDescription,
+        )
 
         mock_device = MagicMock()
-        mock_device.address = "DC:23:4D:21:43:A5"
+        # Set address as PropertyMock to return string
+        type(mock_device).address = property(lambda self: "DC:23:4D:21:43:A5")
 
         mock_hass = MagicMock()
-        mock_config_entry = MagicMock()
-        mock_config_entry.entry_id = "test_entry"
 
         coord = TuyaBLEMeshCoordinator(mock_device, hass=mock_hass, entry_id="test_entry")
-        sensor = TuyaBLEMeshSensor(coord, mock_config_entry, "rssi", "RSSI", "signal_strength")
+
+        # Create a sensor description
+        description = TuyaBLEMeshSensorEntityDescription(
+            key="rssi",
+            device_class=SensorDeviceClass.SIGNAL_STRENGTH,
+            native_unit_of_measurement="dBm",
+            entity_category=EntityCategory.DIAGNOSTIC,
+            value_fn=lambda state: state.rssi,
+        )
+
+        sensor = TuyaBLEMeshSensor(coord, "test_entry", description)
 
         # Required HA sensor attributes
         assert hasattr(sensor, "unique_id")
@@ -98,9 +113,10 @@ class TestEntityServiceCalls:
         from custom_components.tuya_ble_mesh.light import TuyaBLEMeshLight
 
         mock_device = MagicMock()
-        mock_device.address = "DC:23:4D:21:43:A5"
+        type(mock_device).address = property(lambda self: "DC:23:4D:21:43:A5")
         mock_device.mesh_id = 0x01
         mock_device.turn_on = AsyncMock()
+        mock_device.send_power = AsyncMock()
 
         mock_hass = MagicMock()
         mock_config_entry = MagicMock()
@@ -111,7 +127,7 @@ class TestEntityServiceCalls:
 
         await light.async_turn_on()
 
-        mock_device.turn_on.assert_called_once()
+        mock_device.send_power.assert_called_once_with(True)
 
     @pytest.mark.asyncio
     async def test_light_turn_off_calls_device(self) -> None:
@@ -120,9 +136,10 @@ class TestEntityServiceCalls:
         from custom_components.tuya_ble_mesh.light import TuyaBLEMeshLight
 
         mock_device = MagicMock()
-        mock_device.address = "DC:23:4D:21:43:A5"
+        type(mock_device).address = property(lambda self: "DC:23:4D:21:43:A5")
         mock_device.mesh_id = 0x01
         mock_device.turn_off = AsyncMock()
+        mock_device.send_power = AsyncMock()
 
         mock_hass = MagicMock()
         mock_config_entry = MagicMock()
@@ -133,7 +150,7 @@ class TestEntityServiceCalls:
 
         await light.async_turn_off()
 
-        mock_device.turn_off.assert_called_once()
+        mock_device.send_power.assert_called_once_with(False)
 
     @pytest.mark.asyncio
     async def test_switch_turn_on_calls_device(self) -> None:
@@ -142,9 +159,10 @@ class TestEntityServiceCalls:
         from custom_components.tuya_ble_mesh.switch import TuyaBLEMeshSwitch
 
         mock_device = MagicMock()
-        mock_device.address = "DC:23:4D:21:43:A5"
+        type(mock_device).address = property(lambda self: "DC:23:4D:21:43:A5")
         mock_device.mesh_id = 0x01
         mock_device.turn_on = AsyncMock()
+        mock_device.send_power = AsyncMock()
 
         mock_hass = MagicMock()
         mock_config_entry = MagicMock()
@@ -155,7 +173,7 @@ class TestEntityServiceCalls:
 
         await switch.async_turn_on()
 
-        mock_device.turn_on.assert_called_once()
+        mock_device.send_power.assert_called_once_with(True)
 
 
 class TestCoordinatorBasics:
@@ -279,7 +297,7 @@ class TestDiagnosticsBasics:
         mock_config_entry.data = {"address": "DC:23:4D:21:43:A5"}
 
         mock_device = MagicMock()
-        mock_device.address = "DC:23:4D:21:43:A5"
+        type(mock_device).address = property(lambda self: "DC:23:4D:21:43:A5")
 
         coord = TuyaBLEMeshCoordinator(mock_device)
         mock_hass.data = {DOMAIN: {mock_config_entry.entry_id: coord}}
