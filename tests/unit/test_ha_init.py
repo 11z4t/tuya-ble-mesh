@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
+from homeassistant.exceptions import HomeAssistantError
 
 # Add project root so custom_components is importable
 _ROOT = str(Path(__file__).resolve().parent.parent.parent)
@@ -191,6 +192,82 @@ class TestAsyncSetupEntrySIGMesh:
         assert call_kwargs[0][1] == 0x00AA
         assert call_kwargs[0][2] == 0x0001
 
+    @pytest.mark.asyncio
+    async def test_setup_sig_bridge_plug_creates_bridge_device(self) -> None:
+        """Test SIG Bridge Plug device type creates SIGMeshBridgeDevice."""
+        hass = make_mock_hass()
+        entry = MagicMock()
+        entry.entry_id = "bridge_entry_id"
+        entry.title = "SIG Bridge Plug"
+        entry.data = {
+            "mac_address": "11:22:33:44:55:66",
+            "device_type": "sig_bridge_plug",
+            "unicast_target": "00c0",
+            "bridge_host": "192.168.1.100",
+            "bridge_port": 9999,
+        }
+
+        mock_device = MagicMock()
+        mock_device.address = "11:22:33:44:55:66"
+        mock_coord = MagicMock()
+        mock_coord.async_start = AsyncMock()
+        mock_coord.async_stop = AsyncMock()
+        mock_coord.device = mock_device
+
+        with (
+            patch(
+                "tuya_ble_mesh.sig_mesh_bridge.SIGMeshBridgeDevice",
+                return_value=mock_device,
+            ) as bridge_cls,
+            patch(_PATCH_COORDINATOR, return_value=mock_coord),
+        ):
+            result = await async_setup_entry(hass, entry)
+
+        assert result is True
+        bridge_cls.assert_called_once_with(
+            "11:22:33:44:55:66",
+            0x00C0,
+            "192.168.1.100",
+            9999,
+        )
+
+    @pytest.mark.asyncio
+    async def test_setup_telink_bridge_light_creates_telink_device(self) -> None:
+        """Test Telink Bridge Light device type creates TelinkBridgeDevice."""
+        hass = make_mock_hass()
+        entry = MagicMock()
+        entry.entry_id = "telink_entry_id"
+        entry.title = "Telink Bridge Light"
+        entry.data = {
+            "mac_address": "AA:AA:BB:BB:CC:CC",
+            "device_type": "telink_bridge_light",
+            "bridge_host": "10.0.0.50",
+            "bridge_port": 8888,
+        }
+
+        mock_device = MagicMock()
+        mock_device.address = "AA:AA:BB:BB:CC:CC"
+        mock_coord = MagicMock()
+        mock_coord.async_start = AsyncMock()
+        mock_coord.async_stop = AsyncMock()
+        mock_coord.device = mock_device
+
+        with (
+            patch(
+                "tuya_ble_mesh.sig_mesh_bridge.TelinkBridgeDevice",
+                return_value=mock_device,
+            ) as telink_cls,
+            patch(_PATCH_COORDINATOR, return_value=mock_coord),
+        ):
+            result = await async_setup_entry(hass, entry)
+
+        assert result is True
+        telink_cls.assert_called_once_with(
+            "AA:AA:BB:BB:CC:CC",
+            "10.0.0.50",
+            8888,
+        )
+
 
 def _make_entry_with_runtime(
     entry_id: str = "test_entry_id",
@@ -271,3 +348,142 @@ class TestAsyncUnloadEntry:
         result = await async_unload_entry(hass, entry)
 
         assert result is True
+
+
+@pytest.mark.requires_ha
+class TestServiceHandlers:
+    """Test service handler functions (identify, set_log_level)."""
+
+    @pytest.mark.asyncio
+    async def test_identify_service_calls_send_power(self) -> None:
+        """Test identify service flashes device by toggling power."""
+        from custom_components.tuya_ble_mesh import async_setup_entry
+
+        hass = make_mock_hass()
+        hass.services = MagicMock()
+        hass.services.has_service = MagicMock(return_value=False)
+        registered_handlers = {}
+
+        def mock_register(domain: str, service: str, handler: Any, **kwargs: Any) -> None:
+            registered_handlers[service] = handler
+
+        hass.services.async_register = mock_register
+
+        entry = make_mock_entry()
+        mock_device = MagicMock()
+        mock_device.address = "DC:23:4D:21:43:A5"
+        mock_device.send_power = AsyncMock()
+        mock_coord = MagicMock()
+        mock_coord.async_start = AsyncMock()
+        mock_coord.device = mock_device
+
+        with (
+            patch(_PATCH_MESH_DEVICE, return_value=mock_device),
+            patch(_PATCH_COORDINATOR, return_value=mock_coord),
+        ):
+            await async_setup_entry(hass, entry)
+
+        # Simulate calling the identify service
+        assert "identify" in registered_handlers
+        identify_handler = registered_handlers["identify"]
+
+        # Mock device registry to return the correct coordinator
+        call = MagicMock()
+        call.data = {"device_id": "test_device_id"}
+
+        with (
+            patch(
+                "homeassistant.helpers.device_registry.async_get"
+            ) as mock_reg_getter,
+        ):
+            mock_dev_reg = MagicMock()
+            mock_device_entry = MagicMock()
+            mock_device_entry.config_entries = {entry.entry_id}
+            mock_dev_reg.async_get = MagicMock(return_value=mock_device_entry)
+            mock_reg_getter.return_value = mock_dev_reg
+
+            hass.config_entries.async_get_entry = MagicMock(return_value=entry)
+
+            await identify_handler(call)
+
+        # Verify send_power was called multiple times (flash pattern)
+        assert mock_device.send_power.call_count >= 3
+
+    @pytest.mark.asyncio
+    async def test_identify_service_raises_on_missing_device(self) -> None:
+        """Test identify service raises error when device not found."""
+        from custom_components.tuya_ble_mesh import async_setup_entry
+
+        hass = make_mock_hass()
+        hass.services = MagicMock()
+        hass.services.has_service = MagicMock(return_value=False)
+        registered_handlers = {}
+
+        def mock_register(domain: str, service: str, handler: Any, **kwargs: Any) -> None:
+            registered_handlers[service] = handler
+
+        hass.services.async_register = mock_register
+
+        entry = make_mock_entry()
+        mock_device, mock_coord = _make_patches()
+
+        with (
+            patch(_PATCH_MESH_DEVICE, return_value=mock_device),
+            patch(_PATCH_COORDINATOR, return_value=mock_coord),
+        ):
+            await async_setup_entry(hass, entry)
+
+        identify_handler = registered_handlers["identify"]
+        call = MagicMock()
+        call.data = {"device_id": "nonexistent_device"}
+
+        with (
+            patch(
+                "homeassistant.helpers.device_registry.async_get"
+            ) as mock_reg_getter,
+        ):
+            mock_dev_reg = MagicMock()
+            mock_dev_reg.async_get = MagicMock(return_value=None)
+            mock_reg_getter.return_value = mock_dev_reg
+
+            with pytest.raises(HomeAssistantError, match="Device not found"):
+                await identify_handler(call)
+
+    @pytest.mark.asyncio
+    async def test_set_log_level_service(self) -> None:
+        """Test set_log_level service changes logging level."""
+        from custom_components.tuya_ble_mesh import async_setup_entry
+
+        hass = make_mock_hass()
+        hass.services = MagicMock()
+        hass.services.has_service = MagicMock(return_value=False)
+        registered_handlers = {}
+
+        def mock_register(domain: str, service: str, handler: Any, **kwargs: Any) -> None:
+            registered_handlers[service] = handler
+
+        hass.services.async_register = mock_register
+
+        entry = make_mock_entry()
+        mock_device, mock_coord = _make_patches()
+
+        with (
+            patch(_PATCH_MESH_DEVICE, return_value=mock_device),
+            patch(_PATCH_COORDINATOR, return_value=mock_coord),
+        ):
+            await async_setup_entry(hass, entry)
+
+        assert "set_log_level" in registered_handlers
+        log_level_handler = registered_handlers["set_log_level"]
+
+        call = MagicMock()
+        call.data = {"level": "debug"}
+
+        with patch("logging.getLogger") as mock_get_logger:
+            mock_logger = MagicMock()
+            mock_get_logger.return_value = mock_logger
+
+            await log_level_handler(call)
+
+            mock_get_logger.assert_called_with("tuya_ble_mesh")
+            mock_logger.setLevel.assert_called_once()
