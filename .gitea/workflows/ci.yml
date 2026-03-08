@@ -50,11 +50,11 @@ jobs:
           python3 -m detect_secrets scan --all-files --exclude-files "(\.git/.*|strings\.json|translations/.*\.json)" > /tmp/secrets-report.json
           python3 -c "
           import json
-          with open(/tmp/secrets-report.json) as f:
+          with open('/tmp/secrets-report.json') as f:
               data = json.load(f)
-          results = data.get(results, {})
+          results = data.get('results', {})
           total = sum(len(v) for v in results.values())
-          print(fFound {total} potential secrets if total else No secrets detected)
+          print(f'Found {total} potential secrets' if total else 'No secrets detected')
           exit(1 if total else 0)
           "
 

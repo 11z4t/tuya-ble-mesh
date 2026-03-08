@@ -67,6 +67,7 @@ def make_mock_coordinator(
     return coord
 
 
+@pytest.mark.requires_ha
 class TestBrightnessToHa:
     """Test device-to-HA brightness mapping."""
 
@@ -87,6 +88,7 @@ class TestBrightnessToHa:
         assert brightness_to_ha(200) == 255
 
 
+@pytest.mark.requires_ha
 class TestBrightnessToDevice:
     """Test HA-to-device brightness mapping."""
 
@@ -111,6 +113,7 @@ class TestBrightnessToDevice:
             assert abs(back - device_val) <= 1
 
 
+@pytest.mark.requires_ha
 class TestColorTempToHa:
     """Test device-to-HA color temp mapping (inverse)."""
 
@@ -134,6 +137,7 @@ class TestColorTempToHa:
         assert color_temp_to_ha(200) == 153
 
 
+@pytest.mark.requires_ha
 class TestColorTempToDevice:
     """Test HA-to-device color temp mapping (inverse)."""
 
@@ -157,6 +161,7 @@ class TestColorTempToDevice:
             assert abs(back - device_val) <= 1
 
 
+@pytest.mark.requires_ha
 class TestLightProperties:
     """Test TuyaBLEMeshLight properties."""
 
@@ -234,6 +239,7 @@ class TestLightProperties:
         assert light.should_poll is False
 
 
+@pytest.mark.requires_ha
 class TestRGBColorMode:
     """Test RGB color mode support."""
 
@@ -263,6 +269,7 @@ class TestRGBColorMode:
         assert light.brightness == 200
 
 
+@pytest.mark.requires_ha
 class TestLightActions:
     """Test light turn_on/turn_off actions."""
 
@@ -348,6 +355,7 @@ class TestLightActions:
         coord.device.send_color_temp.assert_called_once()
 
 
+@pytest.mark.requires_ha
 class TestLightLifecycle:
     """Test HA lifecycle methods."""
 
@@ -386,6 +394,7 @@ class TestLightLifecycle:
         light.async_write_ha_state.assert_called_once()
 
 
+@pytest.mark.requires_ha
 class TestLightPlatformSetup:
     """Test async_setup_entry for the light platform."""
 
@@ -437,6 +446,7 @@ class TestLightPlatformSetup:
         add_entities.assert_not_called()
 
 
+@pytest.mark.requires_ha
 class TestTransitions:
     """Test transition (gradual brightness/color temp) support."""
 

@@ -25,6 +25,7 @@ from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
 )
 
 
+@pytest.mark.requires_ha
 class TestSeqNeverDecreases:
     """Verify sequence number never goes backward."""
 
@@ -50,6 +51,7 @@ class TestSeqNeverDecreases:
             prev = current
 
 
+@pytest.mark.requires_ha
 class TestSeqRestoreWithMargin:
     """Verify seq restore adds safety margin to prevent replay."""
 
@@ -111,6 +113,7 @@ class TestSeqRestoreWithMargin:
         assert restored - stored_seq >= _SEQ_SAFETY_MARGIN
 
 
+@pytest.mark.requires_ha
 class TestSeqPersistenceIntegrity:
     """Verify persisted seq is >= used seq."""
 

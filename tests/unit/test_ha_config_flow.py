@@ -66,6 +66,7 @@ _TEST_DEV_KEY = "ffeeddccbbaa99887766554433221100"  # pragma: allowlist secret
 _TEST_APP_KEY = "aabbccddeeff00112233445566778899"  # pragma: allowlist secret
 
 
+@pytest.mark.requires_ha
 class TestValidateMac:
     """Test MAC address validation."""
 
@@ -94,6 +95,7 @@ class TestValidateMac:
         assert _validate_mac("GG:23:4D:21:43:A5") == "invalid_mac"
 
 
+@pytest.mark.requires_ha
 class TestConfigFlowInit:
     """Test config flow initialization."""
 
@@ -106,6 +108,7 @@ class TestConfigFlowInit:
         assert flow.VERSION == 1
 
 
+@pytest.mark.requires_ha
 class TestUserStep:
     """Test manual setup step."""
 
@@ -165,6 +168,7 @@ class TestUserStep:
         assert "21:43:A5" in result["title"]
 
 
+@pytest.mark.requires_ha
 class TestBluetoothStep:
     """Test bluetooth discovery step."""
 
@@ -186,6 +190,7 @@ class TestBluetoothStep:
         flow.async_set_unique_id.assert_called_once_with("DC:23:4D:21:43:A5")
 
 
+@pytest.mark.requires_ha
 class TestConfirmStep:
     """Test confirm step after discovery."""
 
@@ -246,6 +251,7 @@ class TestConfirmStep:
         assert result["title"] == "BLE Mesh Light 21:43:A5"
 
 
+@pytest.mark.requires_ha
 class TestDescriptionPlaceholders:
     """Test security warning description placeholders."""
 
@@ -272,6 +278,7 @@ class TestDescriptionPlaceholders:
         assert result["description_placeholders"]["name"] == "out_of_mesh_1234"
 
 
+@pytest.mark.requires_ha
 class TestDeviceType:
     """Test device_type field in config flow."""
 
@@ -309,6 +316,7 @@ class TestDeviceType:
         assert result["data"][CONF_DEVICE_TYPE] == "light"
 
 
+@pytest.mark.requires_ha
 class TestSIGPlugStep:
     """Test SIG Mesh plug configuration step."""
 
@@ -388,6 +396,7 @@ class TestSIGPlugStep:
         assert result["step_id"] == "sig_plug"
 
 
+@pytest.mark.requires_ha
 class TestAutoDiscovery:
     """Test auto-detection of SIG Mesh Proxy devices via bluetooth discovery."""
 
@@ -488,6 +497,7 @@ class TestAutoDiscovery:
         assert result["data"][CONF_MAC_ADDRESS] == "AA:BB:CC:DD:EE:FF"
 
 
+@pytest.mark.requires_ha
 class TestValidateHexKey:
     """Test _validate_hex_key() helper."""
 
@@ -520,6 +530,7 @@ class TestValidateHexKey:
         assert _validate_hex_key("0011 2233 4455 6677 8899 aabb ccdd eeff") is False
 
 
+@pytest.mark.requires_ha
 class TestSigBridgeStep:
     """Test SIG Mesh Bridge plug configuration step."""
 
@@ -608,6 +619,7 @@ class TestSigBridgeStep:
         assert result["step_id"] == "sig_bridge"
 
 
+@pytest.mark.requires_ha
 class TestTelinkBridgeStep:
     """Test Telink Bridge light configuration step."""
 
@@ -696,6 +708,7 @@ class TestTelinkBridgeStep:
         assert result["step_id"] == "telink_bridge"
 
 
+@pytest.mark.requires_ha
 class TestTestBridge:
     """Test _test_bridge_with_session() connection helper."""
 
@@ -767,6 +780,7 @@ class TestTestBridge:
         assert result is False
 
 
+@pytest.mark.requires_ha
 class TestValidateBridgeHost:
     """Test _validate_bridge_host() helper."""
 
@@ -786,6 +800,7 @@ class TestValidateBridgeHost:
         assert _validate_bridge_host("192.168.1.100/path") == "invalid_bridge_host"
 
 
+@pytest.mark.requires_ha
 class TestSigPlugKeyValidationErrors:
     """Test error handling in sig_plug auto-provisioning step."""
 
@@ -867,6 +882,7 @@ class TestSigPlugKeyValidationErrors:
         assert "base" in result["errors"]
 
 
+@pytest.mark.requires_ha
 class TestBluetoothSigMeshProxyDiscovery:
     """Test SIG Mesh proxy discovery via bluetooth step with UUID 1828."""
 
@@ -933,6 +949,7 @@ def _make_options_flow(
     return flow
 
 
+@pytest.mark.requires_ha
 class TestOptionsFlowInit:
     """Test options flow shows correct form for each device type."""
 
@@ -980,6 +997,7 @@ class TestOptionsFlowInit:
         assert CONF_UNICAST_TARGET not in schema_keys
 
 
+@pytest.mark.requires_ha
 class TestOptionsFlowSubmit:
     """Test options flow submits data and updates config entry."""
 
@@ -1038,6 +1056,7 @@ class TestOptionsFlowSubmit:
         assert new_data[CONF_MESH_ADDRESS] == 5
 
 
+@pytest.mark.requires_ha
 class TestOptionsFlowMerge:
     """Test that existing config entry data is preserved on update."""
 
