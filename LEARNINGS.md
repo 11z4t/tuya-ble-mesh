@@ -2,7 +2,7 @@
 
 This document captures insights, patterns, and lessons learned during development and testing of the Tuya BLE Mesh Home Assistant integration.
 
-**Last updated**: 2026-03-07 by Thor (VM 903)
+**Last updated**: 2026-03-08 by Thor (VM 903) — Batch 5 complete
 
 ---
 
@@ -402,6 +402,47 @@ npm run test:e2e:report
 - Performance regression tests
 - Load testing (many devices)
 - Fuzz testing (protocol layer)
+
+---
+
+## 15. CI/CD Pipeline Lessons (PLAT-429 - Batch 5)
+
+### Import Error Pitfalls
+**Problem**: Tests imported non-existent `build_command_packet` instead of `encode_command_packet`
+- **Root cause**: Refactoring renamed function but tests not updated
+- **Fix**: Global find/replace across test suite
+- **Prevention**: Add import validation to pre-commit hooks
+
+### Conditional Test Dependencies
+**Problem**: Tests importing `custom_components` failed without `homeassistant` package
+- **Root cause**: Some tests require HA, others don't (protocol/crypto tests standalone)
+- **Solution**: Added `@pytest.mark.requires_ha` marker to isolate HA-dependent tests
+- **Config**: `pyproject.toml` markers allow selective test execution
+- **CI benefit**: Core tests run fast without HA, optional tests skipped
+
+### YAML Syntax in CI
+**Problem**: `.gitea/workflows/ci.yml` had Python syntax errors (missing quotes, bad f-strings)
+- **Error**: `with open(/tmp/...)` → `with open('/tmp/...')`
+- **Error**: `data.get(results)` → `data.get('results')`
+- **Error**: `print(fFound {total}...)` → `print(f'Found {total}...')`
+- **Prevention**: Run CI YAML through Python validator before commit
+
+### Pytest Marker Best Practices
+- **Always import pytest**: Files using `@pytest.mark.*` must `import pytest`
+- **Mark at class level**: Apply markers to entire test classes when all tests share dependency
+- **Document markers**: Add description to `pyproject.toml` for each custom marker
+
+### Test Organization
+```
+tests/
+├── unit/          # No external deps (protocol, crypto)
+├── security/      # Isolated security tests
+├── integration/   # Require mocked HA (@pytest.mark.requires_ha)
+├── benchmarks/    # Performance (require pytest-benchmark)
+└── e2e/           # Full stack (Playwright, running HA instance)
+```
+
+**Lesson**: Separate test tiers by dependency requirements for faster CI feedback loops.
 
 ---
 
