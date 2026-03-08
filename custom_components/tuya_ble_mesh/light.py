@@ -207,8 +207,6 @@ class TuyaBLEMeshLight(LightEntity):  # type: ignore[misc]
         if not self._coordinator.state.is_on:
             return None
         mired = color_temp_to_ha(self._coordinator.state.color_temp)
-        if mired == 0:
-            return None
         return round(1_000_000 / mired)
 
     _attr_min_color_temp_kelvin = 2703  # warmest (370 mireds)
