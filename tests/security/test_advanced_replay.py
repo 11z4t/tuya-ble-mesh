@@ -27,6 +27,7 @@ from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
 )
 
 
+@pytest.mark.requires_ha
 class TestCrossSessionReplayProtection:
     """Verify replay protection across restart boundaries."""
 
@@ -84,6 +85,7 @@ class TestCrossSessionReplayProtection:
             assert gap == _SEQ_SAFETY_MARGIN, "Gap should equal safety margin exactly"
 
 
+@pytest.mark.requires_ha
 class TestSequenceWraparound:
     """Test sequence number behavior near 24-bit wraparound."""
 
@@ -127,6 +129,7 @@ class TestSequenceWraparound:
         mock_store.async_save.assert_called_once_with({"seq": 10})
 
 
+@pytest.mark.requires_ha
 class TestMultiDeviceSequenceIsolation:
     """Verify sequence numbers are isolated per device."""
 
@@ -171,6 +174,7 @@ class TestMultiDeviceSequenceIsolation:
         # And their MAC addresses differ, so messages are not interchangeable
 
 
+@pytest.mark.requires_ha
 class TestReplayWindowEdgeCases:
     """Test edge cases in replay protection window."""
 
@@ -248,6 +252,7 @@ class TestReplayWindowEdgeCases:
             assert restored == expected
 
 
+@pytest.mark.requires_ha
 class TestTimingBasedReplay:
     """Test replay attempts using timing manipulation."""
 

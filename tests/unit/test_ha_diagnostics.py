@@ -76,6 +76,7 @@ def make_mock_entry(
     return entry
 
 
+@pytest.mark.requires_ha
 class TestRedactData:
     """Test _redact_data helper."""
 
@@ -124,6 +125,7 @@ class TestRedactData:
         assert _redact_data({}) == {}
 
 
+@pytest.mark.requires_ha
 class TestAsyncGetDiagnostics:
     """Test async_get_config_entry_diagnostics."""
 
@@ -256,6 +258,7 @@ class TestAsyncGetDiagnostics:
         assert result["device_info"]["address"] == "XX:XX:XX:XX:XX:XX"
 
 
+@pytest.mark.requires_ha
 class TestSecurityVerification:
     """Security verification: ensure secrets NEVER leak in diagnostics."""
 
