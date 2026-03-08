@@ -1,6 +1,7 @@
 """Unit tests for ShellyPowerController."""
 
 import sys
+import unittest.mock
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -55,6 +56,23 @@ class TestShellyInit:
         ctrl = ShellyPowerController("10.0.0.1")
         assert ctrl.host == "10.0.0.1"
         assert ctrl.base_url == "http://10.0.0.1"
+
+    @pytest.mark.asyncio
+    async def test_session_creation(self) -> None:
+        """Test that session is created when needed."""
+        ctrl = ShellyPowerController("192.168.1.50")
+        assert ctrl._session is None
+
+        # Trigger session creation by making a request
+        ctrl._generation = 1
+        mock_resp = make_mock_response(json_data={"ison": True})
+        mock_session = make_mock_session([mock_resp])
+
+        # Patch ClientSession to return our mock
+        with unittest.mock.patch("aiohttp.ClientSession", return_value=mock_session):
+            await ctrl.power_on()
+            # Session should have been created
+            assert ctrl._session is not None
 
 
 class TestDetectGeneration:
@@ -147,6 +165,18 @@ class TestPowerOff:
 
         result = await ctrl.power_off()
         assert result is False
+
+    @pytest.mark.asyncio
+    async def test_gen2_power_off(self) -> None:
+        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl._generation = 2
+
+        mock_resp = make_mock_response(json_data={"was_on": True})
+        mock_session = make_mock_session([mock_resp])
+        ctrl._session = mock_session
+
+        result = await ctrl.power_off()
+        assert result is True
 
 
 class TestPowerCycle:
@@ -301,11 +331,35 @@ class TestGetStatus:
         assert status["power"] == 5.2
 
     @pytest.mark.asyncio
+    async def test_gen2_status(self) -> None:
+        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl._generation = 2
+
+        status_data = {"output": True, "id": 0}
+        mock_resp = make_mock_response(json_data=status_data)
+        mock_session = make_mock_session([mock_resp])
+        ctrl._session = mock_session
+
+        status = await ctrl.get_status()
+        assert status["output"] is True
+
+    @pytest.mark.asyncio
     async def test_is_on_true(self) -> None:
         ctrl = ShellyPowerController("192.168.1.50")
         ctrl._generation = 1
 
         mock_resp = make_mock_response(json_data={"ison": True})
+        mock_session = make_mock_session([mock_resp])
+        ctrl._session = mock_session
+
+        assert await ctrl.is_on() is True
+
+    @pytest.mark.asyncio
+    async def test_gen2_is_on_true(self) -> None:
+        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl._generation = 2
+
+        mock_resp = make_mock_response(json_data={"output": True})
         mock_session = make_mock_session([mock_resp])
         ctrl._session = mock_session
 
