@@ -22,39 +22,23 @@ class TestHTTPHeaderInjection:
     """Verify HTTP header injection is not possible via user-supplied values."""
 
     def test_host_with_crlf_in_bridge_url(self) -> None:
-        """Bridge host with CRLF should not create extra HTTP headers."""
+        """Bridge host with CRLF should raise ValueError (injection prevention)."""
         malicious_host = "evil.com\r\nX-Injected: true"
-        dev = SIGMeshBridgeDevice(
-            "AA:BB:CC:DD:EE:FF",
-            target_addr=0x00B0,
-            bridge_host=malicious_host,
-        )
-        # The host is stored as-is; the danger is in the HTTP request.
-        # Verify the constructed URL doesn't break request framing.
-        request = f"GET /health HTTP/1.1\r\nHost: {dev._bridge_host}\r\n\r\n"
-        # Count number of header terminators — should be exactly one
-        # (the legitimate end of headers). If CRLF was injected,
-        # there would be extra headers before the final \r\n\r\n.
-        lines = request.split("\r\n")
-        # First line: request line, second: Host header, rest should be empty
-        # With injection, there would be extra non-empty lines
-        non_empty = [line for line in lines if line]
-        # Flag: if injection succeeded, more than 2 non-empty lines
-        assert len(non_empty) >= 2  # At minimum request + host
-        # The injected header would appear — this documents the risk
-        if len(non_empty) > 2:
-            # CRLF injection happened — this test documents the attack surface
-            # In practice, the bridge daemon runs on a trusted LAN
-            pass
+        with pytest.raises(ValueError, match="contains CRLF characters"):
+            SIGMeshBridgeDevice(
+                "AA:BB:CC:DD:EE:FF",
+                target_addr=0x00B0,
+                bridge_host=malicious_host,
+            )
 
     def test_telink_host_with_crlf(self) -> None:
-        """Telink bridge host with CRLF injection attempt."""
+        """Telink bridge host with CRLF injection attempt should raise ValueError."""
         malicious_host = "192.168.1.1\r\nX-Evil: pwned"
-        dev = TelinkBridgeDevice(
-            "AA:BB:CC:DD:EE:FF",
-            bridge_host=malicious_host,
-        )
-        assert "\r\n" in dev._bridge_host  # Documents the stored value
+        with pytest.raises(ValueError, match="contains CRLF characters"):
+            TelinkBridgeDevice(
+                "AA:BB:CC:DD:EE:FF",
+                bridge_host=malicious_host,
+            )
 
 
 class TestPathTraversal:
