@@ -375,3 +375,23 @@ class TestGetStatus:
         ctrl._session = mock_session
 
         assert await ctrl.is_on() is False
+
+
+class TestContextManager:
+    """Test async context manager support."""
+
+    @pytest.mark.asyncio
+    async def test_context_manager_enter_and_exit(self) -> None:
+        """Test that async context manager properly enters and exits."""
+        ctrl = ShellyPowerController("192.168.1.50")
+        mock_session = MagicMock()
+        mock_session.closed = False
+        mock_session.close = AsyncMock()
+        ctrl._session = mock_session
+
+        async with ctrl as context_ctrl:
+            assert context_ctrl is ctrl
+
+        # Session should be closed after exiting context
+        mock_session.close.assert_awaited_once()
+        assert ctrl._session is None
