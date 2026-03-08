@@ -26,6 +26,7 @@ from custom_components.tuya_ble_mesh.repairs import (  # noqa: E402
 )
 
 
+@pytest.mark.requires_ha
 class TestRepairIssueConstants:
     """Test that repair issue constants are defined correctly."""
 
@@ -40,6 +41,7 @@ class TestRepairIssueConstants:
         assert DOMAIN == "tuya_ble_mesh"
 
 
+@pytest.mark.requires_ha
 class TestCreateIssueProvisioningFailed:
     """Test async_create_issue_provisioning_failed."""
 
@@ -69,6 +71,7 @@ class TestCreateIssueProvisioningFailed:
             assert mock_logger.warning.called
 
 
+@pytest.mark.requires_ha
 class TestCreateIssueBridgeUnreachable:
     """Test async_create_issue_bridge_unreachable."""
 
@@ -99,6 +102,7 @@ class TestCreateIssueBridgeUnreachable:
             assert mock_logger.warning.called
 
 
+@pytest.mark.requires_ha
 class TestDeleteIssue:
     """Test async_delete_issue."""
 
@@ -125,6 +129,7 @@ class TestDeleteIssue:
             assert mock_logger.debug.called
 
 
+@pytest.mark.requires_ha
 class TestRepairFlow:
     """Test TuyaBLEMeshRepairFlow."""
 
@@ -166,6 +171,7 @@ class TestRepairFlow:
         assert result == {"type": "create_entry"}
 
 
+@pytest.mark.requires_ha
 class TestCreateFixFlow:
     """Test async_create_fix_flow."""
 

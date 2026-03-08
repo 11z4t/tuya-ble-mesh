@@ -66,6 +66,7 @@ def make_mock_status(
     return status
 
 
+@pytest.mark.requires_ha
 class TestDeviceState:
     """Test TuyaBLEMeshDeviceState defaults."""
 
@@ -80,6 +81,7 @@ class TestDeviceState:
         assert state.available is False
 
 
+@pytest.mark.requires_ha
 class TestCoordinatorInit:
     """Test coordinator initialization."""
 
@@ -97,6 +99,7 @@ class TestCoordinatorInit:
         assert coord.device is device
 
 
+@pytest.mark.requires_ha
 class TestStatusUpdate:
     """Test _on_status_update callback."""
 
@@ -143,6 +146,7 @@ class TestStatusUpdate:
         listener.assert_called_once()
 
 
+@pytest.mark.requires_ha
 class TestListeners:
     """Test listener registration."""
 
@@ -201,6 +205,7 @@ class TestListeners:
         remove()
 
 
+@pytest.mark.requires_ha
 class TestAsyncStart:
     """Test async_start method."""
 
@@ -232,6 +237,7 @@ class TestAsyncStart:
         await coord.async_stop()
 
 
+@pytest.mark.requires_ha
 class TestAsyncStop:
     """Test async_stop method."""
 
@@ -261,6 +267,7 @@ class TestAsyncStop:
         assert coord._reconnect_task is None
 
 
+@pytest.mark.requires_ha
 class TestDisconnectCallback:
     """Test disconnect callback triggers reconnect."""
 
@@ -309,6 +316,7 @@ class TestDisconnectCallback:
         assert coord._reconnect_task is None
 
 
+@pytest.mark.requires_ha
 class TestOnOffUpdate:
     """Test _on_onoff_update for SIG Mesh devices."""
 
@@ -350,6 +358,7 @@ class TestOnOffUpdate:
         listener.assert_called_once()
 
 
+@pytest.mark.requires_ha
 class TestSIGMeshCoordinator:
     """Test coordinator with SIG Mesh device (onoff callbacks)."""
 
@@ -403,6 +412,7 @@ class TestSIGMeshCoordinator:
         await coord.async_stop()
 
 
+@pytest.mark.requires_ha
 class TestReconnect:
     """Test reconnection logic."""
 
@@ -423,6 +433,7 @@ class TestReconnect:
         assert _MAX_BACKOFF == 300.0
 
 
+@pytest.mark.requires_ha
 class TestSeqPersistence:
     """Test sequence number persistence."""
 
@@ -535,6 +546,7 @@ class TestSeqPersistence:
         assert _SEQ_SAFETY_MARGIN == 100
 
 
+@pytest.mark.requires_ha
 class TestVendorUpdate:
     """Test _on_vendor_update for energy monitoring."""
 
@@ -646,6 +658,7 @@ class TestVendorUpdate:
         assert coord.state.energy_kwh == 5.0
 
 
+@pytest.mark.requires_ha
 class TestCompositionUpdate:
     """Test _on_composition_update for firmware version."""
 
@@ -720,6 +733,7 @@ def _make_sig_mesh_device(**overrides: Any) -> MagicMock:
     return device
 
 
+@pytest.mark.requires_ha
 class TestReconnectLoop:
     """Test _reconnect_loop() exponential backoff behaviour."""
 
@@ -872,6 +886,7 @@ class TestReconnectLoop:
         mock_rssi.assert_called_once()
 
 
+@pytest.mark.requires_ha
 class TestScheduleReconnect:
     """Test _schedule_reconnect edge cases."""
 
@@ -905,6 +920,7 @@ class TestScheduleReconnect:
         coord._reconnect_task = None
 
 
+@pytest.mark.requires_ha
 class TestIsBridgeDevice:
     """Test _is_bridge_device() type detection."""
 
@@ -944,6 +960,7 @@ class TestIsBridgeDevice:
         assert coord._is_bridge_device() is False
 
 
+@pytest.mark.requires_ha
 class TestRSSIPolling:
     """Test RSSI polling start/stop and loop behaviour."""
 
@@ -1147,6 +1164,7 @@ class TestRSSIPolling:
         assert listener.call_count >= 1
 
 
+@pytest.mark.requires_ha
 class TestSeqPersistenceExtended:
     """Extended tests for _load_seq / _save_seq edge cases."""
 
@@ -1217,6 +1235,7 @@ class TestSeqPersistenceExtended:
         assert coord._seq_persist_task is None
 
 
+@pytest.mark.requires_ha
 class TestLifecycleEdgeCases:
     """Test start/stop lifecycle edge cases."""
 
@@ -1333,6 +1352,7 @@ class TestLifecycleEdgeCases:
         assert coord._rssi_task is None
 
 
+@pytest.mark.requires_ha
 class TestListenerErrorHandling:
     """Extended listener error handling tests."""
 
@@ -1387,6 +1407,7 @@ class TestListenerErrorHandling:
         coord._reconnect_task = None
 
 
+@pytest.mark.requires_ha
 class TestTaskCancellation:
     """Test handling of asyncio task cancellation."""
 
@@ -1422,6 +1443,7 @@ class TestTaskCancellation:
         assert coord._running is False
 
 
+@pytest.mark.requires_ha
 class TestBackoffConstants:
     """Verify backoff constant relationships."""
 

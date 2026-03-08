@@ -58,6 +58,7 @@ def _make_patches() -> tuple[MagicMock, MagicMock]:
     return mock_device_instance, mock_coord_instance
 
 
+@pytest.mark.requires_ha
 class TestAsyncSetupEntry:
     """Test async_setup_entry."""
 
@@ -145,6 +146,7 @@ class TestAsyncSetupEntry:
         assert hass.services.async_register.call_count >= 2
 
 
+@pytest.mark.requires_ha
 class TestAsyncSetupEntrySIGMesh:
     """Test async_setup_entry with SIG Mesh device type."""
 
@@ -206,6 +208,7 @@ def _make_entry_with_runtime(
     return entry, mock_coord
 
 
+@pytest.mark.requires_ha
 class TestAsyncUnloadEntry:
     """Test async_unload_entry."""
 
