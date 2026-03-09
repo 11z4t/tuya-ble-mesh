@@ -22,6 +22,7 @@ from custom_components.tuya_ble_mesh.const import (  # noqa: E402
 )
 from custom_components.tuya_ble_mesh.diagnostics import (  # noqa: E402
     REDACTED,
+    _calculate_percentiles,
     _redact_data,
     async_get_config_entry_diagnostics,
 )
@@ -123,6 +124,54 @@ class TestRedactData:
 
     def test_empty_dict(self) -> None:
         assert _redact_data({}) == {}
+
+    def test_redacts_nested_dict(self) -> None:
+        """Test that nested dictionaries are redacted recursively."""
+        data = {
+            "outer": {
+                CONF_MESH_NAME: "secret_mesh",
+                CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF",
+            }
+        }
+        result = _redact_data(data)
+        assert result["outer"][CONF_MESH_NAME] == REDACTED
+        assert result["outer"][CONF_MAC_ADDRESS] == "XX:XX:XX:XX:XX:XX"
+
+    def test_preserves_non_string_non_dict_values(self) -> None:
+        """Test that non-string, non-dict values are preserved as-is."""
+        data = {
+            "number": 42,
+            "boolean": True,
+            "none": None,
+            "list": [1, 2, 3],
+        }
+        result = _redact_data(data)
+        assert result["number"] == 42
+        assert result["boolean"] is True
+        assert result["none"] is None
+        assert result["list"] == [1, 2, 3]
+
+
+@pytest.mark.requires_ha
+class TestCalculatePercentiles:
+    """Test _calculate_percentiles helper."""
+
+    def test_empty_list_returns_zeros(self) -> None:
+        """Empty list should return all zeros."""
+        result = _calculate_percentiles([])
+        assert result == {"p50": 0.0, "p95": 0.0, "p99": 0.0}
+
+    def test_calculates_percentiles_correctly(self) -> None:
+        """Test percentile calculation with a known dataset."""
+        times = [float(i) for i in range(1, 101)]  # 1 to 100
+        result = _calculate_percentiles(times)
+
+        # p50 should be around 50.5
+        assert 49.0 < result["p50"] < 52.0
+        # p95 should be around 95.05
+        assert 94.0 < result["p95"] < 96.0
+        # p99 should be around 99.01
+        assert 98.0 < result["p99"] < 100.0
 
 
 @pytest.mark.requires_ha
@@ -256,6 +305,75 @@ class TestAsyncGetDiagnostics:
         assert result["device_info"]["type"] == "SIGMeshDevice"
         # Address should be redacted for privacy
         assert result["device_info"]["address"] == "XX:XX:XX:XX:XX:XX"
+
+    @pytest.mark.asyncio
+    async def test_includes_response_time_percentiles(self) -> None:
+        """Test that response time percentiles are calculated correctly."""
+        entry = make_mock_entry(entry_id="perf_entry")
+
+        stats = MagicMock()
+        stats.connect_time = None
+        stats.total_reconnects = 0
+        stats.total_errors = 0
+        stats.connection_errors = 0
+        stats.command_errors = 0
+        stats.last_error = None
+        stats.last_error_time = None
+        # Add response times to trigger percentile calculation
+        stats.response_times = [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0]
+
+        coordinator = MagicMock()
+        coordinator.state = MagicMock()
+        coordinator.statistics = stats
+        coordinator.device = MagicMock()
+        coordinator.device.address = "AA:BB:CC:DD:EE:FF"
+        type(coordinator.device).__name__ = "SIGMeshDevice"
+
+        entry.runtime_data = MagicMock()
+        entry.runtime_data.coordinator = coordinator
+        hass = MagicMock()
+
+        result = await async_get_config_entry_diagnostics(hass, entry)
+
+        assert "response_times" in result
+        assert result["response_times"]["sample_count"] == 10
+        assert result["response_times"]["avg_seconds"] > 0
+        assert result["response_times"]["p50_seconds"] > 0
+        assert result["response_times"]["p95_seconds"] > 0
+        assert result["response_times"]["p99_seconds"] > 0
+
+    @pytest.mark.asyncio
+    async def test_mesh_topology_direct_ble(self) -> None:
+        """Test mesh topology for direct BLE devices (no bridge)."""
+        entry = make_mock_entry(entry_id="direct_entry")
+
+        stats = MagicMock()
+        stats.connect_time = None
+        stats.total_reconnects = 0
+        stats.total_errors = 0
+        stats.connection_errors = 0
+        stats.command_errors = 0
+        stats.last_error = None
+        stats.last_error_time = None
+        stats.response_times = []
+
+        coordinator = MagicMock()
+        coordinator.state = MagicMock()
+        coordinator.statistics = stats
+        coordinator.device = MagicMock()
+        coordinator.device.address = "AA:BB:CC:DD:EE:FF"
+        type(coordinator.device).__name__ = "SIGMeshDevice"
+        # Ensure device doesn't have bridge_url attribute
+        del coordinator.device.bridge_url
+
+        entry.runtime_data = MagicMock()
+        entry.runtime_data.coordinator = coordinator
+        hass = MagicMock()
+
+        result = await async_get_config_entry_diagnostics(hass, entry)
+
+        assert result["mesh_topology"]["mode"] == "direct_ble"
+        assert result["mesh_topology"]["local_ble"] is True
 
 
 @pytest.mark.requires_ha
