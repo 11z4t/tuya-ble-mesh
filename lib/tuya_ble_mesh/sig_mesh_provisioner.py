@@ -278,47 +278,116 @@ class SIGMeshProvisioner:
         """
         address = address.upper()
         last_exc: Exception | None = None
+        scan_failures = 0
+        connect_failures = 0
+
         for attempt in range(1, max_retries + 1):
             try:
                 _LOGGER.info(
-                    "PB-GATT connect to %s (attempt %d/%d)",
+                    "PB-GATT connect to %s (attempt %d/%d, timeout=%.1fs)",
                     address,
                     attempt,
                     max_retries,
+                    timeout,
                 )
+
+                # Step 1: Find device via BLE scan
                 if self._ble_device_callback is not None:
                     device = self._ble_device_callback(address)
                 else:
-                    device = await BleakScanner.find_device_by_address(address, timeout=timeout)
-                if device is None:
-                    msg = f"Device {address} not found in BLE scan"
-                    raise ProvisioningError(msg)
+                    _LOGGER.debug("Scanning for device %s (timeout=%.1fs)", address, timeout)
+                    device = await asyncio.wait_for(
+                        BleakScanner.find_device_by_address(address, timeout=timeout),
+                        timeout=timeout + 5.0,  # Add buffer for scan overhead
+                    )
 
+                if device is None:
+                    scan_failures += 1
+                    _LOGGER.warning(
+                        "Device %s not found in BLE scan (attempt %d/%d)",
+                        address,
+                        attempt,
+                        max_retries,
+                    )
+                    # Exponential backoff for scan retries
+                    backoff = min(2.0 * (1.5 ** (attempt - 1)), 10.0)
+                    await asyncio.sleep(backoff)
+                    continue
+
+                _LOGGER.debug("Device %s found, attempting connection...", address)
+
+                # Step 2: Connect to device
                 if self._ble_connect_callback is not None:
-                    # Use caller-supplied connector (e.g. bleak-retry-connector)
-                    client = await self._ble_connect_callback(device)
+                    # Use caller-supplied connector (e.g. bleak-retry-connector for HA)
+                    client = await asyncio.wait_for(
+                        self._ble_connect_callback(device),
+                        timeout=timeout + 10.0,
+                    )
                 else:
                     client = BleakClient(device, timeout=timeout)
-                    await client.connect()
+                    await asyncio.wait_for(
+                        client.connect(),
+                        timeout=timeout,
+                    )
+
+                # Step 3: Verify connection and check services
+                if not client.is_connected:
+                    connect_failures += 1
+                    msg = "BleakClient reported connected but is_connected=False"
+                    raise ProvisioningError(msg)
+
+                # Verify Provisioning Service is present
+                try:
+                    services = await asyncio.wait_for(
+                        client.get_services(),
+                        timeout=5.0,
+                    )
+                    if not any(str(s.uuid) == PROV_SERVICE for s in services.services.values()):
+                        msg = f"Device {address} does not expose Provisioning Service (0x1827)"
+                        raise ProvisioningError(msg)
+                except asyncio.TimeoutError:
+                    _LOGGER.warning("Service enumeration timed out, continuing anyway")
+
                 _LOGGER.info(
-                    "PB-GATT connected to %s (MTU=%d)",
+                    "PB-GATT connected to %s (MTU=%d, services=%d)",
                     address,
                     client.mtu_size,
+                    len(services.services) if "services" in locals() else 0,
                 )
                 return client
+
             except ProvisioningError:
                 raise
+            except asyncio.TimeoutError as exc:
+                last_exc = exc
+                connect_failures += 1
+                _LOGGER.warning(
+                    "Connect attempt %d/%d timed out after %.1fs",
+                    attempt,
+                    max_retries,
+                    timeout,
+                )
+                await asyncio.sleep(2.0)
             except Exception as exc:
                 last_exc = exc
+                connect_failures += 1
                 _LOGGER.warning(
-                    "Connect attempt %d/%d failed: %s",
+                    "Connect attempt %d/%d failed: %s: %s",
                     attempt,
                     max_retries,
                     type(exc).__name__,
+                    str(exc),
                 )
                 await asyncio.sleep(2.0)
 
-        msg = f"Failed to connect to {address} after {max_retries} attempts"
+        # Build detailed error message
+        error_details = f"scan_failures={scan_failures}, connect_failures={connect_failures}"
+        msg = (
+            f"Failed to connect to {address} after {max_retries} attempts "
+            f"({error_details}). "
+            f"Check device is in range, not already provisioned, and advertising. "
+            f"Last error: {type(last_exc).__name__ if last_exc else 'unknown'}"
+        )
         raise ProvisioningError(msg) from last_exc
 
     async def _run_exchange(self, client: BleakClient) -> ProvisioningResult:
@@ -372,19 +441,41 @@ class SIGMeshProvisioner:
                 if len(segments) > 1:
                     await asyncio.sleep(0.05)
 
-        async def recv_prov(recv_timeout: float = 10.0) -> bytes:
+        async def recv_prov(recv_timeout: float = 10.0, step_name: str = "PDU") -> bytes:
+            """Receive provisioning PDU with timeout and context."""
             rx_event.clear()
-            await asyncio.wait_for(rx_event.wait(), timeout=recv_timeout)
-            return bytes(rx_buffer)
+            try:
+                await asyncio.wait_for(rx_event.wait(), timeout=recv_timeout)
+                return bytes(rx_buffer)
+            except asyncio.TimeoutError as exc:
+                msg = (
+                    f"Timeout waiting for {step_name} (waited {recv_timeout:.1f}s). "
+                    f"Device may be unresponsive or out of range. "
+                    f"Try moving closer to the device or increasing timeout."
+                )
+                raise ProvisioningError(msg) from exc
 
-        def check_pdu(pdu: bytes, expected_type: int) -> None:
+        def check_pdu(pdu: bytes, expected_type: int, step_name: str = "PDU") -> None:
+            """Validate PDU type with detailed error messages."""
+            if not pdu:
+                msg = f"Received empty PDU for {step_name}"
+                raise ProvisioningError(msg)
+
             if pdu[0] == _PROV_FAILED:
                 code = pdu[1] if len(pdu) > 1 else 0xFF
                 name = _PROV_ERROR_NAMES.get(code, f"0x{code:02X}")
-                msg = f"Device sent ProvisioningFailed: {name}"
+                msg = (
+                    f"Device sent ProvisioningFailed during {step_name}: {name}. "
+                    f"This may indicate: device already provisioned, OOB mismatch, "
+                    f"insufficient resources, or unsupported configuration."
+                )
                 raise ProvisioningError(msg)
+
             if pdu[0] != expected_type:
-                msg = f"Expected PDU type 0x{expected_type:02X}, got 0x{pdu[0]:02X}"
+                msg = (
+                    f"Protocol error at {step_name}: expected PDU type 0x{expected_type:02X}, "
+                    f"got 0x{pdu[0]:02X}. Device may not support standard SIG Mesh provisioning."
+                )
                 raise ProvisioningError(msg)
 
         await client.start_notify(PROV_DATA_OUT, _on_notify)
@@ -395,8 +486,8 @@ class SIGMeshProvisioner:
         await send_prov(bytes([_PROV_INVITE]) + invite_params)
 
         # ---- Step 2: Capabilities ----
-        caps_pdu = await recv_prov(recv_timeout=10.0)
-        check_pdu(caps_pdu, _PROV_CAPABILITIES)
+        caps_pdu = await recv_prov(recv_timeout=10.0, step_name="Capabilities")
+        check_pdu(caps_pdu, _PROV_CAPABILITIES, "Capabilities")
         device_caps = caps_pdu[1:]  # 11 bytes for ConfirmationInputs
         num_elements = caps_pdu[1] if len(caps_pdu) > 1 else 1
         _LOGGER.info("Provisioning: Capabilities received (elements=%d)", num_elements)
@@ -419,11 +510,14 @@ class SIGMeshProvisioner:
         _LOGGER.info("Provisioning: PublicKey exchange (%d bytes)", len(self._our_pub_key_bytes))
         await send_prov(bytes([_PROV_PUBLIC_KEY]) + self._our_pub_key_bytes)
 
-        dev_pub_pdu = await recv_prov(recv_timeout=15.0)
-        check_pdu(dev_pub_pdu, _PROV_PUBLIC_KEY)
+        dev_pub_pdu = await recv_prov(recv_timeout=15.0, step_name="PublicKey")
+        check_pdu(dev_pub_pdu, _PROV_PUBLIC_KEY, "PublicKey")
         device_pub_key_bytes = dev_pub_pdu[1:]
         if len(device_pub_key_bytes) != 64:
-            msg = f"Device public key must be 64 bytes, got {len(device_pub_key_bytes)}"
+            msg = (
+                f"Invalid device public key length: expected 64 bytes, got {len(device_pub_key_bytes)}. "
+                f"Device may not support FIPS P-256 ECDH (required for SIG Mesh)."
+            )
             raise ProvisioningError(msg)
 
         # ECDH shared secret computation (Mesh Profile 5.4.2.2)
@@ -432,8 +526,14 @@ class SIGMeshProvisioner:
             dev_y = int.from_bytes(device_pub_key_bytes[32:], "big")
             dev_pub = EllipticCurvePublicNumbers(dev_x, dev_y, SECP256R1()).public_key()
             shared_secret = self._private_key.exchange(ECDH(), dev_pub)
+        except ValueError as exc:
+            msg = (
+                f"Invalid device public key: point not on curve. "
+                f"Device sent malformed ECDH public key: {exc}"
+            )
+            raise ProvisioningError(msg) from exc
         except Exception as exc:
-            msg = "ECDH key exchange failed"
+            msg = f"ECDH key exchange failed: {type(exc).__name__}: {exc}"
             raise ProvisioningError(msg) from exc
 
         _LOGGER.info("Provisioning: ECDH shared secret (%d bytes) [REDACTED]", len(shared_secret))
@@ -456,8 +556,8 @@ class SIGMeshProvisioner:
         conf_provisioner = aes_cmac(conf_key, random_provisioner + _NO_OOB_AUTH)
         await send_prov(bytes([_PROV_CONFIRMATION]) + conf_provisioner)
 
-        dev_conf_pdu = await recv_prov(recv_timeout=10.0)
-        check_pdu(dev_conf_pdu, _PROV_CONFIRMATION)
+        dev_conf_pdu = await recv_prov(recv_timeout=10.0, step_name="Confirmation")
+        check_pdu(dev_conf_pdu, _PROV_CONFIRMATION, "Confirmation")
         dev_confirmation = dev_conf_pdu[1:]
         _LOGGER.info("Provisioning: Device confirmation received (%d bytes)", len(dev_confirmation))
 
@@ -465,14 +565,18 @@ class SIGMeshProvisioner:
         _LOGGER.info("Provisioning: Random exchange")
         await send_prov(bytes([_PROV_RANDOM]) + random_provisioner)
 
-        dev_random_pdu = await recv_prov(recv_timeout=10.0)
-        check_pdu(dev_random_pdu, _PROV_RANDOM)
+        dev_random_pdu = await recv_prov(recv_timeout=10.0, step_name="Random")
+        check_pdu(dev_random_pdu, _PROV_RANDOM, "Random")
         random_device = dev_random_pdu[1:]
 
         # Verify device confirmation (Mesh Profile 5.4.2.4)
         expected_conf = aes_cmac(conf_key, random_device + _NO_OOB_AUTH)
         if expected_conf != dev_confirmation:
-            msg = "Device confirmation mismatch (authentication failed)"
+            msg = (
+                "Device confirmation mismatch (authentication failed). "
+                "This indicates a crypto error or OOB authentication mismatch. "
+                "For devices requiring OOB, this integration currently only supports No OOB mode."
+            )
             raise ProvisioningError(msg)
         _LOGGER.info("Provisioning: Device confirmation verified OK")
 
@@ -498,14 +602,21 @@ class SIGMeshProvisioner:
         await send_prov(bytes([_PROV_DATA]) + encrypted_data)
 
         # Wait for Complete or Failed
-        result_pdu = await recv_prov(recv_timeout=15.0)
+        result_pdu = await recv_prov(recv_timeout=15.0, step_name="Complete/Failed")
         if result_pdu[0] == _PROV_FAILED:
             code = result_pdu[1] if len(result_pdu) > 1 else 0xFF
             name = _PROV_ERROR_NAMES.get(code, f"0x{code:02X}")
-            msg = f"Device rejected provisioning data: {name}"
+            msg = (
+                f"Device rejected provisioning data: {name}. "
+                f"Common causes: device already provisioned, address conflict, "
+                f"insufficient storage, or invalid IV index."
+            )
             raise ProvisioningError(msg)
         if result_pdu[0] != _PROV_COMPLETE:
-            msg = f"Expected ProvisioningComplete (0x08), got 0x{result_pdu[0]:02X}"
+            msg = (
+                f"Expected ProvisioningComplete (0x08), got 0x{result_pdu[0]:02X}. "
+                f"Device sent unexpected response after receiving provisioning data."
+            )
             raise ProvisioningError(msg)
 
         _LOGGER.info(
