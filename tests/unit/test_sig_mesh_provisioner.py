@@ -194,7 +194,15 @@ class TestProvisionerConnect:
         mock_device = Mock()
         mock_client = MagicMock()
         mock_client.mtu_size = 23
+        mock_client.is_connected = True
         mock_client.connect = AsyncMock()
+
+        # Mock get_services to return service collection with PROV_SERVICE
+        mock_service = Mock()
+        mock_service.uuid = "00001827-0000-1000-8000-00805f9b34fb"  # PROV_SERVICE
+        mock_services = Mock()
+        mock_services.services = {1: mock_service}
+        mock_client.get_services = AsyncMock(return_value=mock_services)
 
         with patch(
             "tuya_ble_mesh.sig_mesh_provisioner.BleakScanner.find_device_by_address",
@@ -215,7 +223,7 @@ class TestProvisionerConnect:
             "tuya_ble_mesh.sig_mesh_provisioner.BleakScanner.find_device_by_address",
             return_value=None,
         ):
-            with pytest.raises(ProvisioningError, match="not found"):
+            with pytest.raises(ProvisioningError, match="Failed to connect"):
                 await prov._connect("AA:BB:CC:DD:EE:FF", timeout=5.0, max_retries=3)
 
     @pytest.mark.asyncio
@@ -224,7 +232,15 @@ class TestProvisionerConnect:
         callback = Mock(return_value=mock_device)
         mock_client = MagicMock()
         mock_client.mtu_size = 23
+        mock_client.is_connected = True
         mock_client.connect = AsyncMock()
+
+        # Mock get_services
+        mock_service = Mock()
+        mock_service.uuid = "00001827-0000-1000-8000-00805f9b34fb"
+        mock_services = Mock()
+        mock_services.services = {1: mock_service}
+        mock_client.get_services = AsyncMock(return_value=mock_services)
 
         prov = SIGMeshProvisioner(
             b"\x00" * 16, b"\x01" * 16, 0x00B0, ble_device_callback=callback
@@ -243,7 +259,15 @@ class TestProvisionerConnect:
         mock_device = Mock()
         mock_client = MagicMock()
         mock_client.mtu_size = 23
+        mock_client.is_connected = True
         connect_callback = AsyncMock(return_value=mock_client)
+
+        # Mock get_services
+        mock_service = Mock()
+        mock_service.uuid = "00001827-0000-1000-8000-00805f9b34fb"
+        mock_services = Mock()
+        mock_services.services = {1: mock_service}
+        mock_client.get_services = AsyncMock(return_value=mock_services)
 
         prov = SIGMeshProvisioner(
             b"\x00" * 16,
@@ -372,7 +396,7 @@ class TestProvisionerExchange:
 
         asyncio.create_task(simulate_wrong_pdu())
 
-        with pytest.raises(ProvisioningError, match="Expected PDU type"):
+        with pytest.raises(ProvisioningError, match="Protocol error"):
             await prov._run_exchange(client)
 
 

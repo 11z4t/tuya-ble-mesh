@@ -530,26 +530,66 @@ async def connect_with_retry(
     timeout: float = 20,
 ) -> BleakClient:
     """Connect to device with retry (removes BlueZ cache between attempts)."""
+    last_error: str = "unknown"
+    scan_failures = 0
+    connect_failures = 0
+
     for attempt in range(1, retries + 1):
         try:
+            # Clear BlueZ cache to avoid stale connection state
             await ble_remove(mac)
             await asyncio.sleep(2)
 
-            dev = await BleakScanner.find_device_by_address(mac, timeout=timeout)
+            # Scan for device
+            _LOGGER.debug("Scanning for %s (timeout=%.1fs)", mac, timeout)
+            dev = await asyncio.wait_for(
+                BleakScanner.find_device_by_address(mac, timeout=timeout),
+                timeout=timeout + 5.0,
+            )
+
             if not dev:
-                print(f"  [{attempt}/{retries}] Not found in scan")
+                scan_failures += 1
+                print(f"  [{attempt}/{retries}] Device not found in BLE scan")
+                _LOGGER.warning("Scan attempt %d/%d failed for %s", attempt, retries, mac)
+                # Exponential backoff
+                backoff = min(3.0 * (1.5 ** (attempt - 1)), 15.0)
+                await asyncio.sleep(backoff)
                 continue
 
+            # Connect to device
+            _LOGGER.debug("Device %s found, connecting...", mac)
             client = BleakClient(dev, timeout=timeout)
-            await client.connect()
-            print(f"  [{attempt}/{retries}] Connected!")
+            await asyncio.wait_for(client.connect(), timeout=timeout)
+
+            # Verify connection
+            if not client.is_connected:
+                connect_failures += 1
+                raise ConnectionError("BleakClient reported connected but is_connected=False")
+
+            print(f"  [{attempt}/{retries}] Connected! (MTU={client.mtu_size})")
+            _LOGGER.info("Connected to %s (MTU=%d)", mac, client.mtu_size)
             return client
 
+        except asyncio.TimeoutError:
+            last_error = f"timeout after {timeout}s"
+            connect_failures += 1
+            print(f"  [{attempt}/{retries}] Connection timeout")
+            _LOGGER.warning("Connect timeout for %s (attempt %d/%d)", mac, attempt, retries)
+            await asyncio.sleep(3)
         except Exception as exc:
-            print(f"  [{attempt}/{retries}] {type(exc).__name__}")
+            last_error = f"{type(exc).__name__}: {exc}"
+            connect_failures += 1
+            print(f"  [{attempt}/{retries}] {type(exc).__name__}: {exc}")
+            _LOGGER.warning("Connect failed for %s: %s", mac, last_error)
             await asyncio.sleep(3)
 
-    raise ConnectionError(f"Failed to connect to {mac} after {retries} attempts")
+    error_msg = (
+        f"Failed to connect to {mac} after {retries} attempts "
+        f"(scan_failures={scan_failures}, connect_failures={connect_failures}). "
+        f"Last error: {last_error}. "
+        f"Check device is powered on, in range, and not connected to another client."
+    )
+    raise ConnectionError(error_msg)
 
 
 # ============================================================
