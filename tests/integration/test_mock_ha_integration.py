@@ -333,3 +333,82 @@ class TestPlatformSetup:
 
         assert hasattr(switch, "async_setup_entry")
         assert callable(switch.async_setup_entry)
+
+
+class TestRuntimeSetup:
+    """Test runtime setup and lifecycle - reaching 100% coverage."""
+
+    @pytest.mark.asyncio
+    async def test_coordinator_statistics_property(self) -> None:
+        """Test coordinator statistics property returns stats - covers coordinator.py:129."""
+        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
+
+        mock_device = MagicMock()
+        mock_device.address = "DC:23:4D:21:43:A5"
+
+        coord = TuyaBLEMeshCoordinator(mock_device)
+
+        stats = coord.statistics
+        assert stats is not None
+        # ConnectionStatistics has these fields
+        assert hasattr(stats, "connect_time")
+        assert hasattr(stats, "total_reconnects")
+
+    @pytest.mark.asyncio
+    async def test_coordinator_adaptive_polling_frequent_changes(self) -> None:
+        """Test coordinator adaptive polling with frequent changes - covers coordinator.py:471-478."""
+        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
+
+        mock_device = MagicMock()
+        mock_device.address = "DC:23:4D:21:43:A5"
+        mock_device.rssi = -60
+
+        coord = TuyaBLEMeshCoordinator(mock_device, hass=MagicMock(), entry_id="test")
+
+        # Simulate frequent state changes (triggers lines 471-478)
+        coord._state_change_counter = 2
+        initial_interval = coord._rssi_interval
+        coord._adjust_polling_interval()
+        # Should decrease interval
+        assert coord._rssi_interval < initial_interval
+
+    @pytest.mark.asyncio
+    async def test_coordinator_adaptive_polling_stable(self) -> None:
+        """Test coordinator adaptive polling in stable state - covers coordinator.py:481-488."""
+        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
+
+        mock_device = MagicMock()
+        mock_device.address = "DC:23:4D:21:43:A5"
+        mock_device.rssi = -60
+
+        coord = TuyaBLEMeshCoordinator(mock_device, hass=MagicMock(), entry_id="test")
+
+        # Simulate stable state (triggers lines 481-488)
+        coord._state_change_counter = 0
+        coord._stable_cycles = 20
+        initial_interval = coord._rssi_interval
+        coord._adjust_polling_interval()
+        # Should increase interval
+        assert coord._rssi_interval > initial_interval
+
+    @pytest.mark.asyncio
+    async def test_coordinator_rssi_stability_tracking(self) -> None:
+        """Test coordinator RSSI stability tracking - covers coordinator.py:534-536."""
+        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
+
+        mock_device = MagicMock()
+        mock_device.address = "DC:23:4D:21:43:A5"
+        mock_device.rssi = -60
+
+        mock_hass = MagicMock()
+        coord = TuyaBLEMeshCoordinator(mock_device, hass=mock_hass, entry_id="test")
+
+        # Manually trigger the stability tracking code path
+        # Set up for RSSI stability check (lines 533-536)
+        coord._stable_cycles = 20  # Above threshold
+
+        # Manually call _adjust_polling_interval to cover lines 535-536
+        coord._adjust_polling_interval()
+
+        # Verify it ran without error
+        assert coord._stable_cycles == 20

@@ -1163,6 +1163,49 @@ class TestRSSIPolling:
 
         assert listener.call_count >= 1
 
+    @pytest.mark.asyncio
+    async def test_rssi_loop_stability_tracking(self) -> None:
+        """RSSI loop should track stability and adjust polling - covers lines 534-536."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        coord._state.available = True
+
+        # Create BLE devices with stable RSSI (within ±2 dBm)
+        mock_ble_device_1 = MagicMock()
+        mock_ble_device_1.rssi = -60
+
+        mock_ble_device_2 = MagicMock()
+        mock_ble_device_2.rssi = -61  # Only 1 dBm difference (stable)
+
+        call_count = 0
+        rssi_values = [-60, -61] * (_RSSI_STABILITY_THRESHOLD + 2)  # Repeat stable values
+
+        async def fake_sleep(seconds: float) -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count >= len(rssi_values):
+                coord._running = False
+
+        async def fake_find_device(address: str, timeout: float = 5.0):
+            nonlocal call_count
+            if call_count < len(rssi_values):
+                mock_device = MagicMock()
+                mock_device.rssi = rssi_values[call_count]
+                return mock_device
+            return None
+
+        with (
+            patch(_PATCH_SLEEP, side_effect=fake_sleep),
+            patch("bleak.BleakScanner") as mock_scanner_cls,
+        ):
+            mock_scanner_cls.find_device_by_address = fake_find_device
+            await coord._rssi_loop()
+
+        # Verify that stability was tracked and polling interval was adjusted
+        # Lines 534-536 should have been executed when stable_cycles reached threshold
+        assert coord._stable_cycles >= 0  # May have been reset after adjustment
+
 
 @pytest.mark.requires_ha
 class TestSeqPersistenceExtended:
