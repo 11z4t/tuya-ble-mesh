@@ -18,6 +18,7 @@ from homeassistant.config_entries import HANDLERS
 from custom_components.tuya_ble_mesh.config_flow import (
     TuyaBLEMeshConfigFlow,
     TuyaBLEMeshOptionsFlow,
+    _parse_json_body,
     _test_bridge_with_session,
     _validate_bridge_host,
     _validate_hex_key,
@@ -67,6 +68,46 @@ _TEST_APP_KEY = "aabbccddeeff00112233445566778899"  # pragma: allowlist secret
 
 
 @pytest.mark.requires_ha
+class TestParseJsonBody:
+    """Test _parse_json_body() helper."""
+
+    def test_valid_dict_returned(self) -> None:
+        """Valid JSON dict is returned as-is."""
+        result = _parse_json_body('{"status": "ok", "value": 123}')
+        assert result == {"status": "ok", "value": 123}
+
+    def test_valid_empty_dict(self) -> None:
+        """Empty dict is valid."""
+        result = _parse_json_body("{}")
+        assert result == {}
+
+    def test_invalid_json_returns_empty_dict(self) -> None:
+        """Invalid JSON returns empty dict."""
+        result = _parse_json_body("{invalid json")
+        assert result == {}
+
+    def test_json_array_returns_empty_dict(self) -> None:
+        """JSON array (not dict) returns empty dict."""
+        result = _parse_json_body("[1, 2, 3]")
+        assert result == {}
+
+    def test_json_string_returns_empty_dict(self) -> None:
+        """JSON string (not dict) returns empty dict."""
+        result = _parse_json_body('"hello"')
+        assert result == {}
+
+    def test_json_number_returns_empty_dict(self) -> None:
+        """JSON number (not dict) returns empty dict."""
+        result = _parse_json_body("123")
+        assert result == {}
+
+    def test_json_null_returns_empty_dict(self) -> None:
+        """JSON null returns empty dict."""
+        result = _parse_json_body("null")
+        assert result == {}
+
+
+@pytest.mark.requires_ha
 class TestValidateMac:
     """Test MAC address validation."""
 
@@ -106,6 +147,17 @@ class TestConfigFlowInit:
     def test_version(self) -> None:
         flow = _make_flow()
         assert flow.VERSION == 1
+
+    def test_async_get_options_flow(self) -> None:
+        """async_get_options_flow returns TuyaBLEMeshOptionsFlow instance."""
+        config_entry = MagicMock()
+        config_entry.data = {CONF_DEVICE_TYPE: DEVICE_TYPE_LIGHT}
+        config_entry.entry_id = "test_entry"
+
+        flow = TuyaBLEMeshConfigFlow.async_get_options_flow(config_entry)
+
+        assert isinstance(flow, TuyaBLEMeshOptionsFlow)
+        assert flow._config_entry is config_entry
 
 
 @pytest.mark.requires_ha
@@ -618,6 +670,25 @@ class TestSigBridgeStep:
         assert result["type"] == "form"
         assert result["step_id"] == "sig_bridge"
 
+    @pytest.mark.asyncio
+    async def test_sig_bridge_invalid_host_shows_error(self) -> None:
+        """Invalid bridge host shows error."""
+        flow = _make_flow()
+        flow._discovery_info = {
+            "address": "AA:BB:CC:DD:EE:FF",
+            "name": "SIG Bridge Plug",
+        }
+
+        result = await flow.async_step_sig_bridge(
+            {
+                CONF_BRIDGE_HOST: "http://malicious.com",
+                CONF_BRIDGE_PORT: 8099,
+            }
+        )
+
+        assert result["type"] == "form"
+        assert result["errors"][CONF_BRIDGE_HOST] == "invalid_bridge_host"
+
 
 @pytest.mark.requires_ha
 class TestTelinkBridgeStep:
@@ -706,6 +777,25 @@ class TestTelinkBridgeStep:
 
         assert result["type"] == "form"
         assert result["step_id"] == "telink_bridge"
+
+    @pytest.mark.asyncio
+    async def test_telink_bridge_invalid_host_shows_error(self) -> None:
+        """Invalid bridge host shows error."""
+        flow = _make_flow()
+        flow._discovery_info = {
+            "address": "AA:BB:CC:DD:EE:FF",
+            "name": "Telink Bridge Light",
+        }
+
+        result = await flow.async_step_telink_bridge(
+            {
+                CONF_BRIDGE_HOST: "127.0.0.1",  # SSRF risk
+                CONF_BRIDGE_PORT: 9000,
+            }
+        )
+
+        assert result["type"] == "form"
+        assert result["errors"][CONF_BRIDGE_HOST] == "invalid_bridge_host"
 
 
 @pytest.mark.requires_ha
@@ -798,6 +888,42 @@ class TestValidateBridgeHost:
 
     def test_path_rejected(self) -> None:
         assert _validate_bridge_host("192.168.1.100/path") == "invalid_bridge_host"
+
+    def test_backslash_rejected(self) -> None:
+        """Reject backslash in host (Windows path injection)."""
+        assert _validate_bridge_host("192.168.1.100\\path") == "invalid_bridge_host"
+
+    def test_pattern_mismatch_rejected(self) -> None:
+        """Reject malformed host string that doesn't match pattern."""
+        assert _validate_bridge_host("host@domain") == "invalid_bridge_host"
+
+    def test_ssrf_loopback_ipv4_rejected(self) -> None:
+        """Reject loopback address (127.0.0.1 SSRF risk)."""
+        assert _validate_bridge_host("127.0.0.1") == "invalid_bridge_host"
+
+    def test_ssrf_link_local_rejected(self) -> None:
+        """Reject link-local address (169.254.x.x SSRF risk)."""
+        assert _validate_bridge_host("169.254.169.254") == "invalid_bridge_host"
+
+    def test_ssrf_ipv6_loopback_rejected(self) -> None:
+        """Reject IPv6 loopback (::1 SSRF risk)."""
+        assert _validate_bridge_host("::1") == "invalid_bridge_host"
+
+    def test_ssrf_ipv6_link_local_rejected(self) -> None:
+        """Reject IPv6 link-local (fe80:: SSRF risk)."""
+        assert _validate_bridge_host("fe80::1") == "invalid_bridge_host"
+
+    def test_ssrf_hex_encoded_ip_rejected(self) -> None:
+        """Reject hex-encoded IP (0x7f000001 = 127.0.0.1)."""
+        assert _validate_bridge_host("0x7f000001") == "invalid_bridge_host"
+
+    def test_ssrf_hex_uppercase_rejected(self) -> None:
+        """Reject uppercase hex-encoded IP."""
+        assert _validate_bridge_host("0X7F000001") == "invalid_bridge_host"
+
+    def test_valid_hostname_not_ssrf(self) -> None:
+        """Hostnames are allowed (not resolved, so no SSRF check)."""
+        assert _validate_bridge_host("localhost") is None
 
 
 @pytest.mark.requires_ha
@@ -927,6 +1053,181 @@ class TestBluetoothSigMeshProxyDiscovery:
         await flow.async_step_bluetooth(service_info)
 
         assert flow._discovery_info["name"] == ""
+
+
+@pytest.mark.requires_ha
+class TestRunProvision:
+    """Test _run_provision provisioning flow."""
+
+    @pytest.mark.asyncio
+    async def test_run_provision_success_full_flow(self) -> None:
+        """Successful provisioning returns all three keys."""
+        flow = _make_flow()
+
+        # Mock provisioner result
+        mock_prov_result = MagicMock()
+        mock_prov_result.dev_key = bytes.fromhex(_TEST_DEV_KEY)
+        mock_prov_result.num_elements = 1
+
+        # Mock device connection and config
+        mock_device = MagicMock()
+        mock_device.connect = AsyncMock()
+        mock_device.disconnect = AsyncMock()
+        mock_device.send_config_appkey_add = AsyncMock(return_value=True)
+        mock_device.send_config_model_app_bind = AsyncMock(return_value=True)
+
+        with patch("tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner") as mock_prov_cls:
+            with patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device):
+                with patch("asyncio.sleep", new_callable=AsyncMock):
+                    mock_provisioner = MagicMock()
+                    mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
+                    mock_prov_cls.return_value = mock_provisioner
+
+                    net_key, dev_key, app_key = await flow._run_provision("AA:BB:CC:DD:EE:FF")
+
+        # Verify keys are 32-char hex strings
+        assert len(net_key) == 32
+        assert len(dev_key) == 32
+        assert len(app_key) == 32
+        assert all(c in "0123456789abcdef" for c in net_key)
+        assert dev_key == _TEST_DEV_KEY
+
+    @pytest.mark.asyncio
+    async def test_run_provision_appkey_add_failed(self) -> None:
+        """AppKey add failure is logged but provisioning succeeds."""
+        flow = _make_flow()
+
+        mock_prov_result = MagicMock()
+        mock_prov_result.dev_key = bytes.fromhex(_TEST_DEV_KEY)
+        mock_prov_result.num_elements = 1
+
+        mock_device = MagicMock()
+        mock_device.connect = AsyncMock()
+        mock_device.disconnect = AsyncMock()
+        mock_device.send_config_appkey_add = AsyncMock(return_value=False)  # FAIL
+        mock_device.send_config_model_app_bind = AsyncMock(return_value=True)
+
+        with patch("tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner") as mock_prov_cls:
+            with patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device):
+                with patch("asyncio.sleep", new_callable=AsyncMock):
+                    mock_provisioner = MagicMock()
+                    mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
+                    mock_prov_cls.return_value = mock_provisioner
+
+                    net_key, dev_key, app_key = await flow._run_provision("AA:BB:CC:DD:EE:FF")
+
+        # Should still return keys (warning logged)
+        assert len(net_key) == 32
+        assert dev_key == _TEST_DEV_KEY
+
+    @pytest.mark.asyncio
+    async def test_run_provision_model_bind_failed(self) -> None:
+        """Model bind failure is logged but provisioning succeeds."""
+        flow = _make_flow()
+
+        mock_prov_result = MagicMock()
+        mock_prov_result.dev_key = bytes.fromhex(_TEST_DEV_KEY)
+        mock_prov_result.num_elements = 1
+
+        mock_device = MagicMock()
+        mock_device.connect = AsyncMock()
+        mock_device.disconnect = AsyncMock()
+        mock_device.send_config_appkey_add = AsyncMock(return_value=True)
+        mock_device.send_config_model_app_bind = AsyncMock(return_value=False)  # FAIL
+
+        with patch("tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner") as mock_prov_cls:
+            with patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device):
+                with patch("asyncio.sleep", new_callable=AsyncMock):
+                    mock_provisioner = MagicMock()
+                    mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
+                    mock_prov_cls.return_value = mock_provisioner
+
+                    net_key, dev_key, app_key = await flow._run_provision("AA:BB:CC:DD:EE:FF")
+
+        # Should still return keys
+        assert len(net_key) == 32
+        assert dev_key == _TEST_DEV_KEY
+
+    @pytest.mark.asyncio
+    async def test_run_provision_post_config_exception(self) -> None:
+        """Exception in post-provisioning config is caught and logged."""
+        flow = _make_flow()
+
+        mock_prov_result = MagicMock()
+        mock_prov_result.dev_key = bytes.fromhex(_TEST_DEV_KEY)
+        mock_prov_result.num_elements = 1
+
+        mock_device = MagicMock()
+        mock_device.connect = AsyncMock(side_effect=Exception("connection timeout"))
+        mock_device.disconnect = AsyncMock()
+
+        with patch("tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner") as mock_prov_cls:
+            with patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device):
+                with patch("asyncio.sleep", new_callable=AsyncMock):
+                    mock_provisioner = MagicMock()
+                    mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
+                    mock_prov_cls.return_value = mock_provisioner
+
+                    # Should still return keys despite post-config failure
+                    net_key, dev_key, app_key = await flow._run_provision("AA:BB:CC:DD:EE:FF")
+
+        assert len(net_key) == 32
+        assert dev_key == _TEST_DEV_KEY
+        mock_device.disconnect.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_run_provision_ble_callbacks_called(self) -> None:
+        """BLE device and connect callbacks are properly invoked."""
+        flow = _make_flow()
+
+        mock_prov_result = MagicMock()
+        mock_prov_result.dev_key = bytes.fromhex(_TEST_DEV_KEY)
+        mock_prov_result.num_elements = 1
+
+        mock_device = MagicMock()
+        mock_device.connect = AsyncMock()
+        mock_device.disconnect = AsyncMock()
+        mock_device.send_config_appkey_add = AsyncMock(return_value=True)
+        mock_device.send_config_model_app_bind = AsyncMock(return_value=True)
+
+        # Capture the callbacks passed to SIGMeshProvisioner
+        captured_provisioner_kwargs = {}
+
+        def capture_provisioner_init(**kwargs: Any) -> MagicMock:
+            captured_provisioner_kwargs.update(kwargs)
+            mock_provisioner = MagicMock()
+            mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
+            return mock_provisioner
+
+        with patch("tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner", side_effect=capture_provisioner_init):
+            with patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device):
+                with patch("asyncio.sleep", new_callable=AsyncMock):
+                    await flow._run_provision("AA:BB:CC:DD:EE:FF")
+
+        # Verify callbacks were passed
+        assert "ble_device_callback" in captured_provisioner_kwargs
+        assert "ble_connect_callback" in captured_provisioner_kwargs
+
+        # Test the callbacks
+        ble_device_cb = captured_provisioner_kwargs["ble_device_callback"]
+        ble_connect_cb = captured_provisioner_kwargs["ble_connect_callback"]
+
+        # Test ble_device_cb with connectable=True device
+        mock_ble_device_connectable = MagicMock()
+        with patch("homeassistant.components.bluetooth.async_ble_device_from_address", return_value=mock_ble_device_connectable):
+            result = ble_device_cb("AA:BB:CC:DD:EE:FF")
+            assert result is mock_ble_device_connectable
+
+        # Test ble_device_cb fallback to connectable=False when connectable=True returns None
+        with patch("homeassistant.components.bluetooth.async_ble_device_from_address") as mock_bt:
+            mock_ble_device_non_connectable = MagicMock()
+            mock_bt.side_effect = [None, mock_ble_device_non_connectable]  # First call returns None
+            result = ble_device_cb("AA:BB:CC:DD:EE:FF")
+            assert result is mock_ble_device_non_connectable
+
+        # Test ble_connect_cb - just verify it's callable
+        # (actual establish_connection behavior is tested elsewhere)
+        assert callable(ble_connect_cb)
 
 
 def _make_options_flow(
@@ -1088,3 +1389,138 @@ class TestOptionsFlowMerge:
         assert new_data[CONF_DEV_KEY] == _TEST_DEV_KEY
         assert new_data[CONF_APP_KEY] == _TEST_APP_KEY
         assert new_data[CONF_DEVICE_TYPE] == DEVICE_TYPE_SIG_PLUG
+
+
+@pytest.mark.requires_ha
+class TestReauthFlow:
+    """Test reauth flow when mesh credentials fail."""
+
+    @pytest.mark.asyncio
+    async def test_reauth_shows_form(self) -> None:
+        """Reauth step redirects to reauth_confirm."""
+        flow = _make_flow()
+        flow.context = {"entry_id": "test_entry"}
+
+        # Create a mock entry
+        mock_entry = MagicMock()
+        mock_entry.data = {
+            CONF_MAC_ADDRESS: "DC:23:4D:21:43:A5",
+            CONF_DEVICE_TYPE: DEVICE_TYPE_LIGHT,
+            CONF_MESH_NAME: "old_mesh",
+            CONF_MESH_PASSWORD: "old_pass",  # pragma: allowlist secret
+        }
+        mock_entry.entry_id = "test_entry"
+        flow.hass.config_entries.async_get_entry = MagicMock(return_value=mock_entry)
+
+        result = await flow.async_step_reauth({})
+
+        assert result["type"] == "form"
+        assert result["step_id"] == "reauth_confirm"
+
+    @pytest.mark.asyncio
+    async def test_reauth_confirm_shows_mesh_fields_for_light(self) -> None:
+        """Reauth confirm shows mesh fields for light devices."""
+        flow = _make_flow()
+        flow.context = {"entry_id": "test_entry"}
+
+        mock_entry = MagicMock()
+        mock_entry.data = {
+            CONF_MAC_ADDRESS: "DC:23:4D:21:43:A5",
+            CONF_DEVICE_TYPE: DEVICE_TYPE_LIGHT,
+        }
+        mock_entry.entry_id = "test_entry"
+        flow.hass.config_entries.async_get_entry = MagicMock(return_value=mock_entry)
+
+        result = await flow.async_step_reauth_confirm(None)
+
+        assert result["type"] == "form"
+        assert result["step_id"] == "reauth_confirm"
+        schema_keys = [str(k) for k in result["data_schema"].schema]
+        assert CONF_MESH_NAME in schema_keys
+        assert CONF_MESH_PASSWORD in schema_keys
+
+    @pytest.mark.asyncio
+    async def test_reauth_confirm_shows_bridge_fields_for_bridge(self) -> None:
+        """Reauth confirm shows bridge fields for bridge devices."""
+        flow = _make_flow()
+        flow.context = {"entry_id": "test_entry"}
+
+        mock_entry = MagicMock()
+        mock_entry.data = {
+            CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF",
+            CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_BRIDGE_PLUG,
+        }
+        mock_entry.entry_id = "test_entry"
+        flow.hass.config_entries.async_get_entry = MagicMock(return_value=mock_entry)
+
+        result = await flow.async_step_reauth_confirm(None)
+
+        assert result["type"] == "form"
+        assert result["step_id"] == "reauth_confirm"
+        schema_keys = [str(k) for k in result["data_schema"].schema]
+        assert CONF_BRIDGE_HOST in schema_keys
+        assert CONF_BRIDGE_PORT in schema_keys
+
+    @pytest.mark.asyncio
+    async def test_reauth_confirm_updates_entry(self) -> None:
+        """Submitting reauth updates entry and reloads."""
+        flow = _make_flow()
+        flow.context = {"entry_id": "test_entry"}
+
+        mock_entry = MagicMock()
+        mock_entry.data = {
+            CONF_MAC_ADDRESS: "DC:23:4D:21:43:A5",
+            CONF_DEVICE_TYPE: DEVICE_TYPE_LIGHT,
+            CONF_MESH_NAME: "old_mesh",
+            CONF_MESH_PASSWORD: "old_pass",  # pragma: allowlist secret
+        }
+        mock_entry.entry_id = "test_entry"
+        flow.hass.config_entries.async_get_entry = MagicMock(return_value=mock_entry)
+        flow.hass.config_entries.async_update_entry = MagicMock()
+        flow.hass.config_entries.async_reload = AsyncMock()
+
+        result = await flow.async_step_reauth_confirm(
+            {
+                CONF_MESH_NAME: "new_mesh",
+                CONF_MESH_PASSWORD: "new_pass",  # pragma: allowlist secret
+            }
+        )
+
+        assert result["type"] == "abort"
+        assert result["reason"] == "reauth_successful"
+        flow.hass.config_entries.async_update_entry.assert_called_once()
+        flow.hass.config_entries.async_reload.assert_called_once_with("test_entry")
+
+    @pytest.mark.asyncio
+    async def test_reauth_confirm_no_entry_shows_form(self) -> None:
+        """Reauth confirm with no entry still shows form."""
+        flow = _make_flow()
+        flow.context = {}
+
+        flow.hass.config_entries.async_get_entry = MagicMock(return_value=None)
+
+        result = await flow.async_step_reauth_confirm(None)
+
+        assert result["type"] == "form"
+        assert result["step_id"] == "reauth_confirm"
+
+    @pytest.mark.asyncio
+    async def test_reauth_confirm_telink_bridge_shows_bridge_fields(self) -> None:
+        """Telink bridge device shows bridge fields in reauth."""
+        flow = _make_flow()
+        flow.context = {"entry_id": "test_entry"}
+
+        mock_entry = MagicMock()
+        mock_entry.data = {
+            CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF",
+            CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
+        }
+        mock_entry.entry_id = "test_entry"
+        flow.hass.config_entries.async_get_entry = MagicMock(return_value=mock_entry)
+
+        result = await flow.async_step_reauth_confirm(None)
+
+        assert result["type"] == "form"
+        schema_keys = [str(k) for k in result["data_schema"].schema]
+        assert CONF_BRIDGE_HOST in schema_keys
+        assert CONF_BRIDGE_PORT in schema_keys
