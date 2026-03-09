@@ -232,6 +232,171 @@ class TestAsyncSetupEntrySIGMesh:
         )
 
     @pytest.mark.asyncio
+    async def test_sig_mesh_device_with_ble_callback(self) -> None:
+        """Test SIG Mesh device creation with BLE device callback."""
+        hass = make_mock_hass()
+        entry = MagicMock()
+        entry.entry_id = "sig_plug_entry_id"
+        entry.title = "SIG Plug"
+        entry.data = {
+            "mac_address": "BB:BB:CC:CC:DD:DD",
+            "device_type": "sig_plug",
+            "unicast_target": "00bb",
+            "unicast_our": "0002",
+            "op_item_prefix": "cfg",
+            "iv_index": 0,
+            "net_key": "aabbccdd",
+            "dev_key": "ddeeff00",
+            "app_key": "112233",
+        }
+
+        mock_device = MagicMock()
+        mock_device.address = "BB:BB:CC:CC:DD:DD"
+        mock_coord = MagicMock()
+        mock_coord.async_start = AsyncMock()
+        mock_coord.async_stop = AsyncMock()
+        mock_coord.device = mock_device
+
+        mock_ble_device = MagicMock()
+
+        with (
+            patch(
+                "tuya_ble_mesh.sig_mesh_device.SIGMeshDevice",
+                return_value=mock_device,
+            ) as sig_cls,
+            patch(
+                "tuya_ble_mesh.secrets.DictSecretsManager",
+            ),
+            patch(_PATCH_COORDINATOR, return_value=mock_coord),
+            patch(
+                "homeassistant.components.bluetooth.async_ble_device_from_address",
+                return_value=mock_ble_device,
+            ) as mock_ble,
+        ):
+            result = await async_setup_entry(hass, entry)
+
+            # Get the ble_device_callback that was passed
+            call_kwargs = sig_cls.call_args[1]
+            ble_callback = call_kwargs["ble_device_callback"]
+
+            # Call the callback to trigger _ble_device_from_ha
+            ble_result = ble_callback("BB:BB:CC:CC:DD:DD")
+
+            # Verify BLE callback was used and returned device
+            assert ble_result is mock_ble_device
+            assert mock_ble.called
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_sig_mesh_device_ble_callback_fallback(self) -> None:
+        """Test BLE callback fallback when connectable device not found."""
+        hass = make_mock_hass()
+        entry = MagicMock()
+        entry.entry_id = "sig_fallback_entry"
+        entry.title = "SIG Plug Fallback"
+        entry.data = {
+            "mac_address": "CC:CC:DD:DD:EE:EE",
+            "device_type": "sig_plug",
+            "unicast_target": "00cc",
+            "unicast_our": "0003",
+            "op_item_prefix": "cfg",
+            "iv_index": 0,
+            "net_key": "aabbccdd",
+            "dev_key": "ddeeff00",
+            "app_key": "112233",
+        }
+
+        mock_device = MagicMock()
+        mock_device.address = "CC:CC:DD:DD:EE:EE"
+        mock_coord = MagicMock()
+        mock_coord.async_start = AsyncMock()
+        mock_coord.async_stop = AsyncMock()
+        mock_coord.device = mock_device
+
+        mock_ble_device = MagicMock()
+
+        with (
+            patch(
+                "tuya_ble_mesh.sig_mesh_device.SIGMeshDevice",
+                return_value=mock_device,
+            ) as sig_cls,
+            patch(
+                "tuya_ble_mesh.secrets.DictSecretsManager",
+            ),
+            patch(_PATCH_COORDINATOR, return_value=mock_coord),
+            patch(
+                "homeassistant.components.bluetooth.async_ble_device_from_address",
+                side_effect=[None, mock_ble_device],  # First call returns None, second returns device
+            ) as mock_ble,
+        ):
+            await async_setup_entry(hass, entry)
+
+            # Get the ble_device_callback that was passed
+            call_kwargs = sig_cls.call_args[1]
+            ble_callback = call_kwargs["ble_device_callback"]
+
+            # Call the callback to trigger _ble_device_from_ha with fallback
+            ble_result = ble_callback("CC:CC:DD:DD:EE:EE")
+
+            # Verify fallback was used (both connectable=True and connectable=False)
+            assert ble_result is mock_ble_device
+            assert mock_ble.call_count == 2
+
+    @pytest.mark.asyncio
+    async def test_sig_mesh_device_ble_callback_not_found(self) -> None:
+        """Test BLE callback when device not found at all."""
+        hass = make_mock_hass()
+        entry = MagicMock()
+        entry.entry_id = "sig_notfound_entry"
+        entry.title = "SIG Plug Not Found"
+        entry.data = {
+            "mac_address": "DD:DD:EE:EE:FF:FF",
+            "device_type": "sig_plug",
+            "unicast_target": "00dd",
+            "unicast_our": "0004",
+            "op_item_prefix": "cfg",
+            "iv_index": 0,
+            "net_key": "aabbccdd",
+            "dev_key": "ddeeff00",
+            "app_key": "112233",
+        }
+
+        mock_device = MagicMock()
+        mock_device.address = "DD:DD:EE:EE:FF:FF"
+        mock_coord = MagicMock()
+        mock_coord.async_start = AsyncMock()
+        mock_coord.async_stop = AsyncMock()
+        mock_coord.device = mock_device
+
+        with (
+            patch(
+                "tuya_ble_mesh.sig_mesh_device.SIGMeshDevice",
+                return_value=mock_device,
+            ) as sig_cls,
+            patch(
+                "tuya_ble_mesh.secrets.DictSecretsManager",
+            ),
+            patch(_PATCH_COORDINATOR, return_value=mock_coord),
+            patch(
+                "homeassistant.components.bluetooth.async_ble_device_from_address",
+                return_value=None,  # Both calls return None
+            ) as mock_ble,
+        ):
+            await async_setup_entry(hass, entry)
+
+            # Get the ble_device_callback that was passed
+            call_kwargs = sig_cls.call_args[1]
+            ble_callback = call_kwargs["ble_device_callback"]
+
+            # Call the callback to trigger _ble_device_from_ha with no device found
+            ble_result = ble_callback("DD:DD:EE:EE:FF:FF")
+
+            # Verify both calls were made and None was returned
+            assert ble_result is None
+            assert mock_ble.call_count == 2
+
+    @pytest.mark.asyncio
     async def test_setup_telink_bridge_light_creates_telink_device(self) -> None:
         """Test Telink Bridge Light device type creates TelinkBridgeDevice."""
         hass = make_mock_hass()
@@ -487,3 +652,118 @@ class TestServiceHandlers:
 
             mock_get_logger.assert_called_with("tuya_ble_mesh")
             mock_logger.setLevel.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_identify_service_raises_on_device_error(self) -> None:
+        """Test identify service raises error when device.send_power fails."""
+        from custom_components.tuya_ble_mesh import async_setup_entry
+
+        hass = make_mock_hass()
+        hass.services = MagicMock()
+        hass.services.has_service = MagicMock(return_value=False)
+        registered_handlers = {}
+
+        def mock_register(domain: str, service: str, handler: Any, **kwargs: Any) -> None:
+            registered_handlers[service] = handler
+
+        hass.services.async_register = mock_register
+
+        entry = make_mock_entry()
+        mock_device = MagicMock()
+        mock_device.address = "DC:23:4D:21:43:A5"
+        # Make send_power fail
+        mock_device.send_power = AsyncMock(side_effect=Exception("BLE timeout"))
+        mock_coord = MagicMock()
+        mock_coord.async_start = AsyncMock()
+        mock_coord.device = mock_device
+
+        with (
+            patch(_PATCH_MESH_DEVICE, return_value=mock_device),
+            patch(_PATCH_COORDINATOR, return_value=mock_coord),
+        ):
+            await async_setup_entry(hass, entry)
+
+        identify_handler = registered_handlers["identify"]
+        call = MagicMock()
+        call.data = {"device_id": "test_device_id"}
+
+        with (
+            patch(
+                "homeassistant.helpers.device_registry.async_get"
+            ) as mock_reg_getter,
+        ):
+            mock_dev_reg = MagicMock()
+            mock_device_entry = MagicMock()
+            mock_device_entry.config_entries = {entry.entry_id}
+            mock_dev_reg.async_get = MagicMock(return_value=mock_device_entry)
+            mock_reg_getter.return_value = mock_dev_reg
+
+            hass.config_entries.async_get_entry = MagicMock(return_value=entry)
+
+            with pytest.raises(HomeAssistantError, match="Failed to identify device"):
+                await identify_handler(call)
+
+    @pytest.mark.asyncio
+    async def test_identify_service_no_coordinator_found(self) -> None:
+        """Test identify service raises error when coordinator not found for device."""
+        from custom_components.tuya_ble_mesh import async_setup_entry
+
+        hass = make_mock_hass()
+        hass.services = MagicMock()
+        hass.services.has_service = MagicMock(return_value=False)
+        registered_handlers = {}
+
+        def mock_register(domain: str, service: str, handler: Any, **kwargs: Any) -> None:
+            registered_handlers[service] = handler
+
+        hass.services.async_register = mock_register
+
+        entry = make_mock_entry()
+        mock_device, mock_coord = _make_patches()
+
+        with (
+            patch(_PATCH_MESH_DEVICE, return_value=mock_device),
+            patch(_PATCH_COORDINATOR, return_value=mock_coord),
+        ):
+            await async_setup_entry(hass, entry)
+
+        identify_handler = registered_handlers["identify"]
+        call = MagicMock()
+        call.data = {"device_id": "test_device_id"}
+
+        with (
+            patch(
+                "homeassistant.helpers.device_registry.async_get"
+            ) as mock_reg_getter,
+        ):
+            mock_dev_reg = MagicMock()
+            mock_device_entry = MagicMock()
+            mock_device_entry.config_entries = {entry.entry_id}
+            mock_dev_reg.async_get = MagicMock(return_value=mock_device_entry)
+            mock_reg_getter.return_value = mock_dev_reg
+
+            # Make async_get_entry return entry without runtime_data
+            entry_no_runtime = make_mock_entry()
+            del entry_no_runtime.runtime_data
+            hass.config_entries.async_get_entry = MagicMock(return_value=entry_no_runtime)
+
+            with pytest.raises(HomeAssistantError, match="Device not found"):
+                await identify_handler(call)
+
+
+@pytest.mark.requires_ha
+class TestUpdateListener:
+    """Test config entry update listener."""
+
+    @pytest.mark.asyncio
+    async def test_update_listener_reloads_entry(self) -> None:
+        """Test that update listener calls async_reload."""
+        from custom_components.tuya_ble_mesh import _async_update_listener
+
+        hass = make_mock_hass()
+        hass.config_entries.async_reload = AsyncMock()
+        entry = make_mock_entry()
+
+        await _async_update_listener(hass, entry)
+
+        hass.config_entries.async_reload.assert_called_once_with(entry.entry_id)
