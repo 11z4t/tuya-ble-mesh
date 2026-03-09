@@ -2,7 +2,100 @@
 
 This document captures insights, patterns, and lessons learned during development and testing of the Tuya BLE Mesh Home Assistant integration.
 
-**Last updated**: 2026-03-08 by Thor (VM 903) — Batch 5 CI fixes complete
+**Last updated**: 2026-03-09 by Thor (VM 903) — BLE proxy provisioning improvements
+
+---
+
+## PLAT-402 Improvements — BLE Proxy Provisioning & Error Handling (2026-03-09)
+
+### Completed Enhancements
+
+- ✅ **ESPHome Proxy Documentation** (`docs/ESPHOME_PROXY.md`):
+  - Comprehensive guide for using ESPHome BLE proxies with Tuya BLE Mesh
+  - Configuration examples for ESP32 devices
+  - Integration patterns with Home Assistant Bluetooth integration
+  - Troubleshooting guide and best practices
+  - Hardware recommendations and deployment strategies
+
+- ✅ **Enhanced Provisioning Error Handling**:
+  - Improved connection retry logic with exponential backoff
+  - Detailed error messages with actionable diagnostics
+  - Service enumeration validation (checks for Provisioning Service 0x1827)
+  - Separate tracking of scan vs. connection failures
+  - Timeout handling at every protocol step with context-aware messages
+  - Better ECDH error reporting (invalid curve points, crypto failures)
+
+- ✅ **BLE Proxy Connection Improvements** (`scripts/mesh_proxy_cmd.py`):
+  - Enhanced connect_with_retry() with exponential backoff
+  - Better logging and error categorization
+  - Connection state verification
+  - Detailed failure statistics in error messages
+
+### Key Error Handling Enhancements
+
+#### Before:
+```python
+# Generic error: "Failed to connect to <MAC> after N attempts"
+```
+
+#### After:
+```python
+# Detailed error with diagnostics:
+# "Failed to connect to <MAC> after N attempts (scan_failures=3, connect_failures=0).
+#  Check device is in range, not already provisioned, and advertising.
+#  Last error: TimeoutError"
+```
+
+#### Protocol-Level Improvements:
+- **Timeout context**: Each recv_prov() step now includes step name (e.g., "Capabilities", "PublicKey")
+- **Actionable errors**: Messages suggest concrete fixes (move closer, increase timeout, factory reset)
+- **Crypto validation**: ECDH failures now report specific issues (point not on curve, invalid key format)
+- **Authentication failures**: Clarify OOB requirements and No OOB mode limitations
+
+### ESPHome Proxy Integration
+
+The provisioner now supports ESPHome proxies via callbacks:
+
+```python
+# HA Bluetooth integration provides BLE device routing
+provisioner = SIGMeshProvisioner(
+    net_key=net_key,
+    app_key=app_key,
+    unicast_addr=0x00B0,
+    ble_device_callback=bluetooth.async_ble_device_from_address,
+    ble_connect_callback=establish_connection,  # bleak-retry-connector
+)
+```
+
+Benefits:
+- Extended BLE range via distributed ESP32 proxies
+- Load distribution across multiple proxies
+- Redundancy and failover
+- Cost-effective ($5-10 ESP32 boards)
+
+### Test Coverage
+
+- All unit tests updated for enhanced error handling
+- Added mocks for `get_services()` and `is_connected` validation
+- Test coverage maintained at **100%** (1078/1078 statements)
+- 1282 tests passing, 23 skipped
+
+### Lessons Learned
+
+1. **Timeout Management**: Adding context to timeout errors drastically improves debuggability
+2. **Exponential Backoff**: BLE scanning benefits from progressive delays (2s → 3s → 4.5s → 6.75s)
+3. **Service Validation**: Checking for Provisioning Service (0x1827) early prevents confusing errors later
+4. **Error Categorization**: Separating scan vs. connection failures helps identify root cause
+5. **ESPHome Integration**: Using callbacks makes provisioner agnostic to BLE transport (direct adapter vs. proxy)
+
+### Documentation Files Added
+
+- `docs/ESPHOME_PROXY.md` — Complete guide to ESPHome BLE proxy integration
+  - Configuration examples
+  - Troubleshooting flowchart
+  - Performance tuning
+  - Security considerations
+  - Monitoring and alerting
 
 ---
 
