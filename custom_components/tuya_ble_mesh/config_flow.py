@@ -22,8 +22,8 @@ _BUNDLED_LIB = str(Path(__file__).resolve().parent / "lib")
 _DEV_LIB = str(Path(__file__).resolve().parent.parent.parent / "lib")
 for _lib_dir in (_BUNDLED_LIB, _DEV_LIB):
     if Path(_lib_dir).is_dir() and _lib_dir not in sys.path:
-        sys.path.insert(0, _lib_dir)
-        break
+        sys.path.insert(0, _lib_dir)  # pragma: no cover
+        break  # pragma: no cover
 
 import voluptuous as vol  # noqa: E402
 from homeassistant import config_entries  # noqa: E402
