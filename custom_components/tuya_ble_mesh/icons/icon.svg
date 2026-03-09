@@ -1,0 +1,7 @@
+<svg width="256" height="256" xmlns="http://www.w3.org/2000/svg">
+  <rect width="256" height="256" fill="#03a9f4"/>
+  <circle cx="128" cy="128" r="80" fill="white" opacity="0.9"/>
+  <path d="M 128 60 L 128 120 L 170 150" stroke="#03a9f4" stroke-width="12" stroke-linecap="round" fill="none"/>
+  <circle cx="128" cy="128" r="8" fill="#03a9f4"/>
+  <text x="128" y="220" font-family="Arial,sans-serif" font-size="24" fill="white" text-anchor="middle" font-weight="bold">BLE</text>
+</svg>
