@@ -503,7 +503,13 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             try:
                 net_key_hex, dev_key_hex, app_key_hex = await self._run_provision(mac)
             except Exception as exc:
-                _LOGGER.warning("Provisioning failed for %s: %s", mac, type(exc).__name__)
+                _LOGGER.warning(
+                    "Provisioning failed for %s: %s: %s",
+                    mac,
+                    type(exc).__name__,
+                    exc,
+                    exc_info=True,
+                )
                 errors["base"] = "provisioning_failed"
             else:
                 await self.async_set_unique_id(mac)
@@ -566,15 +572,29 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         )
 
         # HA Bluetooth callbacks — use retry-connector to avoid HA warning
+        # NOTE: Works with ESPHome BLE proxies. If HA has no local adapter but has
+        # ESPHome BLE proxies, devices discovered by proxies will be in HA's bluetooth
+        # registry and establish_connection will route traffic via the proxy.
         def _ble_device_cb(address: str) -> Any:
             """Look up BLEDevice via HA bluetooth registry (non-connectable OK)."""
             device = ha_bluetooth.async_ble_device_from_address(
                 self.hass, address.upper(), connectable=True
             )
             if device is None:
+                _LOGGER.debug(
+                    "No connectable BLEDevice for %s, trying non-connectable", address
+                )
                 device = ha_bluetooth.async_ble_device_from_address(
                     self.hass, address.upper(), connectable=False
                 )
+            if device is None:
+                _LOGGER.warning(
+                    "BLEDevice not found in HA bluetooth registry for %s. "
+                    "Ensure device is in range of a BLE adapter or ESPHome BLE proxy.",
+                    address,
+                )
+            else:
+                _LOGGER.debug("Found BLEDevice for %s: %s", address, device)
             return device
 
         async def _ble_connect_cb(ble_device: Any) -> BleakClient:
