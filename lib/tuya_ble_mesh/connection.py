@@ -228,7 +228,10 @@ class BLEConnection:
                         timeout=timeout,
                     )
                 if ble_device is None:
-                    msg = f"Device {self._address} not found in BLE scan"
+                    msg = (
+                        f"Device {self._address} not found in BLE scan. "
+                        "Ensure device is powered on and in range of a BLE adapter or ESPHome proxy."
+                    )
                     raise ConnectionError(msg)
 
                 self._client = await establish_connection(
