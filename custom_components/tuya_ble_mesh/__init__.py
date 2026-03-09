@@ -186,16 +186,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
 
     from homeassistant.helpers.device_registry import DeviceInfo
 
+    # Create device_info (firmware version will be updated by coordinator after connection)
     device_info = DeviceInfo(
         identifiers={(DOMAIN, mac_address)},
         name=entry.title,
         manufacturer="Malmbergs / Tuya",
         model=device_type or "BLE Mesh",
-        sw_version=device.firmware_version,
+        sw_version=None,  # Will be populated by coordinator after connection
         connections={("mac", mac_address)},
     )
 
-    # Store runtime data in entry (typed, modern HA pattern)
+    # Store runtime data BEFORE async_start to avoid race condition
+    # (callbacks may fire during async_start and need access to runtime_data)
     entry.runtime_data = TuyaBLEMeshRuntimeData(
         coordinator=coordinator,
         device_info=device_info,
