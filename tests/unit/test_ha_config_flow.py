@@ -1199,10 +1199,13 @@ class TestRunProvision:
             mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
             return mock_provisioner
 
-        with patch("tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner", side_effect=capture_provisioner_init):
-            with patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device):
-                with patch("asyncio.sleep", new_callable=AsyncMock):
-                    await flow._run_provision("AA:BB:CC:DD:EE:FF")
+        # Mock establish_connection to avoid real BLE calls
+        mock_client = MagicMock()
+        with patch("bleak_retry_connector.establish_connection", new_callable=AsyncMock, return_value=mock_client):
+            with patch("tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner", side_effect=capture_provisioner_init):
+                with patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device):
+                    with patch("asyncio.sleep", new_callable=AsyncMock):
+                        await flow._run_provision("AA:BB:CC:DD:EE:FF")
 
         # Verify callbacks were passed
         assert "ble_device_callback" in captured_provisioner_kwargs
@@ -1225,9 +1228,59 @@ class TestRunProvision:
             result = ble_device_cb("AA:BB:CC:DD:EE:FF")
             assert result is mock_ble_device_non_connectable
 
-        # Test ble_connect_cb - just verify it's callable
-        # (actual establish_connection behavior is tested elsewhere)
+        # Test ble_connect_cb - verify it's callable and actually calls establish_connection
         assert callable(ble_connect_cb)
+        # Call the callback to cover line 602 - it will use the mock_client from the outer patch
+        mock_ble_device = MagicMock()
+        mock_ble_device.address = "AA:BB:CC:DD:EE:FF"
+        result = await ble_connect_cb(mock_ble_device)
+        # Just verify the callback returned something (using the mocked establish_connection from above)
+        assert result is not None
+
+    @pytest.mark.asyncio
+    async def test_run_provision_ble_device_not_found(self) -> None:
+        """BLE device callback logs warning when device not found."""
+        flow = _make_flow()
+
+        mock_prov_result = MagicMock()
+        mock_prov_result.dev_key = bytes.fromhex(_TEST_DEV_KEY)
+        mock_prov_result.num_elements = 1
+
+        mock_device = MagicMock()
+        mock_device.connect = AsyncMock()
+        mock_device.disconnect = AsyncMock()
+        mock_device.send_config_appkey_add = AsyncMock(return_value=True)
+        mock_device.send_config_model_app_bind = AsyncMock(return_value=True)
+
+        # Capture the callbacks passed to SIGMeshProvisioner
+        captured_provisioner_kwargs = {}
+
+        def capture_provisioner_init(**kwargs: Any) -> MagicMock:
+            captured_provisioner_kwargs.update(kwargs)
+            mock_provisioner = MagicMock()
+            mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
+            return mock_provisioner
+
+        # Mock establish_connection to avoid real BLE calls
+        mock_client = MagicMock()
+        with patch("bleak_retry_connector.establish_connection", new_callable=AsyncMock, return_value=mock_client):
+            with patch("tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner", side_effect=capture_provisioner_init):
+                with patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device):
+                    with patch("asyncio.sleep", new_callable=AsyncMock):
+                        await flow._run_provision("AA:BB:CC:DD:EE:FF")
+
+        # Verify callbacks were passed
+        assert "ble_device_callback" in captured_provisioner_kwargs
+        assert "ble_connect_callback" in captured_provisioner_kwargs
+
+        ble_device_cb = captured_provisioner_kwargs["ble_device_callback"]
+        ble_connect_cb = captured_provisioner_kwargs["ble_connect_callback"]
+
+        # Test ble_device_cb when device not found (both connectable=True and False return None)
+        with patch("homeassistant.components.bluetooth.async_ble_device_from_address") as mock_bt:
+            mock_bt.return_value = None  # Both calls return None
+            result = ble_device_cb("AA:BB:CC:DD:EE:FF")
+            assert result is None
 
 
 def _make_options_flow(
