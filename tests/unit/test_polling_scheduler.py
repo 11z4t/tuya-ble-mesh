@@ -8,6 +8,7 @@ slower polling during stable periods.
 from __future__ import annotations
 
 import sys
+from dataclasses import replace
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
 
@@ -110,7 +111,7 @@ class TestStateChangeTracking:
         coord = TuyaBLEMeshCoordinator(device)
 
         # Set initial state
-        coord._state.brightness = 50
+        coord._state = replace(coord._state, brightness=50)
 
         # Simulate status update with different brightness
         status = make_mock_status(white_brightness=100)
@@ -124,7 +125,7 @@ class TestStateChangeTracking:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
 
-        coord._state.color_temp = 30
+        coord._state = replace(coord._state, color_temp=30)
 
         status = make_mock_status(white_temp=80)
 
@@ -136,7 +137,7 @@ class TestStateChangeTracking:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
 
-        coord._state.mode = 0
+        coord._state = replace(coord._state, mode=0)
 
         status = make_mock_status(mode=1)
 
@@ -148,9 +149,7 @@ class TestStateChangeTracking:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
 
-        coord._state.red = 0
-        coord._state.green = 0
-        coord._state.blue = 0
+        coord._state = replace(coord._state, red=0, green=0, blue=0)
 
         status = make_mock_status(red=255, green=128, blue=64)
 
@@ -166,9 +165,7 @@ class TestStateChangeTracking:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
 
-        coord._state.brightness = 100
-        coord._state.color_temp = 50
-        coord._state.mode = 0
+        coord._state = replace(coord._state, brightness=100, color_temp=50, mode=0)
 
         status = make_mock_status(white_brightness=100, white_temp=50, mode=0)
 
@@ -507,7 +504,7 @@ class TestPollingIntervalPersistence:
         coord._rssi_interval = 45.0
 
         # Update state
-        coord._state.brightness = 200
+        coord._state = replace(coord._state, brightness=200)
 
         # Interval should persist
         assert coord._rssi_interval == 45.0
@@ -520,7 +517,7 @@ class TestPollingIntervalPersistence:
         coord._rssi_interval = 75.0
 
         # Change availability
-        coord._state.available = True
+        coord._state = replace(coord._state, available=True)
 
         # Interval should persist
         assert coord._rssi_interval == 75.0

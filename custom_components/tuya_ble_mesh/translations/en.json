@@ -160,6 +160,11 @@
       "energy": {
         "name": "Energy"
       }
+    },
+    "update": {
+      "firmware_update": {
+        "name": "Firmware"
+      }
     }
   },
   "exceptions": {

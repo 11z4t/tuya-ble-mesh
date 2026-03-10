@@ -112,6 +112,11 @@
       "energy": {
         "name": "Energi"
       }
+    },
+    "update": {
+      "firmware_update": {
+        "name": "Firmware"
+      }
     }
   },
   "exceptions": {
