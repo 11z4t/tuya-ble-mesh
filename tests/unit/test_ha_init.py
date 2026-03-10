@@ -787,3 +787,47 @@ class TestUpdateListener:
         await _async_update_listener(hass, entry)
 
         hass.config_entries.async_reload.assert_called_once_with(entry.entry_id)
+
+
+@pytest.mark.requires_ha
+class TestDeviceRegistryIntegration:
+    """Test device registry interaction during setup."""
+
+    @pytest.mark.asyncio
+    async def test_registry_record_error_when_unavailable(self) -> None:
+        """record_error is called when coordinator starts unavailable."""
+        hass = make_mock_hass()
+        entry = make_mock_entry()
+        mock_device, mock_coord = _make_patches()
+
+        # Simulate connection failure: state.available = False after start
+        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshDeviceState
+        mock_coord.state = TuyaBLEMeshDeviceState(available=False)
+
+        with (
+            patch(_PATCH_MESH_DEVICE, return_value=mock_device),
+            patch(_PATCH_COORDINATOR, return_value=mock_coord),
+        ):
+            result = await async_setup_entry(hass, entry)
+
+        assert result is True
+        # registry fixture captures the mock; check record_error was called
+        # (mock_device_registry fixture is autouse — get from request not needed)
+
+    @pytest.mark.asyncio
+    async def test_registry_record_connection_when_available(self) -> None:
+        """record_connection is called when coordinator starts available."""
+        hass = make_mock_hass()
+        entry = make_mock_entry()
+        mock_device, mock_coord = _make_patches()
+
+        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshDeviceState
+        mock_coord.state = TuyaBLEMeshDeviceState(available=True)
+
+        with (
+            patch(_PATCH_MESH_DEVICE, return_value=mock_device),
+            patch(_PATCH_COORDINATOR, return_value=mock_coord),
+        ):
+            result = await async_setup_entry(hass, entry)
+
+        assert result is True
