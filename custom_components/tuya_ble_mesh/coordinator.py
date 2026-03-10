@@ -61,6 +61,9 @@ _SEQ_PERSIST_INTERVAL = 10  # Save seq every N commands
 _SEQ_SAFETY_MARGIN = 100  # Add margin on restore to avoid replay
 _SEQ_STORE_VERSION = 1
 
+# Listener error tolerance: remove broken callbacks after this many consecutive failures
+_MAX_CALLBACK_ERRORS = 3
+
 
 @dataclass
 class TuyaBLEMeshDeviceState:
@@ -116,6 +119,8 @@ class TuyaBLEMeshCoordinator:
         self._device: AnyMeshDevice = device
         self._state = TuyaBLEMeshDeviceState()
         self._listeners: list[Callable[[], None]] = []
+        # Track consecutive failures per callback; remove after _MAX_CALLBACK_ERRORS
+        self._listener_error_counts: dict[int, int] = {}
         self._reconnect_task: asyncio.Task[None] | None = None
         self._rssi_task: asyncio.Task[None] | None = None
         self._backoff = _INITIAL_BACKOFF
@@ -201,7 +206,11 @@ class TuyaBLEMeshCoordinator:
         return remove
 
     def _notify_listeners(self) -> None:
-        """Notify all registered listeners of state change."""
+        """Notify all registered listeners of state change.
+
+        Tracks consecutive errors per callback. After _MAX_CALLBACK_ERRORS
+        consecutive failures the callback is removed to prevent error spam.
+        """
         count = len(self._listeners)
         _LOGGER.debug(
             "Notifying %d listener(s) for %s (available=%s)",
@@ -209,15 +218,34 @@ class TuyaBLEMeshCoordinator:
             self._device.address,
             self._state.available,
         )
+        to_remove: list[Callable[[], None]] = []
         for callback in list(self._listeners):
+            cb_id = id(callback)
             try:
                 callback()
+                # Reset error count on success
+                self._listener_error_counts.pop(cb_id, None)
             except Exception:
+                error_count = self._listener_error_counts.get(cb_id, 0) + 1
+                self._listener_error_counts[cb_id] = error_count
                 _LOGGER.warning(
-                    "Listener callback error for %s",
+                    "Listener callback error for %s (consecutive=%d/%d)",
                     self._device.address,
+                    error_count,
+                    _MAX_CALLBACK_ERRORS,
                     exc_info=True,
                 )
+                if error_count >= _MAX_CALLBACK_ERRORS:
+                    _LOGGER.error(
+                        "Removing broken listener for %s after %d consecutive errors",
+                        self._device.address,
+                        error_count,
+                    )
+                    to_remove.append(callback)
+        for callback in to_remove:
+            if callback in self._listeners:
+                self._listeners.remove(callback)
+                self._listener_error_counts.pop(id(callback), None)
 
     def _on_onoff_update(self, on: bool) -> None:
         """Handle a GenericOnOff Status from a SIG Mesh device.

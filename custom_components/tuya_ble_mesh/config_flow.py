@@ -728,15 +728,47 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             mac = self._discovery_info["address"]
             try:
                 net_key_hex, dev_key_hex, app_key_hex = await self._run_provision(mac)
+            except asyncio.TimeoutError:
+                _LOGGER.warning("Provisioning timed out for %s", mac)
+                errors["base"] = "timeout"
             except Exception as exc:
-                _LOGGER.warning(
-                    "Provisioning failed for %s: %s: %s",
-                    mac,
-                    type(exc).__name__,
-                    exc,
-                    exc_info=True,
-                )
-                errors["base"] = "provisioning_failed"
+                # Import here to avoid circular dep at module level
+                _error_key = "provisioning_failed"
+                try:
+                    from tuya_ble_mesh.exceptions import (  # type: ignore[import-not-found]
+                        DeviceNotFoundError,
+                        ProvisioningError,
+                        TimeoutError as MeshTimeoutError,
+                    )
+
+                    if isinstance(exc, DeviceNotFoundError):
+                        _LOGGER.warning("Device %s not found during provisioning", mac)
+                        _error_key = "device_not_found"
+                    elif isinstance(exc, MeshTimeoutError):
+                        _LOGGER.warning("Provisioning timed out (mesh) for %s", mac)
+                        _error_key = "timeout"
+                    elif isinstance(exc, ProvisioningError):
+                        _LOGGER.warning(
+                            "Provisioning handshake failed for %s: %s", mac, exc
+                        )
+                        _error_key = "provisioning_failed"
+                    else:
+                        _LOGGER.warning(
+                            "Provisioning failed for %s: %s: %s",
+                            mac,
+                            type(exc).__name__,
+                            exc,
+                            exc_info=True,
+                        )
+                except ImportError:
+                    _LOGGER.warning(
+                        "Provisioning failed for %s: %s: %s",
+                        mac,
+                        type(exc).__name__,
+                        exc,
+                        exc_info=True,
+                    )
+                errors["base"] = _error_key
             else:
                 await self.async_set_unique_id(mac)
                 self._abort_if_unique_id_configured()
