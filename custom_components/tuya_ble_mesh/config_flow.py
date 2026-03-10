@@ -66,7 +66,12 @@ _LOGGER = logging.getLogger(__name__)
 
 _MAC_PATTERN = re.compile(r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 _HEX_KEY_PATTERN = re.compile(r"^[0-9A-Fa-f]{32}$")
+_VENDOR_ID_PATTERN = re.compile(r"^(?:0[xX])?[0-9A-Fa-f]{1,4}$")
 _BRIDGE_TEST_TIMEOUT = 5
+
+# Telink BLE Mesh uses 16-byte buffers for name and password (silently truncated).
+# Enforce this limit at input time so users are not surprised.
+_MESH_CREDENTIAL_MAX_LEN = 16
 
 # Allowed bridge host pattern: IPv4, IPv6, or hostname
 _BRIDGE_HOST_PATTERN = re.compile(
@@ -185,6 +190,44 @@ def _validate_mac(mac: str) -> str | None:
     """
     if not _MAC_PATTERN.match(mac):
         return "invalid_mac"
+    return None
+
+
+def _validate_mesh_credential(value: str) -> str | None:
+    """Validate a mesh name or password.
+
+    Telink BLE Mesh silently truncates credentials to 16 bytes.
+    Reject inputs that are too long to avoid unexpected behaviour.
+
+    Args:
+        value: Credential string to validate.
+
+    Returns:
+        None if valid, error key string if invalid.
+    """
+    if len(value.encode("utf-8")) > _MESH_CREDENTIAL_MAX_LEN:
+        return "invalid_credential_length"
+    return None
+
+
+def _validate_vendor_id(value: str) -> str | None:
+    """Validate a vendor ID string (e.g. '0x1001' or '1001').
+
+    Args:
+        value: Vendor ID string to validate.
+
+    Returns:
+        None if valid, error key string if invalid.
+    """
+    value = value.strip()
+    if not _VENDOR_ID_PATTERN.match(value):
+        return "invalid_vendor_id"
+    try:
+        parsed = int(value, 16)
+        if not 0 <= parsed <= 0xFFFF:
+            return "invalid_vendor_id"
+    except ValueError:
+        return "invalid_vendor_id"
     return None
 
 
@@ -477,10 +520,24 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 }
             ),
             description_placeholders={
-                "name": self._discovery_info.get("name", "Unknown") if self._discovery_info else "Unknown",
-                "mac": self._discovery_info.get("address", "") if self._discovery_info else "",
-                "rssi": str(self._discovery_info.get("rssi", "?")) if self._discovery_info else "?",
-                "category": self._discovery_info.get("device_category", "") if self._discovery_info else "",
+                "name": (
+                    self._discovery_info.get("name", "Unknown")
+                    if self._discovery_info
+                    else "Unknown"
+                ),
+                "mac": (
+                    self._discovery_info.get("address", "") if self._discovery_info else ""
+                ),
+                "rssi": (
+                    str(self._discovery_info.get("rssi", "?"))
+                    if self._discovery_info
+                    else "?"
+                ),
+                "category": (
+                    self._discovery_info.get("device_category", "")
+                    if self._discovery_info
+                    else ""
+                ),
             },
         )
 
@@ -500,7 +557,23 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             mac_error = _validate_mac(mac)
             if mac_error:
                 errors[CONF_MAC_ADDRESS] = mac_error
-            else:
+
+            mesh_name = user_input.get(CONF_MESH_NAME, "")
+            name_error = _validate_mesh_credential(mesh_name)
+            if name_error:
+                errors[CONF_MESH_NAME] = name_error
+
+            mesh_password = user_input.get(CONF_MESH_PASSWORD, "")
+            pass_error = _validate_mesh_credential(mesh_password)
+            if pass_error:
+                errors[CONF_MESH_PASSWORD] = pass_error
+
+            vendor_id_str = user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
+            vendor_id_error = _validate_vendor_id(str(vendor_id_str))
+            if vendor_id_error:
+                errors[CONF_VENDOR_ID] = vendor_id_error
+
+            if not errors:
                 device_type = user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
                 if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
                     self._discovery_info = {
