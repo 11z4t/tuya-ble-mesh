@@ -252,7 +252,7 @@ class SIGMeshProvisioner:
                 with contextlib.suppress(Exception):
                     await client.disconnect()
                 _LOGGER.info("Provisioning session disconnected from %s", address.upper())
-                # PLAT-506: Give BLE adapter time to release connection slot
+                # Give BLE adapter time to release connection slot
                 await asyncio.sleep(0.5)
 
     # ------------------------------------------------------------------ #
@@ -370,14 +370,14 @@ class SIGMeshProvisioner:
                     max_retries,
                     timeout,
                 )
-                # PLAT-506: Longer backoff to allow connection slot release
+                # Longer backoff to allow connection slot release
                 backoff = min(3.0 * (1.5 ** (attempt - 1)), 15.0)
                 await asyncio.sleep(backoff)
             except Exception as exc:
                 last_exc = exc
                 connect_failures += 1
 
-                # PLAT-506: Special handling for out-of-slots errors
+                # Special handling for out-of-slots errors
                 exc_str = str(exc).lower()
                 is_slot_error = (
                     "out of connection slots" in exc_str
