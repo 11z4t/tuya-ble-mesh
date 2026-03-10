@@ -3,6 +3,10 @@
 [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz)
 [![HA 2024.1+](https://img.shields.io/badge/HA-2024.1%2B-blue.svg)](https://www.home-assistant.io)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Quality Scale: Platinum](https://img.shields.io/badge/Quality%20Scale-Platinum%20⭐⭐⭐⭐-blueviolet.svg)](custom_components/tuya_ble_mesh/quality_scale.yaml)
+[![Tests](https://img.shields.io/badge/tests-1282%20passing-brightgreen.svg)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](COVERAGE_REPORT.md)
+[![Version](https://img.shields.io/badge/version-0.17.3-blue.svg)](CHANGELOG.md)
 
 A fully local Home Assistant integration for controlling Tuya BLE Mesh devices — including **Malmbergs BT Smart** lighting products. No cloud. No Tuya account required for daily use.
 
@@ -14,17 +18,23 @@ This integration replaces cloud control with **direct BLE communication**, keepi
 
 ### How it works
 
-The integration uses a **bridge architecture**:
+There are two connection modes:
 
+**Mode 1: Bridge daemon (RPi)**
 ```
 Home Assistant  ←HTTP→  Bridge Daemon (RPi)  ←BLE Mesh→  Devices
 ```
-
-1. A Raspberry Pi with Bluetooth runs the **bridge daemon** near your BLE mesh devices
+1. A Raspberry Pi with Bluetooth runs the bridge daemon near your BLE mesh devices
 2. The HA integration communicates with the bridge over your local network
 3. The bridge translates commands to/from the BLE mesh protocol
 
-This means Home Assistant itself doesn't need Bluetooth — only the bridge RPi does.
+**Mode 2: ESPHome BLE Proxy**
+```
+Home Assistant  ←API→  ESPHome BLE Proxy  ←BLE Mesh→  Devices
+```
+For SIG Mesh devices, any ESPHome device with BLE proxy enabled can be used instead of a dedicated RPi. This is simpler to set up and doesn't require a separate bridge daemon.
+
+In both modes, Home Assistant itself doesn't need Bluetooth hardware.
 
 ## Tested Devices
 
@@ -45,15 +55,30 @@ Devices using the Tuya BLE Mesh / Telink stack with service UUID `fe07`:
 
 ## Features
 
-- **Power on/off** — instant local control
-- **Brightness** — 1-100% dimming
-- **Color temperature** — warm to cool white
+### Device Control
+- **Power on/off** — instant local control, no cloud round-trip
+- **Brightness** — 1–100% dimming with smooth transitions
+- **Color temperature** — warm to cool white (CCT)
+- **RGB color** — full color control on supported devices
+- **Switch** — relay control for smart plugs
+
+### Connectivity
 - **Auto-discovery** — finds `out_of_mesh*` and `tymesh*` devices via BLE
-- **Status feedback** — push-based updates via BLE notifications
-- **Auto-reconnect** — exponential backoff on connection loss
-- **Keep-alive** — maintains BLE connections proactively
-- **Dual protocol** — supports both Tuya proprietary BLE and SIG Mesh (via bridge)
-- **Command queue** — reliable delivery even under rapid HA automations
+- **ESPHome BLE proxy** — use any ESPHome device as a BLE bridge (SIG Mesh)
+- **Auto-reconnect** — exponential backoff (5s → 5min) on connection loss
+- **Keep-alive** — maintains BLE connections proactively to minimize latency
+- **Command queue** — reliable delivery with TTL even under rapid HA automations
+
+### Status & Monitoring
+- **Push-based updates** — BLE notifications drive state changes (no polling)
+- **RSSI sensor** — signal strength monitoring with adaptive polling
+- **Firmware version** — sensor for device firmware tracking
+- **Connection statistics** — visible in HA diagnostics
+
+### Protocol Support
+- **Tuya proprietary BLE Mesh** (Telink TLK8232 / TLK8258) — all light and plug features
+- **SIG Mesh (Bluetooth Mesh)** — provisioning, proxy, segmentation/reassembly
+- **Dual-stack** — both protocols work simultaneously on the same HA instance
 
 ## Installation
 
@@ -216,6 +241,10 @@ All checks must pass: **ruff** (lint + format), **mypy --strict**, **bandit**, *
 2. Create a feature branch
 3. Ensure `bash scripts/run-checks.sh` passes
 4. Submit a pull request
+
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## License
 
