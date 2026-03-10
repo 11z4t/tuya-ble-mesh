@@ -598,12 +598,16 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             return device
 
         async def _ble_connect_cb(ble_device: Any) -> BleakClient:
-            """Connect via bleak-retry-connector to avoid HA BleakClient warning."""
+            """Connect via bleak-retry-connector to avoid HA BleakClient warning.
+
+            PLAT-506: Reduced max_attempts from 5 to 2 to avoid exhausting
+            BLE adapter connection slots during provisioning retries.
+            """
             return await establish_connection(
                 BleakClient,
                 ble_device,
                 ble_device.address,
-                max_attempts=5,
+                max_attempts=2,
             )
 
         # Phase 1: PB-GATT provisioning
