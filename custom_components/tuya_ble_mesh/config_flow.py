@@ -106,7 +106,7 @@ _MODEL_GENERIC_ONOFF_SERVER = 0x1000
 # Seconds to wait for device to reboot as Proxy Service after provisioning
 _POST_PROV_REBOOT_DELAY = 6.0
 
-# PLAT-509: Discovery flow TTL — flows expire after this duration if device stops advertising
+# Discovery flow TTL — flows expire after this duration if device stops advertising
 _DISCOVERY_FLOW_TTL = 300  # 5 minutes
 
 # Known Tuya/Telink vendor IDs for autodetect hint
@@ -487,7 +487,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         """Initialize config flow state for a new Tuya BLE Mesh entry."""
         super().__init__()
         self._discovery_info: dict[str, Any] | None = None
-        self._discovery_timestamp: float = 0.0  # PLAT-509: Track when discovery started
+        self._discovery_timestamp: float = 0.0  # Track when discovery started
         # Stored provisioning keys set by _run_provision
         self._prov_net_key: str = ""
         self._prov_dev_key: str = ""
@@ -503,30 +503,36 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
         _LOGGER.info("Bluetooth discovery: %s (%s)", name, address)
 
-        # Check if already configured
-        await self.async_set_unique_id(address)
-        self._abort_if_unique_id_configured()
-
         # Detect device type from advertised service UUIDs
         service_uuids = getattr(discovery_info, "service_uuids", [])
         is_sig = SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids
         device_category = "SIG Mesh" if is_sig else "Telink Mesh"
         rssi = getattr(discovery_info, "rssi", None)
 
+        # Auto-detect device label for discovery card
+        if is_sig:
+            device_label = "Mesh Plug"
+        elif name.startswith("tymesh"):
+            device_label = "Mesh Light"
+        else:
+            device_label = "Mesh Device"
+
+        # Set title_placeholders BEFORE async_set_unique_id for discovery card
+        self.context["title_placeholders"] = {"name": f"{device_label} {address}"}
+
+        await self.async_set_unique_id(address)
+        self._abort_if_unique_id_configured()
+
         self._discovery_info = {
             "address": address,
             "name": name,
             "rssi": rssi,
             "device_category": device_category,
-            "_raw_info": discovery_info,  # PLAT-510: Store for auto-detection
+            "_raw_info": discovery_info,
         }
-        self._discovery_timestamp = time.time()  # PLAT-509: Record discovery time
+        self._discovery_timestamp = time.time()
 
-        # Auto-route SIG Mesh devices directly to provisioning step
-        if is_sig:
-            _LOGGER.info("SIG Mesh device detected: %s", address)
-            return await self.async_step_sig_plug()
-
+        # All device types go through the same confirm step
         return await self.async_step_confirm()
 
     async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
@@ -701,7 +707,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         """
         errors: dict[str, str] = {}
 
-        # PLAT-509: Validate device is still discoverable before showing form or provisioning
+        # Validate device is still discoverable before showing form or provisioning
         if self._discovery_info is not None:
             from homeassistant.components import bluetooth as ha_bluetooth
             mac = self._discovery_info["address"]
