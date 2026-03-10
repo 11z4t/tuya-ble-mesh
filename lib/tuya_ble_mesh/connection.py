@@ -364,7 +364,7 @@ class BLEConnection:
     def _start_keep_alive(self) -> None:
         """Start the keep-alive timer."""
         self._stop_keep_alive()
-        self._keep_alive_task = asyncio.ensure_future(self._keep_alive_loop())
+        self._keep_alive_task = asyncio.create_task(self._keep_alive_loop())
 
     def _stop_keep_alive(self) -> None:
         """Stop the keep-alive timer."""
