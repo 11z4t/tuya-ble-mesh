@@ -206,7 +206,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
     """
     from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
 
-    _LOGGER.info("Setting up Tuya BLE Mesh entry: %s", entry.title)
+    _LOGGER.warning(
+        "Setting up entry: title=%s mac=%s type=%s data_keys=%s",
+        entry.title, entry.data.get(CONF_MAC_ADDRESS), entry.data.get(CONF_DEVICE_TYPE),
+        list(entry.data.keys()),
+    )
 
     mac_address: str = entry.data[CONF_MAC_ADDRESS]
     device_type: str = entry.data.get(CONF_DEVICE_TYPE, "")

@@ -340,7 +340,12 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         address: str = discovery_info.address
         name: str = discovery_info.name or ""
 
-        _LOGGER.info("Bluetooth discovery: %s (%s)", name, address)
+        _LOGGER.warning(
+            "BLE discovery: name=%s addr=%s uuids=%s rssi=%s",
+            name, address,
+            getattr(discovery_info, "service_uuids", []),
+            getattr(discovery_info, "rssi", None),
+        )
 
         # Auto-detect device type based on service UUIDs
         service_uuids = getattr(discovery_info, "service_uuids", [])
@@ -348,10 +353,14 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
 
         if SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids:
             auto_device_type = DEVICE_TYPE_SIG_PLUG
+            _LOGGER.warning("Auto-detected SIG Mesh Plug for %s", address)
         elif any(
             uuid.startswith("00010203-0405-0607-0809-0a0b0c0d") for uuid in service_uuids
         ):
             auto_device_type = DEVICE_TYPE_LIGHT
+            _LOGGER.warning("Auto-detected Telink Light for %s", address)
+        else:
+            _LOGGER.warning("No UUID match for %s, auto_device_type=None", address)
 
         # Determine friendly label for discovery card
         if auto_device_type == DEVICE_TYPE_SIG_PLUG:
@@ -364,6 +373,10 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         # Set title_placeholders BEFORE async_set_unique_id — HA reads
         # context["title_placeholders"] when creating the discovery notification
         self.context["title_placeholders"] = {"name": f"{device_label} {address}"}
+        _LOGGER.warning(
+            "Discovery card: label='%s %s', title_placeholders=%s",
+            device_label, address, self.context.get("title_placeholders"),
+        )
 
         # Check if already configured
         await self.async_set_unique_id(address)
@@ -414,10 +427,16 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         mac = self._discovery_info["address"]
         auto_type = self._discovery_info.get("auto_device_type")
 
+        _LOGGER.warning(
+            "async_step_confirm: mac=%s auto_type=%s user_input=%s",
+            mac, auto_type, user_input,
+        )
+
         if user_input is not None:
             # User clicked Submit — create entry immediately for all types.
             # SIG Mesh provisioning happens later in async_setup_entry (non-blocking).
             device_type = auto_type or DEVICE_TYPE_LIGHT
+            _LOGGER.warning("Creating entry: mac=%s type=%s", mac, device_type)
             is_plug = device_type in (DEVICE_TYPE_SIG_PLUG, DEVICE_TYPE_PLUG)
             type_label = "Plug" if is_plug else "Light"
 
