@@ -113,7 +113,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         return device
 
     if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
-        from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice
+        from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice  # type: ignore[import-not-found]
 
         target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
         bridge_host: str = entry.data[CONF_BRIDGE_HOST]
@@ -126,7 +126,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             bridge_port,
         )
     elif device_type == DEVICE_TYPE_TELINK_BRIDGE_LIGHT:
-        from tuya_ble_mesh.sig_mesh_bridge import TelinkBridgeDevice
+        from tuya_ble_mesh.sig_mesh_bridge import TelinkBridgeDevice  # type: ignore[import-not-found]
 
         bridge_host = entry.data[CONF_BRIDGE_HOST]
         bridge_port = entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
@@ -137,8 +137,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             bridge_port,
         )
     elif device_type == DEVICE_TYPE_SIG_PLUG:
-        from tuya_ble_mesh.secrets import DictSecretsManager
-        from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
+        from tuya_ble_mesh.secrets import DictSecretsManager  # type: ignore[import-not-found]
+        from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
 
         target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
         our_addr = int(entry.data.get(CONF_UNICAST_OUR, "0001"), 16)
@@ -163,7 +163,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             ble_device_callback=_ble_device_from_ha,
         )
     else:
-        from tuya_ble_mesh.device import MeshDevice
+        from tuya_ble_mesh.device import MeshDevice  # type: ignore[import-not-found]
 
         mesh_name: str = entry.data[CONF_MESH_NAME]
         mesh_password: str = entry.data[CONF_MESH_PASSWORD]

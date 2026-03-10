@@ -32,11 +32,16 @@ python_version = "3.11"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
+warn_unused_ignores = false
 exclude = ["custom_components/tuya_ble_mesh/lib"]
 
 [[tool.mypy.overrides]]
-module = ["serial.*", "bleak.*"]
+module = ["serial.*", "bleak.*", "tuya_ble_mesh.*"]
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = ["custom_components.tuya_ble_mesh.config_flow"]
+disable_error_code = ["return-value"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

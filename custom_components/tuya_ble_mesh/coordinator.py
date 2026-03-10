@@ -18,11 +18,11 @@ from typing import TYPE_CHECKING, Union
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.storage import Store
-    from tuya_ble_mesh.device import MeshDevice
-    from tuya_ble_mesh.protocol import StatusResponse
-    from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice, TelinkBridgeDevice
-    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
-    from tuya_ble_mesh.sig_mesh_protocol import CompositionData
+    from tuya_ble_mesh.device import MeshDevice  # type: ignore[import-not-found]
+    from tuya_ble_mesh.protocol import StatusResponse  # type: ignore[import-not-found]
+    from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice, TelinkBridgeDevice  # type: ignore[import-not-found]
+    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
+    from tuya_ble_mesh.sig_mesh_protocol import CompositionData  # type: ignore[import-not-found]
 
 # All supported device types that can be passed to the coordinator
 AnyMeshDevice = Union[
@@ -246,7 +246,7 @@ class TuyaBLEMeshCoordinator:
             opcode: 3-byte vendor opcode.
             params: Raw vendor message parameters.
         """
-        from tuya_ble_mesh.sig_mesh_protocol import (
+        from tuya_ble_mesh.sig_mesh_protocol import (  # type: ignore[import-not-found]
             DP_ID_ENERGY_KWH,
             DP_ID_POWER_W,
             TUYA_VENDOR_OPCODE,
@@ -553,12 +553,12 @@ class TuyaBLEMeshCoordinator:
                             self._device.address, timeout=10.0
                         )
 
-                    if ble_device is not None and ble_device.rssi is not None:
-                        self._state.rssi = ble_device.rssi
+                    if ble_device is not None and ble_device.rssi is not None:  # type: ignore[attr-defined]
+                        self._state.rssi = ble_device.rssi  # type: ignore[attr-defined]
                         self._notify_listeners()
 
                         # Track stability: if RSSI similar (±2 dBm) = stable cycle
-                        if prev_rssi is not None and abs(ble_device.rssi - prev_rssi) <= 2:
+                        if prev_rssi is not None and abs(ble_device.rssi - prev_rssi) <= 2:  # type: ignore[attr-defined]
                             self._stable_cycles += 1
                             if self._stable_cycles >= _RSSI_STABILITY_THRESHOLD:
                                 self._adjust_polling_interval()
