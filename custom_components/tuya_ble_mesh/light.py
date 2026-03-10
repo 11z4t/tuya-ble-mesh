@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.light import (  # type: ignore[attr-defined]
@@ -174,6 +175,80 @@ def color_temp_to_device(mired_value: int) -> int:
     )
 
 
+@dataclass(frozen=True)
+class _TurnOnCommand:
+    """Device-native turn-on parameters, ready to hand to the transition engine.
+
+    All values are on the **device scale** (not HA scale):
+
+    Attributes:
+        power_on: True when no other parameter was provided — send power(True).
+        brightness: Device-native brightness value, or None.
+            - COLOR_TEMP mode: device white brightness (1-100).
+            - RGB mode: device color brightness (0-255).
+        use_color_brightness: True when brightness is on the 0-255 color scale
+            (RGB mode); False when it is on the 1-100 white scale.
+        color_temp: Device color temp (0-127), or None.
+        rgb: RGB tuple, or None.
+    """
+
+    power_on: bool
+    brightness: int | None
+    use_color_brightness: bool
+    color_temp: int | None
+    rgb: tuple[int, int, int] | None
+
+
+def _build_turn_on_command(
+    brightness: int | None,
+    color_temp: int | None,
+    rgb_color: tuple[int, int, int] | None,
+    has_target: bool,
+    current_mode: int,
+) -> _TurnOnCommand:
+    """Compute device-native turn-on parameters from HA-scale inputs.
+
+    Centralises the brightness-scale mode-detection that was previously
+    duplicated between the transition branch and the debounced path.
+
+    Args:
+        brightness: HA brightness (1-255), or None.
+        color_temp: Color temp in mireds, or None.
+        rgb_color: RGB tuple in HA scale, or None.
+        has_target: True if any parameter was provided.
+        current_mode: Current device mode (0=COLOR_TEMP, 1=RGB).
+
+    Returns:
+        A :class:`_TurnOnCommand` with all values on the device scale.
+    """
+    # Determine which brightness scale to use:
+    # - RGB target supplied → color scale (0-255)
+    # - No CT target AND already in RGB mode → color scale (0-255)
+    # - Otherwise → white brightness scale (1-100)
+    use_color_brightness = rgb_color is not None or (
+        brightness is not None and color_temp is None and current_mode == 1
+    )
+
+    device_brightness: int | None = None
+    if brightness is not None:
+        if use_color_brightness:
+            device_brightness = color_brightness_to_device(brightness)
+        else:
+            device_brightness = brightness_to_device(brightness)
+
+    device_color_temp: int | None = None
+    if color_temp is not None:
+        device_color_temp = color_temp_to_device(color_temp)
+
+    return _TurnOnCommand(
+        power_on=not has_target,
+        brightness=device_brightness,
+        use_color_brightness=use_color_brightness,
+        color_temp=device_color_temp,
+        rgb=rgb_color,
+    )
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: TuyaBLEMeshConfigEntry,
@@ -294,29 +369,16 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
         has_target = brightness is not None or color_temp is not None or rgb_color is not None
 
         if transition is not None and transition > 0 and has_target:
-            target_temp = color_temp_to_device(color_temp) if color_temp is not None else None
-            # Brightness handling depends on mode:
-            # - RGB mode with color target: color_brightness scale (0-255 device)
-            # - RGB mode, brightness only: color_brightness scale (0-255 device)
-            # - COLOR_TEMP mode: white brightness scale (1-100 device)
-            current_mode = self.coordinator.state.mode
-            use_color_brightness = rgb_color is not None or (
-                brightness is not None and color_temp is None and current_mode == 1
+            cmd = _build_turn_on_command(
+                brightness, color_temp, rgb_color, has_target, self.coordinator.state.mode
             )
-            if brightness is not None:
-                if use_color_brightness:
-                    target_bright = color_brightness_to_device(brightness)
-                else:
-                    target_bright = brightness_to_device(brightness)
-            else:
-                target_bright = None
             self._transition_task = asyncio.create_task(
                 self._run_transition(
-                    target_bright,
-                    target_temp,
+                    cmd.brightness,
+                    cmd.color_temp,
                     transition,
-                    target_rgb=rgb_color,
-                    use_color_brightness=use_color_brightness,
+                    target_rgb=cmd.rgb,
+                    use_color_brightness=cmd.use_color_brightness,
                 )
             )
             self._transition_task.add_done_callback(
