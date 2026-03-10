@@ -51,6 +51,9 @@ _LOGGER = logging.getLogger(__name__)
 # BLE mesh serializes commands — limit to one concurrent update
 PARALLEL_UPDATES = 1
 
+# Debounce window for coalescing rapid slider commands (e.g. brightness drag)
+_COMMAND_DEBOUNCE_INTERVAL = 0.05  # 50 ms
+
 
 def brightness_to_ha(device_value: int) -> int:
     """Convert device brightness (1-100) to HA brightness (1-255).
@@ -177,6 +180,7 @@ class TuyaBLEMeshLight(LightEntity):
             self._attr_device_info = device_info
         self._remove_listener: Any = None
         self._transition_task: asyncio.Task[None] | None = None
+        self._pending_command_task: asyncio.Task[None] | None = None
 
     @property
     def unique_id(self) -> str:
@@ -238,30 +242,65 @@ class TuyaBLEMeshLight(LightEntity):
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the light.
 
+        Immediate (non-transition) commands are debounced over a short window
+        to coalesce rapid slider moves (e.g. brightness drag) into a single
+        BLE command, reducing mesh traffic.
+
         Args:
             **kwargs: Optional brightness, color_temp, rgb_color, and transition.
         """
         self._cancel_transition()
-        device = self._coordinator.device
-        transition: float | None = kwargs.get(ATTR_TRANSITION)
+        self._cancel_pending_command()
 
+        transition: float | None = kwargs.get(ATTR_TRANSITION)
         brightness = kwargs.get("brightness")
         color_temp_kelvin: int | None = kwargs.get(ATTR_COLOR_TEMP_KELVIN)
         color_temp = round(1_000_000 / color_temp_kelvin) if color_temp_kelvin else None
         rgb_color: tuple[int, int, int] | None = kwargs.get(ATTR_RGB_COLOR)
-
         has_target = brightness is not None or color_temp is not None or rgb_color is not None
+
         if transition is not None and transition > 0 and has_target:
             target_bright = brightness_to_device(brightness) if brightness is not None else None
             target_temp = color_temp_to_device(color_temp) if color_temp is not None else None
-            target_rgb = rgb_color
             self._transition_task = asyncio.create_task(
-                self._run_transition(target_bright, target_temp, transition, target_rgb=target_rgb)
+                self._run_transition(target_bright, target_temp, transition, target_rgb=rgb_color)
             )
             self._transition_task.add_done_callback(
                 lambda t: t.exception() if not t.cancelled() else None
             )
             return
+
+        # Debounce: schedule command after short window so rapid slider
+        # moves cancel the previous pending command and only the latest fires.
+        self._pending_command_task = asyncio.create_task(
+            self._debounced_send_turn_on(brightness, color_temp, rgb_color, has_target)
+        )
+        self._pending_command_task.add_done_callback(
+            lambda t: t.exception() if not t.cancelled() else None
+        )
+
+    async def _debounced_send_turn_on(
+        self,
+        brightness: int | None,
+        color_temp: int | None,
+        rgb_color: tuple[int, int, int] | None,
+        has_target: bool,
+    ) -> None:
+        """Send turn-on command after debounce interval.
+
+        Called from a task; cancelled if a newer command arrives within
+        _COMMAND_DEBOUNCE_INTERVAL.
+
+        Args:
+            brightness: HA brightness value (1-255), or None.
+            color_temp: Color temp in mireds, or None.
+            rgb_color: RGB tuple, or None.
+            has_target: True if any parameter was specified.
+        """
+        await asyncio.sleep(_COMMAND_DEBOUNCE_INTERVAL)
+        self._pending_command_task = None
+
+        device = self._coordinator.device
 
         if rgb_color is not None:
             await device.send_color(rgb_color[0], rgb_color[1], rgb_color[2])
@@ -291,6 +330,12 @@ class TuyaBLEMeshLight(LightEntity):
         if not has_target:
             await device.send_power(True)
 
+    def _cancel_pending_command(self) -> None:
+        """Cancel any pending debounced command task."""
+        if self._pending_command_task is not None and not self._pending_command_task.done():
+            self._pending_command_task.cancel()
+        self._pending_command_task = None
+
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn off the light.
 
@@ -298,6 +343,7 @@ class TuyaBLEMeshLight(LightEntity):
             **kwargs: Optional transition.
         """
         self._cancel_transition()
+        self._cancel_pending_command()
         transition: float | None = kwargs.get(ATTR_TRANSITION)
 
         if transition is not None and transition > 0:
@@ -390,6 +436,7 @@ class TuyaBLEMeshLight(LightEntity):
     async def async_will_remove_from_hass(self) -> None:
         """Remove state listener when removed from HA."""
         self._cancel_transition()
+        self._cancel_pending_command()
         if self._remove_listener is not None:
             self._remove_listener()
             self._remove_listener = None

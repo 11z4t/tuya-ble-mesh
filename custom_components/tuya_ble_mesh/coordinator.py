@@ -253,6 +253,7 @@ class TuyaBLEMeshCoordinator:
         Args:
             on: True if device is on, False if off.
         """
+        was_available = self._state.available
         changed = self._state.is_on != on
         self._state.is_on = on
         self._state.available = True
@@ -271,7 +272,10 @@ class TuyaBLEMeshCoordinator:
             self._seq_persist_task = asyncio.ensure_future(self._save_seq())
 
         _LOGGER.debug("OnOff update: on=%s (changed=%s)", on, changed)
-        self._notify_listeners()
+        # Only notify if state changed or device just became available (avoids
+        # spurious HA entity writes when repeated identical status messages arrive)
+        if changed or not was_available:
+            self._notify_listeners()
 
     def _on_status_update(self, status: StatusResponse) -> None:
         """Handle a status notification from the device.
@@ -279,6 +283,8 @@ class TuyaBLEMeshCoordinator:
         Args:
             status: Decoded status from BLE notification.
         """
+        was_available = self._state.available
+
         # Detect changes for adaptive polling
         changed = (
             self._state.mode != status.mode
@@ -320,7 +326,10 @@ class TuyaBLEMeshCoordinator:
             changed,
         )
 
-        self._notify_listeners()
+        # Only notify if state changed or device just became available (avoids
+        # spurious HA entity writes when repeated identical status messages arrive)
+        if changed or not was_available:
+            self._notify_listeners()
 
     def _on_vendor_update(self, opcode: int, params: bytes) -> None:
         """Handle a Tuya vendor message from a SIG Mesh device.

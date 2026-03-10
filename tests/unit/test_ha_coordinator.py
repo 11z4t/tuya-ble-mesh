@@ -1747,3 +1747,161 @@ class TestBrokenListenerRemoval:
         cb_id = id(bad_callback)
         assert bad_callback not in coord._listeners
         assert cb_id not in coord._listener_error_counts
+
+
+@pytest.mark.requires_ha
+class TestSkipUnchangedNotifications:
+    """Test PLAT-416: skip listener notifications when state is unchanged."""
+
+    def test_status_update_unchanged_skips_notify(self) -> None:
+        """Second identical status update should not fire listeners."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        listener = MagicMock()
+        coord.add_listener(listener)
+        status = make_mock_status(white_brightness=80, mode=0)
+
+        coord._on_status_update(status)  # first: fires (availability changed)
+        listener.reset_mock()
+        coord._on_status_update(status)  # second: same values, no fire
+
+        listener.assert_not_called()
+
+    def test_status_update_changed_notifies(self) -> None:
+        """Different status update should still fire listeners."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        listener = MagicMock()
+        coord.add_listener(listener)
+
+        coord._on_status_update(make_mock_status(white_brightness=50))
+        listener.reset_mock()
+        coord._on_status_update(make_mock_status(white_brightness=80))
+
+        listener.assert_called_once()
+
+    def test_status_update_first_fires_even_if_values_match_defaults(self) -> None:
+        """First update fires even when values match initial state (avail changed)."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        listener = MagicMock()
+        coord.add_listener(listener)
+        # Default state: brightness=0, mode=0 — matches make_mock_status defaults
+        status = make_mock_status(white_brightness=0, color_brightness=0)
+
+        coord._on_status_update(status)
+
+        listener.assert_called_once()
+
+    def test_onoff_update_unchanged_skips_notify(self) -> None:
+        """Repeated identical on/off update should not fire listeners."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        listener = MagicMock()
+        coord.add_listener(listener)
+
+        coord._on_onoff_update(True)   # fires: availability changed
+        listener.reset_mock()
+        coord._on_onoff_update(True)   # same value, no fire
+
+        listener.assert_not_called()
+
+    def test_onoff_update_changed_notifies(self) -> None:
+        """Changed on/off state should still fire listeners."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        listener = MagicMock()
+        coord.add_listener(listener)
+
+        coord._on_onoff_update(True)   # fires
+        listener.reset_mock()
+        coord._on_onoff_update(False)  # changed: fires
+
+        listener.assert_called_once()
+
+    def test_onoff_update_first_fires_even_if_on_false(self) -> None:
+        """First off update fires because device became available."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        listener = MagicMock()
+        coord.add_listener(listener)
+
+        coord._on_onoff_update(False)  # fires: availability changed
+
+        listener.assert_called_once()
+
+
+@pytest.mark.requires_ha
+class TestCommandDebouncing:
+    """Test PLAT-416: command debouncing in light entity."""
+
+    @pytest.mark.asyncio
+    async def test_rapid_turn_on_coalesces_to_last_command(self) -> None:
+        """Rapid turn_on calls should coalesce — only last command fires."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
+        from custom_components.tuya_ble_mesh.light import (
+            TuyaBLEMeshLight,
+            _COMMAND_DEBOUNCE_INTERVAL,
+        )
+        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshDeviceState
+        from unittest.mock import AsyncMock, MagicMock
+        import asyncio
+
+        coord = MagicMock()
+        coord.state = TuyaBLEMeshDeviceState(is_on=True, brightness=50, mode=0, available=True)
+        coord.device = MagicMock()
+        coord.device.address = "AA:BB:CC:DD:EE:FF"
+        coord.device.send_brightness = AsyncMock()
+        coord.device.send_power = AsyncMock()
+        coord.add_listener = MagicMock(return_value=MagicMock())
+
+        light = TuyaBLEMeshLight(coord, "entry_id")
+
+        # Fire three rapid commands — only last should execute
+        await light.async_turn_on(brightness=100)
+        await light.async_turn_on(brightness=150)
+        await light.async_turn_on(brightness=200)
+
+        # Wait for debounce to expire
+        await asyncio.sleep(_COMMAND_DEBOUNCE_INTERVAL + 0.01)
+
+        # Only one send_brightness call (the last brightness=200)
+        coord.device.send_brightness.assert_called_once()
+        val = coord.device.send_brightness.call_args[0][0]
+        # brightness_to_device(200) ≈ 78
+        assert val > 70
+
+    @pytest.mark.asyncio
+    async def test_turn_off_cancels_pending_command(self) -> None:
+        """async_turn_off should cancel a pending debounced turn_on."""
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
+        from custom_components.tuya_ble_mesh.light import (
+            TuyaBLEMeshLight,
+            _COMMAND_DEBOUNCE_INTERVAL,
+        )
+        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshDeviceState
+        from unittest.mock import AsyncMock, MagicMock
+        import asyncio
+
+        coord = MagicMock()
+        coord.state = TuyaBLEMeshDeviceState(is_on=True, brightness=50, mode=0, available=True)
+        coord.device = MagicMock()
+        coord.device.address = "AA:BB:CC:DD:EE:FF"
+        coord.device.send_brightness = AsyncMock()
+        coord.device.send_power = AsyncMock()
+        coord.add_listener = MagicMock(return_value=MagicMock())
+
+        light = TuyaBLEMeshLight(coord, "entry_id")
+
+        await light.async_turn_on(brightness=200)
+        await light.async_turn_off()  # should cancel the pending turn_on
+
+        # Wait past debounce — turn_on should NOT have fired
+        await asyncio.sleep(_COMMAND_DEBOUNCE_INTERVAL + 0.01)
+
+        coord.device.send_brightness.assert_not_called()
+        coord.device.send_power.assert_called_once_with(False)
