@@ -36,12 +36,32 @@ warn_unused_ignores = false
 exclude = ["custom_components/tuya_ble_mesh/lib"]
 
 [[tool.mypy.overrides]]
-module = ["serial.*", "bleak.*", "tuya_ble_mesh.*"]
+# Third-party BLE/serial libs and the internal lib package (lib/ excluded from analysis)
+# homeassistant.* uses Python 3.12+ syntax; skip to avoid parse errors
+module = [
+    "serial.*",
+    "bleak.*",
+    "bleak_retry_connector.*",
+    "tuya_ble_mesh.*",
+    "homeassistant.*",
+    "bluetooth_mesh.*",
+]
 ignore_missing_imports = true
+follow_imports = "skip"
 
 [[tool.mypy.overrides]]
 module = ["custom_components.tuya_ble_mesh.config_flow"]
 disable_error_code = ["return-value"]
+
+[[tool.mypy.overrides]]
+# HA entity base-classes are Any when follow_imports=skip; subclassing Any is unavoidable
+module = [
+    "custom_components.tuya_ble_mesh.light",
+    "custom_components.tuya_ble_mesh.switch",
+    "custom_components.tuya_ble_mesh.sensor",
+    "custom_components.tuya_ble_mesh.repairs",
+]
+disable_error_code = ["misc"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
