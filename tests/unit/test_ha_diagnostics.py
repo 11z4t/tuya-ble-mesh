@@ -534,3 +534,223 @@ class TestDiagnosticsConnectTime:
         assert conn_stats.get("uptime_seconds") is not None
         assert isinstance(conn_stats["uptime_seconds"], int)
         assert conn_stats["uptime_seconds"] > 0
+
+
+# ============================================================================
+# MESH-20: Connection quality + protocol health diagnostics
+# ============================================================================
+
+
+@pytest.mark.requires_ha
+class TestRssiTrend:
+    """MESH-20: _rssi_trend classifies RSSI history correctly."""
+
+    def test_unknown_with_fewer_than_3_samples(self) -> None:
+        """Fewer than 3 samples → 'unknown'."""
+        from custom_components.tuya_ble_mesh.diagnostics import _rssi_trend
+
+        assert _rssi_trend([]) == "unknown"
+        assert _rssi_trend([(1.0, -70)]) == "unknown"
+        assert _rssi_trend([(1.0, -70), (2.0, -72)]) == "unknown"
+
+    def test_improving_trend(self) -> None:
+        """Strong positive slope → 'improving'."""
+        from custom_components.tuya_ble_mesh.diagnostics import _rssi_trend
+
+        # RSSI values increasing rapidly: -90 → -80 → -70 → -60
+        history = [(float(i), -90 + i * 10) for i in range(4)]
+        assert _rssi_trend(history) == "improving"
+
+    def test_declining_trend(self) -> None:
+        """Strong negative slope → 'declining'."""
+        from custom_components.tuya_ble_mesh.diagnostics import _rssi_trend
+
+        # RSSI values decreasing rapidly: -60 → -70 → -80 → -90
+        history = [(float(i), -60 - i * 10) for i in range(4)]
+        assert _rssi_trend(history) == "declining"
+
+    def test_stable_trend(self) -> None:
+        """Flat values → 'stable'."""
+        from custom_components.tuya_ble_mesh.diagnostics import _rssi_trend
+
+        history = [(float(i), -72) for i in range(5)]
+        assert _rssi_trend(history) == "stable"
+
+
+@pytest.mark.requires_ha
+class TestConnectionQualitySection:
+    """MESH-20: connection_quality section in diagnostics output."""
+
+    @pytest.mark.asyncio
+    async def test_connection_quality_present_with_rssi_history(self) -> None:
+        """connection_quality section includes rssi_trend and avg_rssi."""
+        from collections import deque
+
+        entry = make_mock_entry(with_coordinator=True)
+        coord = entry.runtime_data.coordinator
+        stats = coord.statistics
+
+        rssi_samples = [(float(i), -70 - i) for i in range(5)]
+        stats.rssi_history = deque(rssi_samples)
+        coord.state.rssi = -72
+        # Set up remaining fields needed for protocol_health
+        stats.reconnect_timeline = []
+        coord._consecutive_failures = 0
+        coord._storm_threshold = 10
+        coord.capabilities.protocol = "Tuya_BLE"
+        stats.last_error_class = "transient"
+        stats.storm_detected = False
+        stats.reconnect_times = deque()
+
+        hass = MagicMock()
+        result = await async_get_config_entry_diagnostics(hass, entry)
+
+        cq = result.get("connection_quality", {})
+        assert cq.get("rssi_samples") == 5
+        assert cq.get("current_rssi") == -72
+        assert "rssi_trend" in cq
+        assert cq.get("avg_rssi") is not None
+
+    @pytest.mark.asyncio
+    async def test_connection_quality_no_rssi_history(self) -> None:
+        """connection_quality with empty history shows zeroed values."""
+        from collections import deque
+
+        entry = make_mock_entry(with_coordinator=True)
+        coord = entry.runtime_data.coordinator
+        stats = coord.statistics
+
+        stats.rssi_history = deque()
+        coord.state.rssi = None
+        stats.reconnect_timeline = []
+        coord._consecutive_failures = 0
+        coord._storm_threshold = 10
+        coord.capabilities.protocol = "SIG_Mesh"
+        stats.last_error_class = "unknown"
+        stats.storm_detected = False
+        stats.reconnect_times = deque()
+
+        hass = MagicMock()
+        result = await async_get_config_entry_diagnostics(hass, entry)
+
+        cq = result.get("connection_quality", {})
+        assert cq.get("rssi_samples") == 0
+        assert cq.get("avg_rssi") is None
+        assert cq.get("rssi_trend") == "unknown"
+        assert cq.get("quality_hint") == "unknown"
+
+    @pytest.mark.asyncio
+    async def test_quality_hint_good_when_rssi_above_minus70(self) -> None:
+        """quality_hint = 'good' when RSSI >= -70."""
+        from collections import deque
+
+        entry = make_mock_entry(with_coordinator=True)
+        coord = entry.runtime_data.coordinator
+        stats = coord.statistics
+
+        stats.rssi_history = deque()
+        coord.state.rssi = -65
+        stats.reconnect_timeline = []
+        coord._consecutive_failures = 0
+        coord._storm_threshold = 10
+        coord.capabilities.protocol = "Tuya_BLE"
+        stats.last_error_class = "unknown"
+        stats.storm_detected = False
+        stats.reconnect_times = deque()
+
+        hass = MagicMock()
+        result = await async_get_config_entry_diagnostics(hass, entry)
+
+        assert result["connection_quality"]["quality_hint"] == "good"
+
+    @pytest.mark.asyncio
+    async def test_quality_hint_poor_when_rssi_below_minus85(self) -> None:
+        """quality_hint = 'poor' when RSSI < -85."""
+        from collections import deque
+
+        entry = make_mock_entry(with_coordinator=True)
+        coord = entry.runtime_data.coordinator
+        stats = coord.statistics
+
+        stats.rssi_history = deque()
+        coord.state.rssi = -95
+        stats.reconnect_timeline = []
+        coord._consecutive_failures = 0
+        coord._storm_threshold = 10
+        coord.capabilities.protocol = "Tuya_BLE"
+        stats.last_error_class = "unknown"
+        stats.storm_detected = False
+        stats.reconnect_times = deque()
+
+        hass = MagicMock()
+        result = await async_get_config_entry_diagnostics(hass, entry)
+
+        assert result["connection_quality"]["quality_hint"] == "poor"
+
+
+@pytest.mark.requires_ha
+class TestProtocolHealthSection:
+    """MESH-20: protocol_health section in diagnostics output."""
+
+    @pytest.mark.asyncio
+    async def test_protocol_health_present(self) -> None:
+        """protocol_health section must include protocol and reconnect count."""
+        from collections import deque
+
+        entry = make_mock_entry(with_coordinator=True)
+        coord = entry.runtime_data.coordinator
+        stats = coord.statistics
+
+        stats.rssi_history = deque()
+        coord.state.rssi = None
+        stats.reconnect_timeline = []
+        stats.command_errors = 2
+        stats.total_reconnects = 10
+        coord._consecutive_failures = 1
+        coord._storm_threshold = 10
+        coord.capabilities.protocol = "Tuya_BLE"
+        stats.last_error_class = "transient"
+        stats.storm_detected = False
+        stats.reconnect_times = deque()
+
+        hass = MagicMock()
+        result = await async_get_config_entry_diagnostics(hass, entry)
+
+        ph = result.get("protocol_health", {})
+        assert ph.get("protocol") == "Tuya_BLE"
+        assert ph.get("reconnect_timeline_events") == 0
+        assert ph.get("consecutive_failures") == 1
+        assert "command_error_rate" in ph
+
+    @pytest.mark.asyncio
+    async def test_protocol_health_last_error_class_from_timeline(self) -> None:
+        """last_reconnect_error_class taken from last timeline event."""
+        from collections import deque
+        from dataclasses import dataclass
+
+        @dataclass
+        class FakeEvent:
+            error_class: str
+
+        entry = make_mock_entry(with_coordinator=True)
+        coord = entry.runtime_data.coordinator
+        stats = coord.statistics
+
+        stats.rssi_history = deque()
+        coord.state.rssi = None
+        stats.reconnect_timeline = [FakeEvent("transient"), FakeEvent("bridge_down")]
+        stats.command_errors = 0
+        stats.total_reconnects = 5
+        coord._consecutive_failures = 0
+        coord._storm_threshold = 10
+        coord.capabilities.protocol = "Tuya_BLE"
+        stats.last_error_class = "transient"
+        stats.storm_detected = False
+        stats.reconnect_times = deque()
+
+        hass = MagicMock()
+        result = await async_get_config_entry_diagnostics(hass, entry)
+
+        ph = result.get("protocol_health", {})
+        assert ph.get("last_reconnect_error_class") == "bridge_down"
+        assert ph.get("reconnect_timeline_events") == 2

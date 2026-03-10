@@ -122,7 +122,42 @@ def _get_vendor_name(vendor_id_hex: str) -> str:
     vid = vendor_id_hex.lower().strip()
     if not vid.startswith("0x"):
         vid = f"0x{vid}"
-    return _KNOWN_VENDORS.get(vid, "Unknown vendor")
+    name = _KNOWN_VENDORS.get(vid)
+    return name if name is not None else "Unknown vendor"
+
+
+def _rssi_trend(history: list[tuple[float, int]]) -> str:
+    """Classify RSSI trend from timestamped samples as improving/declining/stable/unknown.
+
+    Uses a simple linear regression direction: if the slope of the last N samples
+    is above +2 dBm we call it improving, below -2 dBm declining, otherwise stable.
+    Requires at least 3 samples; returns "unknown" otherwise.
+
+    Args:
+        history: List of (timestamp, rssi_dbm) tuples sorted oldest-first.
+
+    Returns:
+        One of: "improving", "declining", "stable", "unknown".
+    """
+    if len(history) < 3:
+        return "unknown"
+
+    n = len(history)
+    xs = [float(i) for i in range(n)]
+    ys = [float(r) for _, r in history]
+    mean_x = sum(xs) / n
+    mean_y = sum(ys) / n
+    numerator = sum((xs[i] - mean_x) * (ys[i] - mean_y) for i in range(n))
+    denominator = sum((xs[i] - mean_x) ** 2 for i in range(n))
+    if denominator == 0:
+        return "stable"
+    slope = numerator / denominator
+
+    if slope > 2.0:
+        return "improving"
+    if slope < -2.0:
+        return "declining"
+    return "stable"
 
 
 async def async_get_config_entry_diagnostics(
@@ -247,5 +282,38 @@ async def async_get_config_entry_diagnostics(
                 "mode": "direct_ble",
                 "local_ble": True,
             }
+
+        # Connection quality: RSSI trend analysis from sampled history
+        rssi_history = list(stats.rssi_history)
+        rssi_values = [r for _, r in rssi_history]
+        current_rssi = state.rssi if isinstance(state.rssi, (int, float)) else None
+        diag["connection_quality"] = {
+            "current_rssi": current_rssi,
+            "rssi_trend": _rssi_trend(rssi_history),
+            "rssi_samples": len(rssi_history),
+            "avg_rssi": round(sum(rssi_values) / len(rssi_values), 1) if rssi_values else None,
+            "min_rssi": min(rssi_values) if rssi_values else None,
+            "max_rssi": max(rssi_values) if rssi_values else None,
+            "quality_hint": (
+                "good" if current_rssi is not None and current_rssi >= -70
+                else "marginal" if current_rssi is not None and current_rssi >= -85
+                else "poor" if current_rssi is not None
+                else "unknown"
+            ),
+        }
+
+        # Protocol health: reconnect timeline summary + error breakdown
+        timeline = list(stats.reconnect_timeline)
+        last_error_class = timeline[-1].error_class if timeline else None
+        diag["protocol_health"] = {
+            "protocol": coordinator.capabilities.protocol,
+            "reconnect_timeline_events": len(timeline),
+            "last_reconnect_error_class": last_error_class,
+            "command_error_rate": round(
+                stats.command_errors / max(stats.total_reconnects + 1, 1), 3
+            ),
+            "consecutive_failures": coordinator._consecutive_failures,
+            "storm_threshold": coordinator._storm_threshold,
+        }
 
     return diag
