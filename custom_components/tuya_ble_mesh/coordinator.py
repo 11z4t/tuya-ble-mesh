@@ -92,6 +92,23 @@ _MAX_CALLBACK_ERRORS = 3
 _COMMAND_CONCURRENCY_LIMIT = 5
 
 
+@dataclass
+class ReconnectEvent:
+    """A single reconnect attempt record for timeline diagnostics.
+
+    Stored in ConnectionStatistics.reconnect_timeline (last 20 events).
+    Used by diagnostics to explain *when* and *why* the device went offline.
+    """
+
+    timestamp: float  # Unix time of the attempt
+    error_class: str  # ErrorClass.value (e.g. "transient", "mesh_auth")
+    backoff: float  # Backoff delay (seconds) applied *before* this attempt
+    attempt: int  # Consecutive failure count at time of this event
+
+
+_RECONNECT_TIMELINE_MAX = 20  # Maximum reconnect events retained in timeline
+
+
 class ErrorClass(str, Enum):
     """Classification of connection/protocol errors for repair creation."""
 
@@ -151,6 +168,10 @@ class ConnectionStatistics:
     # Reconnect storm tracking
     reconnect_times: deque[float] = field(default_factory=lambda: deque(maxlen=50))
     storm_detected: bool = False
+    # Reconnect timeline — last N events with error class and backoff
+    reconnect_timeline: list[ReconnectEvent] = field(default_factory=list)
+    # RSSI history — (timestamp, dBm) tuples for trend analysis
+    rssi_history: deque[tuple[float, int]] = field(default_factory=lambda: deque(maxlen=50))
 
 
 class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
@@ -888,6 +909,17 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                         )
                     )
 
+                # Record reconnect event for timeline diagnostics
+                _event = ReconnectEvent(
+                    timestamp=time.time(),
+                    error_class=error_class.value,
+                    backoff=self._backoff,
+                    attempt=self._consecutive_failures,
+                )
+                if len(self._stats.reconnect_timeline) >= _RECONNECT_TIMELINE_MAX:
+                    self._stats.reconnect_timeline.pop(0)
+                self._stats.reconnect_timeline.append(_event)
+
                 self._state = replace(self._state, available=False)
                 self._backoff = min(self._backoff * _BACKOFF_MULTIPLIER, max_backoff)
                 self._dispatch_update()
@@ -984,6 +1016,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
                     if ble_device is not None and ble_device.rssi is not None:  # type: ignore[attr-defined]
                         self._state = replace(self._state, rssi=ble_device.rssi)  # type: ignore[attr-defined]
+                        self._stats.rssi_history.append((time.time(), ble_device.rssi))  # type: ignore[attr-defined]
                         self._dispatch_update()
 
                         # Track stability: if RSSI similar (±2 dBm) = stable cycle

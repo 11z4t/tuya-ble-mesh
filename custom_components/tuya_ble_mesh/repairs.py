@@ -29,7 +29,7 @@ Base issue IDs:
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.repairs import RepairsFlow
 from homeassistant.data_entry_flow import FlowResult
@@ -433,10 +433,128 @@ class TuyaBLEMeshRepairFlow(RepairsFlow):
         return self.async_show_form(step_id="storm_confirm")
 
 
+class MeshAuthRepairFlow(TuyaBLEMeshRepairFlow):
+    """Interactive credential repair flow for auth/mesh-mismatch issues.
+
+    Unlike the generic repair flow (which shows a static hint), this flow
+    collects new credentials directly — equivalent to Shelly's interactive
+    repair UI. On success it updates the entry and schedules a reload.
+    """
+
+    async def async_step_init(self, user_input: dict[str, str] | None = None) -> FlowResult:
+        """Go directly to credential form instead of static hint."""
+        return await self.async_step_credentials()
+
+    async def async_step_credentials(
+        self, user_input: dict[str, str] | None = None
+    ) -> FlowResult:
+        """Collect new credentials and apply them to the config entry."""
+        import voluptuous as vol
+        from custom_components.tuya_ble_mesh.const import (
+            CONF_BRIDGE_HOST,
+            CONF_BRIDGE_PORT,
+            CONF_DEVICE_TYPE,
+            CONF_MESH_NAME,
+            CONF_MESH_PASSWORD,
+            DEFAULT_BRIDGE_PORT,
+            DEVICE_TYPE_SIG_BRIDGE_PLUG,
+            DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
+        )
+        from custom_components.tuya_ble_mesh.config_flow import (
+            _test_bridge_with_session,
+            _validate_bridge_host,
+            _validate_mesh_credentials,
+        )
+
+        hass = getattr(self, "hass", None)
+        if hass is None:
+            # No HA context (e.g. unit test without hass) — close the flow
+            return self.async_create_entry(data={})
+
+        entry = self._get_entry(hass)
+        if entry is None:
+            return self.async_create_entry(data={})
+
+        device_type = entry.data.get(CONF_DEVICE_TYPE, "light")
+        is_bridge = device_type in (DEVICE_TYPE_SIG_BRIDGE_PLUG, DEVICE_TYPE_TELINK_BRIDGE_LIGHT)
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            if is_bridge:
+                host = (user_input.get(CONF_BRIDGE_HOST) or "").strip()
+                host_error = _validate_bridge_host(host)
+                if host_error:
+                    errors[CONF_BRIDGE_HOST] = host_error
+                else:
+                    port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+                    bridge_ok = await _test_bridge_with_session(hass, host, int(port))
+                    if not bridge_ok:
+                        errors["base"] = "cannot_connect"
+            else:
+                name = user_input.get(CONF_MESH_NAME, "")
+                pwd = user_input.get(CONF_MESH_PASSWORD, "")
+                cred_error = _validate_mesh_credentials(name, pwd)
+                if cred_error:
+                    errors["base"] = cred_error
+
+            if not errors:
+                hass.config_entries.async_update_entry(entry, data={**entry.data, **user_input})
+                hass.async_create_task(hass.config_entries.async_reload(entry.entry_id))
+                _LOGGER.info("[%s] Credentials updated via repair flow", entry.entry_id[:8])
+                return self.async_create_entry(data={})
+
+        if is_bridge:
+            schema = vol.Schema(
+                {
+                    vol.Required(
+                        CONF_BRIDGE_HOST,
+                        default=entry.data.get(CONF_BRIDGE_HOST, ""),
+                    ): str,
+                    vol.Optional(
+                        CONF_BRIDGE_PORT,
+                        default=entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT),
+                    ): int,
+                }
+            )
+        else:
+            schema = vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_MESH_NAME,
+                        default=entry.data.get(CONF_MESH_NAME, ""),
+                    ): str,
+                    vol.Optional(
+                        CONF_MESH_PASSWORD,
+                        default=entry.data.get(CONF_MESH_PASSWORD, ""),
+                    ): str,
+                }
+            )
+
+        return self.async_show_form(
+            step_id="credentials",
+            data_schema=schema,
+            errors=errors,
+        )
+
+    def _get_entry(self, hass: HomeAssistant) -> Any:
+        """Return the config entry whose ID is encoded in the issue_id."""
+        if not self._issue_id or _ENTRY_SEP not in self._issue_id:
+            return None
+        entry_id = self._issue_id.split(_ENTRY_SEP, 1)[1]
+        return hass.config_entries.async_get_entry(entry_id)
+
+
 async def async_create_fix_flow(
     hass: HomeAssistant,
     issue_id: str,
     data: dict[str, str | int | float | None] | None,
 ) -> RepairsFlow:
-    """Return the repair flow for the given (scoped) issue ID."""
+    """Return the repair flow for the given (scoped) issue ID.
+
+    Auth/mismatch issues get an interactive credential form (MeshAuthRepairFlow).
+    All other issues get the generic info + confirm flow.
+    """
+    base_id = _base_of_scoped(issue_id)
+    if base_id in (ISSUE_AUTH_OR_MESH_MISMATCH, ISSUE_KEY_MISMATCH):
+        return MeshAuthRepairFlow(issue_id)
     return TuyaBLEMeshRepairFlow(issue_id)

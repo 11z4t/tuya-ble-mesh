@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -354,3 +354,150 @@ class TestRepairFlowRoutingWithScopedIds:
         flow.async_step_confirm = mock_confirm  # type: ignore[method-assign]
         result = await flow.async_step_init(None)
         assert "confirm" in called_step
+
+
+class TestReconnectTimeline:
+    """MESH-16: Reconnect timeline records events for diagnostics."""
+
+    def test_reconnect_event_dataclass(self) -> None:
+        """ReconnectEvent is a dataclass with expected fields."""
+        from custom_components.tuya_ble_mesh.coordinator import ReconnectEvent
+
+        event = ReconnectEvent(
+            timestamp=1000.0,
+            error_class="transient",
+            backoff=5.0,
+            attempt=1,
+        )
+        assert event.timestamp == 1000.0
+        assert event.error_class == "transient"
+        assert event.backoff == 5.0
+        assert event.attempt == 1
+
+    def test_connection_statistics_has_timeline_fields(self) -> None:
+        """ConnectionStatistics must have reconnect_timeline and rssi_history."""
+        from collections import deque
+
+        from custom_components.tuya_ble_mesh.coordinator import ConnectionStatistics
+
+        stats = ConnectionStatistics()
+        assert isinstance(stats.reconnect_timeline, list)
+        assert isinstance(stats.rssi_history, deque)
+        assert len(stats.reconnect_timeline) == 0
+        assert len(stats.rssi_history) == 0
+
+    @pytest.mark.asyncio
+    async def test_reconnect_loop_records_event_on_failure(self) -> None:
+        """Each reconnect failure appends a ReconnectEvent to the timeline."""
+        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
+
+        device = MagicMock()
+        device.address = "AA:BB:CC:DD:EE:FF"
+        device.connect = AsyncMock(side_effect=ConnectionError("timeout"))
+        device.disconnect = AsyncMock()
+        device.register_disconnect_callback = MagicMock()
+        device.firmware_version = None
+
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        coord._max_reconnect_failures = 1  # Stop after 1 failure
+        coord._backoff = 0.001
+
+        with patch("custom_components.tuya_ble_mesh.coordinator.asyncio.sleep", new_callable=AsyncMock):
+            await coord._reconnect_loop()
+
+        assert len(coord._stats.reconnect_timeline) == 1
+        event = coord._stats.reconnect_timeline[0]
+        assert event.error_class == "transient"
+        assert event.attempt == 1
+
+    @pytest.mark.asyncio
+    async def test_reconnect_timeline_capped_at_max(self) -> None:
+        """Timeline is capped at _RECONNECT_TIMELINE_MAX (20) events."""
+        from custom_components.tuya_ble_mesh.coordinator import (
+            _RECONNECT_TIMELINE_MAX,
+            TuyaBLEMeshCoordinator,
+        )
+
+        device = MagicMock()
+        device.address = "AA:BB:CC:DD:EE:FF"
+        device.connect = AsyncMock(side_effect=ConnectionError("timeout"))
+        device.disconnect = AsyncMock()
+        device.register_disconnect_callback = MagicMock()
+        device.firmware_version = None
+
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        coord._max_reconnect_failures = _RECONNECT_TIMELINE_MAX + 5
+        coord._backoff = 0.001
+
+        with patch("custom_components.tuya_ble_mesh.coordinator.asyncio.sleep", new_callable=AsyncMock):
+            await coord._reconnect_loop()
+
+        assert len(coord._stats.reconnect_timeline) <= _RECONNECT_TIMELINE_MAX
+
+
+class TestMeshAuthRepairFlow:
+    """MESH-16: MeshAuthRepairFlow provides interactive credential input."""
+
+    @pytest.mark.asyncio
+    async def test_auth_repair_flow_shows_credentials_step(self) -> None:
+        """async_step_init routes to credentials form."""
+        from custom_components.tuya_ble_mesh.repairs import MeshAuthRepairFlow
+
+        entry_id = "abc123"
+        issue_id = f"auth_or_mesh_mismatch--{entry_id}"
+        flow = MeshAuthRepairFlow(issue_id)
+
+        # No hass — should return create_entry immediately
+        result = await flow.async_step_init(None)
+        assert result["type"] == "create_entry"
+
+    @pytest.mark.asyncio
+    async def test_auth_repair_flow_with_hass_shows_form(self) -> None:
+        """With hass, credentials step shows mesh credential form."""
+        from unittest.mock import AsyncMock
+
+        from custom_components.tuya_ble_mesh.const import DEVICE_TYPE_LIGHT
+        from custom_components.tuya_ble_mesh.repairs import MeshAuthRepairFlow
+
+        entry_id = "abc123"
+        issue_id = f"auth_or_mesh_mismatch--{entry_id}"
+        flow = MeshAuthRepairFlow(issue_id)
+
+        mock_hass = MagicMock()
+        entry = MagicMock()
+        entry.data = {
+            "device_type": DEVICE_TYPE_LIGHT,
+            "mesh_name": "oldmesh",
+            "mesh_password": "oldcred",
+        }
+        mock_hass.config_entries.async_get_entry.return_value = entry
+        flow.hass = mock_hass
+
+        result = await flow.async_step_credentials(None)
+        assert result["type"] == "form"
+        assert result["step_id"] == "credentials"
+
+    @pytest.mark.asyncio
+    async def test_async_create_fix_flow_routes_auth_to_interactive(self) -> None:
+        """async_create_fix_flow returns MeshAuthRepairFlow for auth issues."""
+        from custom_components.tuya_ble_mesh.repairs import MeshAuthRepairFlow, async_create_fix_flow
+
+        issue_id = "auth_or_mesh_mismatch--abc123"
+        mock_hass = MagicMock()
+        flow = await async_create_fix_flow(mock_hass, issue_id, None)
+        assert isinstance(flow, MeshAuthRepairFlow)
+
+    @pytest.mark.asyncio
+    async def test_async_create_fix_flow_returns_generic_for_bridge_issue(self) -> None:
+        """async_create_fix_flow returns TuyaBLEMeshRepairFlow for non-auth issues."""
+        from custom_components.tuya_ble_mesh.repairs import (
+            TuyaBLEMeshRepairFlow,
+            async_create_fix_flow,
+        )
+
+        issue_id = "bridge_unreachable--abc123"
+        mock_hass = MagicMock()
+        flow = await async_create_fix_flow(mock_hass, issue_id, None)
+        assert type(flow) is TuyaBLEMeshRepairFlow
