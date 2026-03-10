@@ -251,6 +251,20 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
     # Listeners are managed by DataUpdateCoordinator.async_add_listener()
     # and dispatched automatically when async_set_updated_data() is called.
 
+    def _notify_listeners(self) -> None:
+        """Notify all registered listeners of state changes.
+
+        Delegates to DataUpdateCoordinator.async_set_updated_data() which
+        triggers all registered listener callbacks. Listener errors are logged
+        but don't stop notification of other listeners.
+        """
+        try:
+            self.async_set_updated_data(None)
+        except Exception:
+            # DataUpdateCoordinator should already handle listener errors,
+            # but catch any unexpected exceptions to ensure robustness
+            _LOGGER.debug("Error notifying listeners", exc_info=True)
+
     def _on_onoff_update(self, on: bool) -> None:
         """Handle a GenericOnOff Status from a SIG Mesh device.
 

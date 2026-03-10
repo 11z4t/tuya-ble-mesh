@@ -100,6 +100,26 @@ class SIGMeshBridgeDevice:
         """Return firmware version string."""
         return self._firmware_version
 
+    @staticmethod
+    def _parse_http_body(response: str) -> str:
+        """Extract HTTP response body from raw HTTP response string.
+
+        Args:
+            response: Raw HTTP response including headers and body.
+
+        Returns:
+            The response body content.
+
+        Raises:
+            MeshConnectionError: If response is malformed (no separator).
+        """
+        # HTTP headers and body are separated by \r\n\r\n
+        if "\r\n\r\n" not in response:
+            msg = "Malformed HTTP response: no header separator"
+            raise MeshConnectionError(msg)
+        _, body = response.split("\r\n\r\n", 1)
+        return body
+
     def register_onoff_callback(self, callback: OnOffCallback) -> None:
         """Register a GenericOnOff Status callback."""
         self._onoff_callbacks.append(callback)
