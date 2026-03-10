@@ -204,10 +204,22 @@ terminal during normal operation.
 | Module | Status | Responsibility |
 |--------|--------|----------------|
 | `power.py` | Implemented | Shelly smart plug control (Gen1 + Gen2 auto-detect) |
-| `protocol.py` | Planned | Tuya BLE Mesh protocol parsing and construction (S3) |
-| `crypto.py` | Planned | AES encryption, key derivation, nonce handling (S4) |
-| `secrets.py` | Planned | 1Password integration via `SecretsManager` (S10) |
-| `mesh.py` | Planned | Mesh network operations (connect, provision, command) |
+| `protocol.py` | Implemented | Telink BLE Mesh protocol parsing and construction (S3) — 640 lines |
+| `crypto.py` | Implemented | AES encryption, key derivation, nonce handling (S4) — 283 lines |
+| `secrets.py` | Implemented | 1Password integration via `SecretsManager` (S10) — 167 lines |
+| `sig_mesh_protocol.py` | Implemented | SIG Mesh protocol parsing and PDU handling — 907 lines |
+| `sig_mesh_crypto.py` | Implemented | SIG Mesh cryptographic operations (AES-CCM, ECDH) — 272 lines |
+| `sig_mesh_provisioner.py` | Implemented | SIG Mesh provisioning protocol implementation — 676 lines |
+| `sig_mesh_device.py` | Implemented | SIG Mesh device state management and networking — 1050 lines |
+| `sig_mesh_bridge.py` | Implemented | SIG Mesh to Tuya protocol bridge with security hardening — 747 lines |
+| `connection.py` | Implemented | BLE connection management with retry and error handling — 431 lines |
+| `device.py` | Implemented | Tuya BLE device abstraction and state management — 557 lines |
+| `provisioner.py` | Implemented | Tuya BLE provisioning workflow — 210 lines |
+| `scanner.py` | Implemented | BLE device scanning and discovery — 194 lines |
+| `dps.py` | Implemented | Tuya Data Point (DP) encoding/decoding — 229 lines |
+| `const.py` | Implemented | Protocol constants and configuration values — 218 lines |
+| `exceptions.py` | Implemented | Custom exception hierarchy (S7) — 100 lines |
+| `logging_context.py` | Implemented | Structured logging utilities — 173 lines |
 
 ### scripts/
 
