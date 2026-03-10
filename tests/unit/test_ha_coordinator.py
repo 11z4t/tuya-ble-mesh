@@ -315,6 +315,42 @@ class TestDisconnectCallback:
         # No reconnect task scheduled when not running
         assert coord._reconnect_task is None
 
+    def test_on_disconnect_accumulates_uptime_when_connect_time_set(self) -> None:
+        """Covers coordinator.py:393-394 — connect_time branch in _on_disconnect."""
+        import time as _time
+
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        # Set connect_time so the uptime branch is exercised
+        coord._stats.connect_time = _time.time() - 5.0  # connected 5 seconds ago
+
+        coord._on_disconnect()
+
+        # connection_uptime should have been incremented
+        assert coord._stats.connection_uptime >= 5.0
+        # reconnect task cleanup
+        if coord._reconnect_task is not None:
+            coord._reconnect_task.cancel()
+            coord._reconnect_task = None
+
+    def test_on_disconnect_averages_response_times_when_populated(self) -> None:
+        """Covers coordinator.py:399 — response_times branch in _on_disconnect."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        # Populate response times so the averaging branch is exercised
+        coord._stats.response_times.extend([0.1, 0.3, 0.5])
+
+        coord._on_disconnect()
+
+        # avg_response_time should have been calculated
+        assert coord._stats.avg_response_time == pytest.approx(0.3)
+        # reconnect task cleanup
+        if coord._reconnect_task is not None:
+            coord._reconnect_task.cancel()
+            coord._reconnect_task = None
+
 
 @pytest.mark.requires_ha
 class TestOnOffUpdate:
@@ -1857,6 +1893,10 @@ class TestCommandDebouncing:
         coord.device.send_power = AsyncMock()
         coord.add_listener = MagicMock(return_value=MagicMock())
 
+        async def _pass_through(coro_func, **_kw):  # type: ignore[no-untyped-def]
+            await coro_func()
+        coord.send_command_with_retry = _pass_through
+
         light = TuyaBLEMeshLight(coord, "entry_id")
 
         # Fire three rapid commands — only last should execute
@@ -1894,6 +1934,10 @@ class TestCommandDebouncing:
         coord.device.send_brightness = AsyncMock()
         coord.device.send_power = AsyncMock()
         coord.add_listener = MagicMock(return_value=MagicMock())
+
+        async def _pass_through(coro_func, **_kw):  # type: ignore[no-untyped-def]
+            await coro_func()
+        coord.send_command_with_retry = _pass_through
 
         light = TuyaBLEMeshLight(coord, "entry_id")
 

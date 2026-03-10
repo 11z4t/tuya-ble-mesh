@@ -39,6 +39,10 @@ def make_mock_coordinator(
     coord.device.address = "DC:23:4D:21:43:A5"
     coord.device.send_power = AsyncMock()
     coord.add_listener = MagicMock(return_value=MagicMock())
+    # send_command_with_retry: pass-through that executes the coro_func directly
+    async def _pass_through(coro_func, **_kw):  # type: ignore[no-untyped-def]
+        await coro_func()
+    coord.send_command_with_retry = _pass_through
     return coord
 
 
