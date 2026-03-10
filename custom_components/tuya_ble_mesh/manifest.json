@@ -1,7 +1,7 @@
 {
   "domain": "tuya_ble_mesh",
   "name": "Tuya BLE Mesh",
-  "version": "0.17.5",
+  "version": "0.17.6",
   "integration_type": "hub",
   "documentation": "https://github.com/11z4t/tuya-ble-mesh",
   "issue_tracker": "https://github.com/11z4t/tuya-ble-mesh/issues",
