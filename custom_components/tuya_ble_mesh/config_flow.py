@@ -648,7 +648,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             device_label = "Mesh Plug"
             device_category = "SIG Mesh"
         elif is_telink or name.startswith("tymesh"):
-            device_label = "Mesh Light"
+            # Use auto-detection to determine if it's a plug or light
+            detected_type = _auto_detect_device_type(discovery_info)
+            device_label = "Mesh Plug" if detected_type == DEVICE_TYPE_PLUG else "Mesh Light"
             device_category = "Telink Mesh"
         else:
             device_label = "Mesh Device"
@@ -680,10 +682,15 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             "device_category": device_category,
         }
 
-        # Auto-detect Telink as Light for zero-knowledge flow
+        # Auto-detect Telink device type (Light or Plug) for zero-knowledge flow
         if is_telink:
-            self._discovery_info["auto_device_type"] = DEVICE_TYPE_LIGHT
-            _LOGGER.info("Telink Mesh device auto-detected as Light: %s", address)
+            # Re-use detection from above
+            if "Plug" in device_label:
+                detected_type = DEVICE_TYPE_PLUG
+            else:
+                detected_type = DEVICE_TYPE_LIGHT
+            self._discovery_info["auto_device_type"] = detected_type
+            _LOGGER.info("Telink Mesh device auto-detected as %s: %s", device_label, address)
 
         # SIG Mesh goes directly to provisioning
         if is_sig:
