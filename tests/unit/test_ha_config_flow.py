@@ -2284,3 +2284,155 @@ class TestSigPlugDeviceNotFound:
 
         assert result["type"] == "abort"
         assert result["reason"] == "device_not_found"
+
+
+class TestReconfigureStep:
+    """MESH-14: async_step_reconfigure() for connection settings update."""
+
+    def _make_flow_with_entry(self, device_type: str, data: dict) -> Any:
+        """Create a config flow with a mock entry in context."""
+        from custom_components.tuya_ble_mesh.config_flow import TuyaBLEMeshConfigFlow
+
+        flow = TuyaBLEMeshConfigFlow()
+        mock_hass = MagicMock()
+        flow.hass = mock_hass
+
+        entry = MagicMock()
+        entry.entry_id = "test_entry_id"
+        entry.data = {CONF_DEVICE_TYPE: device_type, **data}
+        flow.context = {"entry_id": "test_entry_id"}
+        mock_hass.config_entries.async_get_entry.return_value = entry
+        return flow, entry
+
+    @pytest.mark.asyncio
+    async def test_reconfigure_shows_bridge_form_for_bridge_device(self) -> None:
+        """Bridge devices show bridge host/port form."""
+        flow, _entry = self._make_flow_with_entry(
+            DEVICE_TYPE_SIG_BRIDGE_PLUG,
+            {CONF_BRIDGE_HOST: "192.168.1.50", CONF_BRIDGE_PORT: 9000},
+        )
+
+        result = await flow.async_step_reconfigure(None)
+
+        assert result["type"] == "form"
+        assert result["step_id"] == "reconfigure"
+        assert CONF_BRIDGE_HOST in result["data_schema"].schema
+
+    @pytest.mark.asyncio
+    async def test_reconfigure_shows_mesh_form_for_direct_device(self) -> None:
+        """Direct BLE devices show mesh credential form."""
+        flow, _entry = self._make_flow_with_entry(
+            DEVICE_TYPE_LIGHT,
+            {CONF_MESH_NAME: "mymesh", CONF_MESH_PASSWORD: "secret123"},
+        )
+
+        result = await flow.async_step_reconfigure(None)
+
+        assert result["type"] == "form"
+        assert result["step_id"] == "reconfigure"
+        assert CONF_MESH_NAME in result["data_schema"].schema
+
+    @pytest.mark.asyncio
+    async def test_reconfigure_succeeds_for_direct_device(self) -> None:
+        """Valid mesh credential update triggers reload and abort with success."""
+        flow, entry = self._make_flow_with_entry(
+            DEVICE_TYPE_LIGHT,
+            {CONF_MESH_NAME: "oldmesh", CONF_MESH_PASSWORD: "oldcred"},
+        )
+
+        flow.hass.config_entries.async_reload = AsyncMock()
+
+        result = await flow.async_step_reconfigure(
+            {CONF_MESH_NAME: "newmesh", CONF_MESH_PASSWORD: "newcred"}
+        )
+
+        assert result["type"] == "abort"
+        assert result["reason"] == "reconfigure_successful"
+        flow.hass.config_entries.async_update_entry.assert_called_once()
+        flow.hass.config_entries.async_reload.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_reconfigure_bridge_validates_host(self) -> None:
+        """Invalid bridge host shows form with error."""
+        flow, _entry = self._make_flow_with_entry(
+            DEVICE_TYPE_SIG_BRIDGE_PLUG,
+            {CONF_BRIDGE_HOST: "192.168.1.1", CONF_BRIDGE_PORT: 9000},
+        )
+
+        result = await flow.async_step_reconfigure(
+            {CONF_BRIDGE_HOST: "127.0.0.1", CONF_BRIDGE_PORT: 9000}
+        )
+
+        assert result["type"] == "form"
+        assert result["errors"].get(CONF_BRIDGE_HOST) == "invalid_bridge_host"
+
+    @pytest.mark.asyncio
+    async def test_reconfigure_bridge_tests_connectivity(self) -> None:
+        """Bridge host is tested for reachability; failure shows error."""
+        flow, _entry = self._make_flow_with_entry(
+            DEVICE_TYPE_SIG_BRIDGE_PLUG,
+            {CONF_BRIDGE_HOST: "192.168.1.50", CONF_BRIDGE_PORT: 9000},
+        )
+
+        with patch(
+            "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
+            new_callable=AsyncMock,
+            return_value=False,
+        ):
+            result = await flow.async_step_reconfigure(
+                {CONF_BRIDGE_HOST: "192.168.1.99", CONF_BRIDGE_PORT: 9001}
+            )
+
+        assert result["type"] == "form"
+        assert result["errors"].get("base") == "cannot_connect"
+
+    @pytest.mark.asyncio
+    async def test_reconfigure_no_entry_aborts(self) -> None:
+        """If entry is not found in context, abort gracefully."""
+        from custom_components.tuya_ble_mesh.config_flow import TuyaBLEMeshConfigFlow
+
+        flow = TuyaBLEMeshConfigFlow()
+        flow.hass = MagicMock()
+        flow.context = {"entry_id": "missing"}
+        flow.hass.config_entries.async_get_entry.return_value = None
+
+        result = await flow.async_step_reconfigure(None)
+
+        assert result["type"] == "abort"
+        assert result["reason"] == "entry_not_found"
+
+    @pytest.mark.asyncio
+    async def test_reconfigure_invalid_mesh_credentials_shows_error(self) -> None:
+        """Credential exceeding 16 bytes shows validation error."""
+        flow, _entry = self._make_flow_with_entry(
+            DEVICE_TYPE_LIGHT,
+            {CONF_MESH_NAME: "mesh", CONF_MESH_PASSWORD: "x"},
+        )
+
+        too_long = "a" * 17  # 17 bytes
+        result = await flow.async_step_reconfigure(
+            {CONF_MESH_NAME: too_long, CONF_MESH_PASSWORD: "x"}
+        )
+
+        assert result["type"] == "form"
+        assert "base" in result["errors"]
+
+
+class TestValidateBridgeHostIPv6:
+    """MESH-14: _validate_bridge_host uses ipaddress.ip_address() for strict IPv6 validation."""
+
+    def test_valid_ipv6_public(self) -> None:
+        """Valid public IPv6 address should be accepted."""
+        assert _validate_bridge_host("2001:db8::1") is None
+
+    def test_invalid_ipv6_garbage(self) -> None:
+        """Garbage that looks like IPv6 (too many colons) must be rejected."""
+        assert _validate_bridge_host(":::::::::") == "invalid_bridge_host"
+
+    def test_valid_ipv6_full(self) -> None:
+        """Full-form IPv6 address should be accepted."""
+        assert _validate_bridge_host("2001:0db8:85a3:0000:0000:8a2e:0370:7334") is None
+
+    def test_ipv6_loopback_rejected(self) -> None:
+        """IPv6 loopback (::1) must be rejected as SSRF risk."""
+        assert _validate_bridge_host("::1") == "invalid_bridge_host"
