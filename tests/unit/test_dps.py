@@ -149,15 +149,18 @@ class TestLoadProfile:
 
     def test_pyyaml_not_available_raises(self, tmp_path: Path) -> None:
         """Test that missing PyYAML dependency raises ProtocolError."""
-        import tuya_ble_mesh.dps as dps_module
         from unittest.mock import patch
+
+        import tuya_ble_mesh.dps as dps_module
 
         path = tmp_path / "test.yaml"
         path.write_text("name: Test\nmodel: 123\ncategory: test\n", encoding="utf-8")
 
-        with patch.object(dps_module, "_YAML_AVAILABLE", False):
-            with pytest.raises(ProtocolError, match="PyYAML is required"):
-                load_profile(path)
+        with (
+            patch.object(dps_module, "_YAML_AVAILABLE", False),
+            pytest.raises(ProtocolError, match="PyYAML is required"),
+        ):
+            load_profile(path)
 
     def test_minimal_profile(self, tmp_path: Path) -> None:
         path = tmp_path / "minimal.yaml"
