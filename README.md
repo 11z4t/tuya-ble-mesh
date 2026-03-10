@@ -2,11 +2,10 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?logo=homeassistantcommunitystore)](https://github.com/hacs/integration)
 [![CI](https://github.com/kvista-se/tuya-ble-mesh/actions/workflows/ci.yml/badge.svg)](https://github.com/kvista-se/tuya-ble-mesh/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.20.2-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.21.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![HA 2024.1+](https://img.shields.io/badge/HA-2024.1%2B-blue.svg)](https://www.home-assistant.io)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](docs/COVERAGE_REPORT.md)
+[![Tests](https://img.shields.io/badge/tests-unit%20%2B%20security-brightgreen.svg)](tests/)
 
 A fully local Home Assistant integration for controlling Tuya BLE Mesh devices — including **Malmbergs BT Smart** lighting products. No cloud. No Tuya account required for daily use.
 
@@ -70,7 +69,7 @@ Devices using the Tuya BLE Mesh / Telink stack with service UUID `fe07`:
 - **Command queue** — reliable delivery with TTL even under rapid HA automations
 
 ### Status & Monitoring
-- **Push-based updates** — BLE notifications drive state changes (no polling)
+- **Status updates** — BLE notification handler is wired but actual push updates depend on device firmware; state is confirmed via keep-alive polling as a fallback
 - **RSSI sensor** — signal strength monitoring with adaptive polling
 - **Firmware version** — sensor for device firmware tracking
 - **Connection statistics** — visible in HA diagnostics
@@ -107,7 +106,7 @@ Devices using the Tuya BLE Mesh / Telink stack with service UUID `fe07`:
 | Device type | Light or Plug | Light |
 | MAC Address | BLE MAC (XX:XX:XX:XX:XX:XX) | *required* |
 | Bridge Host | IP/hostname of the bridge RPi | *required* |
-| Bridge Port | Bridge daemon HTTP port | `8787` |
+| Bridge Port | Bridge daemon HTTP port | `8099` |
 | Mesh Name | Mesh network name | `out_of_mesh` |
 | Mesh Password | Mesh network password | `123456` |
 | Vendor ID | Vendor identifier (hex) | `0x1001` |
@@ -120,7 +119,7 @@ The bridge daemon runs on a Raspberry Pi with Bluetooth, close to your mesh devi
 # On the RPi
 cd ~/malmbergs-bt
 source ~/malmbergs-ble/bin/activate
-python scripts/ble_mesh_daemon.py --host 0.0.0.0 --port 8787
+python scripts/ble_mesh_daemon.py --host 0.0.0.0 --port 8099
 ```
 
 The daemon exposes a simple HTTP API that the HA integration uses to send commands and receive status.
@@ -165,7 +164,7 @@ Each device creates:
 ```
 ┌──────────────┐     HTTP      ┌──────────────┐     BLE Mesh     ┌─────────┐
 │ Home         │◄─────────────►│ Raspberry Pi │◄────────────────►│ Light 1 │
-│ Assistant    │   (port 8787) │ (Bridge)     │                  ├─────────┤
+│ Assistant    │   (port 8099) │ (Bridge)     │                  ├─────────┤
 │              │               │              │◄────────────────►│ Light 2 │
 └──────────────┘               └──────────────┘                  ├─────────┤
                                                                  │ Plug 1  │
@@ -225,7 +224,9 @@ python -m pytest tests/unit/ -q
 
 ### Check pipeline
 
-All checks must pass: **ruff** (lint + format), **mypy --strict**, **bandit**, **safety**, **detect-secrets**, **pytest**.
+**CI-verified (GitHub Actions):** ruff (lint + format), mypy --strict, pytest (unit + security + benchmarks), HACS validation.
+
+**Local-only (not in CI):** bandit, safety, detect-secrets. Run these manually via `bash scripts/run-checks.sh` before submitting PRs.
 
 ## Known Limitations
 
@@ -234,6 +235,9 @@ All checks must pass: **ruff** (lint + format), **mypy --strict**, **bandit**, *
 - **Factory reset** — some devices need 5x rapid power cycling to enter provisioning mode; not all respond reliably
 - **BlueZ quirks** — on older BlueZ versions, `bluetoothctl remove` may be needed between reconnects (handled automatically)
 - **No OTA** — firmware updates are out of scope
+- **Notification uncertainty** — BLE notification support (`start_notify`) is wired at the handler level but not all Telink firmware versions actively push state updates; the integration falls back to keep-alive polling to confirm device state
+- **Options stored in `entry.data`** — the options flow currently writes advanced settings (debug level, timeouts, reconnect thresholds) back into `config_entry.data` rather than `config_entry.options`, which is the HA-recommended pattern; this works but may need refactoring in a future release
+- **Version/docs sync** — the version badge and default port in earlier README versions were out of sync with `manifest.json` / `const.py`; if you previously configured port 8787, the actual code default is 8099
 
 ## Contributing
 

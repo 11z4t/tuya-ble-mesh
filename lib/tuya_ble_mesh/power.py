@@ -93,7 +93,9 @@ class ShellyPowerController:
             return result.get("ison") is False
         else:
             result = await self._request("/rpc/Switch.Set?id=0&on=false")
-            return result.get("was_on", True) or True
+            # Gen2 Switch.Set returns {"was_on": true/false} on success.
+            # Any successful response means the relay is now off.
+            return "was_on" in result
 
     async def power_on(self) -> bool:
         """Turn on relay. Returns True if successful."""
