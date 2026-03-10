@@ -165,7 +165,6 @@ class TestFullLifecycle:
         mock_device.disconnect = AsyncMock()
         mock_device.set_status_callback = MagicMock()
 
-        mock_hass = MagicMock()
         mock_config_entry = MagicMock()
         mock_config_entry.entry_id = "test_entry"
 

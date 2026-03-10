@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import ANY, AsyncMock, MagicMock, patch
 
 import pytest
@@ -327,7 +328,7 @@ class TestAsyncSetupEntrySIGMesh:
             patch(_PATCH_COORDINATOR, return_value=mock_coord),
             patch(
                 "homeassistant.components.bluetooth.async_ble_device_from_address",
-                side_effect=[None, mock_ble_device],  # First call returns None, second returns device
+                side_effect=[None, mock_ble_device],  # First call None, second returns device
             ) as mock_ble,
         ):
             await async_setup_entry(hass, entry)

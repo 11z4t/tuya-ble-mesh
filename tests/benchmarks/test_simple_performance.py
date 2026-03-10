@@ -107,7 +107,7 @@ class TestProtocolPerformance:
 
     def test_protocol_decode_throughput(self) -> None:
         """Measure protocol decoding throughput."""
-        from tuya_ble_mesh.protocol import encode_command_packet, decode_command_packet
+        from tuya_ble_mesh.protocol import decode_command_packet, encode_command_packet
 
         key = b"0123456789ABCDEF"
         mac = b"\xdc\x23\x4d\x21\x43\xa5"
@@ -130,7 +130,7 @@ class TestProtocolPerformance:
 
     def test_protocol_roundtrip_throughput(self) -> None:
         """Measure full encode+decode cycle throughput."""
-        from tuya_ble_mesh.protocol import encode_command_packet, decode_command_packet
+        from tuya_ble_mesh.protocol import decode_command_packet, encode_command_packet
 
         key = b"0123456789ABCDEF"
         mac = b"\xdc\x23\x4d\x21\x43\xa5"

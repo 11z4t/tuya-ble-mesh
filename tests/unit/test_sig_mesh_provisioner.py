@@ -11,9 +11,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
 from tuya_ble_mesh.exceptions import ProvisioningError
 from tuya_ble_mesh.sig_mesh_provisioner import (
-    PROV_DATA_IN,
-    PROV_DATA_OUT,
-    PROV_SERVICE,
     ProvisioningResult,
     SIGMeshProvisioner,
     _wrap_provisioning_pdu,
@@ -222,9 +219,8 @@ class TestProvisionerConnect:
         with patch(
             "tuya_ble_mesh.sig_mesh_provisioner.BleakScanner.find_device_by_address",
             return_value=None,
-        ):
-            with pytest.raises(ProvisioningError, match="Failed to connect"):
-                await prov._connect("AA:BB:CC:DD:EE:FF", timeout=5.0, max_retries=3)
+        ), pytest.raises(ProvisioningError, match="Failed to connect"):
+            await prov._connect("AA:BB:CC:DD:EE:FF", timeout=5.0, max_retries=3)
 
     @pytest.mark.asyncio
     async def test_connect_with_ble_device_callback(self) -> None:
@@ -285,12 +281,15 @@ class TestProvisionerConnect:
     async def test_connect_retries_on_failure(self) -> None:
         prov = SIGMeshProvisioner(b"\x00" * 16, b"\x01" * 16, 0x00B0)
 
-        with patch(
-            "tuya_ble_mesh.sig_mesh_provisioner.BleakScanner.find_device_by_address",
-            side_effect=[Exception("Fail 1"), Exception("Fail 2")],
-        ), patch("asyncio.sleep", new_callable=AsyncMock):
-            with pytest.raises(ProvisioningError, match="Failed to connect"):
-                await prov._connect("AA:BB:CC:DD:EE:FF", timeout=1.0, max_retries=2)
+        with (
+            patch(
+                "tuya_ble_mesh.sig_mesh_provisioner.BleakScanner.find_device_by_address",
+                side_effect=[Exception("Fail 1"), Exception("Fail 2")],
+            ),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+            pytest.raises(ProvisioningError, match="Failed to connect"),
+        ):
+            await prov._connect("AA:BB:CC:DD:EE:FF", timeout=1.0, max_retries=2)
 
     @pytest.mark.asyncio
     async def test_connect_raises_provisioning_error_immediately(self) -> None:
@@ -299,9 +298,8 @@ class TestProvisionerConnect:
         with patch(
             "tuya_ble_mesh.sig_mesh_provisioner.BleakScanner.find_device_by_address",
             side_effect=ProvisioningError("Critical error"),
-        ):
-            with pytest.raises(ProvisioningError, match="Critical error"):
-                await prov._connect("AA:BB:CC:DD:EE:FF", timeout=5.0, max_retries=3)
+        ), pytest.raises(ProvisioningError, match="Critical error"):
+            await prov._connect("AA:BB:CC:DD:EE:FF", timeout=5.0, max_retries=3)
 
     @pytest.mark.asyncio
     async def test_connect_out_of_slots_error_with_backoff(self) -> None:
@@ -478,7 +476,7 @@ class TestProvisionerExchange:
             # Send PROV_FAILED instead of Capabilities
             notify_callback(None, bytearray([(_SAR_COMPLETE << 6) | 0x03, _PROV_FAILED, 0x02]))
 
-        asyncio.create_task(simulate_failure())
+        _task = asyncio.create_task(simulate_failure())  # noqa: RUF006
 
         with pytest.raises(ProvisioningError, match="ProvisioningFailed"):
             await prov._run_exchange(client)
@@ -501,7 +499,7 @@ class TestProvisionerExchange:
             # Send wrong PDU type
             notify_callback(None, bytearray([(_SAR_COMPLETE << 6) | 0x03, 0xFF]))
 
-        asyncio.create_task(simulate_wrong_pdu())
+        _task = asyncio.create_task(simulate_wrong_pdu())  # noqa: RUF006
 
         with pytest.raises(ProvisioningError, match="Protocol error"):
             await prov._run_exchange(client)
