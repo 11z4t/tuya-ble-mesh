@@ -7,6 +7,8 @@ Shelly IP is configuration, NOT a secret.
 Shelly auth credentials (if enabled) must go in 1Password.
 """
 
+from __future__ import annotations
+
 import asyncio
 import logging
 from typing import Any
@@ -168,7 +170,7 @@ class ShellyPowerController:
             await self._session.close()
             self._session = None
 
-    async def __aenter__(self) -> "ShellyPowerController":
+    async def __aenter__(self) -> ShellyPowerController:
         """Async context manager entry."""
         return self
 

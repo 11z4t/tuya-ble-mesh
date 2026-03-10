@@ -38,7 +38,10 @@ from tuya_ble_mesh.crypto import (
 
 _RETRIES = 5
 _PAYLOAD_SIZE = 15
-VENDOR_ID = bytes([0x60, 0x01])
+# Malmbergs BT Smart vendor ID (LE uint16: 0x1001).
+# Confirmed from HCI snoop: app sends 01 10 (not 0x60 0x01 which is AwoX 0x0160).
+# Must match TELINK_VENDOR_ID in tuya_ble_mesh.const.
+VENDOR_ID = bytes([0x01, 0x10])
 MESH_NAME = b"out_of_mesh"
 MESH_PASS = b"123456"
 

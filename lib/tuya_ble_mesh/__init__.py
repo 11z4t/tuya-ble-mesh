@@ -23,6 +23,8 @@ Modules:
     const — Protocol constants
 """
 
+from __future__ import annotations
+
 from tuya_ble_mesh.connection import ConnectionState
 from tuya_ble_mesh.device import MeshDevice
 from tuya_ble_mesh.dps import DeviceProfile, list_profiles, load_profile, load_profile_by_model

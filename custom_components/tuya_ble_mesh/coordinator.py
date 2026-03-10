@@ -30,15 +30,14 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.storage import Store
-    from tuya_ble_mesh.device import MeshDevice  # type: ignore[import-not-found]
-    from tuya_ble_mesh.protocol import StatusResponse  # type: ignore[import-not-found]
-    from tuya_ble_mesh.sig_mesh_bridge import (  # type: ignore[import-not-found]
+    from tuya_ble_mesh.device import MeshDevice
+    from tuya_ble_mesh.protocol import StatusResponse
+    from tuya_ble_mesh.sig_mesh_bridge import (
         SIGMeshBridgeDevice,
         TelinkBridgeDevice,
     )
-    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
-    from tuya_ble_mesh.sig_mesh_protocol import CompositionData  # type: ignore[import-not-found]
-
+    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
+    from tuya_ble_mesh.sig_mesh_protocol import CompositionData
 # All supported device types that can be passed to the coordinator
 AnyMeshDevice = Union[
     "MeshDevice",
@@ -58,7 +57,7 @@ _LOGGER = logging.getLogger(__name__)
 # Structured logging: MeshLogAdapter injects correlation ID + device MAC into records.
 # Falls back to plain _LOGGER if lib is not importable (tests without full lib).
 try:
-    from tuya_ble_mesh.logging_context import (  # type: ignore[import-not-found]
+    from tuya_ble_mesh.logging_context import (
         MeshLogAdapter,
         mesh_operation,
     )
@@ -345,7 +344,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             opcode: 3-byte vendor opcode.
             params: Raw vendor message parameters.
         """
-        from tuya_ble_mesh.sig_mesh_protocol import (  # type: ignore[import-not-found]
+        from tuya_ble_mesh.sig_mesh_protocol import (
             DP_ID_ENERGY_KWH,
             DP_ID_POWER_W,
             TUYA_VENDOR_OPCODE,

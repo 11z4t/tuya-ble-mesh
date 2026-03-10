@@ -71,6 +71,7 @@ from custom_components.tuya_ble_mesh.const import (
     DEVICE_TYPE_SIG_PLUG,
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
     DOMAIN,
+    KNOWN_VENDOR_IDS,
     SIG_MESH_PROV_UUID,
     SIG_MESH_PROXY_UUID,
 )
@@ -105,12 +106,8 @@ _POST_PROV_REBOOT_DELAY = 6.0
 # Discovery flow TTL — flows expire after this duration if device stops advertising
 _DISCOVERY_FLOW_TTL = 300  # 5 minutes
 
-# Known Tuya/Telink vendor IDs for autodetect hint
-_KNOWN_VENDOR_IDS: dict[str, str] = {
-    "0x1001": "Malmbergs BT Smart",
-    "0x0160": "AwoX",
-    "0x0211": "Dimond/retsimx",
-}
+# Re-export from const (single source of truth)
+_KNOWN_VENDOR_IDS = KNOWN_VENDOR_IDS
 
 # Debug level choices
 _DEBUG_LEVEL_CHOICES = {
