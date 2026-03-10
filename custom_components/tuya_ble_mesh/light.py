@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.light import (  # type: ignore[attr-defined]
+    ATTR_BRIGHTNESS,
     ATTR_COLOR_TEMP_KELVIN,
     ATTR_EFFECT,
     ATTR_RGB_COLOR,
@@ -399,7 +400,7 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
             return
 
         transition: float | None = kwargs.get(ATTR_TRANSITION)
-        brightness = kwargs.get("brightness")
+        brightness = kwargs.get(ATTR_BRIGHTNESS)
         color_temp_kelvin: int | None = kwargs.get(ATTR_COLOR_TEMP_KELVIN)
         color_temp = round(1_000_000 / color_temp_kelvin) if color_temp_kelvin else None
         rgb_color: tuple[int, int, int] | None = kwargs.get(ATTR_RGB_COLOR)
