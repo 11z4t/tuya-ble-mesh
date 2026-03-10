@@ -3,6 +3,14 @@
 NOT a DataUpdateCoordinator subclass. BLE notifications drive state
 updates via _on_status_update → listener dispatch. Reconnection uses
 exponential backoff, triggered by MeshDevice disconnect callbacks.
+
+Error classification:
+  bridge_down      — HTTP bridge not reachable
+  device_offline   — Bridge up but device MAC not responding
+  mesh_auth        — Device found but credentials rejected
+  protocol         — Protocol negotiation / version mismatch
+  permanent        — Fatal error, no reconnect useful (e.g. unsupported device)
+  transient        — Temporary failure (timeout, flap), reconnect will fix
 """
 
 from __future__ import annotations
@@ -14,6 +22,7 @@ import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from enum import Enum
 from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
@@ -56,6 +65,22 @@ _INITIAL_BACKOFF = 5.0
 _MAX_BACKOFF = 300.0
 _BACKOFF_MULTIPLIER = 2.0
 
+# Reconnect storm detection: threshold reconnects within window (seconds)
+_STORM_WINDOW_SECONDS = 300  # 5 minutes
+_STORM_DEFAULT_THRESHOLD = 10
+
+
+class ErrorClass(str, Enum):
+    """Classification of connection/protocol errors for repair creation."""
+
+    BRIDGE_DOWN = "bridge_down"
+    DEVICE_OFFLINE = "device_offline"
+    MESH_AUTH = "mesh_auth"
+    PROTOCOL = "protocol"
+    PERMANENT = "permanent"
+    TRANSIENT = "transient"
+    UNKNOWN = "unknown"
+
 # Sequence number persistence
 _SEQ_PERSIST_INTERVAL = 10  # Save seq every N commands
 _SEQ_SAFETY_MARGIN = 100  # Add margin on restore to avoid replay
@@ -96,9 +121,13 @@ class ConnectionStatistics:
     response_times: deque[float] = field(default_factory=lambda: deque(maxlen=100))
     last_error: str | None = None
     last_error_time: float | None = None
+    last_error_class: str = ErrorClass.UNKNOWN.value
     connection_uptime: float = 0.0  # Total seconds connected
     last_disconnect_time: float | None = None
     avg_response_time: float = 0.0  # Average response time in seconds
+    # Reconnect storm tracking
+    reconnect_times: deque[float] = field(default_factory=lambda: deque(maxlen=50))
+    storm_detected: bool = False
 
 
 class TuyaBLEMeshCoordinator:
@@ -140,6 +169,10 @@ class TuyaBLEMeshCoordinator:
 
         # Connection statistics for diagnostics
         self._stats = ConnectionStatistics()
+
+        # Entry name for repair issue placeholders (set externally if needed)
+        self.entry_name: str = ""
+        self._storm_threshold: int = _STORM_DEFAULT_THRESHOLD
 
     @property
     def device(self) -> AnyMeshDevice:
@@ -533,8 +566,45 @@ class TuyaBLEMeshCoordinator:
 
         self._reconnect_task = asyncio.ensure_future(self._reconnect_loop())
 
+    def _classify_error(self, err: Exception) -> ErrorClass:
+        """Classify a connection error into a category for repair creation.
+
+        Uses exception type name and message keywords to determine root cause.
+        """
+        err_type = type(err).__name__.lower()
+        err_msg = str(err).lower()
+
+        if "timeout" in err_type or "timeout" in err_msg:
+            return ErrorClass.TRANSIENT
+        if "auth" in err_type or "auth" in err_msg or "password" in err_msg or "credential" in err_msg:
+            return ErrorClass.MESH_AUTH
+        if "protocol" in err_type or "protocol" in err_msg or "version" in err_msg:
+            return ErrorClass.PROTOCOL
+        if "connection refused" in err_msg or "unreachable" in err_msg or "no route" in err_msg:
+            return ErrorClass.BRIDGE_DOWN
+        if "not found" in err_msg or "device not found" in err_msg:
+            return ErrorClass.DEVICE_OFFLINE
+        if "vendor" in err_msg or "unsupported" in err_msg:
+            return ErrorClass.PERMANENT
+        return ErrorClass.UNKNOWN
+
+    def _check_reconnect_storm(self) -> bool:
+        """Return True if reconnect attempts indicate a storm (tight loop).
+
+        Prunes the reconnect_times deque to the tracking window first.
+        """
+        now = time.time()
+        cutoff = now - _STORM_WINDOW_SECONDS
+        while self._stats.reconnect_times and self._stats.reconnect_times[0] < cutoff:
+            self._stats.reconnect_times.popleft()
+        return len(self._stats.reconnect_times) >= self._storm_threshold
+
     async def _reconnect_loop(self) -> None:
-        """Attempt reconnection with exponential backoff."""
+        """Attempt reconnection with exponential backoff.
+
+        On success: clears connectivity repair issues.
+        On failure: classifies error, checks for storm, creates repair if needed.
+        """
         while self._running:
             _LOGGER.info(
                 "Reconnecting to %s in %.0fs",
@@ -553,12 +623,30 @@ class TuyaBLEMeshCoordinator:
                 self._stats.response_times.append(response_time)
                 self._stats.connect_time = time.time()
                 self._stats.total_reconnects += 1
+                self._stats.reconnect_times.append(time.time())
                 self._state.available = True
                 self._state.firmware_version = self._device.firmware_version
                 self._backoff = _INITIAL_BACKOFF
+                self._stats.storm_detected = False
                 self._start_rssi_polling()
                 _LOGGER.info("Reconnected to %s (%.2fs)", self._device.address, response_time)
                 self._log_connect_metrics(response_time)
+                # Clear connectivity repair issues on successful reconnect
+                if self._hass is not None:
+                    from custom_components.tuya_ble_mesh.repairs import (
+                        ISSUE_BRIDGE_UNREACHABLE,
+                        ISSUE_DEVICE_NOT_FOUND,
+                        ISSUE_RECONNECT_STORM,
+                        ISSUE_TIMEOUT,
+                        async_delete_issue,
+                    )
+                    for issue_id in (
+                        ISSUE_BRIDGE_UNREACHABLE,
+                        ISSUE_DEVICE_NOT_FOUND,
+                        ISSUE_TIMEOUT,
+                        ISSUE_RECONNECT_STORM,
+                    ):
+                        async_delete_issue(self._hass, issue_id)
                 self._notify_listeners()
                 return
             except Exception as err:
@@ -566,11 +654,32 @@ class TuyaBLEMeshCoordinator:
                 self._stats.connection_errors += 1
                 self._stats.last_error = str(err)
                 self._stats.last_error_time = time.time()
+                error_class = self._classify_error(err)
+                self._stats.last_error_class = error_class.value
+                self._stats.reconnect_times.append(time.time())
+
                 _LOGGER.warning(
-                    "Reconnect failed for %s",
+                    "Reconnect failed for %s (class=%s)",
                     self._device.address,
+                    error_class.value,
                     exc_info=True,
                 )
+
+                # Detect reconnect storm and create repair issue (once per storm)
+                if self._hass is not None and self._check_reconnect_storm() and not self._stats.storm_detected:
+                    self._stats.storm_detected = True
+                    from custom_components.tuya_ble_mesh.repairs import (
+                        async_create_issue_reconnect_storm,
+                    )
+                    asyncio.ensure_future(
+                        async_create_issue_reconnect_storm(
+                            self._hass,
+                            self.entry_name or self._device.address,
+                            len(self._stats.reconnect_times),
+                            _STORM_WINDOW_SECONDS // 60,
+                        )
+                    )
+
                 self._state.available = False
                 self._backoff = min(self._backoff * _BACKOFF_MULTIPLIER, _MAX_BACKOFF)
                 self._notify_listeners()

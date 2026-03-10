@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Tuya BLE Mesh Device",
-        "description": "Enter the BLE MAC address and mesh credentials.\n\nNote: Default credentials (out_of_mesh/123456) are factory defaults. Mesh credentials are stored in the Home Assistant config database.",
+        "description": "Enter the BLE MAC address and device type. Default mesh credentials (out_of_mesh/123456) are Tuya factory defaults.",
         "data": {
           "mac_address": "MAC Address",
           "mesh_name": "Mesh Name",
@@ -11,43 +11,59 @@
           "vendor_id": "Vendor ID (hex, e.g. 0x1001)",
           "device_type": "Device Type",
           "mesh_address": "Mesh Address (0 = auto)"
+        },
+        "data_description": {
+          "mac_address": "Format: XX:XX:XX:XX:XX:XX",
+          "vendor_id": "Malmbergs=0x1001, AwoX=0x0160, Dimond=0x0211",
+          "mesh_name": "Factory default: out_of_mesh (max 16 bytes)",
+          "mesh_password": "Factory default: 123456 (max 16 bytes)"
         }
       },
       "sig_bridge": {
         "title": "SIG Mesh Bridge Configuration",
-        "description": "Configure the BLE bridge daemon connection for {name}.",
+        "description": "Configure the BLE bridge daemon for **{name}**.\n\nThe bridge daemon must be running and reachable from Home Assistant. The connection will be tested before continuing.",
         "data": {
-          "bridge_host": "Bridge Host (RPi IP address)",
+          "bridge_host": "Bridge Host (IP address or hostname)",
           "bridge_port": "Bridge Port",
           "unicast_target": "Target Unicast Address (hex)"
+        },
+        "data_description": {
+          "bridge_host": "IP address or hostname of the Raspberry Pi running the bridge daemon",
+          "bridge_port": "Default: 8099",
+          "unicast_target": "Default: 00B0"
         }
       },
       "telink_bridge": {
         "title": "Telink Bridge Light Configuration",
-        "description": "Configure the BLE bridge daemon connection for {name}.",
+        "description": "Configure the BLE bridge daemon for **{name}**.\n\nThe bridge daemon must be running and reachable from Home Assistant. The connection will be tested before continuing.",
         "data": {
-          "bridge_host": "Bridge Host (RPi IP address)",
+          "bridge_host": "Bridge Host (IP address or hostname)",
           "bridge_port": "Bridge Port"
+        },
+        "data_description": {
+          "bridge_host": "IP address or hostname of the Raspberry Pi running the bridge daemon",
+          "bridge_port": "Default: 8099"
         }
       },
       "sig_plug": {
         "title": "SIG Mesh Plug \u2014 Auto Provisioning",
-        "description": "The device **{name}** will be provisioned automatically.\n\nA random NetKey and AppKey are generated. The DevKey is derived from the ECDH provisioning exchange. All keys are saved in the Home Assistant config database.\n\nEnsure the device is in factory-reset state (advertising Provisioning Service 0x1827) and within BLE range of a local adapter or ESPHome BLE proxy, then click Submit.",
+        "description": "The device **{name}** will be provisioned automatically.\n\nA random NetKey and AppKey are generated. The DevKey is derived from the ECDH provisioning exchange. All keys are saved securely in the Home Assistant config database.\n\n**Before clicking Submit:**\n- Ensure the device is in factory-reset state (LED flashing)\n- Ensure it is within BLE range of a local adapter or ESPHome BLE proxy\n- Provisioning takes approximately 10 seconds",
         "data": {}
       },
       "confirm": {
         "title": "{name} ({mac})",
-        "description": "**{category}** device discovered\n\n- **Name:** {name}\n- **MAC:** {mac}\n- **Signal:** {rssi} dBm\n\nChoose device type and mesh credentials.",
+        "description": "**{category}** device discovered\n\n- **Name:** {name}\n- **MAC:** {mac}\n- **Signal:** {rssi} dBm\n\nChoose device type and verify mesh credentials.",
         "data": {
           "device_type": "Device Type",
           "mesh_name": "Mesh Name",
           "mesh_password": "Mesh Password",
+          "vendor_id": "Vendor ID (hex)",
           "mesh_address": "Mesh Address (0 = auto)"
         }
       },
       "reauth_confirm": {
-        "title": "Re-enter Mesh Credentials",
-        "description": "Authentication failed. Please re-enter the mesh credentials to reconnect.",
+        "title": "Re-enter Credentials",
+        "description": "Connection failed \u2014 credentials may have changed. Re-enter to reconnect.",
         "data": {
           "mesh_name": "Mesh Name",
           "mesh_password": "Mesh Password",
@@ -57,11 +73,19 @@
       }
     },
     "error": {
-      "invalid_mac": "Invalid MAC address format (expected XX:XX:XX:XX:XX:XX)",
-      "invalid_key": "Invalid key format (expected 32 hex characters)",
-      "invalid_bridge_host": "Invalid bridge host. Use a hostname or IP address (not a URL). Private/loopback addresses are not allowed.",
-      "cannot_connect": "Cannot connect to bridge daemon. Verify the host/port and that the daemon is running.",
-      "provisioning_failed": "Provisioning failed. Ensure the device is in factory-reset state, within BLE range of a local adapter or ESPHome BLE proxy, and try again. Check Home Assistant logs for details."
+      "invalid_mac": "Invalid MAC address format. Expected XX:XX:XX:XX:XX:XX (colon-separated hex).",
+      "invalid_key": "Invalid key format (expected 32 hex characters).",
+      "invalid_bridge_host": "Invalid bridge host. Enter a hostname or IP address (not a URL). Loopback and link-local addresses are not allowed.",
+      "invalid_credential_length": "Mesh name and password must each be 16 bytes or fewer.",
+      "invalid_vendor_id": "Invalid Vendor ID. Expected 1\u20134 hex digits with optional 0x prefix (e.g. 0x1001).",
+      "bridge_unreachable": "Cannot reach bridge daemon at the given host/port. Check that the daemon is running and that Home Assistant can access it on your network.",
+      "auth_or_mesh_mismatch": "Bridge reached but device rejected the mesh credentials. Verify mesh name and password.",
+      "unsupported_vendor": "Vendor ID not recognized. Check BLE snoop logs for the correct vendor bytes.",
+      "device_not_found": "Device MAC not visible from bridge. Ensure the device is powered and within BLE range.",
+      "timeout": "Operation timed out. The bridge or device did not respond in time.",
+      "unknown_protocol": "Protocol negotiation failed. This may indicate a bridge firmware mismatch.",
+      "cannot_connect": "Cannot connect to bridge daemon. Verify host/port and that the daemon is running.",
+      "provisioning_failed": "Provisioning failed. Ensure the device is in factory-reset state (LED flashing), within BLE range, and try again. Check HA logs for details."
     },
     "abort": {
       "already_configured": "This device is already configured",
@@ -72,16 +96,42 @@
     "step": {
       "init": {
         "title": "Tuya BLE Mesh Options",
+        "description": "Update bridge connection or mesh credentials. Enable **Show advanced settings** for timeout and reconnect options.",
         "data": {
           "mesh_name": "Mesh Name",
           "mesh_password": "Mesh Password",
+          "vendor_id": "Vendor ID (hex)",
           "mesh_address": "Mesh Address (0 = auto)",
           "bridge_host": "Bridge Host",
           "bridge_port": "Bridge Port",
           "unicast_target": "Target Unicast Address (hex)",
-          "iv_index": "IV Index"
+          "iv_index": "IV Index",
+          "validate_bridge": "Test bridge connection before saving",
+          "show_advanced": "Show advanced settings"
+        }
+      },
+      "advanced": {
+        "title": "Advanced Settings",
+        "description": "Adjust debug verbosity, command timeouts, and reconnect storm protection.",
+        "data": {
+          "debug_level": "Log level for BLE mesh",
+          "command_timeout": "Command timeout (seconds)",
+          "max_reconnects": "Max reconnect attempts (0 = unlimited)",
+          "reconnect_storm_threshold": "Reconnect storm threshold (per 5 minutes)"
+        },
+        "data_description": {
+          "debug_level": "Controls verbosity of BLE mesh logs. Warning is recommended for normal use.",
+          "command_timeout": "How long to wait for a device response before retrying (3\u201360 seconds).",
+          "max_reconnects": "Limit total reconnect attempts. 0 = keep trying indefinitely.",
+          "reconnect_storm_threshold": "Create a repair issue if this many reconnects happen within 5 minutes."
         }
       }
+    },
+    "error": {
+      "invalid_bridge_host": "Invalid bridge host. Enter a hostname or IP address (not a URL).",
+      "bridge_unreachable": "Cannot reach bridge daemon. Verify host/port and that the daemon is running.",
+      "invalid_credential_length": "Mesh name and password must each be 16 bytes or fewer.",
+      "invalid_vendor_id": "Invalid Vendor ID. Expected 1\u20134 hex digits (e.g. 0x1001)."
     }
   },
   "entity": {
@@ -144,16 +194,85 @@
           "description": "Logging level: debug, info, warning, or error."
         }
       }
+    },
+    "get_diagnostics": {
+      "name": "Get diagnostics",
+      "description": "Log diagnostic information for a device to the HA log.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The device to get diagnostics for."
+        }
+      }
     }
   },
   "issues": {
-    "provisioning_failed": {
-      "title": "Device provisioning failed",
-      "description": "Could not provision {device}. Ensure it is in factory-reset state and within BLE range, then reconfigure the integration."
-    },
     "bridge_unreachable": {
-      "title": "Bridge unreachable",
-      "description": "Cannot reach the BLE bridge at {host}:{port}. Check network connectivity and that the bridge daemon is running."
+      "title": "Bridge daemon unreachable: {host}:{port}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Bridge unreachable: {host}:{port}",
+            "description": "The BLE bridge daemon at **{host}:{port}** is not responding.\n\n**Checks:**\n1. Is the bridge host powered on?\n2. Is the daemon running? Run: `systemctl status tuya-ble-bridge`\n3. Is port {port} accessible from Home Assistant?\n4. Test: `curl http://{host}:{port}/health`\n\nThis issue clears automatically when the daemon comes back online."
+          }
+        }
+      }
+    },
+    "auth_or_mesh_mismatch": {
+      "title": "Mesh credential mismatch: {device}",
+      "fix_flow": {
+        "step": {
+          "reauth_hint": {
+            "title": "Fix: Update mesh credentials",
+            "description": "The device **{device}** is rejecting the stored mesh credentials.\n\n**To fix:**\n1. Go to **Settings \u2192 Integrations \u2192 {device} \u2192 Configure**\n2. Update mesh name and password to match the device\n3. Factory defaults: name=`out_of_mesh`, password=`123456`\n\nIf the device was factory-reset, delete and re-add the integration."
+          }
+        }
+      }
+    },
+    "unsupported_vendor": {
+      "title": "Unsupported vendor ID: {device} ({vendor_id})",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Fix: Update vendor ID",
+            "description": "The vendor ID **{vendor_id}** for **{device}** is not recognized.\n\n**To find the correct ID:**\n1. Use a BLE sniffer to capture advertisements from the device\n2. Look at manufacturer-specific data \u2014 vendor bytes are at payload offset `[3:5]`\n3. Known IDs: Malmbergs=`0x1001`, AwoX=`0x0160`, Dimond=`0x0211`\n\n**To fix:** Go to **Settings \u2192 Integrations \u2192 {device} \u2192 Configure** and update the Vendor ID."
+          }
+        }
+      }
+    },
+    "device_not_found": {
+      "title": "Device not visible: {device} (\u2026{mac})"
+    },
+    "timeout": {
+      "title": "Repeated timeouts: {device} ({operation})"
+    },
+    "reconnect_storm": {
+      "title": "Reconnect loop: {device}",
+      "fix_flow": {
+        "step": {
+          "storm_confirm": {
+            "title": "Acknowledge reconnect storm",
+            "description": "**{device}** reconnected **{count}** times in {window} minutes.\n\n**Checks:**\n1. Is the device stable (not rebooting repeatedly)?\n2. Is BLE signal adequate (RSSI > \u221280 dBm)?\n3. Check bridge logs for error patterns.\n\nAcknowledging this issue will not stop reconnects \u2014 it just clears the notification. Address the underlying cause first."
+          }
+        }
+      }
+    },
+    "protocol_mismatch": {
+      "title": "Protocol mismatch: {device}"
+    },
+    "provisioning_failed": {
+      "title": "Provisioning failed: {device}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Fix provisioning failure",
+            "description": "SIG Mesh provisioning failed for **{device}**.\n\n**To fix:**\n1. Delete this integration entry\n2. Factory-reset the device: 5\u00d7 rapid power cycle (LED flashes rapidly when ready)\n3. Re-add the integration while the LED is flashing\n\nEnsure the device is within BLE range of a local adapter or ESPHome BLE proxy during provisioning."
+          }
+        }
+      }
+    },
+    "key_mismatch": {
+      "title": "Key mismatch: {device}"
     }
   }
 }
