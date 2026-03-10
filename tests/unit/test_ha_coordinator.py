@@ -1597,3 +1597,67 @@ class TestRSSILoopHABluetooth:
         mock_ble_fn.assert_called()
         # RSSI should be updated
         assert coord.state.rssi == -65
+
+
+@pytest.mark.requires_ha
+class TestAvgResponseTime:
+    """Test avg_response_time_ms property — PLAT-420."""
+
+    def test_empty_deque_returns_none(self) -> None:
+        """avg_response_time_ms returns None when no data (line 155)."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        assert coord.avg_response_time_ms is None
+
+    def test_single_sample(self) -> None:
+        """avg_response_time_ms returns the single value * 1000."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._stats.response_times.append(0.5)
+        assert coord.avg_response_time_ms == pytest.approx(500.0)
+
+    def test_multiple_samples(self) -> None:
+        """avg_response_time_ms returns mean in milliseconds."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._stats.response_times.extend([0.1, 0.3])
+        assert coord.avg_response_time_ms == pytest.approx(200.0)
+
+
+@pytest.mark.requires_ha
+class TestLogConnectMetrics:
+    """Test _log_connect_metrics — PLAT-420."""
+
+    def test_first_connection_logs_no_avg(self) -> None:
+        """First connection (empty deque) logs first-connection message (line 177)."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        # No response times yet — avg is None (deque is empty by default)
+        assert len(coord._stats.response_times) == 0
+        # Should not raise
+        coord._log_connect_metrics(0.3)
+
+    def test_subsequent_connection_logs_with_avg(self) -> None:
+        """Connection after first attempt logs with rolling average."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._stats.response_times.append(0.2)
+        coord._stats.response_times.append(0.4)
+        # Should not raise
+        coord._log_connect_metrics(0.3)
+
+    def test_notify_listeners_logs_count(self, caplog: Any) -> None:
+        """_notify_listeners logs the number of listeners."""
+        import logging
+
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        callback = MagicMock()
+        coord.add_listener(callback)
+
+        with caplog.at_level(logging.DEBUG, logger="custom_components.tuya_ble_mesh.coordinator"):
+            coord._notify_listeners()
+
+        callback.assert_called_once()
+        # Log should mention listener count
+        assert any("1" in record.message and "listener" in record.message for record in caplog.records)

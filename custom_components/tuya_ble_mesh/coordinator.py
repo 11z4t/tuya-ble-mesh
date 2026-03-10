@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import statistics
 import time
 from collections import deque
 from collections.abc import Callable
@@ -39,6 +40,16 @@ _RSSI_DEFAULT_INTERVAL = 60.0  # Initial/fallback
 _RSSI_STABILITY_THRESHOLD = 3  # No changes for N cycles = stable
 
 _LOGGER = logging.getLogger(__name__)
+
+# Structured logging: MeshLogAdapter injects correlation ID + device MAC into records.
+# Falls back to plain _LOGGER if lib is not importable (tests without full lib).
+try:
+    from tuya_ble_mesh.logging_context import MeshLogAdapter, mesh_operation  # type: ignore[import-not-found]
+
+    _MESH_LOGGER: logging.Logger | MeshLogAdapter = MeshLogAdapter(logging.getLogger(__name__), {})
+    _HAS_MESH_LOGGER = True
+except ImportError:  # pragma: no cover — lib always present in production
+    _HAS_MESH_LOGGER = False
 
 # Reconnect backoff parameters
 _INITIAL_BACKOFF = 5.0
@@ -140,6 +151,38 @@ class TuyaBLEMeshCoordinator:
         """Return connection and performance statistics."""
         return self._stats
 
+    @property
+    def avg_response_time_ms(self) -> float | None:
+        """Return mean connection response time in milliseconds, or None if no data."""
+        if not self._stats.response_times:
+            return None
+        return statistics.mean(self._stats.response_times) * 1000
+
+    def _log_connect_metrics(self, response_time: float) -> None:
+        """Log connection performance metrics at INFO level.
+
+        Logs response time and rolling average to help diagnose slow adapters.
+
+        Args:
+            response_time: Connect time in seconds for this attempt.
+        """
+        avg_ms = self.avg_response_time_ms
+        if avg_ms is not None:
+            _LOGGER.info(
+                "Connect metrics for %s: this=%.0fms avg=%.0fms reconnects=%d errors=%d",
+                self._device.address,
+                response_time * 1000,
+                avg_ms,
+                self._stats.total_reconnects,
+                self._stats.total_errors,
+            )
+        else:
+            _LOGGER.info(
+                "Connect metrics for %s: this=%.0fms (first connection)",
+                self._device.address,
+                response_time * 1000,
+            )
+
     def add_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
         """Register a state change listener.
 
@@ -159,11 +202,22 @@ class TuyaBLEMeshCoordinator:
 
     def _notify_listeners(self) -> None:
         """Notify all registered listeners of state change."""
+        count = len(self._listeners)
+        _LOGGER.debug(
+            "Notifying %d listener(s) for %s (available=%s)",
+            count,
+            self._device.address,
+            self._state.available,
+        )
         for callback in list(self._listeners):
             try:
                 callback()
             except Exception:
-                _LOGGER.warning("Listener callback error", exc_info=True)
+                _LOGGER.warning(
+                    "Listener callback error for %s",
+                    self._device.address,
+                    exc_info=True,
+                )
 
     def _on_onoff_update(self, on: bool) -> None:
         """Handle a GenericOnOff Status from a SIG Mesh device.
@@ -385,6 +439,7 @@ class TuyaBLEMeshCoordinator:
             self._backoff = _INITIAL_BACKOFF
             self._start_rssi_polling()
             _LOGGER.info("Coordinator started for %s (%.2fs)", self._device.address, response_time)
+            self._log_connect_metrics(response_time)
         except Exception as err:
             self._stats.total_errors += 1
             self._stats.connection_errors += 1
@@ -466,6 +521,7 @@ class TuyaBLEMeshCoordinator:
                 self._backoff = _INITIAL_BACKOFF
                 self._start_rssi_polling()
                 _LOGGER.info("Reconnected to %s (%.2fs)", self._device.address, response_time)
+                self._log_connect_metrics(response_time)
                 self._notify_listeners()
                 return
             except Exception as err:
