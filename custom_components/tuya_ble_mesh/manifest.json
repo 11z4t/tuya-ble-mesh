@@ -1,12 +1,12 @@
 {
   "domain": "tuya_ble_mesh",
   "name": "Tuya BLE Mesh",
-  "version": "0.19.0",
+  "version": "0.19.1",
   "integration_type": "hub",
   "documentation": "https://github.com/11z4t/tuya-ble-mesh",
   "issue_tracker": "https://github.com/11z4t/tuya-ble-mesh/issues",
   "codeowners": [
-    "@11z4t"
+    "@kvista-se"
   ],
   "config_flow": true,
   "iot_class": "local_push",
