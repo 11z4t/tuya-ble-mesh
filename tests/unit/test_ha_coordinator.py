@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -276,7 +277,7 @@ class TestDisconnectCallback:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord.state.available = True
+        coord._state = replace(coord._state, available=True)
 
         coord._on_disconnect()
 
@@ -1074,7 +1075,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state.available = True
+        coord._state = replace(coord._state, available=True)
 
         mock_ble_device = MagicMock()
         mock_ble_device.rssi = -55
@@ -1102,7 +1103,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state.available = False  # already unavailable
+        coord._state = replace(coord._state, available=False)  # already unavailable
 
         # Should exit immediately without sleeping
         await coord._rssi_loop()
@@ -1114,7 +1115,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state.available = True
+        coord._state = replace(coord._state, available=True)
 
         call_count = 0
 
@@ -1140,7 +1141,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state.available = True
+        coord._state = replace(coord._state, available=True)
 
         call_count = 0
 
@@ -1165,7 +1166,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state.available = True
+        coord._state = replace(coord._state, available=True)
 
         async def raise_cancel(seconds: float) -> None:
             raise asyncio.CancelledError()
@@ -1180,7 +1181,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state.available = True
+        coord._state = replace(coord._state, available=True)
         listener = MagicMock()
         coord.add_listener(listener)
 
@@ -1210,7 +1211,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state.available = True
+        coord._state = replace(coord._state, available=True)
 
         # Create BLE devices with stable RSSI (within ±2 dBm)
         mock_ble_device_1 = MagicMock()
@@ -1613,7 +1614,7 @@ class TestRSSILoopHABluetooth:
         mock_hass = MagicMock()
         coord = TuyaBLEMeshCoordinator(device, hass=mock_hass)
         coord._running = True
-        coord._state.available = True
+        coord._state = replace(coord._state, available=True)
 
         mock_ble_device = MagicMock()
         mock_ble_device.rssi = -65
@@ -2043,3 +2044,73 @@ class TestDeviceCapabilities:
         assert isinstance(coord.capabilities, DeviceCapabilities)
         assert coord.capabilities.has_status_callback is True
         assert coord.capabilities.protocol == "Tuya_BLE"
+
+
+class TestFrozenState:
+    """MESH-15: TuyaBLEMeshDeviceState is frozen — verify immutability and replace() patterns."""
+
+    def test_state_is_immutable(self) -> None:
+        """Direct field assignment must raise FrozenInstanceError."""
+        import dataclasses
+
+        state = TuyaBLEMeshDeviceState()
+        with pytest.raises(dataclasses.FrozenInstanceError):
+            state.available = True  # type: ignore[misc]
+
+    def test_replace_produces_new_snapshot(self) -> None:
+        """replace() must return a new object, not mutate in place."""
+        s1 = TuyaBLEMeshDeviceState()
+        s2 = replace(s1, available=True, brightness=80)
+
+        assert s1.available is False  # original unchanged
+        assert s2.available is True
+        assert s2.brightness == 80
+        assert s1 is not s2
+
+    def test_atomic_status_update(self) -> None:
+        """All fields from _on_status_update are applied atomically via replace()."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        status = make_mock_status(mode=1, white_brightness=200, white_temp=30, color_brightness=128)
+        status.red = 255
+        status.green = 100
+        status.blue = 50
+
+        coord._on_status_update(status)
+        s = coord.state
+
+        assert s.mode == 1
+        assert s.brightness == 200
+        assert s.color_temp == 30
+        assert s.color_brightness == 128
+        assert s.red == 255
+        assert s.green == 100
+        assert s.blue == 50
+        assert s.available is True
+
+    def test_state_has_scene_id_field(self) -> None:
+        """TuyaBLEMeshDeviceState must include scene_id for MESH-19."""
+        state = TuyaBLEMeshDeviceState()
+        assert state.scene_id == 0  # default = no active scene
+
+        s2 = replace(state, scene_id=3)
+        assert s2.scene_id == 3
+        assert state.scene_id == 0  # original unchanged
+
+    def test_command_semaphore_initialized(self) -> None:
+        """Coordinator must initialize _command_semaphore in __init__."""
+        import asyncio
+
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        assert isinstance(coord._command_semaphore, asyncio.Semaphore)
+
+    def test_listeners_initialized_in_init(self) -> None:
+        """_listeners and _listener_error_counts must be initialized in __init__, not lazily."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+
+        # Access without calling add_listener first
+        assert isinstance(coord._listeners, list)
+        assert isinstance(coord._listener_error_counts, dict)
+        assert len(coord._listeners) == 0

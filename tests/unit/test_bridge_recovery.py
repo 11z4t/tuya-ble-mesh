@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -67,7 +68,7 @@ class TestBridgeDisconnectRecovery:
         dev = _make_bridge_device()
         dev._connected = True
         coord = self._make_coordinator(dev)
-        coord._state.available = True
+        coord._state = replace(coord._state, available=True)
 
         # Simulate disconnect
         coord._on_disconnect()
@@ -79,7 +80,7 @@ class TestBridgeDisconnectRecovery:
         dev = _make_bridge_device()
         dev._connected = True
         coord = self._make_coordinator(dev)
-        coord._state.available = True
+        coord._state = replace(coord._state, available=True)
         coord._backoff = _INITIAL_BACKOFF  # Start with default
 
         coord._on_disconnect()
@@ -92,7 +93,7 @@ class TestBridgeDisconnectRecovery:
         dev.address = "DC:23:4D:21:43:A5"
         dev.__class__.__name__ = "MeshDevice"
         coord = self._make_coordinator(dev)
-        coord._state.available = True
+        coord._state = replace(coord._state, available=True)
         coord._backoff = _INITIAL_BACKOFF
 
         coord._on_disconnect()
@@ -117,7 +118,7 @@ class TestCoordinatorReconnectLoop:
         coord = TuyaBLEMeshCoordinator(dev)
         coord._running = True
         coord._consecutive_failures = 3
-        coord._state.available = False
+        coord._state = replace(coord._state, available=False)
         coord._backoff = 0.01  # fast for testing
 
         with patch(_PATCH_SLEEP, new_callable=AsyncMock):
