@@ -535,8 +535,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             device_label = "Mesh Device"
             device_category = "Telink Mesh"
 
-        # Set title_placeholders BEFORE async_set_unique_id for discovery card
-        self.context["title_placeholders"] = {"name": f"{device_label} {address}"}
+        # Set title_placeholders for discovery card (mac shows last 8 chars)
+        self.context["title_placeholders"] = {"mac": address[-8:]}
 
         await self.async_set_unique_id(address)
         self._abort_if_unique_id_configured()
