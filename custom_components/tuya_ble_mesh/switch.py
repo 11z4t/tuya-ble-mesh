@@ -92,7 +92,10 @@ class TuyaBLEMeshSwitch(SwitchEntity):
         Args:
             **kwargs: Additional arguments (unused).
         """
-        await self._coordinator.device.send_power(True)
+        await self._coordinator.send_command_with_retry(
+            lambda: self._coordinator.device.send_power(True),  # type: ignore[arg-type]
+            description="send_power(True)",
+        )
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off.
@@ -100,7 +103,10 @@ class TuyaBLEMeshSwitch(SwitchEntity):
         Args:
             **kwargs: Additional arguments (unused).
         """
-        await self._coordinator.device.send_power(False)
+        await self._coordinator.send_command_with_retry(
+            lambda: self._coordinator.device.send_power(False),  # type: ignore[arg-type]
+            description="send_power(False)",
+        )
 
     async def async_added_to_hass(self) -> None:
         """Register state listener when added to HA."""

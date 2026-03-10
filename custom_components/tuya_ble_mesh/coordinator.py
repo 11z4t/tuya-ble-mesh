@@ -649,7 +649,7 @@ class TuyaBLEMeshCoordinator:
                 _LOGGER.info("Reconnected to %s (%.2fs)", self._device.address, response_time)
                 self._log_connect_metrics(response_time)
                 # Clear connectivity repair issues on successful reconnect
-                if self._hass is not None:
+                if self._hass is not None and self._entry_id is not None:
                     from custom_components.tuya_ble_mesh.repairs import (
                         ISSUE_BRIDGE_UNREACHABLE,
                         ISSUE_DEVICE_NOT_FOUND,
@@ -657,13 +657,13 @@ class TuyaBLEMeshCoordinator:
                         ISSUE_TIMEOUT,
                         async_delete_issue,
                     )
-                    for issue_id in (
+                    for base_id in (
                         ISSUE_BRIDGE_UNREACHABLE,
                         ISSUE_DEVICE_NOT_FOUND,
                         ISSUE_TIMEOUT,
                         ISSUE_RECONNECT_STORM,
                     ):
-                        async_delete_issue(self._hass, issue_id)
+                        async_delete_issue(self._hass, base_id, self._entry_id)
                 self._notify_listeners()
                 return
             except Exception as err:
@@ -683,7 +683,12 @@ class TuyaBLEMeshCoordinator:
                 )
 
                 # Detect reconnect storm and create repair issue (once per storm)
-                if self._hass is not None and self._check_reconnect_storm() and not self._stats.storm_detected:
+                if (
+                    self._hass is not None
+                    and self._entry_id is not None
+                    and self._check_reconnect_storm()
+                    and not self._stats.storm_detected
+                ):
                     self._stats.storm_detected = True
                     from custom_components.tuya_ble_mesh.repairs import (
                         async_create_issue_reconnect_storm,
@@ -693,6 +698,7 @@ class TuyaBLEMeshCoordinator:
                             self._hass,
                             self.entry_name or self._device.address,
                             len(self._stats.reconnect_times),
+                            self._entry_id,
                             _STORM_WINDOW_SECONDS // 60,
                         )
                     )
@@ -859,3 +865,71 @@ class TuyaBLEMeshCoordinator:
                     break  # _on_disconnect schedules reconnect; loop will restart after
         except asyncio.CancelledError:
             pass
+
+    # --- BLE command retry ---
+
+    async def send_command_with_retry(
+        self,
+        coro_func: Callable[[], Any],
+        *,
+        max_retries: int | None = None,
+        base_delay: float | None = None,
+        description: str = "command",
+    ) -> None:
+        """Execute a device command coroutine with exponential-backoff retry.
+
+        Retries on any exception up to ``max_retries`` times. Each retry waits
+        ``base_delay * 2^(attempt-1)`` seconds (e.g. 0.5s, 1s, 2s for 3 retries).
+        Logs each retry attempt at WARNING level.
+
+        Args:
+            coro_func: Callable that returns a coroutine (e.g. ``lambda: device.send_power(True)``).
+            max_retries: Override for maximum retry attempts. Defaults to
+                ``DEFAULT_MAX_COMMAND_RETRIES`` from const.
+            base_delay: Override for base retry delay in seconds. Defaults to
+                ``DEFAULT_COMMAND_RETRY_BASE_DELAY`` from const.
+            description: Human-readable label for log messages (e.g. "send_power(True)").
+
+        Raises:
+            The last exception if all retries are exhausted.
+        """
+        from custom_components.tuya_ble_mesh.const import (
+            DEFAULT_COMMAND_RETRY_BASE_DELAY,
+            DEFAULT_MAX_COMMAND_RETRIES,
+        )
+
+        _max = max_retries if max_retries is not None else DEFAULT_MAX_COMMAND_RETRIES
+        _delay = base_delay if base_delay is not None else DEFAULT_COMMAND_RETRY_BASE_DELAY
+
+        last_exc: Exception | None = None
+        for attempt in range(1, _max + 1):
+            try:
+                await coro_func()
+                return  # Success
+            except Exception as exc:
+                last_exc = exc
+                self._stats.command_errors += 1
+                self._stats.total_errors += 1
+                if attempt < _max:
+                    wait = _delay * (2 ** (attempt - 1))
+                    _LOGGER.warning(
+                        "BLE command '%s' failed for %s (attempt %d/%d) — retrying in %.1fs: %s",
+                        description,
+                        self._device.address,
+                        attempt,
+                        _max,
+                        wait,
+                        exc,
+                    )
+                    await asyncio.sleep(wait)
+                else:
+                    _LOGGER.error(
+                        "BLE command '%s' failed for %s after %d attempts: %s",
+                        description,
+                        self._device.address,
+                        _max,
+                        exc,
+                    )
+
+        if last_exc is not None:
+            raise last_exc

@@ -32,6 +32,11 @@ DEFAULT_COMMAND_TIMEOUT = 10
 DEFAULT_MAX_RECONNECTS = 0  # 0 = unlimited
 DEFAULT_RECONNECT_STORM_THRESHOLD = 10  # per 5-minute window
 
+# BLE command retry settings
+CONF_MAX_COMMAND_RETRIES = "max_command_retries"
+DEFAULT_MAX_COMMAND_RETRIES = 3  # Retry up to 3 times on transient failure
+DEFAULT_COMMAND_RETRY_BASE_DELAY = 0.5  # seconds — doubles each retry
+
 # SIG Mesh config keys
 CONF_UNICAST_TARGET = "unicast_target"
 CONF_UNICAST_OUR = "unicast_our"
