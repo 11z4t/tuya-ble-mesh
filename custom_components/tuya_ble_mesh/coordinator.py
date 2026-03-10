@@ -511,9 +511,12 @@ class TuyaBLEMeshCoordinator:
             self._rssi_task = None
 
     async def _rssi_loop(self) -> None:
-        """Periodically scan for device to update RSSI with adaptive interval."""
-        from bleak import BleakScanner
+        """Periodically update RSSI using HA's bluetooth integration.
 
+        Uses async_ble_device_from_address() when hass is available (preferred,
+        reads cached BLE advertisement data without extra scanning). Falls back to
+        BleakScanner only when running outside of HA (e.g. tests / standalone).
+        """
         try:
             while self._running and self._state.available:
                 await asyncio.sleep(self._rssi_interval)
@@ -522,15 +525,31 @@ class TuyaBLEMeshCoordinator:
 
                 try:
                     prev_rssi = self._state.rssi
-                    device = await BleakScanner.find_device_by_address(
-                        self._device.address, timeout=10.0
-                    )
-                    if device is not None and device.rssi is not None:
-                        self._state.rssi = device.rssi
+                    ble_device = None
+
+                    if self._hass is not None:
+                        # Preferred path: use HA bluetooth stack (no extra scan)
+                        from homeassistant.components.bluetooth import (
+                            async_ble_device_from_address,
+                        )
+
+                        ble_device = async_ble_device_from_address(
+                            self._hass, self._device.address, connectable=False
+                        )
+                    else:
+                        # Standalone / test fallback only
+                        from bleak import BleakScanner
+
+                        ble_device = await BleakScanner.find_device_by_address(
+                            self._device.address, timeout=10.0
+                        )
+
+                    if ble_device is not None and ble_device.rssi is not None:
+                        self._state.rssi = ble_device.rssi
                         self._notify_listeners()
 
                         # Track stability: if RSSI similar (±2 dBm) = stable cycle
-                        if prev_rssi is not None and abs(device.rssi - prev_rssi) <= 2:
+                        if prev_rssi is not None and abs(ble_device.rssi - prev_rssi) <= 2:
                             self._stable_cycles += 1
                             if self._stable_cycles >= _RSSI_STABILITY_THRESHOLD:
                                 self._adjust_polling_interval()
@@ -538,6 +557,6 @@ class TuyaBLEMeshCoordinator:
                             self._stable_cycles = 0
 
                 except Exception:
-                    _LOGGER.debug("RSSI scan failed (ignored)", exc_info=True)
+                    _LOGGER.debug("RSSI update failed (ignored)", exc_info=True)
         except asyncio.CancelledError:
             pass

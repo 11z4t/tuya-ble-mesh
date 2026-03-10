@@ -59,7 +59,9 @@
     "error": {
       "invalid_mac": "Invalid MAC address format (expected XX:XX:XX:XX:XX:XX)",
       "invalid_key": "Invalid key format (expected 32 hex characters)",
-      "invalid_bridge_host": "Invalid bridge host. Use a hostname or IP address (not a URL). Private/loopback addresses are not allowed.",
+      "invalid_bridge_host": "Invalid bridge host. Use a hostname or IP address (not a URL). Loopback and link-local addresses are not allowed.",
+      "invalid_credential_length": "Mesh name and password must be 16 bytes or fewer.",
+      "invalid_vendor_id": "Invalid Vendor ID (expected 1–4 hex digits, e.g. 0x1001).",
       "cannot_connect": "Cannot connect to bridge daemon. Verify the host/port and that the daemon is running.",
       "provisioning_failed": "Provisioning failed. Ensure the device is in factory-reset state, within BLE range, and try again."
     },

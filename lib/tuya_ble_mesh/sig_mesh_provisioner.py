@@ -348,7 +348,7 @@ class SIGMeshProvisioner:
                     if not any(str(s.uuid) == PROV_SERVICE for s in services.services.values()):
                         msg = f"Device {address} does not expose Provisioning Service (0x1827)"
                         raise ProvisioningError(msg)
-                except asyncio.TimeoutError:
+                except TimeoutError:
                     _LOGGER.warning("Service enumeration timed out, continuing anyway")
 
                 _LOGGER.info(
@@ -361,7 +361,7 @@ class SIGMeshProvisioner:
 
             except ProvisioningError:
                 raise
-            except asyncio.TimeoutError as exc:
+            except TimeoutError as exc:
                 last_exc = exc
                 connect_failures += 1
                 _LOGGER.warning(
@@ -487,7 +487,7 @@ class SIGMeshProvisioner:
             try:
                 await asyncio.wait_for(rx_event.wait(), timeout=recv_timeout)
                 return bytes(rx_buffer)
-            except asyncio.TimeoutError as exc:
+            except TimeoutError as exc:
                 msg = (
                     f"Timeout waiting for {step_name} (waited {recv_timeout:.1f}s). "
                     f"Device may be unresponsive or out of range. "
@@ -555,7 +555,8 @@ class SIGMeshProvisioner:
         device_pub_key_bytes = dev_pub_pdu[1:]
         if len(device_pub_key_bytes) != 64:
             msg = (
-                f"Invalid device public key length: expected 64 bytes, got {len(device_pub_key_bytes)}. "
+                f"Invalid device public key length: expected 64 bytes, "
+                f"got {len(device_pub_key_bytes)}. "
                 f"Device may not support FIPS P-256 ECDH (required for SIG Mesh)."
             )
             raise ProvisioningError(msg)
