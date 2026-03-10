@@ -239,6 +239,16 @@
           "reauth_hint": {
             "title": "Fix: Update mesh credentials",
             "description": "The device **{device}** is rejecting the stored mesh credentials.\n\n**To fix:**\n1. Go to **Settings \u2192 Integrations \u2192 {device} \u2192 Configure**\n2. Update mesh name and password to match the device\n3. Factory defaults: name=`out_of_mesh`, password=`123456`\n\nIf the device was factory-reset, delete and re-add the integration."
+          },
+          "credentials": {
+            "title": "Enter new credentials",
+            "description": "The device rejected the stored credentials. Enter updated mesh credentials or bridge connection settings below.",
+            "data": {
+              "mesh_name": "Mesh Name",
+              "mesh_password": "Mesh Password",
+              "bridge_host": "Bridge Host",
+              "bridge_port": "Bridge Port"
+            }
           }
         }
       }
