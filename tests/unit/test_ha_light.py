@@ -21,6 +21,7 @@ from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     TuyaBLEMeshDeviceState,
 )
 from custom_components.tuya_ble_mesh.light import (  # noqa: E402
+    _COMMAND_DEBOUNCE_INTERVAL,
     TuyaBLEMeshLight,
     async_setup_entry,
     brightness_to_device,
@@ -65,6 +66,12 @@ def make_mock_coordinator(
     coord.device.send_light_mode = AsyncMock()
     coord.add_listener = MagicMock(return_value=MagicMock())
     return coord
+
+
+async def _turn_on(light: TuyaBLEMeshLight, **kwargs: object) -> None:
+    """Call async_turn_on and wait for the debounce window to expire."""
+    await light.async_turn_on(**kwargs)  # type: ignore[arg-type]
+    await asyncio.sleep(_COMMAND_DEBOUNCE_INTERVAL + 0.01)
 
 
 @pytest.mark.requires_ha
@@ -290,7 +297,7 @@ class TestLightActions:
         coord = make_mock_coordinator()
         light = TuyaBLEMeshLight(coord, "test_entry")
 
-        await light.async_turn_on()
+        await _turn_on(light)
 
         coord.device.send_power.assert_called_once_with(True)
 
@@ -299,7 +306,7 @@ class TestLightActions:
         coord = make_mock_coordinator()
         light = TuyaBLEMeshLight(coord, "test_entry")
 
-        await light.async_turn_on(brightness=128)
+        await _turn_on(light, brightness=128)
 
         coord.device.send_brightness.assert_called_once()
         args = coord.device.send_brightness.call_args[0]
@@ -310,7 +317,7 @@ class TestLightActions:
         coord = make_mock_coordinator()
         light = TuyaBLEMeshLight(coord, "test_entry")
 
-        await light.async_turn_on(color_temp_kelvin=3817)  # ~262 mireds
+        await _turn_on(light, color_temp_kelvin=3817)  # ~262 mireds
 
         coord.device.send_color_temp.assert_called_once()
         args = coord.device.send_color_temp.call_args[0]
@@ -321,7 +328,7 @@ class TestLightActions:
         coord = make_mock_coordinator()
         light = TuyaBLEMeshLight(coord, "test_entry")
 
-        await light.async_turn_on(brightness=200, color_temp_kelvin=5000)  # 200 mireds
+        await _turn_on(light, brightness=200, color_temp_kelvin=5000)  # 200 mireds
 
         coord.device.send_brightness.assert_called_once()
         coord.device.send_color_temp.assert_called_once()
@@ -341,7 +348,7 @@ class TestLightActions:
         coord = make_mock_coordinator()
         light = TuyaBLEMeshLight(coord, "test_entry")
 
-        await light.async_turn_on(rgb_color=(255, 0, 128))
+        await _turn_on(light, rgb_color=(255, 0, 128))
 
         coord.device.send_color.assert_called_once_with(255, 0, 128)
         coord.device.send_light_mode.assert_called_once_with(1)
@@ -352,7 +359,7 @@ class TestLightActions:
         coord = make_mock_coordinator()
         light = TuyaBLEMeshLight(coord, "test_entry")
 
-        await light.async_turn_on(rgb_color=(255, 0, 128), brightness=200)
+        await _turn_on(light, rgb_color=(255, 0, 128), brightness=200)
 
         coord.device.send_color.assert_called_once_with(255, 0, 128)
         coord.device.send_light_mode.assert_called_once_with(1)
@@ -363,7 +370,7 @@ class TestLightActions:
         coord = make_mock_coordinator(mode=1)
         light = TuyaBLEMeshLight(coord, "test_entry")
 
-        await light.async_turn_on(brightness=200)
+        await _turn_on(light, brightness=200)
 
         coord.device.send_color_brightness.assert_called_once_with(200)
         coord.device.send_brightness.assert_not_called()
@@ -373,7 +380,7 @@ class TestLightActions:
         coord = make_mock_coordinator(mode=1)
         light = TuyaBLEMeshLight(coord, "test_entry")
 
-        await light.async_turn_on(color_temp_kelvin=3817)  # ~262 mireds
+        await _turn_on(light, color_temp_kelvin=3817)  # ~262 mireds
 
         coord.device.send_light_mode.assert_called_once_with(0)
         coord.device.send_color_temp.assert_called_once()
@@ -590,22 +597,22 @@ class TestTransitions:
 
     @pytest.mark.asyncio
     async def test_no_transition_unchanged_behavior(self) -> None:
-        """Without transition kwarg, behavior is unchanged (instant)."""
+        """Without transition kwarg, command fires after debounce window."""
         coord = make_mock_coordinator()
         light = TuyaBLEMeshLight(coord, "test_entry")
 
-        await light.async_turn_on(brightness=200)
+        await _turn_on(light, brightness=200)
 
         coord.device.send_brightness.assert_called_once()
         assert light._transition_task is None
 
     @pytest.mark.asyncio
     async def test_transition_zero_is_instant(self) -> None:
-        """Transition=0 should use instant path, not transition."""
+        """Transition=0 should use debounced path, not transition task."""
         coord = make_mock_coordinator()
         light = TuyaBLEMeshLight(coord, "test_entry")
 
-        await light.async_turn_on(brightness=200, transition=0)
+        await _turn_on(light, brightness=200, transition=0)
 
         coord.device.send_brightness.assert_called_once()
         assert light._transition_task is None
