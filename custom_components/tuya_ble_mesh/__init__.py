@@ -13,7 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeAlias
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import ConfigEntryNotReady, HomeAssistantError
 
 from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
@@ -75,6 +75,120 @@ class TuyaBLEMeshRuntimeData:
 
 # Type alias for typed config entry access in platform files
 TuyaBLEMeshConfigEntry: TypeAlias = ConfigEntry[TuyaBLEMeshRuntimeData]
+
+
+async def _async_provision_sig_plug(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    mac: str,
+    target_addr: int,
+    our_addr: int,
+    iv_index: int,
+    ble_device_cb: Any,
+) -> None:
+    """Provision a SIG Mesh device in background, then reload the config entry.
+
+    Generates NetKey/AppKey, runs PB-GATT provisioning, adds AppKey, binds model,
+    and updates the config entry with the resulting keys. The entry is then reloaded
+    so that normal setup can proceed with the provisioned keys.
+
+    Args:
+        hass: Home Assistant instance.
+        entry: Config entry to update with provisioned keys.
+        mac: BLE MAC address.
+        target_addr: Unicast address for the device.
+        our_addr: Our provisioner unicast address.
+        iv_index: IV index for the mesh network.
+        ble_device_cb: Callback to resolve BLE devices via HA bluetooth stack.
+    """
+    import asyncio
+    import os
+
+    from homeassistant.helpers.issue_registry import async_create_issue
+
+    _LOGGER.info("Background provisioning started for %s", mac)
+
+    try:
+        from bleak import BleakClient
+        from bleak_retry_connector import establish_connection
+        from homeassistant.components import bluetooth as ha_bluetooth
+        from tuya_ble_mesh.secrets import DictSecretsManager
+        from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
+        from tuya_ble_mesh.sig_mesh_provisioner import SIGMeshProvisioner
+
+        net_key = os.urandom(16)
+        app_key = os.urandom(16)
+
+        def _ble_device_cb(address: str) -> Any:
+            device = ha_bluetooth.async_ble_device_from_address(hass, address.upper(), connectable=True)
+            if device is None:
+                device = ha_bluetooth.async_ble_device_from_address(hass, address.upper(), connectable=False)
+            return device
+
+        async def _ble_connect_cb(ble_device: Any) -> BleakClient:
+            return await establish_connection(BleakClient, ble_device, ble_device.address, max_attempts=5)
+
+        provisioner = SIGMeshProvisioner(
+            net_key=net_key,
+            app_key=app_key,
+            unicast_addr=target_addr,
+            iv_index=iv_index,
+            ble_device_callback=_ble_device_cb,
+            ble_connect_callback=_ble_connect_cb,
+        )
+        result = await provisioner.provision(mac)
+        _LOGGER.info("PB-GATT provisioning succeeded for %s (%d elements)", mac, result.num_elements)
+
+        # Wait for device to reboot into Proxy Service
+        await asyncio.sleep(6.0)
+
+        # Post-provisioning: add AppKey and bind model
+        op_prefix = "cfg"
+        target_hex = f"{target_addr:04x}"
+        secrets_dict = {
+            f"{op_prefix}-net-key/password": net_key.hex(),
+            f"{op_prefix}-dev-key-{target_hex}/password": result.dev_key.hex(),
+            f"{op_prefix}-app-key/password": app_key.hex(),
+        }
+        device = SIGMeshDevice(
+            mac, target_addr, our_addr,
+            DictSecretsManager(secrets_dict),
+            op_item_prefix=op_prefix, iv_index=iv_index,
+        )
+        try:
+            await device.connect(timeout=20.0, max_retries=5)
+            await device.send_config_appkey_add(app_key)
+            await asyncio.sleep(0.5)
+            await device.send_config_model_app_bind(target_addr, 0, 0x1000)
+        except Exception:
+            _LOGGER.warning("Post-provisioning config failed for %s (AppKey not bound)", mac, exc_info=True)
+        finally:
+            await device.disconnect()
+
+        # Update config entry with provisioned keys
+        new_data = {
+            **entry.data,
+            CONF_NET_KEY: net_key.hex(),
+            CONF_DEV_KEY: result.dev_key.hex(),
+            CONF_APP_KEY: app_key.hex(),
+        }
+        hass.config_entries.async_update_entry(entry, data=new_data)
+        _LOGGER.info("Provisioning complete for %s — reloading entry", mac)
+
+        # Reload so normal setup runs with keys
+        await hass.config_entries.async_reload(entry.entry_id)
+
+    except Exception as exc:
+        _LOGGER.error("Background provisioning failed for %s: %s", mac, exc, exc_info=True)
+        async_create_issue(
+            hass,
+            DOMAIN,
+            f"provisioning_failed_{mac}",
+            is_fixable=False,
+            severity="error",
+            translation_key="provisioning_failed",
+            translation_placeholders={"device": mac},
+        )
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) -> bool:
@@ -143,6 +257,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
         our_addr = int(entry.data.get(CONF_UNICAST_OUR, "0001"), 16)
         iv_index: int = entry.data.get(CONF_IV_INDEX, DEFAULT_IV_INDEX)
+
+        # If keys are missing, device needs provisioning first
+        if not entry.data.get(CONF_NET_KEY):
+            _LOGGER.info("SIG Mesh device %s needs provisioning — starting background task", mac_address)
+            hass.async_create_task(
+                _async_provision_sig_plug(hass, entry, mac_address, target_addr, our_addr, iv_index, _ble_device_from_ha),
+                f"tuya_ble_mesh_provision_{mac_address}",
+            )
+            raise ConfigEntryNotReady(f"SIG Mesh device {mac_address} is being provisioned")
 
         # Build secrets dict from config entry keys
         target_hex = f"{target_addr:04x}"

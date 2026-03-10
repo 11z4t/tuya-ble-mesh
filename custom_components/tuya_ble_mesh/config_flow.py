@@ -67,12 +67,7 @@ _LOGGER = logging.getLogger(__name__)
 
 _MAC_PATTERN = re.compile(r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 _HEX_KEY_PATTERN = re.compile(r"^[0-9A-Fa-f]{32}$")
-_VENDOR_ID_PATTERN = re.compile(r"^(?:0[xX])?[0-9A-Fa-f]{1,4}$")
 _BRIDGE_TEST_TIMEOUT = 5
-
-# Telink BLE Mesh uses 16-byte buffers for name and password (silently truncated).
-# Enforce this limit at input time so users are not surprised.
-_MESH_CREDENTIAL_MAX_LEN = 16
 
 # Allowed bridge host pattern: IPv4, IPv6, or hostname
 _BRIDGE_HOST_PATTERN = re.compile(
@@ -191,44 +186,6 @@ def _validate_mac(mac: str) -> str | None:
     """
     if not _MAC_PATTERN.match(mac):
         return "invalid_mac"
-    return None
-
-
-def _validate_mesh_credential(value: str) -> str | None:
-    """Validate a mesh name or password.
-
-    Telink BLE Mesh silently truncates credentials to 16 bytes.
-    Reject inputs that are too long to avoid unexpected behaviour.
-
-    Args:
-        value: Credential string to validate.
-
-    Returns:
-        None if valid, error key string if invalid.
-    """
-    if len(value.encode("utf-8")) > _MESH_CREDENTIAL_MAX_LEN:
-        return "invalid_credential_length"
-    return None
-
-
-def _validate_vendor_id(value: str) -> str | None:
-    """Validate a vendor ID string (e.g. '0x1001' or '1001').
-
-    Args:
-        value: Vendor ID string to validate.
-
-    Returns:
-        None if valid, error key string if invalid.
-    """
-    value = value.strip()
-    if not _VENDOR_ID_PATTERN.match(value):
-        return "invalid_vendor_id"
-    try:
-        parsed = int(value, 16)
-        if not 0 <= parsed <= 0xFFFF:
-            return "invalid_vendor_id"
-    except ValueError:
-        return "invalid_vendor_id"
     return None
 
 
@@ -385,13 +342,34 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
 
         _LOGGER.info("Bluetooth discovery: %s (%s)", name, address)
 
+        # Auto-detect device type based on service UUIDs
+        service_uuids = getattr(discovery_info, "service_uuids", [])
+        auto_device_type = None
+
+        if SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids:
+            auto_device_type = DEVICE_TYPE_SIG_PLUG
+        elif any(
+            uuid.startswith("00010203-0405-0607-0809-0a0b0c0d") for uuid in service_uuids
+        ):
+            auto_device_type = DEVICE_TYPE_LIGHT
+
+        # Determine friendly label for discovery card
+        if auto_device_type == DEVICE_TYPE_SIG_PLUG:
+            device_label = "Mesh Plug"
+        elif name.startswith("tymesh"):
+            device_label = "Mesh Light"
+        else:
+            device_label = "Mesh Device"
+
+        # Set title_placeholders BEFORE async_set_unique_id — HA reads
+        # context["title_placeholders"] when creating the discovery notification
+        self.context["title_placeholders"] = {"name": f"{device_label} {address}"}
+
         # Check if already configured
         await self.async_set_unique_id(address)
         self._abort_if_unique_id_configured()
 
-        # PLAT-509: Check if device is still advertising (stale flow protection)
-        # If the device is not currently available in HA's bluetooth stack, ignore the discovery.
-        # This prevents stale discovery flows from persisting after a device stops advertising.
+        # Check if device is still advertising (stale flow protection)
         try:
             ble_device = async_ble_device_from_address(self.hass, address, connectable=False)
             if ble_device is None:
@@ -400,28 +378,12 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 )
                 return self.async_abort(reason="device_not_available")
         except RuntimeError:
-            # BluetoothManager not initialized (e.g. in tests) — skip stale check
             _LOGGER.debug("BluetoothManager not available, skipping stale check for %s", address)
 
-        # Detect device type from advertised name
         device_category = "SIG Mesh" if any(
-            u in getattr(discovery_info, "service_uuids", [])
-            for u in (SIG_MESH_PROV_UUID, SIG_MESH_PROXY_UUID)
+            u in service_uuids for u in (SIG_MESH_PROV_UUID, SIG_MESH_PROXY_UUID)
         ) else "Telink Mesh"
         rssi = getattr(discovery_info, "rssi", None)
-
-        # PLAT-510: Auto-detect device type based on service UUIDs
-        service_uuids = getattr(discovery_info, "service_uuids", [])
-        auto_device_type = None
-
-        if SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids:
-            # SIG Mesh device → Plug
-            auto_device_type = DEVICE_TYPE_SIG_PLUG
-        elif any(
-            uuid.startswith("00010203-0405-0607-0809-0a0b0c0d") for uuid in service_uuids
-        ):
-            # Telink mesh UUID prefix → Light
-            auto_device_type = DEVICE_TYPE_LIGHT
 
         self._discovery_info = {
             "address": address,
@@ -431,114 +393,74 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             "auto_device_type": auto_device_type,
         }
 
-        # Auto-detect SIG Mesh devices by service UUID.
-        # 0x1827 = Provisioning Service (unprovisioned device)
-        # 0x1828 = Proxy Service (already provisioned)
-        if auto_device_type == DEVICE_TYPE_SIG_PLUG:
-            _LOGGER.info("SIG Mesh device detected: %s", address)
-            return await self.async_step_sig_plug()
-
         return await self.async_step_confirm()
 
     async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Confirm bluetooth discovery and choose device type.
+        """Confirm bluetooth discovery — one click to set up.
 
-        PLAT-511: Zero-knowledge config flow — if device type is auto-detected
-        and user provides no custom values, create entry directly without showing form.
+        Shows discovery card with device info. When user clicks Submit:
+        - SIG Mesh Plug: auto-provisions (generates keys, no extra input needed)
+        - Telink Light/Plug: creates entry with factory defaults
 
         Args:
-            user_input: User confirmation input.
+            user_input: Empty dict when user clicks Submit.
 
         Returns:
             Flow result dict.
         """
-        if user_input is not None and self._discovery_info is not None:
-            mac = self._discovery_info["address"]
-            device_type = user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
-            short_mac = mac[-8:]
-            title = (
-                f"BLE Mesh Plug {short_mac}"
-                if device_type == DEVICE_TYPE_PLUG
-                else f"BLE Mesh Light {short_mac}"
-            )
-            return self.async_create_entry(
-                title=title,
-                data={
-                    CONF_MAC_ADDRESS: mac,
-                    CONF_MESH_NAME: user_input.get(CONF_MESH_NAME, "out_of_mesh"),
-                    CONF_MESH_PASSWORD: user_input.get(CONF_MESH_PASSWORD, "123456"),
-                    CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
-                    CONF_DEVICE_TYPE: device_type,
-                    CONF_MESH_ADDRESS: user_input.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS),
-                },
-            )
+        if self._discovery_info is None:
+            return self.async_abort(reason="no_discovery_info")
 
-        # PLAT-510: Use auto-detected device type as default if available
-        # PLAT-511: If device type is confidently auto-detected, skip form and create entry directly
-        default_device_type = DEVICE_TYPE_LIGHT
-        auto_detected = False
-        if self._discovery_info:
-            auto_type = self._discovery_info.get("auto_device_type")
-            if auto_type in (DEVICE_TYPE_LIGHT, DEVICE_TYPE_PLUG):
-                default_device_type = auto_type
-                auto_detected = True
+        mac = self._discovery_info["address"]
+        auto_type = self._discovery_info.get("auto_device_type")
 
-        # PLAT-511: Zero-knowledge flow — if type is auto-detected, create entry with defaults
-        if auto_detected and self._discovery_info:
-            mac = self._discovery_info["address"]
-            short_mac = mac[-8:]
-            title = (
-                f"BLE Mesh Plug {short_mac}"
-                if default_device_type == DEVICE_TYPE_PLUG
-                else f"BLE Mesh Light {short_mac}"
-            )
-            _LOGGER.info(
-                "Zero-knowledge config: auto-detected %s, creating entry with defaults",
-                default_device_type,
-            )
+        if user_input is not None:
+            # User clicked Submit — create entry immediately for all types.
+            # SIG Mesh provisioning happens later in async_setup_entry (non-blocking).
+            device_type = auto_type or DEVICE_TYPE_LIGHT
+            is_plug = device_type in (DEVICE_TYPE_SIG_PLUG, DEVICE_TYPE_PLUG)
+            type_label = "Plug" if is_plug else "Light"
+
+            await self.async_set_unique_id(mac)
+            self._abort_if_unique_id_configured()
+
+            if device_type == DEVICE_TYPE_SIG_PLUG:
+                return self.async_create_entry(
+                    title=f"Mesh Plug {mac[-8:]}",
+                    data={
+                        CONF_MAC_ADDRESS: mac,
+                        CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG,
+                        CONF_UNICAST_TARGET: f"{_UNICAST_DEVICE_DEFAULT:04X}",
+                        CONF_UNICAST_OUR: f"{_UNICAST_PROVISIONER:04X}",
+                        CONF_IV_INDEX: DEFAULT_IV_INDEX,
+                    },
+                )
+
             return self.async_create_entry(
-                title=title,
+                title=f"Mesh {type_label} {mac[-8:]}",
                 data={
                     CONF_MAC_ADDRESS: mac,
                     CONF_MESH_NAME: "out_of_mesh",
                     CONF_MESH_PASSWORD: "123456",
                     CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
-                    CONF_DEVICE_TYPE: default_device_type,
+                    CONF_DEVICE_TYPE: device_type,
                     CONF_MESH_ADDRESS: DEFAULT_MESH_ADDRESS,
                 },
             )
 
+        # Show discovery confirmation — no input fields, just device info + Submit
+        name = self._discovery_info.get("name", "Unknown")
+        rssi = self._discovery_info.get("rssi", "?")
+        category = self._discovery_info.get("device_category", "")
+
         return self.async_show_form(
             step_id="confirm",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_DEVICE_TYPE, default=default_device_type): vol.In(
-                        {DEVICE_TYPE_LIGHT: "Light", DEVICE_TYPE_PLUG: "Plug"}
-                    ),
-                    vol.Optional(CONF_MESH_NAME, default="out_of_mesh"): str,
-                    vol.Optional(CONF_MESH_PASSWORD, default="123456"): str,
-                    vol.Optional(CONF_MESH_ADDRESS, default=DEFAULT_MESH_ADDRESS): int,
-                }
-            ),
+            data_schema=vol.Schema({}),
             description_placeholders={
-                "name": (
-                    self._discovery_info.get("name", "Unknown")
-                    if self._discovery_info
-                    else "Unknown"
-                ),
-                "mac": (
-                    self._discovery_info.get("address", "") if self._discovery_info else ""
-                ),
-                "rssi": (
-                    str(self._discovery_info.get("rssi", "?"))
-                    if self._discovery_info
-                    else "?"
-                ),
-                "category": (
-                    self._discovery_info.get("device_category", "")
-                    if self._discovery_info
-                    else ""
-                ),
+                "name": name,
+                "mac": mac,
+                "rssi": str(rssi),
+                "category": category,
             },
         )
 
@@ -558,23 +480,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             mac_error = _validate_mac(mac)
             if mac_error:
                 errors[CONF_MAC_ADDRESS] = mac_error
-
-            mesh_name = user_input.get(CONF_MESH_NAME, "")
-            name_error = _validate_mesh_credential(mesh_name)
-            if name_error:
-                errors[CONF_MESH_NAME] = name_error
-
-            mesh_password = user_input.get(CONF_MESH_PASSWORD, "")
-            pass_error = _validate_mesh_credential(mesh_password)
-            if pass_error:
-                errors[CONF_MESH_PASSWORD] = pass_error
-
-            vendor_id_str = user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
-            vendor_id_error = _validate_vendor_id(str(vendor_id_str))
-            if vendor_id_error:
-                errors[CONF_VENDOR_ID] = vendor_id_error
-
-            if not errors:
+            else:
                 device_type = user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
                 if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
                     self._discovery_info = {
@@ -649,45 +555,46 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         Returns:
             Flow result dict.
         """
-        errors: dict[str, str] = {}
+        if self._discovery_info is None:
+            return self.async_abort(reason="no_discovery_info")
 
-        if user_input is not None and self._discovery_info is not None:
-            mac = self._discovery_info["address"]
-            try:
-                net_key_hex, dev_key_hex, app_key_hex = await self._run_provision(mac)
-            except Exception as exc:
-                _LOGGER.warning(
-                    "Provisioning failed for %s: %s: %s",
-                    mac,
-                    type(exc).__name__,
-                    exc,
-                    exc_info=True,
-                )
-                errors["base"] = "provisioning_failed"
-            else:
-                await self.async_set_unique_id(mac)
-                self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title=f"SIG Mesh {mac[-8:]}",
-                    data={
-                        CONF_MAC_ADDRESS: mac,
-                        CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG,
-                        CONF_UNICAST_TARGET: f"{_UNICAST_DEVICE_DEFAULT:04X}",
-                        CONF_UNICAST_OUR: f"{_UNICAST_PROVISIONER:04X}",
-                        CONF_IV_INDEX: DEFAULT_IV_INDEX,
-                        CONF_NET_KEY: net_key_hex,
-                        CONF_DEV_KEY: dev_key_hex,
-                        CONF_APP_KEY: app_key_hex,
-                    },
-                )
+        mac = self._discovery_info["address"]
 
-        return self.async_show_form(
-            step_id="sig_plug",
-            data_schema=vol.Schema({}),
-            description_placeholders={
-                "name": (self._discovery_info.get("name", "") if self._discovery_info else ""),
+        # Auto-start provisioning immediately (no intermediate form)
+        try:
+            net_key_hex, dev_key_hex, app_key_hex = await self._run_provision(mac)
+        except Exception as exc:
+            _LOGGER.warning(
+                "Provisioning failed for %s: %s: %s",
+                mac,
+                type(exc).__name__,
+                exc,
+                exc_info=True,
+            )
+            # Show retry form on failure
+            return self.async_show_form(
+                step_id="sig_plug",
+                data_schema=vol.Schema({}),
+                description_placeholders={
+                    "name": self._discovery_info.get("name", mac),
+                },
+                errors={"base": "provisioning_failed"},
+            )
+
+        await self.async_set_unique_id(mac)
+        self._abort_if_unique_id_configured()
+        return self.async_create_entry(
+            title=f"Mesh Plug {mac[-8:]}",
+            data={
+                CONF_MAC_ADDRESS: mac,
+                CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG,
+                CONF_UNICAST_TARGET: f"{_UNICAST_DEVICE_DEFAULT:04X}",
+                CONF_UNICAST_OUR: f"{_UNICAST_PROVISIONER:04X}",
+                CONF_IV_INDEX: DEFAULT_IV_INDEX,
+                CONF_NET_KEY: net_key_hex,
+                CONF_DEV_KEY: dev_key_hex,
+                CONF_APP_KEY: app_key_hex,
             },
-            errors=errors,
         )
 
     async def _run_provision(self, mac: str) -> tuple[str, str, str]:
