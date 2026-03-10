@@ -21,7 +21,7 @@ import statistics
 import time
 from collections import deque
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from typing import TYPE_CHECKING, Union
 
@@ -88,6 +88,9 @@ _DEFAULT_MAX_RECONNECT_FAILURES = 0
 # Listener error tolerance: remove broken callbacks after this many consecutive failures
 _MAX_CALLBACK_ERRORS = 3
 
+# Rate limiting: cap concurrent BLE commands to avoid mesh saturation
+_COMMAND_CONCURRENCY_LIMIT = 5
+
 
 class ErrorClass(str, Enum):
     """Classification of connection/protocol errors for repair creation."""
@@ -105,12 +108,12 @@ _SEQ_PERSIST_INTERVAL = 10  # Save seq every N commands
 _SEQ_SAFETY_MARGIN = 100  # Add margin on restore to avoid replay
 _SEQ_STORE_VERSION = 1
 
-@dataclass(slots=True)
+@dataclass(frozen=True, slots=True)
 class TuyaBLEMeshDeviceState:
-    """Current state of a Tuya BLE Mesh device.
+    """Immutable snapshot of a Tuya BLE Mesh device state.
 
-    Mutable for now (many callers update fields directly).
-    Target: frozen=True with dataclasses.replace() in v0.25+.
+    All updates must use dataclasses.replace() to produce a new snapshot.
+    This guarantees atomic state transitions with no partially-updated views.
     """
 
     is_on: bool = False
@@ -126,6 +129,7 @@ class TuyaBLEMeshDeviceState:
     power_w: float | None = None
     energy_kwh: float | None = None
     available: bool = False
+    scene_id: int = 0  # Active scene/effect index (0 = none)
 
 
 @dataclass
@@ -206,6 +210,13 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         # Track which repair issues have already been raised (cleared on recovery)
         self._raised_repair_issues: set[str] = set()
 
+        # Standalone listener support (test / non-HA mode, hass=None)
+        self._listeners: list[Callable[[], None]] = []
+        self._listener_error_counts: dict[int, int] = {}
+
+        # Rate limiting: semaphore caps concurrent BLE commands per device
+        self._command_semaphore = asyncio.Semaphore(_COMMAND_CONCURRENCY_LIMIT)
+
     async def _async_update_data(self) -> None:
         """No-op — state updates arrive via BLE notifications."""
         return None
@@ -223,10 +234,6 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
         Returns a callback to remove the listener.
         """
-        if not hasattr(self, "_listeners"):
-            self._listeners: list[Callable[[], None]] = []
-        if not hasattr(self, "_listener_error_counts"):
-            self._listener_error_counts: dict[int, int] = {}
         self._listeners.append(listener)
 
         def _remove() -> None:
@@ -240,9 +247,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
     def _notify_listeners(self) -> None:
         """Notify standalone listeners (used in test mode when hass=None)."""
-        listeners = list(getattr(self, "_listeners", []))
-        if not hasattr(self, "_listener_error_counts"):
-            self._listener_error_counts = {}
+        listeners = list(self._listeners)
         _LOGGER.debug("Notifying %d listener(s)", len(listeners))
         for listener in listeners:
             try:
@@ -331,8 +336,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         """
         was_available = self._state.available
         changed = self._state.is_on != on
-        self._state.is_on = on
-        self._state.available = True
+        self._state = replace(self._state, is_on=on, available=True)
         self._backoff = _INITIAL_BACKOFF
 
         # Adaptive polling: track state changes
@@ -376,15 +380,18 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             or self._state.color_brightness != status.color_brightness
         )
 
-        self._state.mode = status.mode
-        self._state.brightness = status.white_brightness
-        self._state.color_temp = status.white_temp
-        self._state.red = status.red
-        self._state.green = status.green
-        self._state.blue = status.blue
-        self._state.color_brightness = status.color_brightness
-        self._state.is_on = status.white_brightness > 0 or status.color_brightness > 0
-        self._state.available = True
+        self._state = replace(
+            self._state,
+            mode=status.mode,
+            brightness=status.white_brightness,
+            color_temp=status.white_temp,
+            red=status.red,
+            green=status.green,
+            blue=status.blue,
+            color_brightness=status.color_brightness,
+            is_on=status.white_brightness > 0 or status.color_brightness > 0,
+            available=True,
+        )
         self._backoff = _INITIAL_BACKOFF
 
         # Adaptive polling: track state changes
@@ -431,21 +438,23 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             return
 
         dps = parse_tuya_vendor_dps(params)
+        power_w = self._state.power_w
+        energy_kwh = self._state.energy_kwh
         updated = False
         for dp in dps:
             if dp.dp_id == DP_ID_POWER_W and len(dp.value) >= 1:
                 raw = int.from_bytes(dp.value, "big")
-                self._state.power_w = raw / 10.0
+                power_w = raw / 10.0
                 updated = True
-                _LOGGER.debug("Power: %.1f W (raw=%d)", self._state.power_w, raw)
+                _LOGGER.debug("Power: %.1f W (raw=%d)", power_w, raw)
             elif dp.dp_id == DP_ID_ENERGY_KWH and len(dp.value) >= 1:
                 raw = int.from_bytes(dp.value, "big")
-                self._state.energy_kwh = raw / 100.0
+                energy_kwh = raw / 100.0
                 updated = True
-                _LOGGER.debug("Energy: %.2f kWh (raw=%d)", self._state.energy_kwh, raw)
+                _LOGGER.debug("Energy: %.2f kWh (raw=%d)", energy_kwh, raw)
 
         if updated:
-            self._state.available = True
+            self._state = replace(self._state, power_w=power_w, energy_kwh=energy_kwh, available=True)
             self._dispatch_update()
 
     def _on_composition_update(self, comp: CompositionData) -> None:
@@ -456,7 +465,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         Args:
             comp: Parsed composition data.
         """
-        self._state.firmware_version = self._device.firmware_version
+        self._state = replace(self._state, firmware_version=self._device.firmware_version)
         _LOGGER.debug("Composition Data received, firmware=%s", self._state.firmware_version)
         self._dispatch_update()
 
@@ -485,7 +494,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             )
 
         # Mark all state as unavailable — entities will show "unavailable" in HA
-        self._state.available = False
+        self._state = replace(self._state, available=False)
         self._stop_rssi_polling()
 
         # Use bridge-specific backoff if this is a bridge device
@@ -561,8 +570,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             response_time = time.monotonic() - start_time
             self._stats.response_times.append(response_time)
             self._stats.connect_time = time.time()
-            self._state.available = True
-            self._state.firmware_version = self._device.firmware_version
+            self._state = replace(self._state, available=True, firmware_version=self._device.firmware_version)
             self._backoff = _INITIAL_BACKOFF
             self._start_rssi_polling()
             _LOGGER.info("Coordinator started for %s (%.2fs)", self._device.address, response_time)
@@ -577,7 +585,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                 self._device.address,
                 exc_info=True,
             )
-            self._state.available = False
+            self._state = replace(self._state, available=False)
             self._schedule_reconnect()
 
         self._dispatch_update()
@@ -633,7 +641,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         except Exception:
             _LOGGER.debug("Disconnect error during stop (ignored)", exc_info=True)
 
-        self._state.available = False
+        self._state = replace(self._state, available=False)
         _LOGGER.info("Coordinator stopped for %s", self._device.address)
 
     def _schedule_reconnect(self) -> None:
@@ -788,7 +796,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                     self._max_reconnect_failures,
                     self._device.address,
                 )
-                self._state.available = False
+                self._state = replace(self._state, available=False)
                 self._dispatch_update()
                 return
 
@@ -812,8 +820,11 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                 self._stats.connect_time = time.time()
                 self._stats.total_reconnects += 1
                 self._stats.reconnect_times.append(time.time())
-                self._state.available = True
-                self._state.firmware_version = self._device.firmware_version
+                self._state = replace(
+                    self._state,
+                    available=True,
+                    firmware_version=self._device.firmware_version,
+                )
                 self._backoff = _BRIDGE_INITIAL_BACKOFF if is_bridge else _INITIAL_BACKOFF
                 self._consecutive_failures = 0
                 self._stats.storm_detected = False
@@ -849,7 +860,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                         "Permanent error for %s — stopping reconnect",
                         self._device.address,
                     )
-                    self._state.available = False
+                    self._state = replace(self._state, available=False)
                     self._dispatch_update()
                     return
 
@@ -877,7 +888,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                         )
                     )
 
-                self._state.available = False
+                self._state = replace(self._state, available=False)
                 self._backoff = min(self._backoff * _BACKOFF_MULTIPLIER, max_backoff)
                 self._dispatch_update()
 
@@ -972,7 +983,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                         )
 
                     if ble_device is not None and ble_device.rssi is not None:  # type: ignore[attr-defined]
-                        self._state.rssi = ble_device.rssi  # type: ignore[attr-defined]
+                        self._state = replace(self._state, rssi=ble_device.rssi)  # type: ignore[attr-defined]
                         self._dispatch_update()
 
                         # Track stability: if RSSI similar (±2 dBm) = stable cycle
@@ -1023,35 +1034,36 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         _max = max_retries if max_retries is not None else DEFAULT_MAX_COMMAND_RETRIES
         _delay = base_delay if base_delay is not None else DEFAULT_COMMAND_RETRY_BASE_DELAY
 
-        last_exc: Exception | None = None
-        for attempt in range(1, _max + 1):
-            try:
-                await coro_func()
-                return  # Success
-            except Exception as exc:
-                last_exc = exc
-                self._stats.command_errors += 1
-                self._stats.total_errors += 1
-                if attempt < _max:
-                    wait = _delay * (2 ** (attempt - 1))
-                    _LOGGER.warning(
-                        "BLE command '%s' failed for %s (attempt %d/%d) — retrying in %.1fs: %s",
-                        description,
-                        self._device.address,
-                        attempt,
-                        _max,
-                        wait,
-                        exc,
-                    )
-                    await asyncio.sleep(wait)
-                else:
-                    _LOGGER.error(
-                        "BLE command '%s' failed for %s after %d attempts: %s",
-                        description,
-                        self._device.address,
-                        _max,
-                        exc,
-                    )
+        async with self._command_semaphore:
+            last_exc: Exception | None = None
+            for attempt in range(1, _max + 1):
+                try:
+                    await coro_func()
+                    return  # Success
+                except Exception as exc:
+                    last_exc = exc
+                    self._stats.command_errors += 1
+                    self._stats.total_errors += 1
+                    if attempt < _max:
+                        wait = _delay * (2 ** (attempt - 1))
+                        _LOGGER.warning(
+                            "BLE command '%s' failed for %s (attempt %d/%d) — retrying in %.1fs: %s",
+                            description,
+                            self._device.address,
+                            attempt,
+                            _max,
+                            wait,
+                            exc,
+                        )
+                        await asyncio.sleep(wait)
+                    else:
+                        _LOGGER.error(
+                            "BLE command '%s' failed for %s after %d attempts: %s",
+                            description,
+                            self._device.address,
+                            _max,
+                            exc,
+                        )
 
-        if last_exc is not None:
-            raise last_exc
+            if last_exc is not None:
+                raise last_exc
