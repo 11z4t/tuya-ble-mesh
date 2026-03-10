@@ -13,15 +13,24 @@ import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Union
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.storage import Store
     from tuya_ble_mesh.device import MeshDevice
     from tuya_ble_mesh.protocol import StatusResponse
+    from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice, TelinkBridgeDevice
     from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
     from tuya_ble_mesh.sig_mesh_protocol import CompositionData
+
+# All supported device types that can be passed to the coordinator
+AnyMeshDevice = Union[
+    "MeshDevice",
+    "SIGMeshDevice",
+    "TelinkBridgeDevice",
+    "SIGMeshBridgeDevice",
+]
 
 # RSSI refresh interval (seconds) - adaptive
 _RSSI_MIN_INTERVAL = 30.0  # Minimum when values change frequently
@@ -85,12 +94,12 @@ class TuyaBLEMeshCoordinator:
 
     def __init__(
         self,
-        device: MeshDevice | SIGMeshDevice,
+        device: AnyMeshDevice,
         *,
         hass: HomeAssistant | None = None,
         entry_id: str | None = None,
     ) -> None:
-        self._device: Any = device
+        self._device: AnyMeshDevice = device
         self._state = TuyaBLEMeshDeviceState()
         self._listeners: list[Callable[[], None]] = []
         self._reconnect_task: asyncio.Task[None] | None = None
@@ -114,8 +123,8 @@ class TuyaBLEMeshCoordinator:
         self._stats = ConnectionStatistics()
 
     @property
-    def device(self) -> Any:
-        """Return the underlying mesh device (MeshDevice or SIGMeshDevice)."""
+    def device(self) -> AnyMeshDevice:
+        """Return the underlying mesh device."""
         return self._device
 
     @property
