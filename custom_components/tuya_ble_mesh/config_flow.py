@@ -27,6 +27,7 @@ import ipaddress
 import logging
 import os
 import re
+import time
 from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
@@ -104,6 +105,9 @@ _MODEL_GENERIC_ONOFF_SERVER = 0x1000
 
 # Seconds to wait for device to reboot as Proxy Service after provisioning
 _POST_PROV_REBOOT_DELAY = 6.0
+
+# PLAT-509: Discovery flow TTL — flows expire after this duration if device stops advertising
+_DISCOVERY_FLOW_TTL = 300  # 5 minutes
 
 # Known Tuya/Telink vendor IDs for autodetect hint
 _KNOWN_VENDOR_IDS: dict[str, str] = {
