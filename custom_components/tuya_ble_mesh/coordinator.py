@@ -1100,3 +1100,16 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
             if last_exc is not None:
                 raise last_exc
+
+    def set_scene_id(self, scene_id: int) -> None:
+        """Optimistically update the active scene ID in the coordinator state.
+
+        Called by the light entity immediately after sending send_scene() to the
+        device, so the HA UI reflects the new scene without waiting for a
+        state-notification callback.
+
+        Args:
+            scene_id: Mesh scene slot number (1-based; 0 = no active scene).
+        """
+        self._state = replace(self._state, scene_id=scene_id)
+        self._dispatch_update()

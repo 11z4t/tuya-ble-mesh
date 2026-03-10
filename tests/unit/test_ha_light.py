@@ -65,6 +65,7 @@ def make_mock_coordinator(
     coord.device.send_color = AsyncMock()
     coord.device.send_color_brightness = AsyncMock()
     coord.device.send_light_mode = AsyncMock()
+    coord.device.send_scene = AsyncMock()
     coord.add_listener = MagicMock(return_value=MagicMock())
     coord.async_add_listener = MagicMock(return_value=MagicMock())
     # send_command_with_retry: pass-through that executes the coro_func directly
@@ -744,3 +745,68 @@ class TestBuildTurnOnCommand:
         )
         assert cmd.use_color_brightness is False
         assert cmd.color_temp == color_temp_to_device(260)
+
+
+@pytest.mark.requires_ha
+class TestEffectSceneSupport:
+    """MESH-19: LightEntityFeature.EFFECT + scene/effect support."""
+
+    def test_supported_effects_returns_all_scene_names(self) -> None:
+        """supported_effects must include all MESH_SCENES values."""
+        from custom_components.tuya_ble_mesh.const import MESH_SCENES
+
+        coord = make_mock_coordinator()
+        light = TuyaBLEMeshLight(coord, "entry_id")
+        effects = light.supported_effects
+        assert effects is not None
+        assert len(effects) == len(MESH_SCENES)
+        assert "Warm Candlelight" in effects
+
+    def test_effect_returns_active_scene_name(self) -> None:
+        """effect property returns scene name matching coordinator.state.scene_id."""
+        from dataclasses import replace as dc_replace
+
+        coord = make_mock_coordinator()
+        coord.state = dc_replace(coord.state, scene_id=1)
+        light = TuyaBLEMeshLight(coord, "entry_id")
+        assert light.effect == "Warm Candlelight"
+
+    def test_effect_returns_none_when_no_scene_active(self) -> None:
+        """effect returns None when scene_id=0 (no active scene)."""
+        coord = make_mock_coordinator()  # scene_id defaults to 0
+        light = TuyaBLEMeshLight(coord, "entry_id")
+        assert light.effect is None
+
+    @pytest.mark.asyncio
+    async def test_turn_on_with_effect_sends_scene(self) -> None:
+        """async_turn_on(effect=...) calls device.send_scene and coordinator.set_scene_id."""
+        coord = make_mock_coordinator()
+        light = TuyaBLEMeshLight(coord, "entry_id")
+
+        await light.async_turn_on(effect="Warm Candlelight")
+
+        coord.device.send_scene.assert_called_once_with(1)
+        coord.set_scene_id.assert_called_once_with(1)
+
+    @pytest.mark.asyncio
+    async def test_turn_on_with_unknown_effect_does_nothing(self) -> None:
+        """async_turn_on with an unrecognised effect name skips send_scene."""
+        coord = make_mock_coordinator()
+        light = TuyaBLEMeshLight(coord, "entry_id")
+
+        await light.async_turn_on(effect="Disco Inferno")
+
+        coord.device.send_scene.assert_not_called()
+        coord.set_scene_id.assert_not_called()
+
+    def test_set_scene_id_updates_coordinator_state(self) -> None:
+        """coordinator.set_scene_id() persists scene_id into frozen state."""
+        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
+
+        device = MagicMock()
+        device.address = "AA:BB:CC:DD:EE:FF"
+        c = TuyaBLEMeshCoordinator(device)
+
+        assert c.state.scene_id == 0
+        c.set_scene_id(3)
+        assert c.state.scene_id == 3
