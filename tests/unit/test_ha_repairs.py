@@ -15,13 +15,19 @@ sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
 from custom_components.tuya_ble_mesh.repairs import (  # noqa: E402
     DOMAIN,
+    ISSUE_AUTH_OR_MESH_MISMATCH,
     ISSUE_BRIDGE_UNREACHABLE,
     ISSUE_KEY_MISMATCH,
     ISSUE_PROVISIONING_FAILED,
+    ISSUE_RECONNECT_STORM,
     TuyaBLEMeshRepairFlow,
+    _base_of_scoped,
+    _scoped_issue_id,
     async_create_fix_flow,
     async_create_issue_bridge_unreachable,
     async_create_issue_provisioning_failed,
+    async_create_issue_reconnect_storm,
+    async_delete_all_issues,
     async_delete_issue,
 )
 
@@ -50,9 +56,10 @@ class TestCreateIssueProvisioningFailed:
         """Test that provisioning failed issue is created with correct parameters."""
         hass = MagicMock()
         device_name = "Malmbergs Plug S17"
+        entry_id = "test_entry_abc123"
 
         with patch("homeassistant.helpers.issue_registry.async_create_issue") as mock_create:
-            await async_create_issue_provisioning_failed(hass, device_name)
+            await async_create_issue_provisioning_failed(hass, device_name, entry_id)
 
             # Verify the function was called (exact args depend on HA's internal API)
             assert mock_create.called
@@ -62,12 +69,13 @@ class TestCreateIssueProvisioningFailed:
         """Test that a warning is logged when creating the issue."""
         hass = MagicMock()
         device_name = "Malmbergs Plug S17"
+        entry_id = "test_entry_abc123"
 
         with (
             patch("homeassistant.helpers.issue_registry.async_create_issue"),
             patch("custom_components.tuya_ble_mesh.repairs._LOGGER") as mock_logger,
         ):
-            await async_create_issue_provisioning_failed(hass, device_name)
+            await async_create_issue_provisioning_failed(hass, device_name, entry_id)
             assert mock_logger.warning.called
 
 
@@ -81,9 +89,10 @@ class TestCreateIssueBridgeUnreachable:
         hass = MagicMock()
         host = "192.168.1.100"
         port = 8099
+        entry_id = "test_entry_abc123"
 
         with patch("homeassistant.helpers.issue_registry.async_create_issue") as mock_create:
-            await async_create_issue_bridge_unreachable(hass, host, port)
+            await async_create_issue_bridge_unreachable(hass, host, port, entry_id)
 
             assert mock_create.called
 
@@ -93,12 +102,13 @@ class TestCreateIssueBridgeUnreachable:
         hass = MagicMock()
         host = "192.168.1.100"
         port = 8099
+        entry_id = "test_entry_abc123"
 
         with (
             patch("homeassistant.helpers.issue_registry.async_create_issue"),
             patch("custom_components.tuya_ble_mesh.repairs._LOGGER") as mock_logger,
         ):
-            await async_create_issue_bridge_unreachable(hass, host, port)
+            await async_create_issue_bridge_unreachable(hass, host, port, entry_id)
             assert mock_logger.warning.called
 
 
@@ -110,9 +120,10 @@ class TestDeleteIssue:
         """Test that issues are deleted with correct parameters."""
         hass = MagicMock()
         issue_id = "provisioning_failed"
+        entry_id = "test_entry_abc123"
 
         with patch("homeassistant.helpers.issue_registry.async_delete_issue") as mock_delete:
-            async_delete_issue(hass, issue_id)
+            async_delete_issue(hass, issue_id, entry_id)
 
             assert mock_delete.called
 
@@ -120,12 +131,13 @@ class TestDeleteIssue:
         """Test that a debug message is logged when deleting the issue."""
         hass = MagicMock()
         issue_id = "provisioning_failed"
+        entry_id = "test_entry_abc123"
 
         with (
             patch("homeassistant.helpers.issue_registry.async_delete_issue"),
             patch("custom_components.tuya_ble_mesh.repairs._LOGGER") as mock_logger,
         ):
-            async_delete_issue(hass, issue_id)
+            async_delete_issue(hass, issue_id, entry_id)
             assert mock_logger.debug.called
 
 
@@ -197,3 +209,148 @@ class TestCreateFixFlow:
         assert flow1 is not flow2
         assert isinstance(flow1, TuyaBLEMeshRepairFlow)
         assert isinstance(flow2, TuyaBLEMeshRepairFlow)
+
+
+@pytest.mark.requires_ha
+class TestIssueScopingHelpers:
+    """Test that issue IDs are properly scoped per config entry."""
+
+    def test_scoped_issue_id_contains_entry_id(self) -> None:
+        """Scoped issue ID embeds the entry ID."""
+        scoped = _scoped_issue_id(ISSUE_BRIDGE_UNREACHABLE, "abc123")
+        assert "abc123" in scoped
+        assert scoped.startswith(ISSUE_BRIDGE_UNREACHABLE)
+
+    def test_base_of_scoped_extracts_base_id(self) -> None:
+        """_base_of_scoped extracts the base issue ID."""
+        scoped = _scoped_issue_id(ISSUE_BRIDGE_UNREACHABLE, "abc123")
+        assert _base_of_scoped(scoped) == ISSUE_BRIDGE_UNREACHABLE
+
+    def test_base_of_scoped_handles_underscore_base_ids(self) -> None:
+        """Base IDs with underscores (e.g. auth_or_mesh_mismatch) are handled."""
+        scoped = _scoped_issue_id(ISSUE_AUTH_OR_MESH_MISMATCH, "entry1")
+        assert _base_of_scoped(scoped) == ISSUE_AUTH_OR_MESH_MISMATCH
+
+    def test_two_entries_get_different_issue_ids(self) -> None:
+        """Two config entries produce different scoped issue IDs for the same base."""
+        scoped_a = _scoped_issue_id(ISSUE_BRIDGE_UNREACHABLE, "entry_aaa")
+        scoped_b = _scoped_issue_id(ISSUE_BRIDGE_UNREACHABLE, "entry_bbb")
+        assert scoped_a != scoped_b
+
+
+@pytest.mark.requires_ha
+class TestIssueScopingMultiEntry:
+    """Test that issues from different config entries are independent."""
+
+    @pytest.mark.asyncio
+    async def test_create_and_clear_issues_independently(self) -> None:
+        """Creating issues for two entries and clearing one leaves the other intact."""
+        hass = MagicMock()
+        entry_a = "entry_aaaaaaa"
+        entry_b = "entry_bbbbbbb"
+        created_issues: list[str] = []
+        deleted_issues: list[str] = []
+
+        def track_create(h, domain, issue_id, **kw) -> None:  # type: ignore[no-untyped-def]
+            created_issues.append(issue_id)
+
+        def track_delete(h, domain, issue_id) -> None:  # type: ignore[no-untyped-def]
+            deleted_issues.append(issue_id)
+
+        with (
+            patch(
+                "homeassistant.helpers.issue_registry.async_create_issue",
+                side_effect=track_create,
+            ),
+            patch(
+                "homeassistant.helpers.issue_registry.async_delete_issue",
+                side_effect=track_delete,
+            ),
+        ):
+            # Create reconnect storm issue for both entries
+            await async_create_issue_reconnect_storm(hass, "Device A", 15, entry_a)
+            await async_create_issue_reconnect_storm(hass, "Device B", 12, entry_b)
+
+            scoped_a = _scoped_issue_id(ISSUE_RECONNECT_STORM, entry_a)
+            scoped_b = _scoped_issue_id(ISSUE_RECONNECT_STORM, entry_b)
+            assert scoped_a in created_issues
+            assert scoped_b in created_issues
+
+            # Clear only entry A's issues
+            async_delete_all_issues(hass, entry_a)
+
+            # Entry A's issue was cleared
+            assert scoped_a in deleted_issues
+            # Entry B's issue was NOT cleared
+            assert scoped_b not in deleted_issues
+
+    @pytest.mark.asyncio
+    async def test_delete_issue_uses_scoped_id(self) -> None:
+        """async_delete_issue deletes the scoped ID, not the bare base ID."""
+        hass = MagicMock()
+        entry_id = "myentry123"
+        deleted: list[str] = []
+
+        def track_delete(h, domain, issue_id) -> None:  # type: ignore[no-untyped-def]
+            deleted.append(issue_id)
+
+        with patch(
+            "homeassistant.helpers.issue_registry.async_delete_issue",
+            side_effect=track_delete,
+        ):
+            async_delete_issue(hass, ISSUE_BRIDGE_UNREACHABLE, entry_id)
+
+        expected = _scoped_issue_id(ISSUE_BRIDGE_UNREACHABLE, entry_id)
+        assert expected in deleted
+        # Must NOT delete the bare base ID (that would affect all entries)
+        assert ISSUE_BRIDGE_UNREACHABLE not in deleted
+
+
+@pytest.mark.requires_ha
+class TestRepairFlowRoutingWithScopedIds:
+    """Test that repair flow routes correctly with scoped issue IDs."""
+
+    @pytest.mark.asyncio
+    async def test_scoped_auth_mismatch_routes_to_reauth_hint(self) -> None:
+        """Scoped auth mismatch issue routes to reauth_hint step."""
+        scoped = _scoped_issue_id(ISSUE_AUTH_OR_MESH_MISMATCH, "entry1")
+        flow = TuyaBLEMeshRepairFlow(scoped)
+        called_step = []
+
+        async def mock_reauth() -> dict[str, str]:  # type: ignore[return]
+            called_step.append("reauth_hint")
+            return {"type": "form", "step_id": "reauth_hint"}
+
+        flow.async_step_reauth_hint = mock_reauth  # type: ignore[method-assign]
+        result = await flow.async_step_init(None)
+        assert "reauth_hint" in called_step
+
+    @pytest.mark.asyncio
+    async def test_scoped_reconnect_storm_routes_to_storm_confirm(self) -> None:
+        """Scoped reconnect storm issue routes to storm_confirm step."""
+        scoped = _scoped_issue_id(ISSUE_RECONNECT_STORM, "entry2")
+        flow = TuyaBLEMeshRepairFlow(scoped)
+        called_step = []
+
+        async def mock_storm() -> dict[str, str]:  # type: ignore[return]
+            called_step.append("storm_confirm")
+            return {"type": "form", "step_id": "storm_confirm"}
+
+        flow.async_step_storm_confirm = mock_storm  # type: ignore[method-assign]
+        result = await flow.async_step_init(None)
+        assert "storm_confirm" in called_step
+
+    @pytest.mark.asyncio
+    async def test_scoped_generic_issue_routes_to_confirm(self) -> None:
+        """Scoped bridge_unreachable issue routes to generic confirm step."""
+        scoped = _scoped_issue_id(ISSUE_BRIDGE_UNREACHABLE, "entry3")
+        flow = TuyaBLEMeshRepairFlow(scoped)
+        called_step = []
+
+        async def mock_confirm() -> dict[str, str]:  # type: ignore[return]
+            called_step.append("confirm")
+            return {"type": "form", "step_id": "confirm"}
+
+        flow.async_step_confirm = mock_confirm  # type: ignore[method-assign]
+        result = await flow.async_step_init(None)
+        assert "confirm" in called_step
