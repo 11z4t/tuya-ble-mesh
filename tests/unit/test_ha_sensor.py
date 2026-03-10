@@ -52,6 +52,7 @@ def make_mock_coordinator(
     coord.device.address = "DC:23:4D:21:43:A5"
     coord.device.supports_power_monitoring = False
     coord.add_listener = MagicMock(return_value=MagicMock())
+    coord.async_add_listener = MagicMock(return_value=MagicMock())
     return coord
 
 
@@ -306,21 +307,25 @@ class TestSensorLifecycle:
         coord = make_mock_coordinator()
         desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
         sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        sensor.hass = MagicMock()
 
         await sensor.async_added_to_hass()
 
-        coord.add_listener.assert_called_once()
+        coord.async_add_listener.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_removed_from_hass(self) -> None:
         coord = make_mock_coordinator()
         remove_fn = MagicMock()
-        coord.add_listener.return_value = remove_fn
+        coord.async_add_listener.return_value = remove_fn
         desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
         sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
+        sensor.hass = MagicMock()
 
         await sensor.async_added_to_hass()
-        await sensor.async_will_remove_from_hass()
+        # CoordinatorEntity stores the unsubscribe fn via async_on_remove;
+        # _call_on_remove_callbacks() triggers cleanup (as done by async_remove())
+        sensor._call_on_remove_callbacks()
 
         remove_fn.assert_called_once()
 
@@ -330,9 +335,10 @@ class TestSensorLifecycle:
         desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
         sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
         sensor.async_write_ha_state = MagicMock()
+        sensor.hass = MagicMock()
 
         await sensor.async_added_to_hass()
-        callback = coord.add_listener.call_args[0][0]
+        callback = coord.async_add_listener.call_args[0][0]
         callback()
 
         sensor.async_write_ha_state.assert_called_once()
@@ -402,7 +408,7 @@ class TestSensorPlatformSetup:
 
         entities = add_entities.call_args[0][0]
         for entity in entities:
-            assert entity._coordinator is coord
+            assert entity.coordinator is coord
 
     @pytest.mark.asyncio
     async def test_setup_entry_sets_device_info(self) -> None:

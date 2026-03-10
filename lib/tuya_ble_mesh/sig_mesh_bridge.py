@@ -11,10 +11,11 @@ Provides two bridge device classes:
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from collections.abc import Callable
 from typing import Any
+
+import aiohttp
 
 from tuya_ble_mesh.exceptions import ConnectionError as MeshConnectionError
 from tuya_ble_mesh.exceptions import SIGMeshError
@@ -32,6 +33,11 @@ _DEFAULT_BRIDGE_PORT = 8099
 _COMMAND_TIMEOUT = 60.0
 _POLL_INTERVAL = 2.0
 _MAX_POLL_ATTEMPTS = 30
+
+# Retry config for BLE write commands
+_DEFAULT_MAX_RETRIES = 3
+_RETRY_INITIAL_BACKOFF = 1.0
+_RETRY_BACKOFF_MULTIPLIER = 2.0
 
 
 class SIGMeshBridgeDevice:
@@ -159,17 +165,19 @@ class SIGMeshBridgeDevice:
         self._connected = False
         _LOGGER.info("Bridge device disconnected")
 
-    async def send_power(self, on: bool) -> None:
-        """Send GenericOnOff Set via bridge daemon.
+    async def send_power(self, on: bool, *, max_retries: int = _DEFAULT_MAX_RETRIES) -> None:
+        """Send GenericOnOff Set via bridge daemon with retry.
 
         Submits command, then polls for result. Serialized via lock
-        to prevent command collisions on the bridge daemon.
+        to prevent command collisions on the bridge daemon. On failure,
+        retries with exponential backoff up to max_retries times.
 
         Args:
             on: True to turn on, False to turn off.
+            max_retries: Maximum number of retry attempts (default 3).
 
         Raises:
-            SIGMeshError: If command fails.
+            SIGMeshError: If command fails after all retries.
         """
         if not self._connected:
             msg = "Bridge not connected"
@@ -177,21 +185,52 @@ class SIGMeshBridgeDevice:
 
         async with self._cmd_lock, mesh_operation(self._address, "send_power"):
             action = "on" if on else "off"
-            result = await self._send_and_wait(action)
+            last_error: str = ""
+            backoff = _RETRY_INITIAL_BACKOFF
 
-            if result.get("success"):
-                status = result.get("status")
-                on_state = status == "ON"
-                self._last_on_state = on_state
-                for callback in list(self._onoff_callbacks):
-                    try:
-                        callback(on_state)
-                    except Exception:
-                        _LOGGER.warning("OnOff callback error", exc_info=True)
-            else:
-                error = result.get("error", result.get("stderr", "Unknown error"))
-                msg = f"Bridge command failed: {error}"
-                raise SIGMeshError(msg)
+            for attempt in range(1, max_retries + 1):
+                try:
+                    result = await self._send_and_wait(action)
+                except SIGMeshError:
+                    if attempt >= max_retries:
+                        raise
+                    _LOGGER.warning(
+                        "Bridge command attempt %d/%d failed, retrying in %.1fs",
+                        attempt,
+                        max_retries,
+                        backoff,
+                    )
+                    await asyncio.sleep(backoff)
+                    backoff *= _RETRY_BACKOFF_MULTIPLIER
+                    continue
+
+                if result.get("success"):
+                    status = result.get("status")
+                    on_state = status == "ON"
+                    self._last_on_state = on_state
+                    for callback in list(self._onoff_callbacks):
+                        try:
+                            callback(on_state)
+                        except Exception:
+                            _LOGGER.warning("OnOff callback error", exc_info=True)
+                    return
+
+                last_error = result.get("error", result.get("stderr", "Unknown error"))
+                if attempt >= max_retries:
+                    break
+
+                _LOGGER.warning(
+                    "Bridge command attempt %d/%d failed: %s, retrying in %.1fs",
+                    attempt,
+                    max_retries,
+                    last_error,
+                    backoff,
+                )
+                await asyncio.sleep(backoff)
+                backoff *= _RETRY_BACKOFF_MULTIPLIER
+
+            msg = f"Bridge command failed after {max_retries} attempts: {last_error}"
+            raise SIGMeshError(msg)
 
     async def _send_and_wait(self, action: str) -> dict[str, Any]:
         """Submit a command to the bridge and poll for result.
@@ -237,23 +276,18 @@ class SIGMeshBridgeDevice:
         return {"success": False, "error": "Timed out waiting for bridge result"}
 
     async def _http_get(self, path: str, timeout: float = 5.0) -> dict[str, Any]:
-        """Make an HTTP GET request to the bridge daemon."""
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(self._bridge_host, self._bridge_port),
-            timeout=timeout,
-        )
+        """Make an HTTP GET request to the bridge daemon using aiohttp."""
+        url = f"{self._bridge_url}{path}"
         try:
-            request = f"GET {path} HTTP/1.1\r\nHost: {self._bridge_host}\r\n\r\n"
-            writer.write(request.encode())
-            await writer.drain()
-
-            response = await asyncio.wait_for(reader.read(8192), timeout=timeout)
-            body = self._parse_http_body(response.decode("utf-8", errors="replace"))
-            result: dict[str, Any] = json.loads(body)
-            return result
-        finally:
-            writer.close()
-            await writer.wait_closed()
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    url, timeout=aiohttp.ClientTimeout(total=timeout)
+                ) as resp:
+                    result: dict[str, Any] = await resp.json()
+                    return result
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            msg = f"Bridge HTTP GET {path} failed: {exc}"
+            raise MeshConnectionError(msg) from exc
 
     async def _http_post(
         self,
@@ -261,43 +295,18 @@ class SIGMeshBridgeDevice:
         data: dict[str, Any],
         timeout: float = 5.0,
     ) -> dict[str, Any]:
-        """Make an HTTP POST request to the bridge daemon."""
-        body = json.dumps(data)
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(self._bridge_host, self._bridge_port),
-            timeout=timeout,
-        )
+        """Make an HTTP POST request to the bridge daemon using aiohttp."""
+        url = f"{self._bridge_url}{path}"
         try:
-            request = (
-                f"POST {path} HTTP/1.1\r\n"
-                f"Host: {self._bridge_host}\r\n"
-                f"Content-Type: application/json\r\n"
-                f"Content-Length: {len(body)}\r\n"
-                f"\r\n{body}"
-            )
-            writer.write(request.encode())
-            await writer.drain()
-
-            response = await asyncio.wait_for(reader.read(8192), timeout=timeout)
-            resp_body = self._parse_http_body(response.decode("utf-8", errors="replace"))
-            result: dict[str, Any] = json.loads(resp_body)
-            return result
-        finally:
-            writer.close()
-            await writer.wait_closed()
-
-    @staticmethod
-    def _parse_http_body(response: str) -> str:
-        """Extract body from raw HTTP response.
-
-        Raises:
-            MeshConnectionError: If response has no HTTP body separator.
-        """
-        parts = response.split("\r\n\r\n", 1)
-        if len(parts) < 2:
-            msg = "Malformed HTTP response: missing body separator"
-            raise MeshConnectionError(msg)
-        return parts[1]
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url, json=data, timeout=aiohttp.ClientTimeout(total=timeout)
+                ) as resp:
+                    result: dict[str, Any] = await resp.json()
+                    return result
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            msg = f"Bridge HTTP POST {path} failed: {exc}"
+            raise MeshConnectionError(msg) from exc
 
 
 # Callback types for Telink bridge (matching MeshDevice interface)
@@ -569,12 +578,57 @@ class TelinkBridgeDevice:
         self,
         action: str,
         params: dict[str, Any] | None = None,
+        *,
+        max_retries: int = _DEFAULT_MAX_RETRIES,
     ) -> dict[str, Any]:
-        """Send a Telink command via bridge, serialized by lock."""
+        """Send a Telink command via bridge, serialized by lock.
+
+        Retries on transient failures with exponential backoff.
+
+        Args:
+            action: Command action string (on, off, brightness, etc.).
+            params: Optional command parameters dict.
+            max_retries: Maximum retry attempts (default 3).
+
+        Returns:
+            Result dict from the bridge daemon.
+
+        Raises:
+            SIGMeshError: If command fails after all retries or bridge disconnects.
+        """
         if not self._connected:
             msg = "Bridge not connected"
             raise SIGMeshError(msg)
 
+        backoff = _RETRY_INITIAL_BACKOFF
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                result = await self._send_telink_cmd_once(action, params)
+                return result
+            except SIGMeshError:
+                if attempt >= max_retries or not self._connected:
+                    raise
+                _LOGGER.warning(
+                    "Telink command '%s' attempt %d/%d failed, retrying in %.1fs",
+                    action,
+                    attempt,
+                    max_retries,
+                    backoff,
+                )
+                await asyncio.sleep(backoff)
+                backoff *= _RETRY_BACKOFF_MULTIPLIER
+
+        # Should not reach here, but safety net
+        msg = f"Telink command '{action}' failed after {max_retries} attempts"
+        raise SIGMeshError(msg)
+
+    async def _send_telink_cmd_once(
+        self,
+        action: str,
+        params: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """Send a single Telink command attempt via bridge, serialized by lock."""
         async with self._cmd_lock:
             cmd: dict[str, Any] = {
                 "action": action,
@@ -613,35 +667,18 @@ class TelinkBridgeDevice:
             raise SIGMeshError(msg)
 
     async def _http_get(self, path: str, timeout: float = 5.0) -> dict[str, Any]:
-        """Make an HTTP GET request to the bridge daemon.
-
-        Args:
-            path: URL path (e.g. ``/health``, ``/result``).
-            timeout: Socket connect and read timeout in seconds.
-
-        Returns:
-            Parsed JSON response dict.
-
-        Raises:
-            MeshConnectionError: If connection fails or response is malformed.
-        """
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(self._bridge_host, self._bridge_port),
-            timeout=timeout,
-        )
+        """Make an HTTP GET request to the bridge daemon using aiohttp."""
+        url = f"http://{self._bridge_host}:{self._bridge_port}{path}"
         try:
-            request = f"GET {path} HTTP/1.1\r\nHost: {self._bridge_host}\r\n\r\n"
-            writer.write(request.encode())
-            await writer.drain()
-            response = await asyncio.wait_for(reader.read(8192), timeout=timeout)
-            body = SIGMeshBridgeDevice._parse_http_body(
-                response.decode("utf-8", errors="replace"),
-            )
-            result: dict[str, Any] = json.loads(body)
-            return result
-        finally:
-            writer.close()
-            await writer.wait_closed()
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    url, timeout=aiohttp.ClientTimeout(total=timeout)
+                ) as resp:
+                    result: dict[str, Any] = await resp.json()
+                    return result
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            msg = f"Bridge HTTP GET {path} failed: {exc}"
+            raise MeshConnectionError(msg) from exc
 
     async def _http_post(
         self,
@@ -649,40 +686,15 @@ class TelinkBridgeDevice:
         data: dict[str, Any],
         timeout: float = 5.0,
     ) -> dict[str, Any]:
-        """Make an HTTP POST request to the bridge daemon.
-
-        Args:
-            path: URL path (e.g. ``/command``).
-            data: JSON-serialisable dict to POST.
-            timeout: Socket connect and read timeout in seconds.
-
-        Returns:
-            Parsed JSON response dict.
-
-        Raises:
-            MeshConnectionError: If connection fails or response is malformed.
-        """
-        body = json.dumps(data)
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(self._bridge_host, self._bridge_port),
-            timeout=timeout,
-        )
+        """Make an HTTP POST request to the bridge daemon using aiohttp."""
+        url = f"http://{self._bridge_host}:{self._bridge_port}{path}"
         try:
-            request = (
-                f"POST {path} HTTP/1.1\r\n"
-                f"Host: {self._bridge_host}\r\n"
-                f"Content-Type: application/json\r\n"
-                f"Content-Length: {len(body)}\r\n"
-                f"\r\n{body}"
-            )
-            writer.write(request.encode())
-            await writer.drain()
-            response = await asyncio.wait_for(reader.read(8192), timeout=timeout)
-            resp_body = SIGMeshBridgeDevice._parse_http_body(
-                response.decode("utf-8", errors="replace"),
-            )
-            result: dict[str, Any] = json.loads(resp_body)
-            return result
-        finally:
-            writer.close()
-            await writer.wait_closed()
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url, json=data, timeout=aiohttp.ClientTimeout(total=timeout)
+                ) as resp:
+                    result: dict[str, Any] = await resp.json()
+                    return result
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            msg = f"Bridge HTTP POST {path} failed: {exc}"
+            raise MeshConnectionError(msg) from exc

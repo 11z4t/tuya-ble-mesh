@@ -6,6 +6,7 @@ Provides local BLE mesh control of Tuya/Telink-based devices
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, TypeAlias
@@ -13,7 +14,6 @@ from typing import TYPE_CHECKING, Any, TypeAlias
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import HomeAssistantError
 
-from custom_components.tuya_ble_mesh._import_helper import ensure_lib_importable
 from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
     CONF_BRIDGE_HOST,
@@ -39,8 +39,6 @@ from custom_components.tuya_ble_mesh.const import (
     DOMAIN,
     PLATFORMS,
 )
-from custom_components.tuya_ble_mesh.device_registry import TuyaBLEMeshDeviceRegistry
-
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -50,8 +48,6 @@ if TYPE_CHECKING:
     from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
 
 _LOGGER = logging.getLogger(__name__)
-
-ensure_lib_importable()
 
 
 def _get_entry_option(entry: ConfigEntry, key: str, default: Any = None) -> Any:
@@ -69,6 +65,7 @@ def _get_entry_option(entry: ConfigEntry, key: str, default: Any = None) -> Any:
     return entry.data.get(key, default)
 
 
+
 @dataclass
 class TuyaBLEMeshRuntimeData:
     """Runtime data stored in config entry for Tuya BLE Mesh.
@@ -80,7 +77,6 @@ class TuyaBLEMeshRuntimeData:
     coordinator: TuyaBLEMeshCoordinator
     device_info: DeviceInfo
     cancel_listeners: list[Callable[[], None]] = field(default_factory=list)
-    registry: TuyaBLEMeshDeviceRegistry | None = None
 
 
 # Type alias for typed config entry access in platform files
@@ -124,8 +120,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
 
     if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
         from tuya_ble_mesh.sig_mesh_bridge import (
-            SIGMeshBridgeDevice,  # type: ignore[import-not-found]
-        )
+            SIGMeshBridgeDevice,        )
 
         # unicast_target is identity — stays in data; bridge settings are configurable
         target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
@@ -140,8 +135,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         )
     elif device_type == DEVICE_TYPE_TELINK_BRIDGE_LIGHT:
         from tuya_ble_mesh.sig_mesh_bridge import (
-            TelinkBridgeDevice,  # type: ignore[import-not-found]
-        )
+            TelinkBridgeDevice,        )
 
         bridge_host = _get_entry_option(entry, CONF_BRIDGE_HOST, "")
         bridge_port = _get_entry_option(entry, CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
@@ -152,8 +146,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             bridge_port,
         )
     elif device_type == DEVICE_TYPE_SIG_PLUG:
-        from tuya_ble_mesh.secrets import DictSecretsManager  # type: ignore[import-not-found]
-        from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
+        from tuya_ble_mesh.secrets import DictSecretsManager
+        from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
 
         # Unicast addresses and keys are identity — always from data
         target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
@@ -180,7 +174,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             ble_device_callback=_ble_device_from_ha,
         )
     else:
-        from tuya_ble_mesh.device import MeshDevice  # type: ignore[import-not-found]
+        from tuya_ble_mesh.device import MeshDevice
 
         # Mesh credentials and vendor settings are configurable — read from options first
         mesh_name: str = _get_entry_option(entry, CONF_MESH_NAME, "out_of_mesh")
@@ -214,29 +208,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         connections={("mac", mac_address)},
     )
 
-    # Initialize device registry and register this device
-    registry = TuyaBLEMeshDeviceRegistry(hass)
-    await registry.async_load()
-    registry.register_device(mac_address, entry.title, device_type or "unknown")
-
     # Store runtime data BEFORE async_start to avoid race condition
     # (callbacks may fire during async_start and need access to runtime_data)
     entry.runtime_data = TuyaBLEMeshRuntimeData(
         coordinator=coordinator,
         device_info=device_info,
-        registry=registry,
     )
 
     await coordinator.async_start()
-
-    # Update registry with connection result
-    if coordinator.state.available:
-        registry.record_connection(mac_address)
-        if coordinator.state.firmware_version:
-            registry.update_firmware_version(mac_address, coordinator.state.firmware_version)
-        await registry.async_save()
-    else:
-        registry.record_error(mac_address, "initial_connection_failed")
 
     # Forward platform setup even if device is unavailable —
     # entities will show as "unavailable" until connection succeeds
@@ -286,7 +265,9 @@ async def _async_register_services(hass: HomeAssistant) -> None:
                 # Flash: off → on → off → on
                 for _ in range(3):
                     await device.send_power(False)
+                    await asyncio.sleep(0.5)
                     await device.send_power(True)
+                    await asyncio.sleep(0.5)
         except Exception as exc:
             raise HomeAssistantError(f"Failed to identify device: {exc}") from exc
 
@@ -411,6 +392,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry)
         await runtime.coordinator.async_stop()
 
     unload_ok: bool = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+    # Remove services if no more entries remain
+    remaining = hass.config_entries.async_entries(DOMAIN)
+    if not remaining or (len(remaining) == 1 and remaining[0].entry_id == entry.entry_id):
+        for service_name in ("identify", "set_log_level", "get_diagnostics"):
+            if hass.services.has_service(DOMAIN, service_name):
+                hass.services.async_remove(DOMAIN, service_name)
 
     _LOGGER.info("Tuya BLE Mesh entry unloaded: %s (ok=%s)", entry.title, unload_ok)
     return unload_ok

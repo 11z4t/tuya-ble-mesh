@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.helpers.device_registry import DeviceInfo
 
+from custom_components.tuya_ble_mesh.entity import TuyaBLEMeshEntity
 from custom_components.tuya_ble_mesh.const import (
     CONF_DEVICE_TYPE,
     PLUG_DEVICE_TYPES,
@@ -49,12 +50,11 @@ async def async_setup_entry(
     async_add_entities([TuyaBLEMeshSwitch(coordinator, entry.entry_id, device_info)])
 
 
-class TuyaBLEMeshSwitch(SwitchEntity):
+class TuyaBLEMeshSwitch(TuyaBLEMeshEntity, SwitchEntity):
     """Switch entity for a Tuya BLE Mesh smart plug."""
 
     _attr_should_poll = False
     _attr_device_class = SwitchDeviceClass.OUTLET
-    _attr_has_entity_name = True
     _attr_name = None  # Use device name as entity name
     _attr_unique_id: str
 
@@ -64,27 +64,13 @@ class TuyaBLEMeshSwitch(SwitchEntity):
         entry_id: str,
         device_info: DeviceInfo | None = None,
     ) -> None:
-        self._coordinator = coordinator
-        self._entry_id = entry_id
+        super().__init__(coordinator, entry_id, device_info)
         self._attr_unique_id = f"{coordinator.device.address}_switch"
-        if device_info is not None:
-            self._attr_device_info = device_info
-        self._remove_listener: Any = None
-
-    @property
-    def unique_id(self) -> str:
-        """Return unique ID."""
-        return self._attr_unique_id
-
-    @property
-    def available(self) -> bool:
-        """Return True if the device is available."""
-        return self._coordinator.state.available
 
     @property
     def is_on(self) -> bool:
         """Return True if the switch is on."""
-        return self._coordinator.state.is_on
+        return self.coordinator.state.is_on
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn the switch on.
@@ -92,8 +78,8 @@ class TuyaBLEMeshSwitch(SwitchEntity):
         Args:
             **kwargs: Additional arguments (unused).
         """
-        await self._coordinator.send_command_with_retry(
-            lambda: self._coordinator.device.send_power(True),  # type: ignore[arg-type]
+        await self.coordinator.send_command_with_retry(
+            lambda: self.coordinator.device.send_power(True),  # type: ignore[arg-type]
             description="send_power(True)",
         )
 
@@ -103,21 +89,7 @@ class TuyaBLEMeshSwitch(SwitchEntity):
         Args:
             **kwargs: Additional arguments (unused).
         """
-        await self._coordinator.send_command_with_retry(
-            lambda: self._coordinator.device.send_power(False),  # type: ignore[arg-type]
+        await self.coordinator.send_command_with_retry(
+            lambda: self.coordinator.device.send_power(False),  # type: ignore[arg-type]
             description="send_power(False)",
         )
-
-    async def async_added_to_hass(self) -> None:
-        """Register state listener when added to HA."""
-        self._remove_listener = self._coordinator.add_listener(self._handle_coordinator_update)
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Remove state listener when removed from HA."""
-        if self._remove_listener is not None:
-            self._remove_listener()
-            self._remove_listener = None
-
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        self.async_write_ha_state()

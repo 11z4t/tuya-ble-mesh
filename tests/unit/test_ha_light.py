@@ -65,6 +65,7 @@ def make_mock_coordinator(
     coord.device.send_color_brightness = AsyncMock()
     coord.device.send_light_mode = AsyncMock()
     coord.add_listener = MagicMock(return_value=MagicMock())
+    coord.async_add_listener = MagicMock(return_value=MagicMock())
     # send_command_with_retry: pass-through that executes the coro_func directly
     async def _pass_through(coro_func, **_kw):  # type: ignore[no-untyped-def]
         await coro_func()
@@ -398,20 +399,24 @@ class TestLightLifecycle:
     async def test_added_to_hass(self) -> None:
         coord = make_mock_coordinator()
         light = TuyaBLEMeshLight(coord, "test_entry")
+        light.hass = MagicMock()
 
         await light.async_added_to_hass()
 
-        coord.add_listener.assert_called_once()
+        coord.async_add_listener.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_removed_from_hass(self) -> None:
         coord = make_mock_coordinator()
         remove_fn = MagicMock()
-        coord.add_listener.return_value = remove_fn
+        coord.async_add_listener.return_value = remove_fn
         light = TuyaBLEMeshLight(coord, "test_entry")
+        light.hass = MagicMock()
 
         await light.async_added_to_hass()
-        await light.async_will_remove_from_hass()
+        # CoordinatorEntity stores the unsubscribe fn via async_on_remove;
+        # _call_on_remove_callbacks() triggers cleanup (as done by async_remove())
+        light._call_on_remove_callbacks()
 
         remove_fn.assert_called_once()
 
@@ -420,10 +425,11 @@ class TestLightLifecycle:
         coord = make_mock_coordinator()
         light = TuyaBLEMeshLight(coord, "test_entry")
         light.async_write_ha_state = MagicMock()
+        light.hass = MagicMock()
 
         await light.async_added_to_hass()
         # Get the callback that was registered
-        callback = coord.add_listener.call_args[0][0]
+        callback = coord.async_add_listener.call_args[0][0]
         callback()
 
         light.async_write_ha_state.assert_called_once()
@@ -463,7 +469,7 @@ class TestLightPlatformSetup:
         await async_setup_entry(hass, entry, add_entities)
 
         entities = add_entities.call_args[0][0]
-        assert entities[0]._coordinator is coord
+        assert entities[0].coordinator is coord
 
     @pytest.mark.asyncio
     async def test_setup_skips_plug_device_type(self) -> None:

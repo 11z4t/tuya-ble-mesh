@@ -34,10 +34,6 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlow
 
-from custom_components.tuya_ble_mesh._import_helper import ensure_lib_importable
-
-ensure_lib_importable()
-
 if TYPE_CHECKING:
     from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
     from homeassistant.data_entry_flow import FlowResult
@@ -75,6 +71,7 @@ from custom_components.tuya_ble_mesh.const import (
     DEVICE_TYPE_SIG_PLUG,
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
     DOMAIN,
+    KNOWN_VENDOR_IDS,
     SIG_MESH_PROV_UUID,
     SIG_MESH_PROXY_UUID,
 )
@@ -109,12 +106,8 @@ _POST_PROV_REBOOT_DELAY = 6.0
 # Discovery flow TTL — flows expire after this duration if device stops advertising
 _DISCOVERY_FLOW_TTL = 300  # 5 minutes
 
-# Known Tuya/Telink vendor IDs for autodetect hint
-_KNOWN_VENDOR_IDS: dict[str, str] = {
-    "0x1001": "Malmbergs BT Smart",
-    "0x0160": "AwoX",
-    "0x0211": "Dimond/retsimx",
-}
+# Re-export from const (single source of truth)
+_KNOWN_VENDOR_IDS = KNOWN_VENDOR_IDS
 
 # Debug level choices
 _DEBUG_LEVEL_CHOICES = {
@@ -362,7 +355,9 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
       Step 2 — bridge_config: Bridge host/port (only for bridge device types).
       Step 3 — advanced:     Debug level, timeouts, reconnect thresholds.
 
-    Backward-compatible: existing config entry data keys are unchanged.
+    Each step shows only fields relevant to that category. Changes are
+    accumulated across steps and committed at the final step via entry.options.
+    Backward compatible: existing config entries work without migration.
     """
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
@@ -395,10 +390,10 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
             return await self.async_step_bridge_config(user_input)
 
         errors: dict[str, str] = {}
+        device_type = self._device_type()
 
         if user_input is not None:
             go_advanced = user_input.pop("show_advanced", False)
-            device_type = self._device_type()
 
             if device_type == DEVICE_TYPE_SIG_PLUG:
                 unicast_target = user_input.get(CONF_UNICAST_TARGET, "00B0")
@@ -424,24 +419,24 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 if vendor_error:
                     errors[CONF_VENDOR_ID] = vendor_error
 
-            if not errors:
-                self._pending_data.update(user_input)
-                if go_advanced:
-                    return await self.async_step_advanced()
-                return self._save_and_finish()
+            if errors:
+                return self.async_show_form(
+                    step_id="init",
+                    data_schema=self._build_basic_schema(),
+                    errors=errors,
+                )
 
-            return self.async_show_form(
-                step_id="init",
-                data_schema=self._build_init_schema(),
-                errors=errors,
-            )
+            self._pending_data.update(user_input)
+            if go_advanced:
+                return await self.async_step_advanced()
+            return self._save_and_finish()
 
         return self.async_show_form(
             step_id="init",
-            data_schema=self._build_init_schema(),
+            data_schema=self._build_basic_schema(),
         )
 
-    def _build_init_schema(self) -> vol.Schema:
+    def _build_basic_schema(self) -> vol.Schema:
         """Build the basic options schema (non-bridge device types only).
 
         Defaults are read from entry.options first, then entry.data (migration).
@@ -511,13 +506,29 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 if not bridge_ok:
                     errors["base"] = "cannot_connect"
 
-            if not errors:
-                self._pending_data.update(user_input)
-                if go_advanced:
-                    return await self.async_step_advanced()
-                return self._save_and_finish()
+            if errors:
+                return self.async_show_form(
+                    step_id="bridge_config",
+                    data_schema=self._build_bridge_schema(),
+                    errors=errors,
+                )
 
-        schema = vol.Schema(
+            self._pending_data.update(user_input)
+            if go_advanced:
+                return await self.async_step_advanced()
+            return self._save_and_finish()
+
+        return self.async_show_form(
+            step_id="bridge_config",
+            data_schema=self._build_bridge_schema(),
+        )
+
+    def _build_bridge_schema(self) -> vol.Schema:
+        """Build the bridge configuration schema.
+
+        Defaults are read from entry.options first, then entry.data (migration).
+        """
+        return vol.Schema(
             {
                 vol.Optional(
                     CONF_BRIDGE_HOST,
@@ -530,11 +541,6 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 vol.Optional("validate_bridge", default=False): bool,
                 vol.Optional("show_advanced", default=False): bool,
             }
-        )
-        return self.async_show_form(
-            step_id="bridge_config",
-            data_schema=schema,
-            errors=errors,
         )
 
     # --- Step 3: advanced settings ---
@@ -651,7 +657,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         # Set title_placeholders for discovery card with descriptive name
         short_mac = address[-8:]
         display_name = f"{device_label} {short_mac}"
-        self.context["title_placeholders"] = {"name": display_name}
+        self.context["title_placeholders"] = {"mac": short_mac}
 
         await self.async_set_unique_id(address)
         self._abort_if_unique_id_configured()
@@ -883,12 +889,10 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 # Map specific exceptions to error keys
                 error_key = "provisioning_failed"
                 try:
-                    from tuya_ble_mesh.exceptions import (  # type: ignore[import-not-found]
-                        DeviceNotFoundError,
+                    from tuya_ble_mesh.exceptions import (                        DeviceNotFoundError,
                         ProvisioningError,
                     )
-                    from tuya_ble_mesh.exceptions import TimeoutError as MeshTimeoutError  # type: ignore[import-not-found]
-
+                    from tuya_ble_mesh.exceptions import TimeoutError as MeshTimeoutError
                     if isinstance(exc, DeviceNotFoundError):
                         error_key = "device_not_found"
                     elif isinstance(exc, MeshTimeoutError):

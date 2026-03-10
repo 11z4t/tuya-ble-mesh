@@ -371,61 +371,94 @@ class SIGMeshDevice:
             self._keys = None
         _LOGGER.info("Disconnected from %s", self._address)
 
-    async def send_power(self, on: bool) -> None:
-        """Send GenericOnOff Set command.
+    async def send_power(self, on: bool, *, max_retries: int = 3) -> None:
+        """Send GenericOnOff Set command with retry.
+
+        Retries on transient BLE write failures with exponential backoff.
 
         Args:
             on: True to turn on, False to turn off.
+            max_retries: Maximum retry attempts (default 3).
 
         Raises:
             SIGMeshError: If not connected or keys not loaded.
+            MeshConnectionError: If BLE write fails after all retries.
         """
         if self._client is None or self._keys is None:
             msg = "Not connected"
             raise SIGMeshError(msg)
 
-        access_payload = generic_onoff_set(on, self._tid)
-        self._tid = (self._tid + 1) & 0xFF
-
-        seq = await self._next_seq()
         app_key = self._keys.app_key
         if app_key is None:
             msg = "No application key loaded"
             raise SIGMeshKeyError(msg)
 
-        transport_pdu = make_access_unsegmented(
-            app_key,
-            self._our_addr,
-            self._target_addr,
-            seq,
-            self._keys.iv_index,
-            access_payload,
-            akf=1,
-            aid=self._keys.aid,
-        )
+        last_error: Exception | None = None
+        backoff = 1.0
 
-        network_pdu = encrypt_network_pdu(
-            self._keys.enc_key,
-            self._keys.priv_key,
-            self._keys.nid,
-            ctl=0,
-            ttl=_DEFAULT_TTL,
-            seq=seq,
-            src=self._our_addr,
-            dst=self._target_addr,
-            transport_pdu=transport_pdu,
-            iv_index=self._keys.iv_index,
-        )
+        for attempt in range(1, max_retries + 1):
+            try:
+                access_payload = generic_onoff_set(on, self._tid)
+                self._tid = (self._tid + 1) & 0xFF
 
-        proxy_pdu = make_proxy_pdu(network_pdu)
+                seq = await self._next_seq()
 
-        await self._client.write_gatt_char(SIG_MESH_PROXY_DATA_IN, proxy_pdu, response=False)
-        _LOGGER.info(
-            "GenericOnOff %s sent to 0x%04X (seq=%d)",
-            "ON" if on else "OFF",
-            self._target_addr,
-            seq,
-        )
+                transport_pdu = make_access_unsegmented(
+                    app_key,
+                    self._our_addr,
+                    self._target_addr,
+                    seq,
+                    self._keys.iv_index,
+                    access_payload,
+                    akf=1,
+                    aid=self._keys.aid,
+                )
+
+                network_pdu = encrypt_network_pdu(
+                    self._keys.enc_key,
+                    self._keys.priv_key,
+                    self._keys.nid,
+                    ctl=0,
+                    ttl=_DEFAULT_TTL,
+                    seq=seq,
+                    src=self._our_addr,
+                    dst=self._target_addr,
+                    transport_pdu=transport_pdu,
+                    iv_index=self._keys.iv_index,
+                )
+
+                proxy_pdu = make_proxy_pdu(network_pdu)
+
+                await self._client.write_gatt_char(
+                    SIG_MESH_PROXY_DATA_IN, proxy_pdu, response=False
+                )
+                _LOGGER.info(
+                    "GenericOnOff %s sent to 0x%04X (seq=%d, attempt=%d)",
+                    "ON" if on else "OFF",
+                    self._target_addr,
+                    seq,
+                    attempt,
+                )
+                return
+            except (SIGMeshError, SIGMeshKeyError):
+                raise
+            except Exception as exc:
+                last_error = exc
+                if attempt >= max_retries:
+                    break
+                _LOGGER.warning(
+                    "BLE write attempt %d/%d failed for %s: %s, retrying in %.1fs",
+                    attempt,
+                    max_retries,
+                    self._address,
+                    type(exc).__name__,
+                    backoff,
+                )
+                await asyncio.sleep(backoff)
+                backoff *= 2.0
+
+        msg = f"BLE write failed for {self._address} after {max_retries} attempts"
+        raise MeshConnectionError(msg) from last_error
 
     async def request_composition_data(self) -> None:
         """Send Config Composition Data Get to retrieve device info.

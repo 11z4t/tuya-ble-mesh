@@ -292,7 +292,8 @@ class TestDisconnectCallback:
 
         listener.assert_called_once()
 
-    def test_on_disconnect_schedules_reconnect(self) -> None:
+    @pytest.mark.asyncio
+    async def test_on_disconnect_schedules_reconnect(self) -> None:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
@@ -936,7 +937,8 @@ class TestScheduleReconnect:
 
         assert coord._reconnect_task is None
 
-    def test_schedule_reconnect_cancels_existing_task(self) -> None:
+    @pytest.mark.asyncio
+    async def test_schedule_reconnect_cancels_existing_task(self) -> None:
         """Should cancel previous reconnect task before starting new one."""
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
@@ -1010,7 +1012,8 @@ class TestRSSIPolling:
 
         assert coord._rssi_task is None
 
-    def test_start_rssi_creates_task_for_ble_device(self) -> None:
+    @pytest.mark.asyncio
+    async def test_start_rssi_creates_task_for_ble_device(self) -> None:
         """RSSI polling should start for regular BLE devices."""
         device = make_mock_device()
         type(device).__name__ = "MeshDevice"
@@ -1044,7 +1047,8 @@ class TestRSSIPolling:
         coord._stop_rssi_polling()  # Should not raise
         assert coord._rssi_task is None
 
-    def test_start_rssi_stops_existing_before_starting(self) -> None:
+    @pytest.mark.asyncio
+    async def test_start_rssi_stops_existing_before_starting(self) -> None:
         """Starting RSSI polling should stop any existing task first."""
         device = make_mock_device()
         type(device).__name__ = "MeshDevice"
@@ -1467,7 +1471,8 @@ class TestListenerErrorHandling:
         assert coord.state.brightness == 50
         assert coord.state.available is True
 
-    def test_listener_error_during_disconnect(self) -> None:
+    @pytest.mark.asyncio
+    async def test_listener_error_during_disconnect(self) -> None:
         """Disconnect should complete even if listener raises."""
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)

@@ -42,6 +42,7 @@ from tuya_ble_mesh.const import (
 from tuya_ble_mesh.exceptions import (
     CommandExpiredError,
     CommandQueueFullError,
+    ConnectionError,
     DisconnectedError,
     ProtocolError,
 )
@@ -273,34 +274,78 @@ class MeshDevice:
         else:
             await self._enqueue(opcode, params, target)
 
-    async def _send_now(self, opcode: int, params: bytes, dest_id: int) -> None:
-        """Send a command immediately via BLEConnection."""
-        key = self._conn.session_key
-        if key is None:
-            msg = "Not connected"
-            raise DisconnectedError(msg)
+    async def _send_now(
+        self, opcode: int, params: bytes, dest_id: int, *, max_retries: int = 3
+    ) -> None:
+        """Send a command immediately via BLEConnection with retry.
 
-        seq = await self._conn.next_sequence()
+        Retries on transient BLE write failures with exponential backoff.
 
-        packet = encode_command_packet(
-            key,
-            self._mac_bytes,
-            seq,
-            dest_id,
-            opcode,
-            params,
-            vendor_id=self._vendor_id,
-        )
+        Args:
+            opcode: Telink command code.
+            params: Command parameters.
+            dest_id: Target mesh address.
+            max_retries: Maximum retry attempts (default 3).
 
-        _LOGGER.debug(
-            "Sending command 0x%02X (%d bytes) seq=%d to 0x%04X",
-            opcode,
-            len(packet),
-            seq,
-            dest_id,
-        )
+        Raises:
+            DisconnectedError: If not connected.
+            ConnectionError: If BLE write fails after all retries.
+        """
+        last_error: Exception | None = None
+        backoff = 0.5
 
-        await self._conn.write_command(packet)
+        for attempt in range(1, max_retries + 1):
+            key = self._conn.session_key
+            if key is None:
+                msg = "Not connected"
+                raise DisconnectedError(msg)
+
+            seq = await self._conn.next_sequence()
+
+            packet = encode_command_packet(
+                key,
+                self._mac_bytes,
+                seq,
+                dest_id,
+                opcode,
+                params,
+                vendor_id=self._vendor_id,
+            )
+
+            _LOGGER.debug(
+                "Sending command 0x%02X (%d bytes) seq=%d to 0x%04X (attempt %d/%d)",
+                opcode,
+                len(packet),
+                seq,
+                dest_id,
+                attempt,
+                max_retries,
+            )
+
+            try:
+                await self._conn.write_command(packet)
+                return
+            except DisconnectedError:
+                raise
+            except Exception as exc:
+                last_error = exc
+                if attempt >= max_retries:
+                    break
+                _LOGGER.warning(
+                    "BLE write attempt %d/%d failed for 0x%02X: %s, retrying in %.1fs",
+                    attempt,
+                    max_retries,
+                    opcode,
+                    type(exc).__name__,
+                    backoff,
+                )
+                await asyncio.sleep(backoff)
+                backoff *= 2.0
+
+        if last_error is not None:
+            raise last_error
+        msg = f"Command 0x{opcode:02X} failed after {max_retries} attempts"
+        raise ConnectionError(msg)
 
     async def _enqueue(self, opcode: int, params: bytes, dest_id: int) -> None:
         """Add a command to the queue for later sending.
