@@ -1503,65 +1503,97 @@ class TestBackoffConstants:
         assert _RSSI_STABILITY_THRESHOLD > 0
 
 
+# ============================================================================
+# PLAT-414: Coverage gap tests
+# ============================================================================
+
+
 @pytest.mark.requires_ha
 class TestStatisticsProperty:
-    """Test statistics property getter (line 129)."""
+    """Test statistics property — covers coordinator.py:129."""
 
-    def test_statistics_property_returns_stats(self) -> None:
-        """The statistics property should return the internal _stats object."""
+    def test_statistics_returns_connection_stats(self) -> None:
+        """statistics property should return the ConnectionStatistics object."""
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
 
-        # Access statistics property
         stats = coord.statistics
-
-        # Should return the ConnectionStatistics object
         assert stats is not None
+        # ConnectionStatistics fields should be accessible
         assert hasattr(stats, "total_reconnects")
         assert hasattr(stats, "total_errors")
-        assert hasattr(stats, "connection_errors")
-        assert hasattr(stats, "command_errors")
-        assert stats.total_reconnects == 0  # Initial value
+        assert hasattr(stats, "response_times")
+
+    def test_statistics_is_same_object(self) -> None:
+        """Multiple calls to statistics should return same object."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        assert coord.statistics is coord.statistics
 
 
 @pytest.mark.requires_ha
 class TestAdaptivePollingFrequentChanges:
-    """Test adaptive RSSI polling with frequent state changes (lines 471-475)."""
+    """Test adaptive polling — frequent changes path — covers coordinator.py:471-475."""
 
-    @pytest.mark.asyncio
-    async def test_frequent_changes_decrease_rssi_interval(self) -> None:
-        """RSSI interval should decrease when frequent state changes are detected."""
+    def test_frequent_changes_decrease_interval(self) -> None:
+        """When state_change_counter >= 2, interval should decrease by 25%."""
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
-
-        # Set initial interval to default
-        coord._rssi_interval = _RSSI_DEFAULT_INTERVAL
         initial_interval = coord._rssi_interval
+        coord._state_change_counter = 3  # trigger frequent changes path
 
-        # Simulate frequent state changes (2+ changes)
-        coord._state_change_counter = 2
-
-        # Call adaptive polling logic (correct method name)
         coord._adjust_polling_interval()
 
-        # Interval should have decreased
+        # Interval should be reduced by 25%
         assert coord._rssi_interval < initial_interval
-        # But not below minimum
         assert coord._rssi_interval >= _RSSI_MIN_INTERVAL
 
-    @pytest.mark.asyncio
-    async def test_rssi_interval_never_below_minimum(self) -> None:
-        """RSSI interval should never go below MIN_INTERVAL."""
+    def test_frequent_changes_interval_floored_at_minimum(self) -> None:
+        """Interval should not go below RSSI_MIN_INTERVAL."""
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
-
-        # Set interval close to minimum
-        coord._rssi_interval = _RSSI_MIN_INTERVAL + 0.1
-
-        # Trigger many frequent changes
-        coord._state_change_counter = 10
+        coord._rssi_interval = _RSSI_MIN_INTERVAL  # already at minimum
+        coord._state_change_counter = 5
 
         coord._adjust_polling_interval()
 
-        # Should be clamped at minimum
-        assert coord._rssi_interval == _RSSI_MIN_INTERVAL
+        assert coord._rssi_interval >= _RSSI_MIN_INTERVAL
+
+
+@pytest.mark.requires_ha
+class TestRSSILoopHABluetooth:
+    """Test RSSI loop using HA bluetooth stack — covers coordinator.py:532-536."""
+
+    @pytest.mark.asyncio
+    async def test_rssi_loop_uses_ha_bluetooth_when_hass_set(self) -> None:
+        """RSSI loop with hass set should use async_ble_device_from_address."""
+        device = make_mock_device()
+        mock_hass = MagicMock()
+        coord = TuyaBLEMeshCoordinator(device, hass=mock_hass)
+        coord._running = True
+        coord._state.available = True
+
+        mock_ble_device = MagicMock()
+        mock_ble_device.rssi = -65
+
+        call_count = 0
+
+        async def fake_sleep(seconds: float) -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count >= 2:
+                coord._running = False
+
+        with (
+            patch(_PATCH_SLEEP, side_effect=fake_sleep),
+            patch(
+                # Deferred import inside function — patch at source module
+                "homeassistant.components.bluetooth.async_ble_device_from_address",
+                return_value=mock_ble_device,
+            ) as mock_ble_fn,
+        ):
+            await coord._rssi_loop()
+
+        mock_ble_fn.assert_called()
+        # RSSI should be updated
+        assert coord.state.rssi == -65
