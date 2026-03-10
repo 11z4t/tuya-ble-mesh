@@ -4,6 +4,20 @@ Supports bluetooth discovery (out_of_mesh*, tymesh*, SIG Mesh Proxy/Provisioning
 and manual MAC entry. Bridge connectivity is validated before creating config entries.
 SIG Mesh plugs are provisioned automatically — NetKey and AppKey are generated
 and the device key is derived from the ECDH provisioning exchange.
+
+Error codes:
+  bridge_unreachable      — bridge HTTP endpoint not reachable
+  auth_or_mesh_mismatch   — bridge reachable but device auth fails
+  unsupported_vendor      — vendor ID not recognized by bridge
+  device_not_found        — device MAC not visible from bridge
+  timeout                 — bridge/device operation timed out
+  unknown_protocol        — protocol negotiation failed
+  provisioning_failed     — SIG Mesh PB-GATT provisioning failed
+  invalid_mac             — bad MAC address format
+  invalid_bridge_host     — unsafe or malformed bridge host
+  invalid_vendor_id       — bad vendor ID format
+  invalid_credential_length — mesh name/password too long
+  cannot_connect          — generic connection failure
 """
 
 from __future__ import annotations
@@ -13,45 +27,46 @@ import ipaddress
 import logging
 import os
 import re
-import sys
-import time
-from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-# Ensure lib/tuya_ble_mesh is importable from config flow context
-_BUNDLED_LIB = str(Path(__file__).resolve().parent / "lib")
-_DEV_LIB = str(Path(__file__).resolve().parent.parent.parent / "lib")
-for _lib_dir in (_BUNDLED_LIB, _DEV_LIB):
-    if Path(_lib_dir).is_dir() and _lib_dir not in sys.path:
-        sys.path.insert(0, _lib_dir)
-        break
+import voluptuous as vol
+from homeassistant import config_entries
+from homeassistant.config_entries import ConfigFlow
 
-import voluptuous as vol  # noqa: E402
-from homeassistant import config_entries  # noqa: E402
-from homeassistant.config_entries import ConfigFlow  # noqa: E402
+from custom_components.tuya_ble_mesh._import_helper import ensure_lib_importable
+
+ensure_lib_importable()
 
 if TYPE_CHECKING:
     from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
     from homeassistant.data_entry_flow import FlowResult
 
-from custom_components.tuya_ble_mesh.const import (  # noqa: E402
+from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
     CONF_BRIDGE_HOST,
     CONF_BRIDGE_PORT,
+    CONF_COMMAND_TIMEOUT,
+    CONF_DEBUG_LEVEL,
     CONF_DEV_KEY,
     CONF_DEVICE_TYPE,
     CONF_IV_INDEX,
     CONF_MAC_ADDRESS,
+    CONF_MAX_RECONNECTS,
     CONF_MESH_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
     CONF_NET_KEY,
+    CONF_RECONNECT_STORM_THRESHOLD,
     CONF_UNICAST_OUR,
     CONF_UNICAST_TARGET,
     CONF_VENDOR_ID,
     DEFAULT_BRIDGE_PORT,
+    DEFAULT_COMMAND_TIMEOUT,
+    DEFAULT_DEBUG_LEVEL,
     DEFAULT_IV_INDEX,
+    DEFAULT_MAX_RECONNECTS,
     DEFAULT_MESH_ADDRESS,
+    DEFAULT_RECONNECT_STORM_THRESHOLD,
     DEFAULT_VENDOR_ID,
     DEVICE_TYPE_LIGHT,
     DEVICE_TYPE_PLUG,
@@ -67,6 +82,7 @@ _LOGGER = logging.getLogger(__name__)
 
 _MAC_PATTERN = re.compile(r"^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 _HEX_KEY_PATTERN = re.compile(r"^[0-9A-Fa-f]{32}$")
+_VENDOR_ID_PATTERN = re.compile(r"^(?:0[xX])?[0-9A-Fa-f]{1,4}$")
 _BRIDGE_TEST_TIMEOUT = 5
 
 # Allowed bridge host pattern: IPv4, IPv6, or hostname
@@ -89,19 +105,27 @@ _MODEL_GENERIC_ONOFF_SERVER = 0x1000
 # Seconds to wait for device to reboot as Proxy Service after provisioning
 _POST_PROV_REBOOT_DELAY = 6.0
 
-# PLAT-509: Discovery flow TTL — flows expire after this duration if device stops advertising
-_DISCOVERY_FLOW_TTL = 300  # 5 minutes
+# Known Tuya/Telink vendor IDs for autodetect hint
+_KNOWN_VENDOR_IDS: dict[str, str] = {
+    "0x1001": "Malmbergs BT Smart",
+    "0x0160": "AwoX",
+    "0x0211": "Dimond/retsimx",
+}
+
+# Debug level choices
+_DEBUG_LEVEL_CHOICES = {
+    "debug": "Debug (verbose)",
+    "info": "Info (normal)",
+    "warning": "Warning (quiet)",
+    "error": "Error (minimal)",
+}
+
+# Telink mesh UUID prefix (first 30 chars of full UUID)
+_TELINK_UUID_PREFIX = "00010203-0405-0607-0809-0a0b0c0d"
 
 
 def _parse_json_body(body: str) -> dict[str, object]:
-    """Parse a JSON string, returning an empty dict on failure.
-
-    Args:
-        body: JSON string to parse.
-
-    Returns:
-        Parsed dict, or empty dict on parse error.
-    """
+    """Parse a JSON string, returning an empty dict on failure."""
     import json
 
     try:
@@ -112,15 +136,23 @@ def _parse_json_body(body: str) -> dict[str, object]:
 
 
 def _validate_hex_key(value: str) -> bool:
-    """Validate a 32-char hex key string.
-
-    Args:
-        value: String to check.
-
-    Returns:
-        True if value matches 32 lowercase or uppercase hex characters.
-    """
+    """Validate a 32-char hex key string."""
     return bool(_HEX_KEY_PATTERN.match(value))
+
+
+def _validate_vendor_id(value: str) -> str | None:
+    """Validate a vendor ID hex string (1–4 hex digits, with optional 0x prefix).
+
+    Returns None if valid, error key string if invalid.
+    """
+    stripped = value.strip()
+    if not _VENDOR_ID_PATTERN.match(stripped):
+        return "invalid_vendor_id"
+    # Range check: strip optional 0x prefix and check <= 0xFFFF
+    hex_part = stripped[2:] if stripped.lower().startswith("0x") else stripped
+    if int(hex_part, 16) > 0xFFFF:
+        return "invalid_vendor_id"
+    return None
 
 
 _PRIVATE_IP_NETS = (
@@ -135,12 +167,6 @@ def _is_ssrf_risk(host: str) -> bool:
     """Return True if host resolves to a private/loopback address (SSRF risk).
 
     Checks numeric IP addresses only (hostnames are not resolved here).
-
-    Args:
-        host: Host string to check.
-
-    Returns:
-        True if the host is a known SSRF risk.
     """
     # Reject hex-encoded IP (e.g. "0x7f000001")
     if host.startswith("0x") or host.startswith("0X"):
@@ -155,14 +181,7 @@ def _is_ssrf_risk(host: str) -> bool:
 def _validate_bridge_host(host: str) -> str | None:
     """Validate bridge host is a plain hostname or IP, not a URL.
 
-    Rejects URLs (containing ://), paths (/), empty strings, and private/
-    loopback IP addresses to prevent SSRF via crafted bridge_host values.
-
-    Args:
-        host: Bridge host string to validate.
-
-    Returns:
-        None if valid, error key string if invalid.
+    Returns None if valid, error key string if invalid.
     """
     host = host.strip()
     if not host:
@@ -181,69 +200,69 @@ def _validate_bridge_host(host: str) -> str | None:
 def _validate_mac(mac: str) -> str | None:
     """Validate a MAC address string.
 
-    Args:
-        mac: MAC address to validate.
-
-    Returns:
-        None if valid, error key string if invalid.
+    Returns None if valid, error key string if invalid.
     """
     if not _MAC_PATTERN.match(mac):
         return "invalid_mac"
     return None
 
 
-def _auto_detect_device_type(discovery_info: Any) -> str | None:
-    """Auto-detect device type from BLE advertisement data (PLAT-510).
+def _validate_mesh_credentials(name: str, password: str) -> str | None:
+    """Validate mesh name and password lengths (max 16 bytes each).
 
-    Attempts to determine if a device is a Light or Plug based on:
-    - Advertised name patterns
-    - Manufacturer data hints
-
-    Args:
-        discovery_info: Bluetooth service info from discovery.
-
-    Returns:
-        Device type constant (DEVICE_TYPE_LIGHT or DEVICE_TYPE_PLUG), or None if unknown.
+    Returns None if valid, error key string if invalid.
     """
-    name = (getattr(discovery_info, "name", "") or "").lower()
-    manufacturer_data = getattr(discovery_info, "manufacturer_data", {})
+    if len(name.encode()) > 16 or len(password.encode()) > 16:
+        return "invalid_credential_length"
+    return None
 
-    # Check for plug indicators in name
-    if any(keyword in name for keyword in ("plug", "socket", "outlet", "switch")):
-        _LOGGER.debug("Auto-detected PLUG from name: %s", name)
-        return DEVICE_TYPE_PLUG
 
-    # Check for light indicators in name
-    if any(keyword in name for keyword in ("light", "lamp", "bulb", "rgb", "rgbw", "led")):
-        _LOGGER.debug("Auto-detected LIGHT from name: %s", name)
-        return DEVICE_TYPE_LIGHT
+def _validate_mesh_credential(value: str) -> str | None:
+    """Validate a single mesh credential (name or password), max 16 bytes.
 
-    # Fallback: check manufacturer data for hints
-    for vendor_id, data in manufacturer_data.items():
-        if len(data) > 0:
-            _LOGGER.debug(
-                "Manufacturer data for %s: vendor_id=0x%04X, data=%s",
-                getattr(discovery_info, "address", "unknown"),
-                vendor_id,
-                data.hex(),
-            )
+    Returns None if valid, error key string if invalid.
+    """
+    if len(value.encode()) > 16:
+        return "invalid_credential_length"
+    return None
 
-    return None  # Unknown - user must select manually
+
+def _validate_iv_index(value: object) -> str | None:
+    """Validate an IV index value (must be int in range 0–0xFFFFFFFF).
+
+    Returns None if valid, error key string if invalid.
+    """
+    if not isinstance(value, int) or isinstance(value, bool):
+        return "invalid_iv_index"
+    if value < 0 or value > 0xFFFFFFFF:
+        return "invalid_iv_index"
+    return None
+
+
+_UNICAST_PATTERN = re.compile(r"^[0-9A-Fa-f]{4}$")
+
+
+def _validate_unicast_address(value: str) -> str | None:
+    """Validate a SIG Mesh unicast address (4 hex digits, 0001–7FFF).
+
+    Returns None if valid, error key string if invalid.
+    """
+    value = value.strip()
+    if not _UNICAST_PATTERN.match(value):
+        return "invalid_unicast_address"
+    addr = int(value, 16)
+    if addr == 0x0000 or addr > 0x7FFF:
+        return "invalid_unicast_address"
+    return None
 
 
 async def _test_bridge_with_session(hass: Any, host: str, port: int) -> bool:
-    """Test if bridge daemon is reachable using HA's aiohttp websession.
+    """Test bridge daemon reachability.
 
-    Uses HA's shared aiohttp session (inject-websession pattern) so that
-    HA can properly manage the session lifecycle and TLS settings.
-
-    Args:
-        hass: Home Assistant instance (provides shared aiohttp session).
-        host: Bridge hostname/IP.
-        port: Bridge port.
+    Uses HA's shared aiohttp session (inject-websession pattern).
 
     Returns:
-        True if bridge responds with status ok.
+        True if bridge is reachable and returns status ok, False otherwise.
     """
     from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
@@ -254,94 +273,197 @@ async def _test_bridge_with_session(hass: Any, host: str, port: int) -> bool:
             if resp.status != 200:
                 return False
             body = await resp.text()
-            return _parse_json_body(body).get("status") == "ok"
-    except Exception:
-        _LOGGER.debug("Bridge test failed for %s:%d", host, port, exc_info=True)
-    return False
+            data = _parse_json_body(body)
+            return data.get("status") == "ok"
+    except asyncio.TimeoutError:
+        _LOGGER.debug("Bridge test timed out for %s:%d", host, port)
+        return False
+    except Exception as exc:
+        _LOGGER.debug("Bridge test failed for %s:%d: %s", host, port, exc, exc_info=True)
+        return False
+
+
+async def _test_bridge_device_reachable(
+    hass: Any, host: str, port: int, mac: str
+) -> dict[str, Any]:
+    """Check if a specific device MAC is visible from the bridge.
+
+    Returns:
+        dict with keys: found (bool), error (str|None), rssi (int|None)
+    """
+    from homeassistant.helpers.aiohttp_client import async_get_clientsession
+
+    session = async_get_clientsession(hass)
+    url = f"http://{host}:{port}/devices"
+    try:
+        async with session.get(url, timeout=_BRIDGE_TEST_TIMEOUT) as resp:
+            if resp.status != 200:
+                return {"found": False, "error": "bridge_unreachable"}
+            body = await resp.text()
+            data = _parse_json_body(body)
+            devices = data.get("devices", [])
+            if not isinstance(devices, list):
+                return {"found": False, "error": "unknown_protocol"}
+            mac_upper = mac.upper().replace("-", ":") if mac else ""
+            for dev in devices:
+                if isinstance(dev, dict):
+                    dev_mac = str(dev.get("mac", "")).upper().replace("-", ":")
+                    if dev_mac == mac_upper:
+                        return {"found": True, "error": None, "rssi": dev.get("rssi")}
+            return {"found": False, "error": "device_not_found"}
+    except asyncio.TimeoutError:
+        return {"found": False, "error": "timeout"}
+    except Exception as exc:
+        _LOGGER.debug("Device reachability check failed: %s", exc, exc_info=True)
+        return {"found": False, "error": "bridge_unreachable"}
 
 
 class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
     """Handle options for a Tuya BLE Mesh entry."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
-        """Initialize options flow with the existing config entry.
-
-        Args:
-            config_entry: The config entry whose options are being edited.
-        """
+        """Initialize options flow with the existing config entry."""
         self._config_entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Manage device options.
-
-        Args:
-            user_input: User-provided option values.
-
-        Returns:
-            Flow result dict.
-        """
+        """Show basic options. Advanced settings are behind a separate step."""
         if user_input is not None:
-            # Merge new data into config entry
+            if user_input.pop("show_advanced", False):
+                return await self.async_step_advanced()
+
+            errors: dict[str, str] = {}
+            device_type = self._config_entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
+
+            # Validate inputs based on device type
+            if device_type in (DEVICE_TYPE_SIG_BRIDGE_PLUG, DEVICE_TYPE_TELINK_BRIDGE_LIGHT):
+                host = user_input.get(CONF_BRIDGE_HOST, "")
+                host_error = _validate_bridge_host(host)
+                if host_error:
+                    errors[CONF_BRIDGE_HOST] = host_error
+                elif user_input.get("validate_bridge", False):
+                    port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+                    result = await _test_bridge_with_session(self.hass, host, port)
+                    if not result:
+                        errors["base"] = "cannot_connect"
+            elif device_type not in (DEVICE_TYPE_SIG_PLUG,):
+                name = user_input.get(CONF_MESH_NAME, "")
+                pwd = user_input.get(CONF_MESH_PASSWORD, "")
+                cred_error = _validate_mesh_credentials(name, pwd)
+                if cred_error:
+                    errors["base"] = cred_error
+
+                vendor_id = user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
+                if not _validate_vendor_id(vendor_id):
+                    errors[CONF_VENDOR_ID] = "invalid_vendor_id"
+
+            if not errors:
+                new_data = {**self._config_entry.data, **user_input}
+                new_data.pop("validate_bridge", None)
+                self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
+                return self.async_create_entry(title="", data={})
+
+            return self.async_show_form(
+                step_id="init",
+                data_schema=self._build_init_schema(),
+                errors=errors,
+            )
+
+        return self.async_show_form(
+            step_id="init",
+            data_schema=self._build_init_schema(),
+        )
+
+    def _build_init_schema(self) -> vol.Schema:
+        """Build the basic options schema based on device type."""
+        device_type = self._config_entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
+        data = self._config_entry.data
+
+        if device_type in (DEVICE_TYPE_SIG_BRIDGE_PLUG, DEVICE_TYPE_TELINK_BRIDGE_LIGHT):
+            return vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_BRIDGE_HOST,
+                        default=data.get(CONF_BRIDGE_HOST, ""),
+                    ): str,
+                    vol.Optional(
+                        CONF_BRIDGE_PORT,
+                        default=data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT),
+                    ): int,
+                    vol.Optional("validate_bridge", default=False): bool,
+                    vol.Optional("show_advanced", default=False): bool,
+                }
+            )
+        elif device_type == DEVICE_TYPE_SIG_PLUG:
+            return vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_UNICAST_TARGET,
+                        default=data.get(CONF_UNICAST_TARGET, "00B0"),
+                    ): str,
+                    vol.Optional(
+                        CONF_IV_INDEX,
+                        default=data.get(CONF_IV_INDEX, DEFAULT_IV_INDEX),
+                    ): int,
+                    vol.Optional("show_advanced", default=False): bool,
+                }
+            )
+        else:
+            return vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_MESH_NAME,
+                        default=data.get(CONF_MESH_NAME, "out_of_mesh"),
+                    ): str,
+                    vol.Optional(
+                        CONF_MESH_PASSWORD,
+                        default=data.get(CONF_MESH_PASSWORD, "123456"),  # pragma: allowlist secret
+                    ): str,
+                    vol.Optional(
+                        CONF_VENDOR_ID,
+                        default=data.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID),
+                    ): str,
+                    vol.Optional(
+                        CONF_MESH_ADDRESS,
+                        default=data.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS),
+                    ): int,
+                    vol.Optional("show_advanced", default=False): bool,
+                }
+            )
+
+    async def async_step_advanced(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle advanced options: debug level, timeouts, reconnect thresholds."""
+        if user_input is not None:
             new_data = {**self._config_entry.data, **user_input}
             self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
             return self.async_create_entry(title="", data={})
 
-        device_type = self._config_entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
+        data = self._config_entry.data
+        schema = vol.Schema(
+            {
+                vol.Optional(
+                    CONF_DEBUG_LEVEL,
+                    default=data.get(CONF_DEBUG_LEVEL, DEFAULT_DEBUG_LEVEL),
+                ): vol.In(_DEBUG_LEVEL_CHOICES),
+                vol.Optional(
+                    CONF_COMMAND_TIMEOUT,
+                    default=data.get(CONF_COMMAND_TIMEOUT, DEFAULT_COMMAND_TIMEOUT),
+                ): vol.All(int, vol.Range(min=3, max=60)),
+                vol.Optional(
+                    CONF_MAX_RECONNECTS,
+                    default=data.get(CONF_MAX_RECONNECTS, DEFAULT_MAX_RECONNECTS),
+                ): vol.All(int, vol.Range(min=0, max=100)),
+                vol.Optional(
+                    CONF_RECONNECT_STORM_THRESHOLD,
+                    default=data.get(
+                        CONF_RECONNECT_STORM_THRESHOLD, DEFAULT_RECONNECT_STORM_THRESHOLD
+                    ),
+                ): vol.All(int, vol.Range(min=3, max=50)),
+            }
+        )
 
-        # Build schema based on device type
-        if device_type in (
-            DEVICE_TYPE_SIG_BRIDGE_PLUG,
-            DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
-        ):
-            schema = vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_BRIDGE_HOST,
-                        default=self._config_entry.data.get(CONF_BRIDGE_HOST, ""),
-                    ): str,
-                    vol.Optional(
-                        CONF_BRIDGE_PORT,
-                        default=self._config_entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT),
-                    ): int,
-                }
-            )
-        elif device_type == DEVICE_TYPE_SIG_PLUG:
-            schema = vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_UNICAST_TARGET,
-                        default=self._config_entry.data.get(CONF_UNICAST_TARGET, "00B0"),
-                    ): str,
-                    vol.Optional(
-                        CONF_IV_INDEX,
-                        default=self._config_entry.data.get(CONF_IV_INDEX, DEFAULT_IV_INDEX),
-                    ): int,
-                }
-            )
-        else:
-            schema = vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_MESH_NAME,
-                        default=self._config_entry.data.get(CONF_MESH_NAME, "out_of_mesh"),
-                    ): str,
-                    vol.Optional(
-                        CONF_MESH_PASSWORD,
-                        default=self._config_entry.data.get(
-                            CONF_MESH_PASSWORD,
-                            "123456",  # pragma: allowlist secret
-                        ),
-                    ): str,
-                    vol.Optional(
-                        CONF_MESH_ADDRESS,
-                        default=self._config_entry.data.get(
-                            CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS
-                        ),
-                    ): int,
-                }
-            )
-
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(step_id="advanced", data_schema=schema)
 
 
 class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, call-arg]
@@ -370,14 +492,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         self,
         discovery_info: BluetoothServiceInfoBleak,
     ) -> FlowResult:
-        """Handle bluetooth discovery.
-
-        Args:
-            discovery_info: Bluetooth service info from HA bluetooth integration.
-
-        Returns:
-            Flow result dict.
-        """
+        """Handle bluetooth discovery."""
         address: str = discovery_info.address
         name: str = discovery_info.name or ""
 
@@ -387,11 +502,10 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         await self.async_set_unique_id(address)
         self._abort_if_unique_id_configured()
 
-        # Detect device type from advertised name
-        device_category = "SIG Mesh" if any(
-            u in getattr(discovery_info, "service_uuids", [])
-            for u in (SIG_MESH_PROV_UUID, SIG_MESH_PROXY_UUID)
-        ) else "Telink Mesh"
+        # Detect device type from advertised service UUIDs
+        service_uuids = getattr(discovery_info, "service_uuids", [])
+        is_sig = SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids
+        device_category = "SIG Mesh" if is_sig else "Telink Mesh"
         rssi = getattr(discovery_info, "rssi", None)
 
         self._discovery_info = {
@@ -403,104 +517,91 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         }
         self._discovery_timestamp = time.time()  # PLAT-509: Record discovery time
 
-        # Auto-detect SIG Mesh devices by service UUID.
-        # 0x1827 = Provisioning Service (unprovisioned device)
-        # 0x1828 = Proxy Service (already provisioned)
-        service_uuids = getattr(discovery_info, "service_uuids", [])
-        if SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids:
+        # Auto-route SIG Mesh devices directly to provisioning step
+        if is_sig:
             _LOGGER.info("SIG Mesh device detected: %s", address)
             return await self.async_step_sig_plug()
 
         return await self.async_step_confirm()
 
     async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Confirm bluetooth discovery and choose device type.
+        """Confirm bluetooth discovery and choose device type + mesh credentials."""
+        errors: dict[str, str] = {}
 
-        Args:
-            user_input: User confirmation input.
+        disc = self._discovery_info or {}
 
-        Returns:
-            Flow result dict.
-        """
-        # PLAT-509: Check if discovery flow has expired (device stopped advertising)
-        if self._discovery_info is not None:
-            from homeassistant.components import bluetooth as ha_bluetooth
-            mac = self._discovery_info["address"]
-
-            # Check if flow is stale (TTL expired)
-            age = time.time() - self._discovery_timestamp
-            if age > _DISCOVERY_FLOW_TTL:
-                _LOGGER.warning(
-                    "Discovery flow for %s expired (age: %.0fs > TTL: %ds), aborting",
-                    mac, age, _DISCOVERY_FLOW_TTL
-                )
-                return self.async_abort(reason="device_not_found")
-
-            # Check if device is still advertising
-            device = ha_bluetooth.async_ble_device_from_address(self.hass, mac, connectable=False)
-            if device is None:
-                _LOGGER.warning(
-                    "Device %s no longer advertising (stale discovery card), aborting flow", mac
-                )
-                return self.async_abort(reason="device_not_found")
+        # Zero-knowledge flow: if auto_device_type is set, create entry directly
+        if user_input is None and disc.get("auto_device_type"):
+            auto_type = disc["auto_device_type"]
+            mac = disc["address"]
+            short_mac = mac[-8:]
+            type_label = "Plug" if auto_type == DEVICE_TYPE_PLUG else "Light"
+            await self.async_set_unique_id(mac)
+            self._abort_if_unique_id_configured()
+            return self.async_create_entry(
+                title=f"BLE Mesh {type_label} {short_mac}",
+                data={
+                    CONF_MAC_ADDRESS: mac,
+                    CONF_MESH_NAME: "out_of_mesh",
+                    CONF_MESH_PASSWORD: "123456",  # pragma: allowlist secret
+                    CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
+                    CONF_DEVICE_TYPE: auto_type,
+                    CONF_MESH_ADDRESS: DEFAULT_MESH_ADDRESS,
+                },
+            )
 
         if user_input is not None and self._discovery_info is not None:
             mac = self._discovery_info["address"]
             device_type = user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
-            short_mac = mac[-8:]
-            title = (
-                f"BLE Mesh Plug {short_mac}"
-                if device_type == DEVICE_TYPE_PLUG
-                else f"BLE Mesh Light {short_mac}"
-            )
-            return self.async_create_entry(
-                title=title,
-                data={
-                    CONF_MAC_ADDRESS: mac,
-                    CONF_MESH_NAME: user_input.get(CONF_MESH_NAME, "out_of_mesh"),
-                    CONF_MESH_PASSWORD: user_input.get(CONF_MESH_PASSWORD, "123456"),
-                    CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
-                    CONF_DEVICE_TYPE: device_type,
-                    CONF_MESH_ADDRESS: user_input.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS),
-                },
-            )
+            mesh_name = user_input.get(CONF_MESH_NAME, "out_of_mesh")
+            mesh_pass = user_input.get(CONF_MESH_PASSWORD, "123456")  # pragma: allowlist secret
+            vendor_id = user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
 
-        # PLAT-510: Auto-detect device type from BLE advertisement
-        auto_detected = None
-        if self._discovery_info and "_raw_info" in self._discovery_info:
-            auto_detected = _auto_detect_device_type(self._discovery_info["_raw_info"])
-
-        default_device_type = auto_detected if auto_detected else DEVICE_TYPE_LIGHT
+            # Validate credentials
+            cred_error = _validate_mesh_credentials(mesh_name, mesh_pass)
+            if cred_error:
+                errors["base"] = cred_error
+            elif _validate_vendor_id(vendor_id):
+                errors[CONF_VENDOR_ID] = "invalid_vendor_id"
+            else:
+                short_mac = mac[-8:]
+                type_label = "Plug" if device_type == DEVICE_TYPE_PLUG else "Light"
+                return self.async_create_entry(
+                    title=f"BLE Mesh {type_label} {short_mac}",
+                    data={
+                        CONF_MAC_ADDRESS: mac,
+                        CONF_MESH_NAME: mesh_name,
+                        CONF_MESH_PASSWORD: mesh_pass,
+                        CONF_VENDOR_ID: vendor_id,
+                        CONF_DEVICE_TYPE: device_type,
+                        CONF_MESH_ADDRESS: user_input.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS),
+                    },
+                )
 
         return self.async_show_form(
             step_id="confirm",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_DEVICE_TYPE, default=default_device_type): vol.In(
+                    vol.Required(CONF_DEVICE_TYPE, default=DEVICE_TYPE_LIGHT): vol.In(
                         {DEVICE_TYPE_LIGHT: "Light", DEVICE_TYPE_PLUG: "Plug"}
                     ),
                     vol.Optional(CONF_MESH_NAME, default="out_of_mesh"): str,
-                    vol.Optional(CONF_MESH_PASSWORD, default="123456"): str,
+                    vol.Optional(CONF_MESH_PASSWORD, default="123456"): str,  # pragma: allowlist secret
+                    vol.Optional(CONF_VENDOR_ID, default=DEFAULT_VENDOR_ID): str,
                     vol.Optional(CONF_MESH_ADDRESS, default=DEFAULT_MESH_ADDRESS): int,
                 }
             ),
             description_placeholders={
-                "name": self._discovery_info.get("name", "Unknown") if self._discovery_info else "Unknown",
-                "mac": self._discovery_info.get("address", "") if self._discovery_info else "",
-                "rssi": str(self._discovery_info.get("rssi", "?")) if self._discovery_info else "?",
-                "category": self._discovery_info.get("device_category", "") if self._discovery_info else "",
+                "name": disc.get("name", "Unknown"),
+                "mac": disc.get("address", ""),
+                "rssi": str(disc.get("rssi", "?")),
+                "category": disc.get("device_category", ""),
             },
+            errors=errors,
         )
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Handle manual setup.
-
-        Args:
-            user_input: User-provided configuration data.
-
-        Returns:
-            Flow result dict.
-        """
+        """Handle manual setup."""
         errors: dict[str, str] = {}
 
         if user_input is not None:
@@ -528,21 +629,36 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                         "name": f"SIG Mesh {mac[-8:]}",
                     }
                     return await self.async_step_sig_plug(None)
-                short = mac[-8:]
-                type_label = "Plug" if device_type == DEVICE_TYPE_PLUG else "Light"
-                await self.async_set_unique_id(mac.upper())
-                self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title=f"BLE Mesh {type_label} {short}",
-                    data={
-                        CONF_MAC_ADDRESS: mac.upper(),
-                        CONF_MESH_NAME: user_input.get(CONF_MESH_NAME, "out_of_mesh"),
-                        CONF_MESH_PASSWORD: user_input.get(CONF_MESH_PASSWORD, "123456"),
-                        CONF_VENDOR_ID: user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID),
-                        CONF_DEVICE_TYPE: device_type,
-                        CONF_MESH_ADDRESS: user_input.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS),
-                    },
-                )
+
+                # Validate mesh credentials
+                mesh_name = user_input.get(CONF_MESH_NAME, "out_of_mesh")
+                mesh_pass = user_input.get(CONF_MESH_PASSWORD, "123456")  # pragma: allowlist secret
+                cred_error = _validate_mesh_credentials(mesh_name, mesh_pass)
+                if cred_error:
+                    errors["base"] = cred_error
+                else:
+                    vendor_id = user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
+                    if not _validate_vendor_id(vendor_id):
+                        errors[CONF_VENDOR_ID] = "invalid_vendor_id"
+
+                if not errors:
+                    short = mac[-8:]
+                    type_label = "Plug" if device_type == DEVICE_TYPE_PLUG else "Light"
+                    await self.async_set_unique_id(mac.upper())
+                    self._abort_if_unique_id_configured()
+                    return self.async_create_entry(
+                        title=f"BLE Mesh {type_label} {short}",
+                        data={
+                            CONF_MAC_ADDRESS: mac.upper(),
+                            CONF_MESH_NAME: mesh_name,
+                            CONF_MESH_PASSWORD: mesh_pass,
+                            CONF_VENDOR_ID: user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID),
+                            CONF_DEVICE_TYPE: device_type,
+                            CONF_MESH_ADDRESS: user_input.get(
+                                CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS
+                            ),
+                        },
+                    )
 
         return self.async_show_form(
             step_id="user",
@@ -559,7 +675,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                         }
                     ),
                     vol.Optional(CONF_MESH_NAME, default="out_of_mesh"): str,
-                    vol.Optional(CONF_MESH_PASSWORD, default="123456"): str,
+                    vol.Optional(CONF_MESH_PASSWORD, default="123456"): str,  # pragma: allowlist secret
                     vol.Optional(CONF_VENDOR_ID, default=DEFAULT_VENDOR_ID): str,
                     vol.Optional(CONF_MESH_ADDRESS, default=DEFAULT_MESH_ADDRESS): int,
                 }
@@ -573,15 +689,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
         The device is provisioned via PB-GATT (Service UUID 0x1827).
         A random NetKey and AppKey are generated. The DevKey is derived
-        from the ECDH exchange during provisioning.  After provisioning,
+        from the ECDH exchange during provisioning. After provisioning,
         AppKey is added and bound to the GenericOnOff Server model via
         the Proxy Service (UUID 0x1828).
-
-        Args:
-            user_input: Empty dict when user confirms provisioning (no fields).
-
-        Returns:
-            Flow result dict.
         """
         errors: dict[str, str] = {}
 
@@ -651,15 +761,11 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         Phase 2: Wait for device to reboot into Proxy Service (0x1828).
         Phase 3: Add AppKey and bind to GenericOnOff Server model.
 
-        Args:
-            mac: BLE MAC address of the unprovisioned device.
-
         Returns:
             Tuple of (net_key_hex, dev_key_hex, app_key_hex).
 
         Raises:
             ProvisioningError: If PB-GATT provisioning fails.
-            Any exception from Phase 3 is logged but not re-raised.
         """
         from bleak import BleakClient
         from bleak_retry_connector import establish_connection
@@ -678,10 +784,6 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             _UNICAST_DEVICE_DEFAULT,
         )
 
-        # HA Bluetooth callbacks — use retry-connector to avoid HA warning
-        # NOTE: Works with ESPHome BLE proxies. If HA has no local adapter but has
-        # ESPHome BLE proxies, devices discovered by proxies will be in HA's bluetooth
-        # registry and establish_connection will route traffic via the proxy.
         def _ble_device_cb(address: str) -> Any:
             """Look up BLEDevice via HA bluetooth registry (non-connectable OK)."""
             device = ha_bluetooth.async_ble_device_from_address(
@@ -780,14 +882,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         return net_key.hex(), result.dev_key.hex(), app_key.hex()
 
     async def async_step_sig_bridge(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Handle SIG Mesh Bridge plug configuration.
-
-        Args:
-            user_input: User-provided bridge parameters.
-
-        Returns:
-            Flow result dict.
-        """
+        """Handle SIG Mesh Bridge plug configuration with live bridge validation."""
         errors: dict[str, str] = {}
         if user_input is not None and self._discovery_info is not None:
             host = user_input.get(CONF_BRIDGE_HOST, "")
@@ -795,22 +890,38 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             host_error = _validate_bridge_host(host)
             if host_error:
                 errors[CONF_BRIDGE_HOST] = host_error
-            elif not await _test_bridge_with_session(self.hass, host, port):
-                errors["base"] = "cannot_connect"
             else:
-                mac = self._discovery_info["address"]
-                await self.async_set_unique_id(mac)
-                self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title=f"SIG Bridge Plug {mac[-8:]}",
-                    data={
-                        CONF_MAC_ADDRESS: mac,
-                        CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_BRIDGE_PLUG,
-                        CONF_UNICAST_TARGET: user_input.get(CONF_UNICAST_TARGET, "00B0"),
-                        CONF_BRIDGE_HOST: host,
-                        CONF_BRIDGE_PORT: port,
-                    },
-                )
+                # Step 1: Test bridge is reachable
+                bridge_result = await _test_bridge_with_session(self.hass, host, port)
+                if not bridge_result:
+                    errors["base"] = "cannot_connect"
+                else:
+                    # Step 2: Check if device MAC is visible from bridge
+                    mac = self._discovery_info["address"]
+                    dev_result = await _test_bridge_device_reachable(
+                        self.hass, host, port, mac
+                    )
+                    if not dev_result["found"]:
+                        # Device not found is a warning — allow setup to continue
+                        # (device may be in mesh, not advertising at this moment)
+                        _LOGGER.info(
+                            "Device %s not visible from bridge at setup time (%s) — allowing",
+                            mac,
+                            dev_result.get("error"),
+                        )
+
+                    await self.async_set_unique_id(mac)
+                    self._abort_if_unique_id_configured()
+                    return self.async_create_entry(
+                        title=f"SIG Bridge Plug {mac[-8:]}",
+                        data={
+                            CONF_MAC_ADDRESS: mac,
+                            CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_BRIDGE_PLUG,
+                            CONF_UNICAST_TARGET: user_input.get(CONF_UNICAST_TARGET, "00B0"),
+                            CONF_BRIDGE_HOST: host,
+                            CONF_BRIDGE_PORT: port,
+                        },
+                    )
 
         return self.async_show_form(
             step_id="sig_bridge",
@@ -830,14 +941,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
     async def async_step_telink_bridge(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle Telink Bridge light configuration.
-
-        Args:
-            user_input: User-provided bridge parameters.
-
-        Returns:
-            Flow result dict.
-        """
+        """Handle Telink Bridge light configuration with live bridge validation."""
         errors: dict[str, str] = {}
         if user_input is not None and self._discovery_info is not None:
             host = user_input.get(CONF_BRIDGE_HOST, "")
@@ -845,21 +949,23 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             host_error = _validate_bridge_host(host)
             if host_error:
                 errors[CONF_BRIDGE_HOST] = host_error
-            elif not await _test_bridge_with_session(self.hass, host, port):
-                errors["base"] = "cannot_connect"
             else:
-                mac = self._discovery_info["address"]
-                await self.async_set_unique_id(mac)
-                self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title=f"Telink Bridge Light {mac[-8:]}",
-                    data={
-                        CONF_MAC_ADDRESS: mac,
-                        CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
-                        CONF_BRIDGE_HOST: host,
-                        CONF_BRIDGE_PORT: port,
-                    },
-                )
+                bridge_result = await _test_bridge_with_session(self.hass, host, port)
+                if not bridge_result:
+                    errors["base"] = "cannot_connect"
+                else:
+                    mac = self._discovery_info["address"]
+                    await self.async_set_unique_id(mac)
+                    self._abort_if_unique_id_configured()
+                    return self.async_create_entry(
+                        title=f"Telink Bridge Light {mac[-8:]}",
+                        data={
+                            CONF_MAC_ADDRESS: mac,
+                            CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
+                            CONF_BRIDGE_HOST: host,
+                            CONF_BRIDGE_PORT: port,
+                        },
+                    )
 
         return self.async_show_form(
             step_id="telink_bridge",
@@ -880,35 +986,43 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
         Triggered by the coordinator when auth errors occur (e.g. wrong mesh
         password after credentials are rotated on the device).
-
-        Args:
-            entry_data: Existing config entry data (unused — shown for context).
-
-        Returns:
-            Flow result dict.
         """
         return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Re-enter mesh credentials after authentication failure.
-
-        Args:
-            user_input: New credentials from the user.
-
-        Returns:
-            Flow result dict.
-        """
+        """Re-enter mesh credentials after authentication failure."""
         errors: dict[str, str] = {}
 
         entry = self.hass.config_entries.async_get_entry(self.context.get("entry_id", ""))
 
         if user_input is not None and entry is not None:
-            new_data = {**entry.data, **user_input}
-            self.hass.config_entries.async_update_entry(entry, data=new_data)
-            await self.hass.config_entries.async_reload(entry.entry_id)
-            return self.async_abort(reason="reauth_successful")
+            device_type = entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
+
+            # Validate bridge host if it's a bridge device
+            if device_type in (DEVICE_TYPE_SIG_BRIDGE_PLUG, DEVICE_TYPE_TELINK_BRIDGE_LIGHT):
+                host = user_input.get(CONF_BRIDGE_HOST, "")
+                host_error = _validate_bridge_host(host)
+                if host_error:
+                    errors[CONF_BRIDGE_HOST] = host_error
+                else:
+                    port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+                    bridge_result = await _test_bridge_with_session(self.hass, host, port)
+                    if not bridge_result:
+                        errors["base"] = "cannot_connect"
+            else:
+                name = user_input.get(CONF_MESH_NAME, "")
+                pwd = user_input.get(CONF_MESH_PASSWORD, "")
+                cred_error = _validate_mesh_credentials(name, pwd)
+                if cred_error:
+                    errors["base"] = cred_error
+
+            if not errors:
+                new_data = {**entry.data, **user_input}
+                self.hass.config_entries.async_update_entry(entry, data=new_data)
+                await self.hass.config_entries.async_reload(entry.entry_id)
+                return self.async_abort(reason="reauth_successful")
 
         device_type = (
             entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT) if entry else DEVICE_TYPE_LIGHT

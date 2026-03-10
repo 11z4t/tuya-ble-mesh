@@ -85,3 +85,14 @@ jobs:
 
       - name: Run mypy
         run: mypy lib/tuya_ble_mesh
+
+  hacs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: HACS validation
+        uses: hacs/action@main
+        with:
+          category: integration

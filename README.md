@@ -1,12 +1,12 @@
 # Tuya BLE Mesh for Home Assistant
 
-[![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5.svg)](https://hacs.xyz)
-[![HA 2024.1+](https://img.shields.io/badge/HA-2024.1%2B-blue.svg)](https://www.home-assistant.io)
+[![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?logo=homeassistantcommunitystore)](https://github.com/hacs/integration)
+[![CI](https://github.com/kvista-se/tuya-ble-mesh/actions/workflows/ci.yml/badge.svg)](https://github.com/kvista-se/tuya-ble-mesh/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-0.20.2-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Quality Scale: Platinum](https://img.shields.io/badge/Quality%20Scale-Platinum%20⭐⭐⭐⭐-blueviolet.svg)](custom_components/tuya_ble_mesh/quality_scale.yaml)
-[![Tests](https://img.shields.io/badge/tests-1282%20passing-brightgreen.svg)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](COVERAGE_REPORT.md)
-[![Version](https://img.shields.io/badge/version-0.17.3-blue.svg)](CHANGELOG.md)
+[![HA 2024.1+](https://img.shields.io/badge/HA-2024.1%2B-blue.svg)](https://www.home-assistant.io)
+[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](tests/)
+[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](docs/COVERAGE_REPORT.md)
 
 A fully local Home Assistant integration for controlling Tuya BLE Mesh devices — including **Malmbergs BT Smart** lighting products. No cloud. No Tuya account required for daily use.
 

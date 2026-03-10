@@ -2,8 +2,14 @@
 
 Provides device diagnostics with automatic redaction of sensitive
 fields (mesh credentials, encryption keys, IP/MAC addresses).
-Includes connection statistics, response time percentiles, and
-error tracking.
+Includes:
+  - Connection statistics with response time percentiles
+  - Error tracking and error classification
+  - Protocol mode (Tuya BLE / SIG Mesh / Bridge)
+  - Vendor ID and known vendor name
+  - Bridge connectivity info (redacted)
+  - Firmware version and feature capabilities
+  - Reconnect storm state
 """
 
 from __future__ import annotations
@@ -19,9 +25,17 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
     CONF_BRIDGE_HOST,
     CONF_DEV_KEY,
+    CONF_DEVICE_TYPE,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
     CONF_NET_KEY,
+    CONF_VENDOR_ID,
+    DEFAULT_VENDOR_ID,
+    DEVICE_TYPE_LIGHT,
+    DEVICE_TYPE_PLUG,
+    DEVICE_TYPE_SIG_BRIDGE_PLUG,
+    DEVICE_TYPE_SIG_PLUG,
+    DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
 )
 
 REDACTED = "**REDACTED**"
@@ -41,10 +55,16 @@ _SENSITIVE_KEYS = frozenset(
 _IP_PATTERN = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 _MAC_PATTERN = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
 
+# Known vendor ID mapping (hex string → brand name)
+_KNOWN_VENDORS: dict[str, str] = {
+    "0x1001": "Malmbergs BT Smart",
+    "0x0160": "AwoX",
+    "0x0211": "Dimond/retsimx",
+}
+
 
 def _redact_string(text: str | Any) -> str:
     """Redact IP addresses and MAC addresses from a string."""
-    # Handle non-string types gracefully (e.g., MagicMock in tests)
     if not isinstance(text, str):
         text = str(text)
     text = _IP_PATTERN.sub("xxx.xxx.xxx.xxx", text)
@@ -88,14 +108,40 @@ def _calculate_percentiles(times: list[float]) -> dict[str, float]:
     }
 
 
+def _get_protocol_mode(device_type: str) -> str:
+    """Return human-readable protocol mode from device type constant."""
+    protocol_map = {
+        DEVICE_TYPE_LIGHT: "Tuya BLE Mesh (Telink)",
+        DEVICE_TYPE_PLUG: "Tuya BLE Mesh (Telink)",
+        DEVICE_TYPE_SIG_PLUG: "SIG Mesh (direct BLE)",
+        DEVICE_TYPE_SIG_BRIDGE_PLUG: "SIG Mesh (HTTP bridge)",
+        DEVICE_TYPE_TELINK_BRIDGE_LIGHT: "Tuya BLE Mesh (HTTP bridge)",
+    }
+    return protocol_map.get(device_type, f"Unknown ({device_type})")
+
+
+def _get_vendor_name(vendor_id_hex: str) -> str:
+    """Return human-readable vendor name for a vendor ID hex string."""
+    vid = vendor_id_hex.lower().strip()
+    if not vid.startswith("0x"):
+        vid = f"0x{vid}"
+    return _KNOWN_VENDORS.get(vid, "Unknown vendor")
+
+
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant,
     entry: TuyaBLEMeshConfigEntry,
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
+    device_type: str = entry.data.get(CONF_DEVICE_TYPE, "")
+    vendor_id: str = entry.data.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
+
     diag: dict[str, Any] = {
         "entry_id": entry.entry_id,
         "data": _redact_data(dict(entry.data)),
+        "protocol_mode": _get_protocol_mode(device_type),
+        "vendor_id": vendor_id,
+        "vendor_name": _get_vendor_name(vendor_id),
     }
 
     # Add coordinator state if available via runtime_data (modern pattern)
@@ -122,9 +168,12 @@ async def async_get_config_entry_diagnostics(
                 if stats.last_error_time
                 else None
             ),
+            "last_error_class": stats.last_error_class,
+            "storm_detected": stats.storm_detected,
+            "recent_reconnect_count": len(stats.reconnect_times),
         }
 
-        # Response times (avg, p95, p99)
+        # Response times (avg, p50, p95, p99)
         response_times = list(stats.response_times)
         if response_times:
             percentiles = _calculate_percentiles(response_times)
@@ -159,11 +208,26 @@ async def async_get_config_entry_diagnostics(
 
         # Device info (MAC redacted)
         device = coordinator.device
+        is_bridge = "Bridge" in type(device).__name__
         diag["device_info"] = {
             "type": type(device).__name__,
             "address": _redact_string(device.address),  # MAC redaction
-            "is_bridge": "Bridge" in type(device).__name__,
+            "is_bridge": is_bridge,
         }
+
+        # Feature capabilities (what this device type supports)
+        capabilities: dict[str, bool] = {
+            "on_off": True,
+            "brightness": device_type in (DEVICE_TYPE_LIGHT, DEVICE_TYPE_TELINK_BRIDGE_LIGHT),
+            "color_temp": device_type in (DEVICE_TYPE_LIGHT, DEVICE_TYPE_TELINK_BRIDGE_LIGHT),
+            "rgb": device_type in (DEVICE_TYPE_LIGHT, DEVICE_TYPE_TELINK_BRIDGE_LIGHT),
+            "power_monitoring": device_type in (
+                DEVICE_TYPE_SIG_PLUG, DEVICE_TYPE_SIG_BRIDGE_PLUG
+            ),
+            "rssi": not is_bridge,
+            "firmware_version": True,
+        }
+        diag["capabilities"] = capabilities
 
         # Firmware compatibility status
         fw_version = state.firmware_version or "unknown"
@@ -173,13 +237,13 @@ async def async_get_config_entry_diagnostics(
             "protocol": "SIG_Mesh" if hasattr(device, "set_seq") else "Tuya_BLE",
         }
 
-        # Mesh network topology info (bridge-specific)
-        if hasattr(device, "bridge_url"):
-            # Bridge device - redact full URL but show it's using bridge
+        # Mesh network topology info
+        if is_bridge:
             diag["mesh_topology"] = {
                 "mode": "bridge",
                 "bridge_url": REDACTED,  # Full redaction of internal topology
                 "local_ble": False,
+                "bridge_type": type(device).__name__,
             }
         else:
             diag["mesh_topology"] = {
