@@ -89,7 +89,7 @@ def async_delete_issue(hass: HomeAssistant, issue_id: str) -> None:
     _LOGGER.debug("Repair issue cleared: %s", issue_id)
 
 
-class TuyaBLEMeshRepairFlow(RepairsFlow):  # type: ignore[misc]
+class TuyaBLEMeshRepairFlow(RepairsFlow):
     """Repair flow for Tuya BLE Mesh issues.
 
     Guides the user through resolving provisioning or connectivity issues.

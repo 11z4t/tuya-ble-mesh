@@ -13,7 +13,7 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.light import (
+from homeassistant.components.light import (  # type: ignore[attr-defined]
     ATTR_COLOR_TEMP_KELVIN,
     ATTR_RGB_COLOR,
     ATTR_TRANSITION,
@@ -148,13 +148,14 @@ async def async_setup_entry(
     async_add_entities([TuyaBLEMeshLight(coordinator, entry.entry_id, device_info)])
 
 
-class TuyaBLEMeshLight(LightEntity):  # type: ignore[misc]
+class TuyaBLEMeshLight(LightEntity):
     """Light entity for a Tuya BLE Mesh device."""
 
     _attr_should_poll = False
     _attr_supported_features = LightEntityFeature.TRANSITION
     _attr_has_entity_name = True
     _attr_name = None  # Use device name as entity name
+    _attr_unique_id: str
 
     def __init__(
         self,
