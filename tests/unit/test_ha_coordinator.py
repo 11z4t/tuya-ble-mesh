@@ -1501,3 +1501,67 @@ class TestBackoffConstants:
         assert _RSSI_MIN_INTERVAL > 0
         assert _RSSI_MAX_INTERVAL > _RSSI_MIN_INTERVAL
         assert _RSSI_STABILITY_THRESHOLD > 0
+
+
+@pytest.mark.requires_ha
+class TestStatisticsProperty:
+    """Test statistics property getter (line 129)."""
+
+    def test_statistics_property_returns_stats(self) -> None:
+        """The statistics property should return the internal _stats object."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+
+        # Access statistics property
+        stats = coord.statistics
+
+        # Should return the ConnectionStatistics object
+        assert stats is not None
+        assert hasattr(stats, "total_reconnects")
+        assert hasattr(stats, "total_errors")
+        assert hasattr(stats, "connection_errors")
+        assert hasattr(stats, "command_errors")
+        assert stats.total_reconnects == 0  # Initial value
+
+
+@pytest.mark.requires_ha
+class TestAdaptivePollingFrequentChanges:
+    """Test adaptive RSSI polling with frequent state changes (lines 471-475)."""
+
+    @pytest.mark.asyncio
+    async def test_frequent_changes_decrease_rssi_interval(self) -> None:
+        """RSSI interval should decrease when frequent state changes are detected."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+
+        # Set initial interval to default
+        coord._rssi_interval = _RSSI_DEFAULT_INTERVAL
+        initial_interval = coord._rssi_interval
+
+        # Simulate frequent state changes (2+ changes)
+        coord._state_change_counter = 2
+
+        # Call adaptive polling logic (correct method name)
+        coord._adjust_polling_interval()
+
+        # Interval should have decreased
+        assert coord._rssi_interval < initial_interval
+        # But not below minimum
+        assert coord._rssi_interval >= _RSSI_MIN_INTERVAL
+
+    @pytest.mark.asyncio
+    async def test_rssi_interval_never_below_minimum(self) -> None:
+        """RSSI interval should never go below MIN_INTERVAL."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+
+        # Set interval close to minimum
+        coord._rssi_interval = _RSSI_MIN_INTERVAL + 0.1
+
+        # Trigger many frequent changes
+        coord._state_change_counter = 10
+
+        coord._adjust_polling_interval()
+
+        # Should be clamped at minimum
+        assert coord._rssi_interval == _RSSI_MIN_INTERVAL
