@@ -538,7 +538,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         # Set title_placeholders for discovery card with descriptive name
         short_mac = address[-8:]
         display_name = f"{device_label} {short_mac}"
-        self.context["title_placeholders"] = {"name": display_name}
+        self.context["title_placeholders"] = {"mac": short_mac}
 
         await self.async_set_unique_id(address)
         self._abort_if_unique_id_configured()
