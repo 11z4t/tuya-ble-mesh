@@ -39,8 +39,6 @@ from custom_components.tuya_ble_mesh.const import (
     DOMAIN,
     PLATFORMS,
 )
-from custom_components.tuya_ble_mesh.device_registry import TuyaBLEMeshDeviceRegistry
-
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -62,7 +60,6 @@ class TuyaBLEMeshRuntimeData:
     coordinator: TuyaBLEMeshCoordinator
     device_info: DeviceInfo
     cancel_listeners: list[Callable[[], None]] = field(default_factory=list)
-    registry: TuyaBLEMeshDeviceRegistry | None = None
 
 
 # Type alias for typed config entry access in platform files
@@ -187,29 +184,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         connections={("mac", mac_address)},
     )
 
-    # Initialize device registry and register this device
-    registry = TuyaBLEMeshDeviceRegistry(hass)
-    await registry.async_load()
-    registry.register_device(mac_address, entry.title, device_type or "unknown")
-
     # Store runtime data BEFORE async_start to avoid race condition
     # (callbacks may fire during async_start and need access to runtime_data)
     entry.runtime_data = TuyaBLEMeshRuntimeData(
         coordinator=coordinator,
         device_info=device_info,
-        registry=registry,
     )
 
     await coordinator.async_start()
-
-    # Update registry with connection result
-    if coordinator.state.available:
-        registry.record_connection(mac_address)
-        if coordinator.state.firmware_version:
-            registry.update_firmware_version(mac_address, coordinator.state.firmware_version)
-        await registry.async_save()
-    else:
-        registry.record_error(mac_address, "initial_connection_failed")
 
     # Forward platform setup even if device is unavailable —
     # entities will show as "unavailable" until connection succeeds
@@ -386,6 +368,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry)
         await runtime.coordinator.async_stop()
 
     unload_ok: bool = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
+    # Remove services if no more entries remain
+    remaining = hass.config_entries.async_entries(DOMAIN)
+    if not remaining or (len(remaining) == 1 and remaining[0].entry_id == entry.entry_id):
+        for service_name in ("identify", "set_log_level", "get_diagnostics"):
+            if hass.services.has_service(DOMAIN, service_name):
+                hass.services.async_remove(DOMAIN, service_name)
 
     _LOGGER.info("Tuya BLE Mesh entry unloaded: %s (ok=%s)", entry.title, unload_ok)
     return unload_ok

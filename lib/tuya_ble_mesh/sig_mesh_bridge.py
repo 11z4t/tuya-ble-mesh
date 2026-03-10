@@ -16,7 +16,7 @@ import logging
 from collections.abc import Callable
 from typing import Any
 
-from tuya_ble_mesh.exceptions import MeshConnectionError
+from tuya_ble_mesh.exceptions import ConnectionError as MeshConnectionError
 from tuya_ble_mesh.exceptions import SIGMeshError
 from tuya_ble_mesh.logging_context import MeshLogAdapter, mesh_operation
 
@@ -275,23 +275,18 @@ class SIGMeshBridgeDevice:
         return {"success": False, "error": "Timed out waiting for bridge result"}
 
     async def _http_get(self, path: str, timeout: float = 5.0) -> dict[str, Any]:
-        """Make an HTTP GET request to the bridge daemon."""
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(self._bridge_host, self._bridge_port),
-            timeout=timeout,
-        )
+        """Make an HTTP GET request to the bridge daemon using aiohttp."""
+        url = f"{self._bridge_url}{path}"
         try:
-            request = f"GET {path} HTTP/1.1\r\nHost: {self._bridge_host}\r\n\r\n"
-            writer.write(request.encode())
-            await writer.drain()
-
-            response = await asyncio.wait_for(reader.read(8192), timeout=timeout)
-            body = self._parse_http_body(response.decode("utf-8", errors="replace"))
-            result: dict[str, Any] = json.loads(body)
-            return result
-        finally:
-            writer.close()
-            await writer.wait_closed()
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    url, timeout=aiohttp.ClientTimeout(total=timeout)
+                ) as resp:
+                    result: dict[str, Any] = await resp.json()
+                    return result
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            msg = f"Bridge HTTP GET {path} failed: {exc}"
+            raise MeshConnectionError(msg) from exc
 
     async def _http_post(
         self,
@@ -299,43 +294,18 @@ class SIGMeshBridgeDevice:
         data: dict[str, Any],
         timeout: float = 5.0,
     ) -> dict[str, Any]:
-        """Make an HTTP POST request to the bridge daemon."""
-        body = json.dumps(data)
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(self._bridge_host, self._bridge_port),
-            timeout=timeout,
-        )
+        """Make an HTTP POST request to the bridge daemon using aiohttp."""
+        url = f"{self._bridge_url}{path}"
         try:
-            request = (
-                f"POST {path} HTTP/1.1\r\n"
-                f"Host: {self._bridge_host}\r\n"
-                f"Content-Type: application/json\r\n"
-                f"Content-Length: {len(body)}\r\n"
-                f"\r\n{body}"
-            )
-            writer.write(request.encode())
-            await writer.drain()
-
-            response = await asyncio.wait_for(reader.read(8192), timeout=timeout)
-            resp_body = self._parse_http_body(response.decode("utf-8", errors="replace"))
-            result: dict[str, Any] = json.loads(resp_body)
-            return result
-        finally:
-            writer.close()
-            await writer.wait_closed()
-
-    @staticmethod
-    def _parse_http_body(response: str) -> str:
-        """Extract body from raw HTTP response.
-
-        Raises:
-            MeshConnectionError: If response has no HTTP body separator.
-        """
-        parts = response.split("\r\n\r\n", 1)
-        if len(parts) < 2:
-            msg = "Malformed HTTP response: missing body separator"
-            raise MeshConnectionError(msg)
-        return parts[1]
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url, json=data, timeout=aiohttp.ClientTimeout(total=timeout)
+                ) as resp:
+                    result: dict[str, Any] = await resp.json()
+                    return result
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            msg = f"Bridge HTTP POST {path} failed: {exc}"
+            raise MeshConnectionError(msg) from exc
 
 
 # Callback types for Telink bridge (matching MeshDevice interface)
@@ -696,35 +666,18 @@ class TelinkBridgeDevice:
             raise SIGMeshError(msg)
 
     async def _http_get(self, path: str, timeout: float = 5.0) -> dict[str, Any]:
-        """Make an HTTP GET request to the bridge daemon.
-
-        Args:
-            path: URL path (e.g. ``/health``, ``/result``).
-            timeout: Socket connect and read timeout in seconds.
-
-        Returns:
-            Parsed JSON response dict.
-
-        Raises:
-            MeshConnectionError: If connection fails or response is malformed.
-        """
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(self._bridge_host, self._bridge_port),
-            timeout=timeout,
-        )
+        """Make an HTTP GET request to the bridge daemon using aiohttp."""
+        url = f"http://{self._bridge_host}:{self._bridge_port}{path}"
         try:
-            request = f"GET {path} HTTP/1.1\r\nHost: {self._bridge_host}\r\n\r\n"
-            writer.write(request.encode())
-            await writer.drain()
-            response = await asyncio.wait_for(reader.read(8192), timeout=timeout)
-            body = SIGMeshBridgeDevice._parse_http_body(
-                response.decode("utf-8", errors="replace"),
-            )
-            result: dict[str, Any] = json.loads(body)
-            return result
-        finally:
-            writer.close()
-            await writer.wait_closed()
+            async with aiohttp.ClientSession() as session:
+                async with session.get(
+                    url, timeout=aiohttp.ClientTimeout(total=timeout)
+                ) as resp:
+                    result: dict[str, Any] = await resp.json()
+                    return result
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            msg = f"Bridge HTTP GET {path} failed: {exc}"
+            raise MeshConnectionError(msg) from exc
 
     async def _http_post(
         self,
@@ -732,40 +685,15 @@ class TelinkBridgeDevice:
         data: dict[str, Any],
         timeout: float = 5.0,
     ) -> dict[str, Any]:
-        """Make an HTTP POST request to the bridge daemon.
-
-        Args:
-            path: URL path (e.g. ``/command``).
-            data: JSON-serialisable dict to POST.
-            timeout: Socket connect and read timeout in seconds.
-
-        Returns:
-            Parsed JSON response dict.
-
-        Raises:
-            MeshConnectionError: If connection fails or response is malformed.
-        """
-        body = json.dumps(data)
-        reader, writer = await asyncio.wait_for(
-            asyncio.open_connection(self._bridge_host, self._bridge_port),
-            timeout=timeout,
-        )
+        """Make an HTTP POST request to the bridge daemon using aiohttp."""
+        url = f"http://{self._bridge_host}:{self._bridge_port}{path}"
         try:
-            request = (
-                f"POST {path} HTTP/1.1\r\n"
-                f"Host: {self._bridge_host}\r\n"
-                f"Content-Type: application/json\r\n"
-                f"Content-Length: {len(body)}\r\n"
-                f"\r\n{body}"
-            )
-            writer.write(request.encode())
-            await writer.drain()
-            response = await asyncio.wait_for(reader.read(8192), timeout=timeout)
-            resp_body = SIGMeshBridgeDevice._parse_http_body(
-                response.decode("utf-8", errors="replace"),
-            )
-            result: dict[str, Any] = json.loads(resp_body)
-            return result
-        finally:
-            writer.close()
-            await writer.wait_closed()
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    url, json=data, timeout=aiohttp.ClientTimeout(total=timeout)
+                ) as resp:
+                    result: dict[str, Any] = await resp.json()
+                    return result
+        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+            msg = f"Bridge HTTP POST {path} failed: {exc}"
+            raise MeshConnectionError(msg) from exc
