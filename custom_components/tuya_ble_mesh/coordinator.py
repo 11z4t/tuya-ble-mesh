@@ -202,6 +202,9 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         self._max_reconnect_failures: int = _DEFAULT_MAX_RECONNECT_FAILURES
         self._consecutive_failures: int = 0
 
+        # Track which repair issues have already been raised (cleared on recovery)
+        self._raised_repair_issues: set[str] = set()
+
     async def _async_update_data(self) -> None:
         """No-op — state updates arrive via BLE notifications."""
         return None
@@ -301,7 +304,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         """
         avg_ms = self.avg_response_time_ms
         if avg_ms is not None:
-            _LOGGER.info(
+            _LOGGER.debug(
                 "Connect metrics for %s: this=%.0fms avg=%.0fms reconnects=%d errors=%d",
                 self._device.address,
                 response_time * 1000,
@@ -310,7 +313,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                 self._stats.total_errors,
             )
         else:
-            _LOGGER.info(
+            _LOGGER.debug(
                 "Connect metrics for %s: this=%.0fms (first connection)",
                 self._device.address,
                 response_time * 1000,
@@ -653,6 +656,85 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             return ErrorClass.PERMANENT
         return ErrorClass.UNKNOWN
 
+    def _maybe_create_repair_issue(self, error_class: ErrorClass) -> None:
+        """Create a repair issue for the given error class, at most once per recovery.
+
+        Issues are only created when hass and entry_id are available, and only
+        once per error class (tracked in _raised_repair_issues). They are cleared
+        on successful reconnect via _clear_repair_issues_on_recovery().
+        """
+        if self._hass is None or self._entry_id is None:
+            return
+
+        from custom_components.tuya_ble_mesh.repairs import (
+            ISSUE_AUTH_OR_MESH_MISMATCH,
+            ISSUE_BRIDGE_UNREACHABLE,
+            ISSUE_DEVICE_NOT_FOUND,
+            ISSUE_TIMEOUT,
+            async_create_issue_auth_or_mesh_mismatch,
+            async_create_issue_bridge_unreachable,
+            async_create_issue_device_not_found,
+            async_create_issue_timeout,
+        )
+
+        _CLASS_TO_ISSUE = {
+            ErrorClass.BRIDGE_DOWN: (ISSUE_BRIDGE_UNREACHABLE, None),
+            ErrorClass.MESH_AUTH: (ISSUE_AUTH_OR_MESH_MISMATCH, None),
+            ErrorClass.DEVICE_OFFLINE: (ISSUE_DEVICE_NOT_FOUND, None),
+            ErrorClass.TRANSIENT: (ISSUE_TIMEOUT, None),
+        }
+        mapping = _CLASS_TO_ISSUE.get(error_class)
+        if mapping is None:
+            return
+
+        issue_base, _ = mapping
+        if issue_base in self._raised_repair_issues:
+            return  # Already raised since last recovery
+
+        self._raised_repair_issues.add(issue_base)
+        name = self.entry_name or self._device.address
+        host = getattr(self._device, "host", "") or ""
+        port = getattr(self._device, "port", 0) or 0
+        hass = self._hass
+        entry_id = self._entry_id
+
+        mac = self._device.address
+
+        async def _create() -> None:
+            if error_class == ErrorClass.BRIDGE_DOWN:
+                await async_create_issue_bridge_unreachable(hass, host, port, entry_id)
+            elif error_class == ErrorClass.MESH_AUTH:
+                await async_create_issue_auth_or_mesh_mismatch(hass, name, entry_id)
+            elif error_class == ErrorClass.DEVICE_OFFLINE:
+                await async_create_issue_device_not_found(hass, name, mac, entry_id)
+            elif error_class == ErrorClass.TRANSIENT:
+                await async_create_issue_timeout(hass, name, entry_id)
+
+        asyncio.create_task(_create())
+
+    def _clear_repair_issues_on_recovery(self) -> None:
+        """Clear all connection repair issues after successful reconnect."""
+        if self._hass is None or self._entry_id is None:
+            return
+
+        from custom_components.tuya_ble_mesh.repairs import (
+            ISSUE_AUTH_OR_MESH_MISMATCH,
+            ISSUE_BRIDGE_UNREACHABLE,
+            ISSUE_DEVICE_NOT_FOUND,
+            ISSUE_RECONNECT_STORM,
+            ISSUE_TIMEOUT,
+            async_delete_issue,
+        )
+        for base_id in (
+            ISSUE_BRIDGE_UNREACHABLE,
+            ISSUE_AUTH_OR_MESH_MISMATCH,
+            ISSUE_DEVICE_NOT_FOUND,
+            ISSUE_TIMEOUT,
+            ISSUE_RECONNECT_STORM,
+        ):
+            async_delete_issue(self._hass, base_id, self._entry_id)
+        self._raised_repair_issues.clear()
+
     def _check_reconnect_storm(self) -> bool:
         """Return True if reconnect attempts indicate a storm (tight loop).
 
@@ -720,22 +802,8 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                 self._start_bridge_health_polling()
                 _LOGGER.info("Reconnected to %s (%.2fs)", self._device.address, response_time)
                 self._log_connect_metrics(response_time)
-                # Clear connectivity repair issues on successful reconnect
-                if self._hass is not None and self._entry_id is not None:
-                    from custom_components.tuya_ble_mesh.repairs import (
-                        ISSUE_BRIDGE_UNREACHABLE,
-                        ISSUE_DEVICE_NOT_FOUND,
-                        ISSUE_RECONNECT_STORM,
-                        ISSUE_TIMEOUT,
-                        async_delete_issue,
-                    )
-                    for base_id in (
-                        ISSUE_BRIDGE_UNREACHABLE,
-                        ISSUE_DEVICE_NOT_FOUND,
-                        ISSUE_TIMEOUT,
-                        ISSUE_RECONNECT_STORM,
-                    ):
-                        async_delete_issue(self._hass, base_id, self._entry_id)
+                # Clear all connectivity repair issues on successful reconnect
+                self._clear_repair_issues_on_recovery()
                 # Notify listeners — entities will update to available
                 self.async_set_updated_data(None)
                 return
@@ -766,6 +834,9 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                     self._state.available = False
                     self.async_set_updated_data(None)
                     return
+
+                # Create specific repair issue for this error class (once per recovery)
+                self._maybe_create_repair_issue(error_class)
 
                 # Detect reconnect storm and create repair issue (once per storm)
                 if (
