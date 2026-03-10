@@ -323,33 +323,53 @@ async def _test_bridge_device_reachable(
 
 
 class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
-    """Handle options for a Tuya BLE Mesh entry."""
+    """Handle options for a Tuya BLE Mesh entry.
+
+    Multi-step flow:
+      Step 1 — init:         Basic settings (mesh credentials or SIG params).
+                             Bridge devices proceed to bridge_config instead of saving.
+      Step 2 — bridge_config: Bridge host/port (only for bridge device types).
+      Step 3 — advanced:     Debug level, timeouts, reconnect thresholds.
+
+    Backward-compatible: existing config entry data keys are unchanged.
+    """
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow with the existing config entry."""
         self._config_entry = config_entry
+        # Accumulated data across steps (merged into config entry on final save)
+        self._pending_data: dict[str, Any] = {}
+
+    def _device_type(self) -> str:
+        """Return the device type for this config entry."""
+        return str(self._config_entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT))
+
+    def _is_bridge_device(self) -> bool:
+        """Return True if this entry uses a bridge daemon."""
+        return self._device_type() in (DEVICE_TYPE_SIG_BRIDGE_PLUG, DEVICE_TYPE_TELINK_BRIDGE_LIGHT)
+
+    # --- Step 1: basic settings ---
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Show basic options. Advanced settings are behind a separate step."""
+        """Step 1 — basic settings.
+
+        Direct BLE devices (light/plug/SIG direct): show mesh credentials / unicast
+        params and save immediately (unless advanced is requested).
+
+        Bridge devices: collect nothing here and go straight to bridge_config step
+        so that settings are grouped logically.
+        """
+        # Bridge devices skip this step — all their config is in bridge_config
+        if self._is_bridge_device():
+            return await self.async_step_bridge_config(user_input)
+
+        errors: dict[str, str] = {}
+
         if user_input is not None:
-            if user_input.pop("show_advanced", False):
-                return await self.async_step_advanced()
+            go_advanced = user_input.pop("show_advanced", False)
+            device_type = self._device_type()
 
-            errors: dict[str, str] = {}
-            device_type = self._config_entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
-
-            # Validate inputs based on device type
-            if device_type in (DEVICE_TYPE_SIG_BRIDGE_PLUG, DEVICE_TYPE_TELINK_BRIDGE_LIGHT):
-                host = user_input.get(CONF_BRIDGE_HOST, "")
-                host_error = _validate_bridge_host(host)
-                if host_error:
-                    errors[CONF_BRIDGE_HOST] = host_error
-                elif user_input.get("validate_bridge", False):
-                    port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
-                    result = await _test_bridge_with_session(self.hass, host, port)
-                    if not result:
-                        errors["base"] = "cannot_connect"
-            elif device_type == DEVICE_TYPE_SIG_PLUG:
+            if device_type == DEVICE_TYPE_SIG_PLUG:
                 unicast_target = user_input.get(CONF_UNICAST_TARGET, "00B0")
                 unicast_error = _validate_unicast_address(unicast_target)
                 if unicast_error:
@@ -359,6 +379,7 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 if iv_error:
                     errors[CONF_IV_INDEX] = iv_error
             else:
+                # Direct Telink light/plug
                 name = user_input.get(CONF_MESH_NAME, "")
                 pwd = user_input.get(CONF_MESH_PASSWORD, "")
                 name_error = _validate_mesh_credential(name)
@@ -373,10 +394,10 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                     errors[CONF_VENDOR_ID] = vendor_error
 
             if not errors:
-                new_data = {**self._config_entry.data, **user_input}
-                new_data.pop("validate_bridge", None)
-                self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
-                return self.async_create_entry(title="", data={})
+                self._pending_data.update(user_input)
+                if go_advanced:
+                    return await self.async_step_advanced()
+                return self._save_and_finish()
 
             return self.async_show_form(
                 step_id="init",
@@ -390,89 +411,128 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
         )
 
     def _build_init_schema(self) -> vol.Schema:
-        """Build the basic options schema based on device type."""
-        device_type = self._config_entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
-        data = self._config_entry.data
+        """Build the basic options schema (non-bridge device types only).
 
-        if device_type in (DEVICE_TYPE_SIG_BRIDGE_PLUG, DEVICE_TYPE_TELINK_BRIDGE_LIGHT):
-            return vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_BRIDGE_HOST,
-                        default=data.get(CONF_BRIDGE_HOST, ""),
-                    ): str,
-                    vol.Optional(
-                        CONF_BRIDGE_PORT,
-                        default=data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT),
-                    ): int,
-                    vol.Optional("validate_bridge", default=False): bool,
-                    vol.Optional("show_advanced", default=False): bool,
-                }
-            )
-        elif device_type == DEVICE_TYPE_SIG_PLUG:
+        Defaults are read from entry.options first, then entry.data (migration).
+        """
+        device_type = self._device_type()
+
+        if device_type == DEVICE_TYPE_SIG_PLUG:
             return vol.Schema(
                 {
                     vol.Optional(
                         CONF_UNICAST_TARGET,
-                        default=data.get(CONF_UNICAST_TARGET, "00B0"),
+                        default=self._opt(CONF_UNICAST_TARGET, "00B0"),
                     ): str,
                     vol.Optional(
                         CONF_IV_INDEX,
-                        default=data.get(CONF_IV_INDEX, DEFAULT_IV_INDEX),
+                        default=self._opt(CONF_IV_INDEX, DEFAULT_IV_INDEX),
                     ): int,
                     vol.Optional("show_advanced", default=False): bool,
                 }
             )
-        else:
-            return vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_MESH_NAME,
-                        default=data.get(CONF_MESH_NAME, "out_of_mesh"),
-                    ): str,
-                    vol.Optional(
-                        CONF_MESH_PASSWORD,
-                        default=data.get(CONF_MESH_PASSWORD, "123456"),  # pragma: allowlist secret
-                    ): str,
-                    vol.Optional(
-                        CONF_VENDOR_ID,
-                        default=data.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID),
-                    ): str,
-                    vol.Optional(
-                        CONF_MESH_ADDRESS,
-                        default=data.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS),
-                    ): int,
-                    vol.Optional("show_advanced", default=False): bool,
-                }
-            )
+        # Default: Telink direct light/plug
+        return vol.Schema(
+            {
+                vol.Optional(
+                    CONF_MESH_NAME,
+                    default=self._opt(CONF_MESH_NAME, "out_of_mesh"),
+                ): str,
+                vol.Optional(
+                    CONF_MESH_PASSWORD,
+                    default=self._opt(CONF_MESH_PASSWORD, "123456"),  # pragma: allowlist secret
+                ): str,
+                vol.Optional(
+                    CONF_VENDOR_ID,
+                    default=self._opt(CONF_VENDOR_ID, DEFAULT_VENDOR_ID),
+                ): str,
+                vol.Optional(
+                    CONF_MESH_ADDRESS,
+                    default=self._opt(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS),
+                ): int,
+                vol.Optional("show_advanced", default=False): bool,
+            }
+        )
+
+    # --- Step 2: bridge config (bridge device types only) ---
+
+    async def async_step_bridge_config(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Step 2 — bridge connection settings (host, port, live validation).
+
+        Only shown for SIG Bridge Plug and Telink Bridge Light device types.
+        Validates host format and optionally tests bridge reachability.
+        """
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            go_advanced = user_input.pop("show_advanced", False)
+            validate = user_input.pop("validate_bridge", False)
+
+            host = user_input.get(CONF_BRIDGE_HOST, "")
+            host_error = _validate_bridge_host(host)
+            if host_error:
+                errors[CONF_BRIDGE_HOST] = host_error
+            elif validate:
+                port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+                bridge_ok = await _test_bridge_with_session(self.hass, host, port)
+                if not bridge_ok:
+                    errors["base"] = "cannot_connect"
+
+            if not errors:
+                self._pending_data.update(user_input)
+                if go_advanced:
+                    return await self.async_step_advanced()
+                return self._save_and_finish()
+
+        schema = vol.Schema(
+            {
+                vol.Optional(
+                    CONF_BRIDGE_HOST,
+                    default=self._opt(CONF_BRIDGE_HOST, ""),
+                ): str,
+                vol.Optional(
+                    CONF_BRIDGE_PORT,
+                    default=self._opt(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT),
+                ): int,
+                vol.Optional("validate_bridge", default=False): bool,
+                vol.Optional("show_advanced", default=False): bool,
+            }
+        )
+        return self.async_show_form(
+            step_id="bridge_config",
+            data_schema=schema,
+            errors=errors,
+        )
+
+    # --- Step 3: advanced settings ---
 
     async def async_step_advanced(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle advanced options: debug level, timeouts, reconnect thresholds."""
+        """Step 3 — advanced options: debug level, timeouts, reconnect thresholds."""
         if user_input is not None:
-            new_data = {**self._config_entry.data, **user_input}
-            self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
-            return self.async_create_entry(title="", data={})
+            self._pending_data.update(user_input)
+            return self._save_and_finish()
 
-        data = self._config_entry.data
         schema = vol.Schema(
             {
                 vol.Optional(
                     CONF_DEBUG_LEVEL,
-                    default=data.get(CONF_DEBUG_LEVEL, DEFAULT_DEBUG_LEVEL),
+                    default=self._opt(CONF_DEBUG_LEVEL, DEFAULT_DEBUG_LEVEL),
                 ): vol.In(_DEBUG_LEVEL_CHOICES),
                 vol.Optional(
                     CONF_COMMAND_TIMEOUT,
-                    default=data.get(CONF_COMMAND_TIMEOUT, DEFAULT_COMMAND_TIMEOUT),
+                    default=self._opt(CONF_COMMAND_TIMEOUT, DEFAULT_COMMAND_TIMEOUT),
                 ): vol.All(int, vol.Range(min=3, max=60)),
                 vol.Optional(
                     CONF_MAX_RECONNECTS,
-                    default=data.get(CONF_MAX_RECONNECTS, DEFAULT_MAX_RECONNECTS),
+                    default=self._opt(CONF_MAX_RECONNECTS, DEFAULT_MAX_RECONNECTS),
                 ): vol.All(int, vol.Range(min=0, max=100)),
                 vol.Optional(
                     CONF_RECONNECT_STORM_THRESHOLD,
-                    default=data.get(
+                    default=self._opt(
                         CONF_RECONNECT_STORM_THRESHOLD, DEFAULT_RECONNECT_STORM_THRESHOLD
                     ),
                 ): vol.All(int, vol.Range(min=3, max=50)),
@@ -480,6 +540,28 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
         )
 
         return self.async_show_form(step_id="advanced", data_schema=schema)
+
+    # --- helpers ---
+
+    def _opt(self, key: str, default: Any = None) -> Any:
+        """Read a setting from entry.options, falling back to entry.data (migration).
+
+        Identity fields (MAC, device_type, keys) should never be looked up here
+        and always read directly from entry.data.
+        """
+        opts = self._config_entry.options or {}
+        if key in opts:
+            return opts[key]
+        return self._config_entry.data.get(key, default)
+
+    def _save_and_finish(self) -> FlowResult:
+        """Merge accumulated pending data into entry.options and finish the flow.
+
+        Identity fields (MAC, device_type, cryptographic keys) stay in entry.data.
+        All user-configurable runtime settings go into entry.options.
+        """
+        new_options = {**(self._config_entry.options or {}), **self._pending_data}
+        return self.async_create_entry(title="", data=new_options)
 
 
 class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, call-arg]
