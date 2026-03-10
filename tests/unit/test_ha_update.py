@@ -42,35 +42,35 @@ class TestFirmwareUpdateEntity:
     def test_entity_device_class_is_firmware(self) -> None:
         """Entity must report UpdateDeviceClass.FIRMWARE."""
         coord = _make_mock_coordinator(firmware_version="1.6.0")
-        entity = TuyaBLEMeshFirmwareUpdateEntity(coord, MagicMock(), "entry_abc")
+        entity = TuyaBLEMeshFirmwareUpdateEntity(coord, "entry_abc", MagicMock())
 
         assert entity.device_class == UpdateDeviceClass.FIRMWARE
 
     def test_installed_version_matches_state(self) -> None:
         """installed_version must reflect coordinator.state.firmware_version."""
         coord = _make_mock_coordinator(firmware_version="1.6.0")
-        entity = TuyaBLEMeshFirmwareUpdateEntity(coord, MagicMock(), "entry_abc")
+        entity = TuyaBLEMeshFirmwareUpdateEntity(coord, "entry_abc", MagicMock())
 
         assert entity.installed_version == "1.6.0"
 
     def test_installed_version_none_when_unknown(self) -> None:
         """installed_version is None when firmware_version not yet received."""
         coord = _make_mock_coordinator(firmware_version=None)
-        entity = TuyaBLEMeshFirmwareUpdateEntity(coord, MagicMock(), "entry_abc")
+        entity = TuyaBLEMeshFirmwareUpdateEntity(coord, "entry_abc", MagicMock())
 
         assert entity.installed_version is None
 
     def test_latest_version_equals_installed(self) -> None:
         """latest_version matches installed_version (no update detection)."""
         coord = _make_mock_coordinator(firmware_version="2.0.1")
-        entity = TuyaBLEMeshFirmwareUpdateEntity(coord, MagicMock(), "entry_abc")
+        entity = TuyaBLEMeshFirmwareUpdateEntity(coord, "entry_abc", MagicMock())
 
         assert entity.latest_version == entity.installed_version
 
     def test_available_reflects_coordinator_state(self) -> None:
         """Entity availability tracks coordinator state.available."""
         coord = _make_mock_coordinator(available=False)
-        entity = TuyaBLEMeshFirmwareUpdateEntity(coord, MagicMock(), "entry_abc")
+        entity = TuyaBLEMeshFirmwareUpdateEntity(coord, "entry_abc", MagicMock())
 
         assert entity.available is False
 
@@ -78,14 +78,14 @@ class TestFirmwareUpdateEntity:
         """Unique ID must be scoped to entry_id to avoid collisions."""
         coord = _make_mock_coordinator()
         entry_id = "test_entry_42"
-        entity = TuyaBLEMeshFirmwareUpdateEntity(coord, MagicMock(), entry_id)
+        entity = TuyaBLEMeshFirmwareUpdateEntity(coord, entry_id, MagicMock())
 
         assert entity.unique_id == f"{entry_id}_firmware"
 
     def test_firmware_version_updates_on_state_change(self) -> None:
         """Entity reports updated firmware version after state changes."""
         coord = _make_mock_coordinator(firmware_version="1.0.0")
-        entity = TuyaBLEMeshFirmwareUpdateEntity(coord, MagicMock(), "entry_abc")
+        entity = TuyaBLEMeshFirmwareUpdateEntity(coord, "entry_abc", MagicMock())
 
         assert entity.installed_version == "1.0.0"
 

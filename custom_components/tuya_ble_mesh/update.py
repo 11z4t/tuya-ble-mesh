@@ -14,9 +14,9 @@ import logging
 from typing import TYPE_CHECKING
 
 from homeassistant.components.update import UpdateDeviceClass, UpdateEntity
-from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from custom_components.tuya_ble_mesh.const import DOMAIN
+from custom_components.tuya_ble_mesh.entity import TuyaBLEMeshEntity
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -39,13 +39,11 @@ async def async_setup_entry(
     device_info = runtime_data.device_info
 
     async_add_entities(
-        [TuyaBLEMeshFirmwareUpdateEntity(coordinator, device_info, entry.entry_id)]
+        [TuyaBLEMeshFirmwareUpdateEntity(coordinator, entry.entry_id, device_info)]
     )
 
 
-class TuyaBLEMeshFirmwareUpdateEntity(
-    CoordinatorEntity["TuyaBLEMeshCoordinator"], UpdateEntity
-):
+class TuyaBLEMeshFirmwareUpdateEntity(TuyaBLEMeshEntity, UpdateEntity):
     """Read-only firmware version entity for a Tuya BLE Mesh device.
 
     Reports the firmware version string received via Composition Data (SIG Mesh)
@@ -54,19 +52,17 @@ class TuyaBLEMeshFirmwareUpdateEntity(
     """
 
     _attr_device_class = UpdateDeviceClass.FIRMWARE
-    _attr_has_entity_name = True
-    _attr_name = "Firmware"
+    _attr_translation_key = "firmware_update"
 
     def __init__(
         self,
         coordinator: TuyaBLEMeshCoordinator,
-        device_info: object,
         entry_id: str,
+        device_info: object | None = None,
     ) -> None:
         """Initialise the firmware update entity."""
-        super().__init__(coordinator)
+        super().__init__(coordinator, entry_id, device_info)  # type: ignore[arg-type]
         self._attr_unique_id = f"{entry_id}_firmware"
-        self._attr_device_info = device_info  # type: ignore[assignment]
 
     @property
     def installed_version(self) -> str | None:
@@ -82,11 +78,6 @@ class TuyaBLEMeshFirmwareUpdateEntity(
         will show the installed version but without an 'update available' badge.
         """
         return self.coordinator.state.firmware_version
-
-    @property
-    def available(self) -> bool:
-        """Entity is available when the device is reachable."""
-        return self.coordinator.state.available
 
     @property
     def release_notes(self) -> str | None:
