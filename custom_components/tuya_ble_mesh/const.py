@@ -90,6 +90,20 @@ HA_MIRED_MAX = 370  # warmest (2703K)
 DEVICE_COLOR_BRIGHTNESS_MIN = 0
 DEVICE_COLOR_BRIGHTNESS_MAX = 255
 
+# --- Mesh Scene Registry ---
+# Maps scene_id → human-readable effect name shown in HA UI.
+# scene_id=0 is reserved for "no scene" (custom mode).
+# These IDs align with Telink Mesh scene slot numbers (1-based).
+MESH_SCENES: dict[int, str] = {
+    1: "Warm Candlelight",
+    2: "Cool Daylight",
+    3: "RGB Sunset",
+    4: "Ocean Breeze",
+    5: "Forest Green",
+    6: "Party Flash",
+    7: "Soft Glow",
+}
+
 # --- Vendor ID Registry (single source of truth) ---
 # Maps vendor ID hex string to human-readable brand name.
 # These are BLE SIG company IDs or Telink mesh vendor bytes (LE uint16 as 0xNNNN).
