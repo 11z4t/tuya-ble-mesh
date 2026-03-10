@@ -22,8 +22,8 @@ _BUNDLED_LIB = str(Path(__file__).resolve().parent / "lib")
 _DEV_LIB = str(Path(__file__).resolve().parent.parent.parent / "lib")
 for _lib_dir in (_BUNDLED_LIB, _DEV_LIB):
     if Path(_lib_dir).is_dir() and _lib_dir not in sys.path:
-        sys.path.insert(0, _lib_dir)  # pragma: no cover
-        break  # pragma: no cover
+        sys.path.insert(0, _lib_dir)
+        break
 
 import voluptuous as vol  # noqa: E402
 from homeassistant import config_entries  # noqa: E402
@@ -343,9 +343,18 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         await self.async_set_unique_id(address)
         self._abort_if_unique_id_configured()
 
+        # Detect device type from advertised name
+        device_category = "SIG Mesh" if any(
+            u in getattr(discovery_info, "service_uuids", [])
+            for u in (SIG_MESH_PROV_UUID, SIG_MESH_PROXY_UUID)
+        ) else "Telink Mesh"
+        rssi = getattr(discovery_info, "rssi", None)
+
         self._discovery_info = {
             "address": address,
             "name": name,
+            "rssi": rssi,
+            "device_category": device_category,
         }
 
         # Auto-detect SIG Mesh devices by service UUID.
@@ -401,7 +410,10 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 }
             ),
             description_placeholders={
-                "name": self._discovery_info.get("name", "") if self._discovery_info else "",
+                "name": self._discovery_info.get("name", "Unknown") if self._discovery_info else "Unknown",
+                "mac": self._discovery_info.get("address", "") if self._discovery_info else "",
+                "rssi": str(self._discovery_info.get("rssi", "?")) if self._discovery_info else "?",
+                "category": self._discovery_info.get("device_category", "") if self._discovery_info else "",
             },
         )
 
@@ -598,16 +610,12 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             return device
 
         async def _ble_connect_cb(ble_device: Any) -> BleakClient:
-            """Connect via bleak-retry-connector to avoid HA BleakClient warning.
-
-            PLAT-506: Reduced max_attempts from 5 to 2 to avoid exhausting
-            BLE adapter connection slots during provisioning retries.
-            """
+            """Connect via bleak-retry-connector to avoid HA BleakClient warning."""
             return await establish_connection(
                 BleakClient,
                 ble_device,
                 ble_device.address,
-                max_attempts=2,
+                max_attempts=5,
             )
 
         # Phase 1: PB-GATT provisioning
