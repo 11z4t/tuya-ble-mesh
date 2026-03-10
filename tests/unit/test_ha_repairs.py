@@ -501,3 +501,143 @@ class TestMeshAuthRepairFlow:
         mock_hass = MagicMock()
         flow = await async_create_fix_flow(mock_hass, issue_id, None)
         assert type(flow) is TuyaBLEMeshRepairFlow
+
+
+@pytest.mark.requires_ha
+class TestIssueCreationFunctions:
+    """MESH-17: async_create_issue_* helpers register issues correctly."""
+
+    @pytest.mark.asyncio
+    async def test_create_issue_auth_or_mesh_mismatch(self) -> None:
+        """async_create_issue_auth_or_mesh_mismatch calls ir.async_create_issue."""
+        from homeassistant.helpers import issue_registry as ir
+
+        from custom_components.tuya_ble_mesh.repairs import async_create_issue_auth_or_mesh_mismatch
+
+        mock_hass = MagicMock()
+        with patch.object(ir, "async_create_issue") as mock_create:
+            await async_create_issue_auth_or_mesh_mismatch(mock_hass, "Dev1", "entry_abc")
+            mock_create.assert_called_once()
+        issue_id = mock_create.call_args.args[2]
+        assert "entry_abc" in issue_id
+
+    @pytest.mark.asyncio
+    async def test_create_issue_unsupported_vendor(self) -> None:
+        """async_create_issue_unsupported_vendor includes vendor_id in placeholders."""
+        from homeassistant.helpers import issue_registry as ir
+
+        from custom_components.tuya_ble_mesh.repairs import async_create_issue_unsupported_vendor
+
+        mock_hass = MagicMock()
+        with patch.object(ir, "async_create_issue") as mock_create:
+            await async_create_issue_unsupported_vendor(mock_hass, "Dev1", "0x9999", "entry_abc")
+            mock_create.assert_called_once()
+        placeholders = mock_create.call_args.kwargs.get("translation_placeholders", {})
+        assert placeholders.get("vendor_id") == "0x9999"
+
+    @pytest.mark.asyncio
+    async def test_create_issue_device_not_found(self) -> None:
+        """async_create_issue_device_not_found truncates MAC in placeholder."""
+        from homeassistant.helpers import issue_registry as ir
+
+        from custom_components.tuya_ble_mesh.repairs import async_create_issue_device_not_found
+
+        mac = "AA:BB:CC:DD:EE:FF"
+        mock_hass = MagicMock()
+        with patch.object(ir, "async_create_issue") as mock_create:
+            await async_create_issue_device_not_found(mock_hass, "Dev1", mac, "entry_abc")
+            mock_create.assert_called_once()
+        placeholders = mock_create.call_args.kwargs.get("translation_placeholders", {})
+        # Last 8 chars of MAC address used as display
+        assert placeholders.get("mac") == mac[-8:]
+
+    @pytest.mark.asyncio
+    async def test_create_issue_timeout(self) -> None:
+        """async_create_issue_timeout includes operation in placeholders."""
+        from homeassistant.helpers import issue_registry as ir
+
+        from custom_components.tuya_ble_mesh.repairs import async_create_issue_timeout
+
+        mock_hass = MagicMock()
+        with patch.object(ir, "async_create_issue") as mock_create:
+            await async_create_issue_timeout(mock_hass, "Dev1", "entry_abc", operation="send")
+            mock_create.assert_called_once()
+        placeholders = mock_create.call_args.kwargs.get("translation_placeholders", {})
+        assert placeholders.get("operation") == "send"
+
+    @pytest.mark.asyncio
+    async def test_create_issue_protocol_mismatch(self) -> None:
+        """async_create_issue_protocol_mismatch includes protocol in placeholders."""
+        from homeassistant.helpers import issue_registry as ir
+
+        from custom_components.tuya_ble_mesh.repairs import async_create_issue_protocol_mismatch
+
+        mock_hass = MagicMock()
+        with patch.object(ir, "async_create_issue") as mock_create:
+            await async_create_issue_protocol_mismatch(
+                mock_hass, "Dev1", "SIG_Mesh", "entry_abc", actual_info="v1.2"
+            )
+            mock_create.assert_called_once()
+        placeholders = mock_create.call_args.kwargs.get("translation_placeholders", {})
+        assert placeholders.get("protocol") == "SIG_Mesh"
+        assert placeholders.get("info") == "v1.2"
+
+
+@pytest.mark.requires_ha
+class TestRepairFlowStepSubmissions:
+    """MESH-17: Form submission paths in TuyaBLEMeshRepairFlow."""
+
+    @pytest.mark.asyncio
+    async def test_async_step_confirm_submits_creates_entry(self) -> None:
+        """confirm step with user_input returns create_entry."""
+        flow = TuyaBLEMeshRepairFlow("bridge_unreachable--abc")
+        result = await flow.async_step_confirm(user_input={})
+        assert result["type"] == "create_entry"
+
+    @pytest.mark.asyncio
+    async def test_async_step_confirm_no_input_shows_form(self) -> None:
+        """confirm step without user_input shows the form."""
+        flow = TuyaBLEMeshRepairFlow("bridge_unreachable--abc")
+        result = await flow.async_step_confirm(None)
+        assert result["type"] == "form"
+        assert result["step_id"] == "confirm"
+
+    @pytest.mark.asyncio
+    async def test_async_step_reauth_hint_submits_creates_entry(self) -> None:
+        """reauth_hint step with user_input returns create_entry."""
+        flow = TuyaBLEMeshRepairFlow("bridge_unreachable--abc")
+        result = await flow.async_step_reauth_hint(user_input={})
+        assert result["type"] == "create_entry"
+
+    @pytest.mark.asyncio
+    async def test_async_step_reauth_hint_no_input_shows_form(self) -> None:
+        """reauth_hint step without user_input shows form."""
+        flow = TuyaBLEMeshRepairFlow("bridge_unreachable--abc")
+        result = await flow.async_step_reauth_hint(None)
+        assert result["type"] == "form"
+        assert result["step_id"] == "reauth_hint"
+
+    @pytest.mark.asyncio
+    async def test_async_step_storm_confirm_submits_creates_entry(self) -> None:
+        """storm_confirm step with user_input returns create_entry."""
+        flow = TuyaBLEMeshRepairFlow("reconnect_storm--abc")
+        result = await flow.async_step_storm_confirm(user_input={})
+        assert result["type"] == "create_entry"
+
+    @pytest.mark.asyncio
+    async def test_async_step_init_routes_storm_to_storm_confirm(self) -> None:
+        """async_step_init routes reconnect_storm to storm_confirm step."""
+        flow = TuyaBLEMeshRepairFlow("reconnect_storm--abc")
+        result = await flow.async_step_init(None)
+        assert result["type"] == "form"
+        assert result["step_id"] == "storm_confirm"
+
+    @pytest.mark.asyncio
+    async def test_get_entry_returns_none_without_separator(self) -> None:
+        """_get_entry returns None when issue_id has no entry separator."""
+        from custom_components.tuya_ble_mesh.repairs import MeshAuthRepairFlow
+
+        flow = MeshAuthRepairFlow("no_separator_here")
+        mock_hass = MagicMock()
+        result = flow._get_entry(mock_hass)
+        assert result is None
