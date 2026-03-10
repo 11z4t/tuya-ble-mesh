@@ -39,10 +39,12 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_UNICAST_OUR,
     CONF_UNICAST_TARGET,
     DEVICE_TYPE_LIGHT,
+    DEVICE_TYPE_PLUG,
     DEVICE_TYPE_SIG_BRIDGE_PLUG,
     DEVICE_TYPE_SIG_PLUG,
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
     DOMAIN,
+    SIG_MESH_PROV_UUID,
     SIG_MESH_PROXY_UUID,
 )
 
@@ -1577,3 +1579,131 @@ class TestReauthFlow:
         schema_keys = [str(k) for k in result["data_schema"].schema]
         assert CONF_BRIDGE_HOST in schema_keys
         assert CONF_BRIDGE_PORT in schema_keys
+
+
+@pytest.mark.requires_ha
+class TestDeviceDiscoveryStaleProtection:
+    """Test PLAT-509: Stale discovery flow protection (lines 353-357)."""
+
+    @pytest.mark.asyncio
+    async def test_discovery_aborts_when_device_not_advertising(self) -> None:
+        """Discovery flow aborts when device is no longer advertising."""
+        flow = _make_flow()
+        flow.context = {"source": "bluetooth"}
+
+        # Mock discovery info with SIG mesh proxy UUID
+        discovery_info = MagicMock(spec=BluetoothServiceInfoBleak)
+        discovery_info.name = "tymesh_12345"
+        discovery_info.address = "AA:BB:CC:DD:EE:FF"
+        discovery_info.rssi = -60
+        discovery_info.service_uuids = [SIG_MESH_PROXY_UUID]
+
+        # Mock async_ble_device_from_address to return None (device not advertising)
+        with patch(
+            "homeassistant.components.bluetooth.async_ble_device_from_address",
+            return_value=None,
+        ):
+            result = await flow.async_step_bluetooth(discovery_info)
+
+        assert result["type"] == "abort"
+        assert result["reason"] == "device_not_available"
+
+    @pytest.mark.asyncio
+    async def test_discovery_continues_when_bluetooth_manager_unavailable(self) -> None:
+        """Discovery flow skips stale check if BluetoothManager is unavailable."""
+        flow = _make_flow()
+        flow.context = {"source": "bluetooth"}
+
+        discovery_info = MagicMock(spec=BluetoothServiceInfoBleak)
+        discovery_info.name = "tymesh_67890"
+        discovery_info.address = "BB:CC:DD:EE:FF:00"
+        discovery_info.rssi = -55
+        discovery_info.service_uuids = [SIG_MESH_PROXY_UUID]
+
+        # Mock async_ble_device_from_address to raise RuntimeError
+        with patch(
+            "homeassistant.components.bluetooth.async_ble_device_from_address",
+            side_effect=RuntimeError("BluetoothManager not initialized"),
+        ):
+            result = await flow.async_step_bluetooth(discovery_info)
+
+        # Should NOT abort — continues to user form
+        assert result["type"] == "form"
+
+
+@pytest.mark.requires_ha
+class TestDeviceTypeAutoDetection:
+    """Test device type auto-detection from service UUIDs (line 380)."""
+
+    @pytest.mark.asyncio
+    async def test_telink_uuid_auto_detects_light(self) -> None:
+        """Telink mesh UUID prefix auto-detects LIGHT type (line 380)."""
+        flow = _make_flow()
+        flow.context = {"source": "bluetooth"}
+
+        # Discovery with Telink mesh UUID (00010203-0405-0607-0809-0a0b0c0d...)
+        discovery_info = MagicMock(spec=BluetoothServiceInfoBleak)
+        discovery_info.name = "out_of_mesh"
+        discovery_info.address = "CC:DD:EE:FF:00:11"
+        discovery_info.rssi = -50
+        discovery_info.service_uuids = ["00010203-0405-0607-0809-0a0b0c0d1234"]
+
+        with patch(
+            "homeassistant.components.bluetooth.async_ble_device_from_address",
+            side_effect=RuntimeError,  # Skip stale check
+        ):
+            result = await flow.async_step_bluetooth(discovery_info)
+
+        # With Telink UUID, auto-detects light and creates entry via zero-knowledge flow
+        assert result["type"] == "create_entry"
+        assert "BLE Mesh Light" in result["title"]
+        assert result["data"][CONF_DEVICE_TYPE] == DEVICE_TYPE_LIGHT
+
+
+@pytest.mark.requires_ha
+class TestZeroKnowledgeConfigFlow:
+    """Test PLAT-511: Zero-knowledge config flow for auto-detected devices."""
+
+    @pytest.mark.asyncio
+    async def test_auto_detected_plug_creates_entry_with_defaults(self) -> None:
+        """Auto-detected SIG plug creates entry with zero user input (lines 439-455)."""
+        flow = _make_flow()
+        flow.context = {"source": "bluetooth"}
+
+        # Set discovery info with auto-detected plug (NOT SIG_PLUG, use DEVICE_TYPE_PLUG)
+        # This triggers the zero-knowledge flow in async_step_confirm
+        flow._discovery_info = {
+            "address": "DD:EE:FF:00:11:22",
+            "name": "tymesh_plug",
+            "auto_device_type": DEVICE_TYPE_PLUG,  # PLUG, not SIG_PLUG
+        }
+
+        # async_step_confirm with no user_input triggers auto-creation
+        result = await flow.async_step_confirm(None)
+
+        assert result["type"] == "create_entry"
+        assert "BLE Mesh Plug" in result["title"]
+        assert result["data"][CONF_MAC_ADDRESS] == "DD:EE:FF:00:11:22"
+        assert result["data"][CONF_DEVICE_TYPE] == DEVICE_TYPE_PLUG
+        # Defaults should be set
+        assert result["data"][CONF_MESH_NAME] == "out_of_mesh"
+        assert result["data"][CONF_MESH_PASSWORD] == "123456"
+
+    @pytest.mark.asyncio
+    async def test_auto_detected_light_creates_entry_with_defaults(self) -> None:
+        """Auto-detected light creates entry with zero user input (lines 439-455)."""
+        flow = _make_flow()
+        flow.context = {"source": "bluetooth"}
+
+        flow._discovery_info = {
+            "address": "EE:FF:00:11:22:33",
+            "name": "out_of_mesh_light",
+            "auto_device_type": DEVICE_TYPE_LIGHT,
+        }
+
+        result = await flow.async_step_confirm(None)
+
+        assert result["type"] == "create_entry"
+        assert "BLE Mesh Light" in result["title"]
+        assert result["data"][CONF_MAC_ADDRESS] == "EE:FF:00:11:22:33"
+        assert result["data"][CONF_DEVICE_TYPE] == DEVICE_TYPE_LIGHT
