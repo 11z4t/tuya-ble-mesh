@@ -1,8 +1,8 @@
 """Push-based coordinator for Tuya BLE Mesh devices.
 
-NOT a DataUpdateCoordinator subclass. BLE notifications drive state
-updates via _on_status_update → listener dispatch. Reconnection uses
-exponential backoff, triggered by MeshDevice disconnect callbacks.
+Subclasses DataUpdateCoordinator with update_interval=None (push-based).
+BLE notifications drive state updates via async_set_updated_data().
+Reconnection uses exponential backoff, triggered by disconnect callbacks.
 
 Error classification:
   bridge_down      — HTTP bridge not reachable
@@ -24,6 +24,8 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import TYPE_CHECKING, Union
+
+from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -143,12 +145,13 @@ class ConnectionStatistics:
     storm_detected: bool = False
 
 
-class TuyaBLEMeshCoordinator:
+class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
     """Push-based coordinator for a single BLE mesh device.
 
-    Receives BLE notifications and dispatches state to HA entities.
-    Handles reconnection with exponential backoff, triggered by
-    MeshDevice disconnect callbacks (not polling).
+    Subclasses DataUpdateCoordinator with update_interval=None.
+    State updates arrive via BLE notifications and are dispatched
+    via async_set_updated_data(None). CoordinatorEntity subclasses
+    get automatic async_write_ha_state() calls.
     """
 
     def __init__(
@@ -158,11 +161,15 @@ class TuyaBLEMeshCoordinator:
         hass: HomeAssistant | None = None,
         entry_id: str | None = None,
     ) -> None:
+        if hass is not None:
+            super().__init__(
+                hass,
+                _LOGGER,
+                name=f"tuya_ble_mesh_{device.address}",
+                update_interval=None,  # Push-based, no polling
+            )
         self._device: AnyMeshDevice = device
         self._state = TuyaBLEMeshDeviceState()
-        self._listeners: list[Callable[[], None]] = []
-        # Track consecutive failures per callback; remove after _MAX_CALLBACK_ERRORS
-        self._listener_error_counts: dict[int, int] = {}
         self._reconnect_task: asyncio.Task[None] | None = None
         self._rssi_task: asyncio.Task[None] | None = None
         self._backoff = _INITIAL_BACKOFF
@@ -186,8 +193,14 @@ class TuyaBLEMeshCoordinator:
         # Entry name for repair issue placeholders (set externally if needed)
         self.entry_name: str = ""
         self._storm_threshold: int = _STORM_DEFAULT_THRESHOLD
+
+        # Consecutive failure tracking for max reconnect limit
         self._max_reconnect_failures: int = _DEFAULT_MAX_RECONNECT_FAILURES
         self._consecutive_failures: int = 0
+
+    async def _async_update_data(self) -> None:
+        """No-op — state updates arrive via BLE notifications."""
+        return None
 
     @property
     def device(self) -> AnyMeshDevice:
@@ -236,64 +249,8 @@ class TuyaBLEMeshCoordinator:
                 response_time * 1000,
             )
 
-    def add_listener(self, callback: Callable[[], None]) -> Callable[[], None]:
-        """Register a state change listener.
-
-        Args:
-            callback: Called when device state changes.
-
-        Returns:
-            A function to remove the listener.
-        """
-        self._listeners.append(callback)
-
-        def remove() -> None:
-            if callback in self._listeners:
-                self._listeners.remove(callback)
-
-        return remove
-
-    def _notify_listeners(self) -> None:
-        """Notify all registered listeners of state change.
-
-        Tracks consecutive errors per callback. After _MAX_CALLBACK_ERRORS
-        consecutive failures the callback is removed to prevent error spam.
-        """
-        count = len(self._listeners)
-        _LOGGER.debug(
-            "Notifying %d listener(s) for %s (available=%s)",
-            count,
-            self._device.address,
-            self._state.available,
-        )
-        to_remove: list[Callable[[], None]] = []
-        for callback in list(self._listeners):
-            cb_id = id(callback)
-            try:
-                callback()
-                # Reset error count on success
-                self._listener_error_counts.pop(cb_id, None)
-            except Exception:
-                error_count = self._listener_error_counts.get(cb_id, 0) + 1
-                self._listener_error_counts[cb_id] = error_count
-                _LOGGER.warning(
-                    "Listener callback error for %s (consecutive=%d/%d)",
-                    self._device.address,
-                    error_count,
-                    _MAX_CALLBACK_ERRORS,
-                    exc_info=True,
-                )
-                if error_count >= _MAX_CALLBACK_ERRORS:
-                    _LOGGER.error(
-                        "Removing broken listener for %s after %d consecutive errors",
-                        self._device.address,
-                        error_count,
-                    )
-                    to_remove.append(callback)
-        for callback in to_remove:
-            if callback in self._listeners:
-                self._listeners.remove(callback)
-                self._listener_error_counts.pop(id(callback), None)
+    # Listeners are managed by DataUpdateCoordinator.async_add_listener()
+    # and dispatched automatically when async_set_updated_data() is called.
 
     def _on_onoff_update(self, on: bool) -> None:
         """Handle a GenericOnOff Status from a SIG Mesh device.
@@ -323,7 +280,7 @@ class TuyaBLEMeshCoordinator:
         # Only notify if state changed or device just became available (avoids
         # spurious HA entity writes when repeated identical status messages arrive)
         if changed or not was_available:
-            self._notify_listeners()
+            self.async_set_updated_data(None)
 
     def _on_status_update(self, status: StatusResponse) -> None:
         """Handle a status notification from the device.
@@ -377,7 +334,7 @@ class TuyaBLEMeshCoordinator:
         # Only notify if state changed or device just became available (avoids
         # spurious HA entity writes when repeated identical status messages arrive)
         if changed or not was_available:
-            self._notify_listeners()
+            self.async_set_updated_data(None)
 
     def _on_vendor_update(self, opcode: int, params: bytes) -> None:
         """Handle a Tuya vendor message from a SIG Mesh device.
@@ -414,7 +371,7 @@ class TuyaBLEMeshCoordinator:
 
         if updated:
             self._state.available = True
-            self._notify_listeners()
+            self.async_set_updated_data(None)
 
     def _on_composition_update(self, comp: CompositionData) -> None:
         """Handle a Composition Data response from a SIG Mesh device.
@@ -426,7 +383,7 @@ class TuyaBLEMeshCoordinator:
         """
         self._state.firmware_version = self._device.firmware_version
         _LOGGER.debug("Composition Data received, firmware=%s", self._state.firmware_version)
-        self._notify_listeners()
+        self.async_set_updated_data(None)
 
     def _on_disconnect(self) -> None:
         """Handle device disconnect — mark unavailable and schedule reconnect.
@@ -460,7 +417,7 @@ class TuyaBLEMeshCoordinator:
         if self._is_bridge_device():
             self._backoff = _BRIDGE_INITIAL_BACKOFF
 
-        self._notify_listeners()
+        self.async_set_updated_data(None)
         self._schedule_reconnect()
 
     async def _load_seq(self) -> None:
@@ -548,7 +505,7 @@ class TuyaBLEMeshCoordinator:
             self._state.available = False
             self._schedule_reconnect()
 
-        self._notify_listeners()
+        self.async_set_updated_data(None)
 
     async def async_stop(self) -> None:
         """Stop the coordinator — disconnect and cancel reconnection."""
@@ -648,7 +605,7 @@ class TuyaBLEMeshCoordinator:
                     self._device.address,
                 )
                 self._state.available = False
-                self._notify_listeners()
+                self.async_set_updated_data(None)
                 return
 
             _LOGGER.info(
@@ -696,7 +653,7 @@ class TuyaBLEMeshCoordinator:
                     ):
                         async_delete_issue(self._hass, issue_id)
                 # Notify listeners — entities will update to available
-                self._notify_listeners()
+                self.async_set_updated_data(None)
                 return
             except Exception as err:
                 self._stats.total_errors += 1
@@ -723,7 +680,7 @@ class TuyaBLEMeshCoordinator:
                         self._device.address,
                     )
                     self._state.available = False
-                    self._notify_listeners()
+                    self.async_set_updated_data(None)
                     return
 
                 # Detect reconnect storm and create repair issue (once per storm)
@@ -743,7 +700,7 @@ class TuyaBLEMeshCoordinator:
 
                 self._state.available = False
                 self._backoff = min(self._backoff * _BACKOFF_MULTIPLIER, max_backoff)
-                self._notify_listeners()
+                self.async_set_updated_data(None)
 
     # --- Adaptive polling ---
 
@@ -834,7 +791,7 @@ class TuyaBLEMeshCoordinator:
 
                     if ble_device is not None and ble_device.rssi is not None:  # type: ignore[attr-defined]
                         self._state.rssi = ble_device.rssi  # type: ignore[attr-defined]
-                        self._notify_listeners()
+                        self.async_set_updated_data(None)
 
                         # Track stability: if RSSI similar (±2 dBm) = stable cycle
                         if prev_rssi is not None and abs(ble_device.rssi - prev_rssi) <= 2:  # type: ignore[attr-defined]
