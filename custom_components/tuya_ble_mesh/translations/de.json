@@ -1,0 +1,63 @@
+{
+  "config": {
+    "flow_title": "{mac}",
+    "step": {
+      "user": {
+        "title": "Tuya BLE Mesh-Gerät",
+        "description": "Geben Sie die BLE-MAC-Adresse und Gerätetyp ein. Standard-Mesh-Anmeldedaten (out_of_mesh/123456) sind Tuya-Werkseinstellungen.",
+        "data": {
+          "mac_address": "MAC-Adresse",
+          "mesh_name": "Mesh-Name",
+          "mesh_password": "Mesh-Passwort",
+          "vendor_id": "Hersteller-ID (hex, z.B. 0x1001)",
+          "device_type": "Gerätetyp",
+          "mesh_address": "Mesh-Adresse (0 = auto)"
+        }
+      }
+    },
+    "error": {
+      "invalid_mac": "Ungültiges MAC-Adressenformat. Erwartet XX:XX:XX:XX:XX:XX (durch Doppelpunkt getrennt).",
+      "cannot_connect": "Verbindung zum Bridge-Daemon nicht möglich. Überprüfen Sie Host/Port und dass der Daemon läuft."
+    },
+    "abort": {
+      "already_configured": "Dieses Gerät ist bereits konfiguriert"
+    }
+  },
+  "entity": {
+    "light": {
+      "mesh_light": {
+        "name": "Licht"
+      }
+    },
+    "switch": {
+      "mesh_switch": {
+        "name": "Schalter"
+      }
+    },
+    "sensor": {
+      "rssi": {
+        "name": "Signalstärke"
+      },
+      "firmware": {
+        "name": "Firmware-Version"
+      },
+      "power": {
+        "name": "Leistung"
+      },
+      "energy": {
+        "name": "Energie"
+      }
+    },
+    "update": {
+      "firmware_update": {
+        "name": "Firmware"
+      }
+    }
+  },
+  "services": {
+    "identify": {
+      "name": "Gerät identifizieren",
+      "description": "Blinkt die Geräte-LED zur einfachen Identifizierung."
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "config": {
+    "flow_title": "{mac}",
+    "step": {
+      "user": {
+        "title": "Tuya BLE Mesh -laite",
+        "description": "Syötä BLE MAC-osoite ja laitetyyppi. Oletusverkko-tunnukset (out_of_mesh/123456) ovat Tuya-tehdasasetukset.",
+        "data": {
+          "mac_address": "MAC-osoite",
+          "mesh_name": "Verkon nimi",
+          "mesh_password": "Verkon salasana",
+          "vendor_id": "Valmistajan tunnus (hex, esim. 0x1001)",
+          "device_type": "Laitetyyppi",
+          "mesh_address": "Verkko-osoite (0 = auto)"
+        }
+      }
+    },
+    "error": {
+      "invalid_mac": "Virheellinen MAC-osoitteen muoto. Odotettu XX:XX:XX:XX:XX:XX (kaksoispisteet erottimena).",
+      "cannot_connect": "Yhdistäminen bridge-daemoniin ei onnistu. Tarkista isäntä/portti ja että daemon on käynnissä."
+    },
+    "abort": {
+      "already_configured": "Tämä laite on jo määritetty"
+    }
+  },
+  "entity": {
+    "light": {
+      "mesh_light": {
+        "name": "Valo"
+      }
+    },
+    "switch": {
+      "mesh_switch": {
+        "name": "Kytkin"
+      }
+    },
+    "sensor": {
+      "rssi": {
+        "name": "Signaalin voimakkuus"
+      },
+      "firmware": {
+        "name": "Laiteohjelmistoversio"
+      },
+      "power": {
+        "name": "Teho"
+      },
+      "energy": {
+        "name": "Energia"
+      }
+    },
+    "update": {
+      "firmware_update": {
+        "name": "Laiteohjelmisto"
+      }
+    }
+  },
+  "services": {
+    "identify": {
+      "name": "Tunnista laite",
+      "description": "Vilkuttaa laitteen LED-valoa helpompaa tunnistamista varten."
+    }
+  }
+}

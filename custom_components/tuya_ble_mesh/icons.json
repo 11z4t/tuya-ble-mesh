@@ -28,6 +28,20 @@
       "firmware_update": {
         "default": "mdi:package-up"
       }
+    },
+    "event": {
+      "device_connected": {
+        "default": "mdi:connection"
+      },
+      "device_disconnected": {
+        "default": "mdi:connection-off"
+      },
+      "provisioning_complete": {
+        "default": "mdi:check-circle"
+      },
+      "mesh_authenticated": {
+        "default": "mdi:shield-check"
+      }
     }
   },
   "services": {
