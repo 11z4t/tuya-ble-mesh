@@ -23,6 +23,7 @@ from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
 from custom_components.tuya_ble_mesh.light import (  # noqa: E402
     _COMMAND_DEBOUNCE_INTERVAL,
     TuyaBLEMeshLight,
+    _build_turn_on_command,
     async_setup_entry,
     brightness_to_device,
     brightness_to_ha,
@@ -660,3 +661,86 @@ class TestTransitions:
 
         assert task.cancelled() or task.done()
         assert light._transition_task is None
+
+
+@pytest.mark.requires_ha
+class TestBuildTurnOnCommand:
+    """Tests for _build_turn_on_command() module-level helper."""
+
+    def test_no_target_sets_power_on(self) -> None:
+        """No parameters → power_on=True, brightness=None."""
+        cmd = _build_turn_on_command(
+            brightness=None,
+            color_temp=None,
+            rgb_color=None,
+            has_target=False,
+            current_mode=0,
+        )
+        assert cmd.power_on is True
+        assert cmd.brightness is None
+        assert cmd.color_temp is None
+        assert cmd.rgb is None
+
+    def test_brightness_ct_mode_uses_white_scale(self) -> None:
+        """mode=0 + brightness only → white scale (1-100), use_color=False."""
+        # HA brightness 255 → device white brightness 100
+        cmd = _build_turn_on_command(
+            brightness=255,
+            color_temp=None,
+            rgb_color=None,
+            has_target=True,
+            current_mode=0,
+        )
+        assert cmd.use_color_brightness is False
+        assert cmd.brightness == brightness_to_device(255)
+        assert cmd.power_on is False
+
+    def test_brightness_rgb_mode_uses_color_scale(self) -> None:
+        """mode=1 + brightness only → color scale (0-255), use_color=True."""
+        # HA brightness 128 → device color brightness 128 (same scale)
+        cmd = _build_turn_on_command(
+            brightness=128,
+            color_temp=None,
+            rgb_color=None,
+            has_target=True,
+            current_mode=1,
+        )
+        assert cmd.use_color_brightness is True
+        assert cmd.brightness == 128  # color scale 0-255, identity
+
+    def test_rgb_forces_color_scale(self) -> None:
+        """rgb_color supplied → use_color_brightness=True regardless of mode."""
+        cmd = _build_turn_on_command(
+            brightness=200,
+            color_temp=None,
+            rgb_color=(255, 128, 0),
+            has_target=True,
+            current_mode=0,  # CT mode, but RGB overrides
+        )
+        assert cmd.use_color_brightness is True
+        assert cmd.rgb == (255, 128, 0)
+
+    def test_color_temp_conversion(self) -> None:
+        """mireds 370 (warmest) → device 0."""
+        cmd = _build_turn_on_command(
+            brightness=None,
+            color_temp=370,
+            rgb_color=None,
+            has_target=True,
+            current_mode=0,
+        )
+        assert cmd.color_temp == color_temp_to_device(370)  # device 0
+
+    def test_ct_request_overrides_mode(self) -> None:
+        """CT request in RGB mode → use_color_brightness=False (switching to CT)."""
+        # When a CT target is supplied, we switch to white-brightness scale
+        # regardless of current RGB mode.
+        cmd = _build_turn_on_command(
+            brightness=200,
+            color_temp=260,
+            rgb_color=None,
+            has_target=True,
+            current_mode=1,  # currently in RGB mode
+        )
+        assert cmd.use_color_brightness is False
+        assert cmd.color_temp == color_temp_to_device(260)
