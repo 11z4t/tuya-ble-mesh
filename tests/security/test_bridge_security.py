@@ -44,21 +44,8 @@ class TestHTTPHeaderInjection:
 class TestPathTraversal:
     """Verify HTTP path inputs are not vulnerable to traversal."""
 
-    def test_parse_http_body_empty_response(self) -> None:
-        """Empty response (no HTTP separator) raises MeshConnectionError."""
-        with pytest.raises(MeshConnectionError):
-            SIGMeshBridgeDevice._parse_http_body("")
-
-    def test_parse_http_body_no_separator(self) -> None:
-        """Response without header separator raises MeshConnectionError."""
-        with pytest.raises(MeshConnectionError):
-            SIGMeshBridgeDevice._parse_http_body("HTTP/1.1 200 OK")
-
-    def test_parse_http_body_malicious_body(self) -> None:
-        """Malicious body content should be returned as-is for json.loads to reject."""
-        response = "HTTP/1.1 200 OK\r\n\r\n<script>alert(1)</script>"
-        result = SIGMeshBridgeDevice._parse_http_body(response)
-        assert result == "<script>alert(1)</script>"
+    # NOTE: _parse_http_body tests removed - method was removed in FAS 7
+    # (commit 74be3e73) when bridge HTTP was migrated to aiohttp.
 
 
 class TestMACAddressNormalization:
