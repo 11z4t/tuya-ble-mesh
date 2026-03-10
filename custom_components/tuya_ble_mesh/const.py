@@ -99,3 +99,34 @@ KNOWN_VENDOR_IDS: dict[str, str] = {
     "0x0160": "AwoX",
     "0x0211": "Dimond/retsimx",
 }
+
+# --- Coordinator reconnection parameters ---
+# Exponential backoff for BLE reconnection
+RECONNECT_INITIAL_BACKOFF = 5.0  # seconds
+RECONNECT_MAX_BACKOFF = 300.0  # seconds
+RECONNECT_BACKOFF_MULTIPLIER = 2.0
+
+# Bridge-specific reconnect (shorter backoff for HTTP bridges)
+RECONNECT_BRIDGE_INITIAL_BACKOFF = 3.0  # seconds
+RECONNECT_BRIDGE_MAX_BACKOFF = 120.0  # seconds
+
+# Reconnect storm detection
+RECONNECT_STORM_WINDOW_SECONDS = 300  # 5 minutes
+
+# Max consecutive reconnect failures before giving up (0 = unlimited)
+DEFAULT_MAX_RECONNECT_FAILURES = 0
+
+# --- RSSI polling parameters ---
+# Adaptive polling interval bounds
+RSSI_MIN_INTERVAL = 30.0  # seconds (frequent changes)
+RSSI_MAX_INTERVAL = 300.0  # seconds (stable)
+RSSI_DEFAULT_INTERVAL = 60.0  # seconds (initial/fallback)
+RSSI_STABILITY_THRESHOLD = 3  # No changes for N cycles = stable
+
+# --- Sequence number persistence (SIG Mesh) ---
+SEQ_PERSIST_INTERVAL = 10  # Save seq every N commands
+SEQ_SAFETY_MARGIN = 100  # Add margin on restore to avoid replay
+SEQ_STORE_VERSION = 1  # Storage format version
+
+# --- Listener error tolerance ---
+MAX_CALLBACK_ERRORS = 3  # Remove broken callbacks after N failures

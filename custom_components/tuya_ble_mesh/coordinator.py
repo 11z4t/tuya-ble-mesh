@@ -3,14 +3,6 @@
 Subclasses DataUpdateCoordinator with update_interval=None (push-based).
 BLE notifications drive state updates via async_set_updated_data().
 Reconnection uses exponential backoff, triggered by disconnect callbacks.
-
-Error classification:
-  bridge_down      — HTTP bridge not reachable
-  device_offline   — Bridge up but device MAC not responding
-  mesh_auth        — Device found but credentials rejected
-  protocol         — Protocol negotiation / version mismatch
-  permanent        — Fatal error, no reconnect useful (e.g. unsupported device)
-  transient        — Temporary failure (timeout, flap), reconnect will fix
 """
 
 from __future__ import annotations
@@ -20,12 +12,31 @@ import logging
 import statistics
 import time
 from collections import deque
-from collections.abc import Callable
 from dataclasses import dataclass, field
-from enum import Enum
 from typing import TYPE_CHECKING, Union
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
+
+from .const import (
+    DEFAULT_MAX_RECONNECT_FAILURES,
+    DEFAULT_RECONNECT_STORM_THRESHOLD,
+    RECONNECT_BACKOFF_MULTIPLIER,
+    RECONNECT_BRIDGE_INITIAL_BACKOFF,
+    RECONNECT_BRIDGE_MAX_BACKOFF,
+    RECONNECT_INITIAL_BACKOFF,
+    RECONNECT_MAX_BACKOFF,
+    RECONNECT_STORM_WINDOW_SECONDS,
+    RSSI_DEFAULT_INTERVAL,
+    RSSI_MAX_INTERVAL,
+    RSSI_MIN_INTERVAL,
+    RSSI_STABILITY_THRESHOLD,
+    SEQ_PERSIST_INTERVAL,
+    SEQ_SAFETY_MARGIN,
+    SEQ_STORE_VERSION,
+)
+from .error_classifier import ErrorClass, ErrorClassifier
+from .polling_scheduler import PollingScheduler
+from .reconnection import ReconnectionStrategy
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -38,6 +49,7 @@ if TYPE_CHECKING:
     )
     from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
     from tuya_ble_mesh.sig_mesh_protocol import CompositionData
+
 # All supported device types that can be passed to the coordinator
 AnyMeshDevice = Union[
     "MeshDevice",
@@ -46,62 +58,17 @@ AnyMeshDevice = Union[
     "SIGMeshBridgeDevice",
 ]
 
-# RSSI refresh interval (seconds) - adaptive
-_RSSI_MIN_INTERVAL = 30.0  # Minimum when values change frequently
-_RSSI_MAX_INTERVAL = 300.0  # Maximum when stable
-_RSSI_DEFAULT_INTERVAL = 60.0  # Initial/fallback
-_RSSI_STABILITY_THRESHOLD = 3  # No changes for N cycles = stable
-
 _LOGGER = logging.getLogger(__name__)
 
 # Structured logging: MeshLogAdapter injects correlation ID + device MAC into records.
 # Falls back to plain _LOGGER if lib is not importable (tests without full lib).
 try:
-    from tuya_ble_mesh.logging_context import (
-        MeshLogAdapter,
-        mesh_operation,
-    )
+    from tuya_ble_mesh.logging_context import MeshLogAdapter
 
     _MESH_LOGGER: logging.Logger | MeshLogAdapter = MeshLogAdapter(logging.getLogger(__name__), {})
     _HAS_MESH_LOGGER = True
 except ImportError:  # pragma: no cover — lib always present in production
     _HAS_MESH_LOGGER = False
-
-# Reconnect backoff parameters
-_INITIAL_BACKOFF = 5.0
-_MAX_BACKOFF = 300.0
-_BACKOFF_MULTIPLIER = 2.0
-
-# Bridge-specific reconnect parameters (shorter backoff for HTTP bridges)
-_BRIDGE_INITIAL_BACKOFF = 3.0
-_BRIDGE_MAX_BACKOFF = 120.0
-
-# Reconnect storm detection: threshold reconnects within window (seconds)
-_STORM_WINDOW_SECONDS = 300  # 5 minutes
-_STORM_DEFAULT_THRESHOLD = 10
-
-# Max consecutive reconnect failures before giving up (0 = unlimited)
-_DEFAULT_MAX_RECONNECT_FAILURES = 0
-
-
-class ErrorClass(str, Enum):
-    """Classification of connection/protocol errors for repair creation."""
-
-    BRIDGE_DOWN = "bridge_down"
-    DEVICE_OFFLINE = "device_offline"
-    MESH_AUTH = "mesh_auth"
-    PROTOCOL = "protocol"
-    PERMANENT = "permanent"
-    TRANSIENT = "transient"
-    UNKNOWN = "unknown"
-
-# Sequence number persistence
-_SEQ_PERSIST_INTERVAL = 10  # Save seq every N commands
-_SEQ_SAFETY_MARGIN = 100  # Add margin on restore to avoid replay
-_SEQ_STORE_VERSION = 1
-
-# Listener error tolerance: remove broken callbacks after this many consecutive failures
-_MAX_CALLBACK_ERRORS = 3
 
 
 @dataclass(slots=True)
@@ -132,7 +99,6 @@ class ConnectionStatistics:
     """Connection and performance statistics for diagnostics."""
 
     connect_time: float | None = None  # Unix timestamp of last successful connect
-    total_reconnects: int = 0
     total_errors: int = 0
     connection_errors: int = 0
     command_errors: int = 0
@@ -143,9 +109,6 @@ class ConnectionStatistics:
     connection_uptime: float = 0.0  # Total seconds connected
     last_disconnect_time: float | None = None
     avg_response_time: float = 0.0  # Average response time in seconds
-    # Reconnect storm tracking
-    reconnect_times: deque[float] = field(default_factory=lambda: deque(maxlen=50))
-    storm_detected: bool = False
 
 
 class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
@@ -163,6 +126,8 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         *,
         hass: HomeAssistant | None = None,
         entry_id: str | None = None,
+        max_reconnect_failures: int | None = None,
+        storm_threshold: int | None = None,
     ) -> None:
         if hass is not None:
             super().__init__(
@@ -175,7 +140,6 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         self._state = TuyaBLEMeshDeviceState()
         self._reconnect_task: asyncio.Task[None] | None = None
         self._rssi_task: asyncio.Task[None] | None = None
-        self._backoff = _INITIAL_BACKOFF
         self._running = False
 
         # Sequence number persistence (SIG Mesh only)
@@ -185,21 +149,34 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         self._seq_command_count = 0
         self._seq_persist_task: asyncio.Task[None] | None = None
 
-        # Adaptive polling - track state change frequency
-        self._rssi_interval = _RSSI_DEFAULT_INTERVAL
-        self._state_change_counter = 0
-        self._stable_cycles = 0
-
         # Connection statistics for diagnostics
         self._stats = ConnectionStatistics()
 
         # Entry name for repair issue placeholders (set externally if needed)
         self.entry_name: str = ""
-        self._storm_threshold: int = _STORM_DEFAULT_THRESHOLD
 
-        # Consecutive failure tracking for max reconnect limit
-        self._max_reconnect_failures: int = _DEFAULT_MAX_RECONNECT_FAILURES
-        self._consecutive_failures: int = 0
+        # Reconnection strategy with exponential backoff
+        self._reconnection = ReconnectionStrategy(
+            initial_backoff=RECONNECT_INITIAL_BACKOFF,
+            max_backoff=RECONNECT_MAX_BACKOFF,
+            multiplier=RECONNECT_BACKOFF_MULTIPLIER,
+            bridge_initial_backoff=RECONNECT_BRIDGE_INITIAL_BACKOFF,
+            bridge_max_backoff=RECONNECT_BRIDGE_MAX_BACKOFF,
+            storm_window_seconds=RECONNECT_STORM_WINDOW_SECONDS,
+            storm_threshold=storm_threshold or DEFAULT_RECONNECT_STORM_THRESHOLD,
+            max_failures=max_reconnect_failures or DEFAULT_MAX_RECONNECT_FAILURES,
+        )
+
+        # Adaptive RSSI polling scheduler
+        self._polling = PollingScheduler(
+            min_interval=RSSI_MIN_INTERVAL,
+            max_interval=RSSI_MAX_INTERVAL,
+            default_interval=RSSI_DEFAULT_INTERVAL,
+            stability_threshold=RSSI_STABILITY_THRESHOLD,
+        )
+
+        # Error classifier for connection failures
+        self._error_classifier = ErrorClassifier()
 
     async def _async_update_data(self) -> None:
         """No-op — state updates arrive via BLE notifications."""
@@ -277,17 +254,19 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         changed = self._state.is_on != on
         self._state.is_on = on
         self._state.available = True
-        self._backoff = _INITIAL_BACKOFF
+
+        # Reset reconnection backoff on successful update
+        is_bridge = self._is_bridge_device()
+        self._reconnection.reset(is_bridge=is_bridge)
 
         # Adaptive polling: track state changes
         if changed:
-            self._state_change_counter += 1
-            self._stable_cycles = 0
-            self._adjust_polling_interval()
+            self._polling.record_change()
+            self._polling.adjust_interval()
 
         # Periodic seq persistence
         self._seq_command_count += 1
-        if self._seq_command_count >= _SEQ_PERSIST_INTERVAL:
+        if self._seq_command_count >= SEQ_PERSIST_INTERVAL:
             self._seq_command_count = 0
             self._seq_persist_task = asyncio.create_task(self._save_seq())
 
@@ -325,13 +304,15 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         self._state.color_brightness = status.color_brightness
         self._state.is_on = status.white_brightness > 0 or status.color_brightness > 0
         self._state.available = True
-        self._backoff = _INITIAL_BACKOFF
+
+        # Reset reconnection backoff on successful update
+        is_bridge = self._is_bridge_device()
+        self._reconnection.reset(is_bridge=is_bridge)
 
         # Adaptive polling: track state changes
         if changed:
-            self._state_change_counter += 1
-            self._stable_cycles = 0
-            self._adjust_polling_interval()
+            self._polling.record_change()
+            self._polling.adjust_interval()
 
         _LOGGER.debug(
             "Status update: on=%s mode=%d bright=%d temp=%d rgb=(%d,%d,%d) cbright=%d (changed=%s)",
@@ -428,10 +409,6 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         self._state.available = False
         self._stop_rssi_polling()
 
-        # Use bridge-specific backoff if this is a bridge device
-        if self._is_bridge_device():
-            self._backoff = _BRIDGE_INITIAL_BACKOFF
-
         self._dispatch_update()
         self._schedule_reconnect()
 
@@ -450,19 +427,19 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
         self._seq_store = Store(
             self._hass,
-            _SEQ_STORE_VERSION,
+            SEQ_STORE_VERSION,
             f"tuya_ble_mesh.seq.{self._entry_id}",
         )
 
         data = await self._seq_store.async_load()
         if data is not None and "seq" in data:
-            restored_seq = data["seq"] + _SEQ_SAFETY_MARGIN
+            restored_seq = data["seq"] + SEQ_SAFETY_MARGIN
             self._device.set_seq(restored_seq)
             _LOGGER.info(
                 "Restored seq=%d (stored=%d + margin=%d)",
                 restored_seq,
                 data["seq"],
-                _SEQ_SAFETY_MARGIN,
+                SEQ_SAFETY_MARGIN,
             )
 
     async def _save_seq(self) -> None:
@@ -503,7 +480,8 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             self._stats.connect_time = time.time()
             self._state.available = True
             self._state.firmware_version = self._device.firmware_version
-            self._backoff = _INITIAL_BACKOFF
+            is_bridge = self._is_bridge_device()
+            self._reconnection.reset(is_bridge=is_bridge)
             self._start_rssi_polling()
             _LOGGER.info("Coordinator started for %s (%.2fs)", self._device.address, response_time)
             self._log_connect_metrics(response_time)
@@ -586,74 +564,29 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
         self._reconnect_task = asyncio.create_task(self._reconnect_loop())
 
-    def _classify_error(self, err: Exception) -> ErrorClass:
-        """Classify a connection error into a category for repair creation.
-
-        Uses exception type name and message keywords to determine root cause.
-        """
-        err_type = type(err).__name__.lower()
-        err_msg = str(err).lower()
-
-        if "timeout" in err_type or "timeout" in err_msg:
-            return ErrorClass.TRANSIENT
-        if "auth" in err_type or "auth" in err_msg or "password" in err_msg or "credential" in err_msg:
-            return ErrorClass.MESH_AUTH
-        if "protocol" in err_type or "protocol" in err_msg or "version" in err_msg:
-            return ErrorClass.PROTOCOL
-        if "connection refused" in err_msg or "unreachable" in err_msg or "no route" in err_msg:
-            return ErrorClass.BRIDGE_DOWN
-        if "not found" in err_msg or "device not found" in err_msg:
-            return ErrorClass.DEVICE_OFFLINE
-        if "vendor" in err_msg or "unsupported" in err_msg:
-            return ErrorClass.PERMANENT
-        return ErrorClass.UNKNOWN
-
-    def _check_reconnect_storm(self) -> bool:
-        """Return True if reconnect attempts indicate a storm (tight loop).
-
-        Prunes the reconnect_times deque to the tracking window first.
-        """
-        now = time.time()
-        cutoff = now - _STORM_WINDOW_SECONDS
-        while self._stats.reconnect_times and self._stats.reconnect_times[0] < cutoff:
-            self._stats.reconnect_times.popleft()
-        return len(self._stats.reconnect_times) >= self._storm_threshold
-
     async def _reconnect_loop(self) -> None:
         """Attempt reconnection with exponential backoff.
 
         On success: clears connectivity repair issues, resets failure counter,
         marks entities available (triggers HA state update).
         On failure: classifies error, checks for storm, creates repair if needed.
-        Bridge devices use shorter backoff (_BRIDGE_MAX_BACKOFF).
-        Respects _max_reconnect_failures limit (0 = unlimited).
+        Bridge devices use shorter backoff.
         """
         is_bridge = self._is_bridge_device()
-        max_backoff = _BRIDGE_MAX_BACKOFF if is_bridge else _MAX_BACKOFF
 
         while self._running:
             # Check max reconnect failure limit
-            if (
-                self._max_reconnect_failures > 0
-                and self._consecutive_failures >= self._max_reconnect_failures
-            ):
+            if self._reconnection.should_give_up():
                 _LOGGER.error(
-                    "Max reconnect failures (%d) reached for %s — giving up",
-                    self._max_reconnect_failures,
+                    "Max reconnect failures reached for %s — giving up",
                     self._device.address,
                 )
                 self._state.available = False
                 self._dispatch_update()
                 return
 
-            _LOGGER.info(
-                "Reconnecting to %s in %.0fs (attempt %d%s)",
-                self._device.address,
-                self._backoff,
-                self._consecutive_failures + 1,
-                ", bridge" if is_bridge else "",
-            )
-            await asyncio.sleep(self._backoff)
+            # Wait with exponential backoff
+            await self._reconnection.wait_before_retry(is_bridge=is_bridge)
 
             if not self._running:
                 break
@@ -664,13 +597,10 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                 response_time = time.monotonic() - start_time
                 self._stats.response_times.append(response_time)
                 self._stats.connect_time = time.time()
-                self._stats.total_reconnects += 1
-                self._stats.reconnect_times.append(time.time())
                 self._state.available = True
                 self._state.firmware_version = self._device.firmware_version
-                self._backoff = _BRIDGE_INITIAL_BACKOFF if is_bridge else _INITIAL_BACKOFF
-                self._consecutive_failures = 0
-                self._stats.storm_detected = False
+                self._reconnection.reset(is_bridge=is_bridge)
+                self._reconnection.record_success()
                 self._start_rssi_polling()
                 _LOGGER.info("Reconnected to %s (%.2fs)", self._device.address, response_time)
                 self._log_connect_metrics(response_time)
@@ -698,16 +628,15 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                 self._stats.connection_errors += 1
                 self._stats.last_error = str(err)
                 self._stats.last_error_time = time.time()
-                self._consecutive_failures += 1
-                error_class = self._classify_error(err)
+                error_class = self._error_classifier.classify(err)
                 self._stats.last_error_class = error_class.value
-                self._stats.reconnect_times.append(time.time())
+                self._reconnection.record_failure(is_bridge=is_bridge)
 
                 _LOGGER.warning(
                     "Reconnect failed for %s (class=%s, consecutive=%d)",
                     self._device.address,
                     error_class.value,
-                    self._consecutive_failures,
+                    self._reconnection.consecutive_failures,
                     exc_info=True,
                 )
 
@@ -722,56 +651,22 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                     return
 
                 # Detect reconnect storm and create repair issue (once per storm)
-                if self._hass is not None and self._check_reconnect_storm() and not self._stats.storm_detected:
-                    self._stats.storm_detected = True
+                if self._hass is not None and self._reconnection.check_storm():
                     from custom_components.tuya_ble_mesh.repairs import (
                         async_create_issue_reconnect_storm,
                     )
-                    asyncio.create_task(
+                    reconnect_stats = self._reconnection.statistics
+                    self._hass.async_create_task(
                         async_create_issue_reconnect_storm(
                             self._hass,
                             self.entry_name or self._device.address,
-                            len(self._stats.reconnect_times),
-                            _STORM_WINDOW_SECONDS // 60,
+                            len(reconnect_stats.reconnect_times),
+                            RECONNECT_STORM_WINDOW_SECONDS // 60,
                         )
                     )
 
                 self._state.available = False
-                self._backoff = min(self._backoff * _BACKOFF_MULTIPLIER, max_backoff)
                 self._dispatch_update()
-
-    # --- Adaptive polling ---
-
-    def _adjust_polling_interval(self) -> None:
-        """Adjust RSSI polling interval based on state change frequency.
-
-        Decreases interval when values change frequently (more responsive),
-        increases when stable (lower overhead).
-        """
-        # More changes = shorter interval (faster polling)
-        if self._state_change_counter >= 2:
-            # Frequent changes detected
-            self._rssi_interval = max(
-                _RSSI_MIN_INTERVAL,
-                self._rssi_interval * 0.75,  # Decrease by 25%
-            )
-            _LOGGER.debug(
-                "Adaptive polling: frequent changes detected, interval=%.1fs",
-                self._rssi_interval,
-            )
-        elif self._stable_cycles >= _RSSI_STABILITY_THRESHOLD:
-            # Stable state - increase interval
-            self._rssi_interval = min(
-                _RSSI_MAX_INTERVAL,
-                self._rssi_interval * 1.5,  # Increase by 50%
-            )
-            _LOGGER.debug(
-                "Adaptive polling: stable state, interval=%.1fs",
-                self._rssi_interval,
-            )
-
-        # Reset change counter after adjustment
-        self._state_change_counter = 0
 
     # --- RSSI polling ---
 
@@ -802,7 +697,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         """
         try:
             while self._running and self._state.available:
-                await asyncio.sleep(self._rssi_interval)
+                await asyncio.sleep(self._polling.current_interval)
                 if not self._running or not self._state.available:
                     break
 
@@ -833,11 +728,10 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
                         # Track stability: if RSSI similar (±2 dBm) = stable cycle
                         if prev_rssi is not None and abs(ble_device.rssi - prev_rssi) <= 2:  # type: ignore[attr-defined]
-                            self._stable_cycles += 1
-                            if self._stable_cycles >= _RSSI_STABILITY_THRESHOLD:
-                                self._adjust_polling_interval()
+                            self._polling.record_stable_cycle()
+                            self._polling.adjust_interval()
                         else:
-                            self._stable_cycles = 0
+                            self._polling.record_change()
 
                 except Exception:
                     _LOGGER.debug("RSSI update failed (ignored)", exc_info=True)
