@@ -252,6 +252,8 @@ class SIGMeshProvisioner:
                 with contextlib.suppress(Exception):
                     await client.disconnect()
                 _LOGGER.info("Provisioning session disconnected from %s", address.upper())
+                # PLAT-506: Give BLE adapter time to release connection slot
+                await asyncio.sleep(0.5)
 
     # ------------------------------------------------------------------ #
     # Private helpers                                                      #
@@ -280,6 +282,7 @@ class SIGMeshProvisioner:
         last_exc: Exception | None = None
         scan_failures = 0
         connect_failures = 0
+        out_of_slots_failures = 0
 
         for attempt in range(1, max_retries + 1):
             try:
@@ -367,27 +370,64 @@ class SIGMeshProvisioner:
                     max_retries,
                     timeout,
                 )
-                await asyncio.sleep(2.0)
+                # PLAT-506: Longer backoff to allow connection slot release
+                backoff = min(3.0 * (1.5 ** (attempt - 1)), 15.0)
+                await asyncio.sleep(backoff)
             except Exception as exc:
                 last_exc = exc
                 connect_failures += 1
-                _LOGGER.warning(
-                    "Connect attempt %d/%d failed: %s: %s",
-                    attempt,
-                    max_retries,
-                    type(exc).__name__,
-                    str(exc),
+
+                # PLAT-506: Special handling for out-of-slots errors
+                exc_str = str(exc).lower()
+                is_slot_error = (
+                    "out of connection slots" in exc_str
+                    or "bleakoutofconnectionslotserror" in exc_str
+                    or "no backend with an available connection slot" in exc_str
                 )
-                await asyncio.sleep(2.0)
+
+                if is_slot_error:
+                    out_of_slots_failures += 1
+                    _LOGGER.warning(
+                        "Connect attempt %d/%d failed: BLE adapter out of connection slots. "
+                        "Waiting for slots to be released...",
+                        attempt,
+                        max_retries,
+                    )
+                    # Longer backoff when slots are exhausted
+                    backoff = min(5.0 * (1.5 ** (attempt - 1)), 20.0)
+                    await asyncio.sleep(backoff)
+                else:
+                    _LOGGER.warning(
+                        "Connect attempt %d/%d failed: %s: %s",
+                        attempt,
+                        max_retries,
+                        type(exc).__name__,
+                        str(exc),
+                    )
+                    # Standard backoff for other errors
+                    backoff = min(3.0 * (1.5 ** (attempt - 1)), 15.0)
+                    await asyncio.sleep(backoff)
 
         # Build detailed error message
-        error_details = f"scan_failures={scan_failures}, connect_failures={connect_failures}"
-        msg = (
-            f"Failed to connect to {address} after {max_retries} attempts "
-            f"({error_details}). "
-            f"Check device is in range, not already provisioned, and advertising. "
-            f"Last error: {type(last_exc).__name__ if last_exc else 'unknown'}"
+        error_details = (
+            f"scan_failures={scan_failures}, "
+            f"connect_failures={connect_failures}, "
+            f"out_of_slots={out_of_slots_failures}"
         )
+        msg = (
+            f"Failed to connect to {address} after {max_retries} attempts ({error_details}). "
+        )
+        if out_of_slots_failures > 0:
+            msg += (
+                "BLE adapter ran out of connection slots. "
+                "Try: 1) Reduce number of concurrent BLE connections, "
+                "2) Restart Bluetooth service, or 3) Use a different BLE adapter. "
+            )
+        else:
+            msg += (
+                "Check device is in range, not already provisioned, and advertising. "
+            )
+        msg += f"Last error: {type(last_exc).__name__ if last_exc else 'unknown'}"
         raise ProvisioningError(msg) from last_exc
 
     async def _run_exchange(self, client: BleakClient) -> ProvisioningResult:
