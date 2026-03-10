@@ -45,6 +45,25 @@ def make_mock_entry(entry_id: str = "test_entry_id", title: str = "Test Device")
 
 _PATCH_MESH_DEVICE = "tuya_ble_mesh.device.MeshDevice"
 _PATCH_COORDINATOR = "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator"
+_PATCH_DEVICE_REGISTRY = "custom_components.tuya_ble_mesh.TuyaBLEMeshDeviceRegistry"
+
+
+@pytest.fixture(autouse=True)
+def mock_device_registry() -> Any:
+    """Auto-mock TuyaBLEMeshDeviceRegistry for all init tests.
+
+    Prevents real HA Store access (which requires a live event loop)
+    during unit tests.
+    """
+    mock_registry = MagicMock()
+    mock_registry.async_load = AsyncMock()
+    mock_registry.async_save = AsyncMock()
+    mock_registry.register_device = MagicMock(return_value=MagicMock())
+    mock_registry.record_connection = MagicMock()
+    mock_registry.record_error = MagicMock()
+    mock_registry.update_firmware_version = MagicMock()
+    with patch(_PATCH_DEVICE_REGISTRY, return_value=mock_registry):
+        yield mock_registry
 
 
 def _make_patches() -> tuple[MagicMock, MagicMock]:

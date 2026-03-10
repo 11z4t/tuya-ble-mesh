@@ -40,6 +40,7 @@ from custom_components.tuya_ble_mesh.const import (
     DOMAIN,
     PLATFORMS,
 )
+from custom_components.tuya_ble_mesh.device_registry import TuyaBLEMeshDeviceRegistry
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -71,6 +72,7 @@ class TuyaBLEMeshRuntimeData:
     coordinator: TuyaBLEMeshCoordinator
     device_info: DeviceInfo
     cancel_listeners: list[Callable[[], None]] = field(default_factory=list)
+    registry: TuyaBLEMeshDeviceRegistry | None = None
 
 
 # Type alias for typed config entry access in platform files
@@ -196,14 +198,29 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         connections={("mac", mac_address)},
     )
 
+    # Initialize device registry and register this device
+    registry = TuyaBLEMeshDeviceRegistry(hass)
+    await registry.async_load()
+    registry.register_device(mac_address, entry.title, device_type or "unknown")
+
     # Store runtime data BEFORE async_start to avoid race condition
     # (callbacks may fire during async_start and need access to runtime_data)
     entry.runtime_data = TuyaBLEMeshRuntimeData(
         coordinator=coordinator,
         device_info=device_info,
+        registry=registry,
     )
 
     await coordinator.async_start()
+
+    # Update registry with connection result
+    if coordinator.state.available:
+        registry.record_connection(mac_address)
+        if coordinator.state.firmware_version:
+            registry.update_firmware_version(mac_address, coordinator.state.firmware_version)
+        await registry.async_save()
+    else:
+        registry.record_error(mac_address, "initial_connection_failed")
 
     # Forward platform setup even if device is unavailable —
     # entities will show as "unavailable" until connection succeeds
