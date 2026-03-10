@@ -56,19 +56,6 @@ _RSSI_STABILITY_THRESHOLD = 3  # No changes for N cycles = stable
 
 _LOGGER = logging.getLogger(__name__)
 
-# Structured logging: MeshLogAdapter injects correlation ID + device MAC into records.
-# Falls back to plain _LOGGER if lib is not importable (tests without full lib).
-try:
-    from tuya_ble_mesh.logging_context import (
-        MeshLogAdapter,
-        mesh_operation,
-    )
-
-    _MESH_LOGGER: logging.Logger | MeshLogAdapter = MeshLogAdapter(logging.getLogger(__name__), {})
-    _HAS_MESH_LOGGER = True
-except ImportError:  # pragma: no cover — lib always present in production
-    _HAS_MESH_LOGGER = False
-
 # Reconnect backoff parameters
 _INITIAL_BACKOFF = 5.0
 _MAX_BACKOFF = 300.0

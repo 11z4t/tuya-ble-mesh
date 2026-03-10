@@ -23,10 +23,16 @@
       "energy": {
         "default": "mdi:lightning-bolt"
       }
+    },
+    "update": {
+      "firmware_update": {
+        "default": "mdi:package-up"
+      }
     }
   },
   "services": {
     "identify": "mdi:magnify",
-    "set_log_level": "mdi:text-box-outline"
+    "set_log_level": "mdi:text-box-outline",
+    "get_diagnostics": "mdi:information-outline"
   }
 }
