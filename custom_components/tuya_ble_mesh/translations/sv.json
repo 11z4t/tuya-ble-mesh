@@ -1,5 +1,6 @@
 {
   "config": {
+    "flow_title": "{name}",
     "step": {
       "user": {
         "title": "Tuya BLE Mesh-enhet",
@@ -31,26 +32,14 @@
         }
       },
       "sig_plug": {
-        "title": "SIG Mesh Plug-konfiguration",
-        "description": "Konfigurera SIG Mesh-parametrar f\u00f6r {name}.\n\nMesh-nycklar laddas fr\u00e5n /tmp/mesh_keys.json om tillg\u00e4nglig.",
-        "data": {
-          "unicast_target": "M\u00e5l-unicast-adress (hex)",
-          "unicast_our": "V\u00e5r unicast-adress (hex)",
-          "iv_index": "IV-index",
-          "net_key": "N\u00e4tverksnyckel (32 hex-tecken)",
-          "dev_key": "Enhetsnyckel (32 hex-tecken)",
-          "app_key": "Applikationsnyckel (32 hex-tecken)"
-        }
+        "title": "Konfiguration misslyckades \u2014 F\u00f6rs\u00f6k igen?",
+        "description": "Kunde inte konfigurera **{name}**.\n\nKontrollera att enheten \u00e4r fabriksåterst\u00e4lld (blinkar) och n\u00e4ra en Bluetooth-adapter. Klicka F\u00f6rs\u00f6k igen.",
+        "data": {}
       },
       "confirm": {
-        "title": "Bekr\u00e4fta enhet",
-        "description": "Hittade {name}. V\u00e4lj enhetstyp och mesh-uppgifter.",
-        "data": {
-          "device_type": "Enhetstyp",
-          "mesh_name": "Mesh-namn",
-          "mesh_password": "Mesh-l\u00f6senord",
-          "mesh_address": "Mesh-adress (0 = auto)"
-        }
+        "title": "L\u00e4gg till {name}?",
+        "description": "Hittade **{category}**-enhet:\n\n- **MAC:** {mac}\n- **Signal:** {rssi} dBm\n\nKlicka Skicka f\u00f6r att konfigurera enheten.",
+        "data": {}
       }
     },
     "error": {

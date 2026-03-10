@@ -1,5 +1,6 @@
 {
   "config": {
+    "flow_title": "{name}",
     "step": {
       "user": {
         "title": "Tuya BLE Mesh Device",
@@ -31,19 +32,14 @@
         }
       },
       "sig_plug": {
-        "title": "SIG Mesh Plug \u2014 Auto Provisioning",
-        "description": "The device **{name}** will be provisioned automatically.\n\nA random NetKey and AppKey are generated. The DevKey is derived from the ECDH provisioning exchange. All keys are saved in the Home Assistant config database.\n\nEnsure the device is in factory-reset state (advertising Provisioning Service 0x1827) and within BLE range, then click Submit.",
+        "title": "Setup failed \u2014 Retry?",
+        "description": "Could not set up **{name}**.\n\nMake sure the device is factory-reset (blinking) and close to a Bluetooth adapter, then click Retry.",
         "data": {}
       },
       "confirm": {
-        "title": "Confirm Device",
-        "description": "Found {name}. Choose device type and mesh credentials.",
-        "data": {
-          "device_type": "Device Type",
-          "mesh_name": "Mesh Name",
-          "mesh_password": "Mesh Password",
-          "mesh_address": "Mesh Address (0 = auto)"
-        }
+        "title": "Add {name}?",
+        "description": "Discovered **{category}** device:\n\n- **MAC:** {mac}\n- **Signal:** {rssi} dBm\n\nClick Submit to set up this device.",
+        "data": {}
       },
       "reauth_confirm": {
         "title": "Re-enter Mesh Credentials",
