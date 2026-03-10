@@ -83,14 +83,10 @@ _HEX_KEY_PATTERN = re.compile(r"^[0-9A-Fa-f]{32}$")
 _VENDOR_ID_PATTERN = re.compile(r"^(?:0[xX])?[0-9A-Fa-f]{1,4}$")
 _BRIDGE_TEST_TIMEOUT = 5
 
-# Allowed bridge host pattern: IPv4, IPv6, or hostname
-_BRIDGE_HOST_PATTERN = re.compile(
-    r"^(?:"
-    r"(?:\d{1,3}\.){3}\d{1,3}"  # IPv4
-    r"|(?:[0-9a-fA-F:]+)"  # IPv6
-    r"|(?:[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?"
-    r"(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*)"  # hostname
-    r")$"
+# Hostname-only pattern — IPs are validated via ipaddress.ip_address() below
+_HOSTNAME_PATTERN = re.compile(
+    r"^[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?"
+    r"(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?)*$"
 )
 
 # Unicast addresses used during provisioning
@@ -209,6 +205,10 @@ def _is_ssrf_risk(host: str) -> bool:
 def _validate_bridge_host(host: str) -> str | None:
     """Validate bridge host is a plain hostname or IP, not a URL.
 
+    IP addresses (both IPv4 and IPv6) are validated strictly via
+    ipaddress.ip_address(), then checked for SSRF risk.
+    Hostnames are validated against RFC-1123 pattern.
+
     Returns None if valid, error key string if invalid.
     """
     host = host.strip()
@@ -217,10 +217,21 @@ def _validate_bridge_host(host: str) -> str | None:
     # Reject URLs and path-like values
     if "://" in host or "/" in host or "\\" in host:
         return "invalid_bridge_host"
-    if not _BRIDGE_HOST_PATTERN.match(host):
+    # Reject hex-encoded IPs (SSRF bypass, e.g. 0x7f000001)
+    if host.lower().startswith("0x"):
         return "invalid_bridge_host"
-    # SSRF protection: reject private/loopback IPs
-    if _is_ssrf_risk(host):
+    # Try strict IP address validation (handles both IPv4 and IPv6)
+    try:
+        ipaddress.ip_address(host)
+        # Valid IP address — apply SSRF protection
+        if _is_ssrf_risk(host):
+            return "invalid_bridge_host"
+        return None
+    except ValueError:
+        pass  # Not a numeric IP — validate as hostname
+
+    # Hostname validation (RFC-1123)
+    if not _HOSTNAME_PATTERN.match(host):
         return "invalid_bridge_host"
     return None
 
@@ -1160,6 +1171,90 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             description_placeholders={
                 "name": (self._discovery_info.get("name", "") if self._discovery_info else ""),
             },
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle user-initiated reconfiguration of connection settings.
+
+        Allows updating bridge host/port (bridge devices) or mesh name/
+        password/vendor-ID (direct BLE devices) without removing and
+        re-adding the config entry. The underlying MAC address and device
+        type are preserved unchanged.
+        """
+        entry = self.hass.config_entries.async_get_entry(self.context.get("entry_id", ""))
+        if entry is None:
+            return self.async_abort(reason="entry_not_found")
+
+        device_type = entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
+        is_bridge = device_type in (DEVICE_TYPE_SIG_BRIDGE_PLUG, DEVICE_TYPE_TELINK_BRIDGE_LIGHT)
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            if is_bridge:
+                host = user_input.get(CONF_BRIDGE_HOST, "").strip()
+                host_error = _validate_bridge_host(host)
+                if host_error:
+                    errors[CONF_BRIDGE_HOST] = host_error
+                else:
+                    port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+                    bridge_ok = await _test_bridge_with_session(self.hass, host, port)
+                    if not bridge_ok:
+                        errors["base"] = "cannot_connect"
+            else:
+                name = user_input.get(CONF_MESH_NAME, "")
+                pwd = user_input.get(CONF_MESH_PASSWORD, "")
+                cred_error = _validate_mesh_credentials(name, pwd)
+                if cred_error:
+                    errors["base"] = cred_error
+                if not cred_error and CONF_VENDOR_ID in user_input:
+                    vendor_error = _validate_vendor_id(user_input[CONF_VENDOR_ID])
+                    if vendor_error:
+                        errors[CONF_VENDOR_ID] = vendor_error
+
+            if not errors:
+                new_data = {**entry.data, **user_input}
+                self.hass.config_entries.async_update_entry(entry, data=new_data)
+                await self.hass.config_entries.async_reload(entry.entry_id)
+                return self.async_abort(reason="reconfigure_successful")
+
+        # Build schema with current entry data as defaults
+        if is_bridge:
+            schema = vol.Schema(
+                {
+                    vol.Required(
+                        CONF_BRIDGE_HOST,
+                        default=entry.data.get(CONF_BRIDGE_HOST, ""),
+                    ): str,
+                    vol.Optional(
+                        CONF_BRIDGE_PORT,
+                        default=entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT),
+                    ): int,
+                }
+            )
+        else:
+            schema = vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_MESH_NAME,
+                        default=entry.data.get(CONF_MESH_NAME, ""),
+                    ): str,
+                    vol.Optional(
+                        CONF_MESH_PASSWORD,
+                        default=entry.data.get(CONF_MESH_PASSWORD, ""),
+                    ): str,
+                    vol.Optional(
+                        CONF_VENDOR_ID,
+                        default=entry.data.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID),
+                    ): str,
+                }
+            )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=schema,
             errors=errors,
         )
 
