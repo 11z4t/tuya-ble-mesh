@@ -203,7 +203,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         device_info=device_info,
     )
 
-    await coordinator.async_start()
+    # Start coordinator in background — never block HA startup.
+    # Entities will show as "unavailable" until BLE connection succeeds.
+    entry.async_create_background_task(
+        hass,
+        coordinator.async_start(),
+        f"tuya_ble_mesh_connect_{mac_address}",
+    )
 
     # Forward platform setup even if device is unavailable —
     # entities will show as "unavailable" until connection succeeds
