@@ -251,19 +251,17 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
     # Listeners are managed by DataUpdateCoordinator.async_add_listener()
     # and dispatched automatically when async_set_updated_data() is called.
 
-    def _notify_listeners(self) -> None:
-        """Notify all registered listeners of state changes.
+    def _dispatch_update(self) -> None:
+        """Thread-safe wrapper for async_set_updated_data.
 
-        Delegates to DataUpdateCoordinator.async_set_updated_data() which
-        triggers all registered listener callbacks. Listener errors are logged
-        but don't stop notification of other listeners.
+        BLE notification callbacks (Bleak) may fire on a background thread.
+        This ensures state updates are dispatched on the event loop thread.
         """
-        try:
+        if self._hass is not None:
+            self._hass.loop.call_soon_threadsafe(self.async_set_updated_data, None)
+        else:
+            # Standalone / test — assume we're on the event loop
             self.async_set_updated_data(None)
-        except Exception:
-            # DataUpdateCoordinator should already handle listener errors,
-            # but catch any unexpected exceptions to ensure robustness
-            _LOGGER.debug("Error notifying listeners", exc_info=True)
 
     def _on_onoff_update(self, on: bool) -> None:
         """Handle a GenericOnOff Status from a SIG Mesh device.
@@ -293,7 +291,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         # Only notify if state changed or device just became available (avoids
         # spurious HA entity writes when repeated identical status messages arrive)
         if changed or not was_available:
-            self.async_set_updated_data(None)
+            self._dispatch_update()
 
     def _on_status_update(self, status: StatusResponse) -> None:
         """Handle a status notification from the device.
@@ -347,7 +345,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         # Only notify if state changed or device just became available (avoids
         # spurious HA entity writes when repeated identical status messages arrive)
         if changed or not was_available:
-            self.async_set_updated_data(None)
+            self._dispatch_update()
 
     def _on_vendor_update(self, opcode: int, params: bytes) -> None:
         """Handle a Tuya vendor message from a SIG Mesh device.
@@ -384,7 +382,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
         if updated:
             self._state.available = True
-            self.async_set_updated_data(None)
+            self._dispatch_update()
 
     def _on_composition_update(self, comp: CompositionData) -> None:
         """Handle a Composition Data response from a SIG Mesh device.
@@ -396,7 +394,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         """
         self._state.firmware_version = self._device.firmware_version
         _LOGGER.debug("Composition Data received, firmware=%s", self._state.firmware_version)
-        self.async_set_updated_data(None)
+        self._dispatch_update()
 
     def _on_disconnect(self) -> None:
         """Handle device disconnect — mark unavailable and schedule reconnect.
@@ -430,7 +428,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         if self._is_bridge_device():
             self._backoff = _BRIDGE_INITIAL_BACKOFF
 
-        self.async_set_updated_data(None)
+        self._dispatch_update()
         self._schedule_reconnect()
 
     async def _load_seq(self) -> None:
@@ -518,7 +516,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             self._state.available = False
             self._schedule_reconnect()
 
-        self.async_set_updated_data(None)
+        self._dispatch_update()
 
     async def async_stop(self) -> None:
         """Stop the coordinator — disconnect and cancel reconnection."""
@@ -618,7 +616,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                     self._device.address,
                 )
                 self._state.available = False
-                self.async_set_updated_data(None)
+                self._dispatch_update()
                 return
 
             _LOGGER.info(
@@ -666,7 +664,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                     ):
                         async_delete_issue(self._hass, issue_id)
                 # Notify listeners — entities will update to available
-                self.async_set_updated_data(None)
+                self._dispatch_update()
                 return
             except Exception as err:
                 self._stats.total_errors += 1
@@ -693,7 +691,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                         self._device.address,
                     )
                     self._state.available = False
-                    self.async_set_updated_data(None)
+                    self._dispatch_update()
                     return
 
                 # Detect reconnect storm and create repair issue (once per storm)
@@ -713,7 +711,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
                 self._state.available = False
                 self._backoff = min(self._backoff * _BACKOFF_MULTIPLIER, max_backoff)
-                self.async_set_updated_data(None)
+                self._dispatch_update()
 
     # --- Adaptive polling ---
 
@@ -804,7 +802,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
                     if ble_device is not None and ble_device.rssi is not None:  # type: ignore[attr-defined]
                         self._state.rssi = ble_device.rssi  # type: ignore[attr-defined]
-                        self.async_set_updated_data(None)
+                        self._dispatch_update()
 
                         # Track stability: if RSSI similar (±2 dBm) = stable cycle
                         if prev_rssi is not None and abs(ble_device.rssi - prev_rssi) <= 2:  # type: ignore[attr-defined]

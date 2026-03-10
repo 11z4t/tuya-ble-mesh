@@ -49,6 +49,14 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+
+def _log_task_exception(task: asyncio.Task[Any]) -> None:
+    """Log exceptions from fire-and-forget tasks instead of silently swallowing."""
+    if task.cancelled():
+        return
+    if (exc := task.exception()) is not None:
+        _LOGGER.warning("Background task %s failed: %s", task.get_name(), exc)
+
 # BLE mesh serializes commands — limit to one concurrent update
 PARALLEL_UPDATES = 1
 
@@ -241,7 +249,11 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
         transition: float | None = kwargs.get(ATTR_TRANSITION)
         brightness = kwargs.get("brightness")
         color_temp_kelvin: int | None = kwargs.get(ATTR_COLOR_TEMP_KELVIN)
-        color_temp = round(1_000_000 / color_temp_kelvin) if color_temp_kelvin else None
+        color_temp = (
+            round(1_000_000 / color_temp_kelvin)
+            if color_temp_kelvin and color_temp_kelvin > 0
+            else None
+        )
         rgb_color: tuple[int, int, int] | None = kwargs.get(ATTR_RGB_COLOR)
         has_target = brightness is not None or color_temp is not None or rgb_color is not None
 
@@ -252,7 +264,7 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
                 self._run_transition(target_bright, target_temp, transition, target_rgb=rgb_color)
             )
             self._transition_task.add_done_callback(
-                lambda t: t.exception() if not t.cancelled() else None
+                _log_task_exception
             )
             return
 
@@ -342,7 +354,7 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
                 )
             )
             self._transition_task.add_done_callback(
-                lambda t: t.exception() if not t.cancelled() else None
+                _log_task_exception
             )
             return
 

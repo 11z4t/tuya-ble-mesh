@@ -80,6 +80,7 @@ class SIGMeshBridgeDevice:
         self._firmware_version: str | None = None
         self._last_on_state: bool = False
         self._cmd_lock = asyncio.Lock()
+        self._session: aiohttp.ClientSession | None = None
 
         self._onoff_callbacks: list[OnOffCallback] = []
         self._vendor_callbacks: list[VendorCallback] = []
@@ -180,8 +181,9 @@ class SIGMeshBridgeDevice:
         raise MeshConnectionError(msg)
 
     async def disconnect(self) -> None:
-        """Mark as disconnected."""
+        """Mark as disconnected and close HTTP session."""
         self._connected = False
+        await self._close_session()
         _LOGGER.info("Bridge device disconnected")
 
     async def send_power(self, on: bool, *, max_retries: int = _DEFAULT_MAX_RETRIES) -> None:
@@ -294,16 +296,28 @@ class SIGMeshBridgeDevice:
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
         return {"success": False, "error": "Timed out waiting for bridge result"}
 
+    def _get_session(self) -> aiohttp.ClientSession:
+        """Get or create a shared aiohttp session."""
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        return self._session
+
+    async def _close_session(self) -> None:
+        """Close the shared aiohttp session."""
+        if self._session is not None and not self._session.closed:
+            await self._session.close()
+            self._session = None
+
     async def _http_get(self, path: str, timeout: float = 5.0) -> dict[str, Any]:
         """Make an HTTP GET request to the bridge daemon using aiohttp."""
         url = f"{self._bridge_url}{path}"
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    url, timeout=aiohttp.ClientTimeout(total=timeout)
-                ) as resp:
-                    result: dict[str, Any] = await resp.json()
-                    return result
+            session = self._get_session()
+            async with session.get(
+                url, timeout=aiohttp.ClientTimeout(total=timeout)
+            ) as resp:
+                result: dict[str, Any] = await resp.json()
+                return result
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
             msg = f"Bridge HTTP GET {path} failed: {exc}"
             raise MeshConnectionError(msg) from exc
@@ -317,12 +331,12 @@ class SIGMeshBridgeDevice:
         """Make an HTTP POST request to the bridge daemon using aiohttp."""
         url = f"{self._bridge_url}{path}"
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    url, json=data, timeout=aiohttp.ClientTimeout(total=timeout)
-                ) as resp:
-                    result: dict[str, Any] = await resp.json()
-                    return result
+            session = self._get_session()
+            async with session.post(
+                url, json=data, timeout=aiohttp.ClientTimeout(total=timeout)
+            ) as resp:
+                result: dict[str, Any] = await resp.json()
+                return result
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
             msg = f"Bridge HTTP POST {path} failed: {exc}"
             raise MeshConnectionError(msg) from exc
@@ -372,6 +386,7 @@ class TelinkBridgeDevice:
         self._connected = False
         self._firmware_version: str | None = None
         self._mesh_id = 0
+        self._session: aiohttp.ClientSession | None = None
 
         # Track last known state for synthetic status responses
         self._mode = 0  # 0=white, 1=color
@@ -471,9 +486,22 @@ class TelinkBridgeDevice:
         msg = f"Bridge daemon not reachable at {self._bridge_host}:{self._bridge_port}"
         raise MeshConnectionError(msg)
 
+    def _get_session(self) -> aiohttp.ClientSession:
+        """Get or create a reusable HTTP session."""
+        if self._session is None or self._session.closed:
+            self._session = aiohttp.ClientSession()
+        return self._session
+
+    async def _close_session(self) -> None:
+        """Close the reusable HTTP session."""
+        if self._session is not None and not self._session.closed:
+            await self._session.close()
+            self._session = None
+
     async def disconnect(self) -> None:
-        """Mark device as disconnected (no active BLE teardown for bridge)."""
+        """Mark device as disconnected and close HTTP session."""
         self._connected = False
+        await self._close_session()
 
     def _fire_disconnect(self) -> None:
         """Fire disconnect callbacks."""
@@ -689,12 +717,12 @@ class TelinkBridgeDevice:
         """Make an HTTP GET request to the bridge daemon using aiohttp."""
         url = f"http://{self._bridge_host}:{self._bridge_port}{path}"
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(
-                    url, timeout=aiohttp.ClientTimeout(total=timeout)
-                ) as resp:
-                    result: dict[str, Any] = await resp.json()
-                    return result
+            session = self._get_session()
+            async with session.get(
+                url, timeout=aiohttp.ClientTimeout(total=timeout)
+            ) as resp:
+                result: dict[str, Any] = await resp.json()
+                return result
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
             msg = f"Bridge HTTP GET {path} failed: {exc}"
             raise MeshConnectionError(msg) from exc
@@ -708,12 +736,12 @@ class TelinkBridgeDevice:
         """Make an HTTP POST request to the bridge daemon using aiohttp."""
         url = f"http://{self._bridge_host}:{self._bridge_port}{path}"
         try:
-            async with aiohttp.ClientSession() as session:
-                async with session.post(
-                    url, json=data, timeout=aiohttp.ClientTimeout(total=timeout)
-                ) as resp:
-                    result: dict[str, Any] = await resp.json()
-                    return result
+            session = self._get_session()
+            async with session.post(
+                url, json=data, timeout=aiohttp.ClientTimeout(total=timeout)
+            ) as resp:
+                result: dict[str, Any] = await resp.json()
+                return result
         except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
             msg = f"Bridge HTTP POST {path} failed: {exc}"
             raise MeshConnectionError(msg) from exc
