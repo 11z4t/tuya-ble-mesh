@@ -1,17 +1,22 @@
 # Quality Scale Review
 
-Date: 2026-03-07
+> **Note:** This file is a historical checklist. For the current honest status,
+> see [QUALITY_STATUS.md](../QUALITY_STATUS.md) in the repo root.
+
+Date: 2026-03-07 (last updated 2026-03-10)
 Reviewer: Thor (VM 903)
 
 ## Current Status
 
-All rules in `quality_scale.yaml` are marked as `done`.
+Rules below reflect intended compliance. See QUALITY_STATUS.md for gaps.
 
-**Tiers achieved**:
-- ✅ Bronze (22 rules)
-- ✅ Silver (10 rules)
-- ✅ Gold (9 rules)
-- ✅ Platinum (4 rules)
+**Realistic tier: Silver / early Gold** (Platinum not yet achieved)
+
+**Rules marked done in quality_scale.yaml**:
+- ✅ Bronze (22 rules) — mostly met, see QUALITY_STATUS.md for gaps
+- ✅ Silver (10 rules) — mostly met
+- ⚠️ Gold (9 rules) — partially met (reconfiguration-flow missing)
+- ❌ Platinum (4 rules) — not yet (no official review)
 
 ## Rule Verification
 
