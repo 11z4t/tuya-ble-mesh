@@ -23,6 +23,7 @@ from homeassistant.components.light import (  # type: ignore[attr-defined]
 )
 from homeassistant.helpers.device_registry import DeviceInfo
 
+from custom_components.tuya_ble_mesh.entity import TuyaBLEMeshEntity
 from custom_components.tuya_ble_mesh.const import (
     CONF_DEVICE_TYPE,
     DEVICE_BRIGHTNESS_MAX,
@@ -151,12 +152,11 @@ async def async_setup_entry(
     async_add_entities([TuyaBLEMeshLight(coordinator, entry.entry_id, device_info)])
 
 
-class TuyaBLEMeshLight(LightEntity):
+class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
     """Light entity for a Tuya BLE Mesh device."""
 
     _attr_should_poll = False
     _attr_supported_features = LightEntityFeature.TRANSITION
-    _attr_has_entity_name = True
     _attr_name = None  # Use device name as entity name
     _attr_unique_id: str
 
@@ -173,45 +173,31 @@ class TuyaBLEMeshLight(LightEntity):
             entry_id: Config entry ID used to scope the unique entity ID.
             device_info: Device registry info for grouping entities under a device.
         """
-        self._coordinator = coordinator
-        self._entry_id = entry_id
+        super().__init__(coordinator, entry_id, device_info)
         self._attr_unique_id = f"{coordinator.device.address}_light"
-        if device_info is not None:
-            self._attr_device_info = device_info
-        self._remove_listener: Any = None
         self._transition_task: asyncio.Task[None] | None = None
         self._pending_command_task: asyncio.Task[None] | None = None
 
     @property
-    def unique_id(self) -> str:
-        """Return unique ID."""
-        return self._attr_unique_id
-
-    @property
-    def available(self) -> bool:
-        """Return True if the device is available."""
-        return self._coordinator.state.available
-
-    @property
     def is_on(self) -> bool:
         """Return True if the light is on."""
-        return self._coordinator.state.is_on
+        return self.coordinator.state.is_on
 
     @property
     def brightness(self) -> int | None:
         """Return the current brightness (HA 1-255)."""
-        if not self._coordinator.state.is_on:
+        if not self.coordinator.state.is_on:
             return None
-        if self._coordinator.state.mode == 1:
-            return self._coordinator.state.color_brightness
-        return brightness_to_ha(self._coordinator.state.brightness)
+        if self.coordinator.state.mode == 1:
+            return self.coordinator.state.color_brightness
+        return brightness_to_ha(self.coordinator.state.brightness)
 
     @property
     def color_temp_kelvin(self) -> int | None:
         """Return the current color temperature in kelvin."""
-        if not self._coordinator.state.is_on:
+        if not self.coordinator.state.is_on:
             return None
-        mired = color_temp_to_ha(self._coordinator.state.color_temp)
+        mired = color_temp_to_ha(self.coordinator.state.color_temp)
         return round(1_000_000 / mired)
 
     _attr_min_color_temp_kelvin = 2703  # warmest (370 mireds)
@@ -220,17 +206,17 @@ class TuyaBLEMeshLight(LightEntity):
     @property
     def rgb_color(self) -> tuple[int, int, int] | None:
         """Return the current RGB color."""
-        if not self._coordinator.state.is_on:
+        if not self.coordinator.state.is_on:
             return None
-        if self._coordinator.state.mode != 1:
+        if self.coordinator.state.mode != 1:
             return None
-        state = self._coordinator.state
+        state = self.coordinator.state
         return (state.red, state.green, state.blue)
 
     @property
     def color_mode(self) -> ColorMode:
         """Return the current color mode."""
-        if self._coordinator.state.mode == 1:
+        if self.coordinator.state.mode == 1:
             return ColorMode.RGB
         return ColorMode.COLOR_TEMP
 
@@ -300,7 +286,7 @@ class TuyaBLEMeshLight(LightEntity):
         await asyncio.sleep(_COMMAND_DEBOUNCE_INTERVAL)
         self._pending_command_task = None
 
-        device = self._coordinator.device
+        device = self.coordinator.device
 
         if rgb_color is not None:
             await device.send_color(rgb_color[0], rgb_color[1], rgb_color[2])
@@ -312,14 +298,14 @@ class TuyaBLEMeshLight(LightEntity):
             return
 
         if color_temp is not None:
-            if self._coordinator.state.mode == 1:
+            if self.coordinator.state.mode == 1:
                 await device.send_light_mode(0)
             device_temp = color_temp_to_device(color_temp)
             await device.send_color_temp(device_temp)
             _LOGGER.debug("Set color temp: HA %d mireds -> device %d", color_temp, device_temp)
 
         if brightness is not None:
-            if self._coordinator.state.mode == 1:
+            if self.coordinator.state.mode == 1:
                 await device.send_color_brightness(brightness)
                 _LOGGER.debug("Set color brightness: %d", brightness)
             else:
@@ -360,7 +346,7 @@ class TuyaBLEMeshLight(LightEntity):
             )
             return
 
-        await self._coordinator.device.send_power(False)
+        await self.coordinator.device.send_power(False)
 
     def _cancel_transition(self) -> None:
         """Cancel any in-progress transition task."""
@@ -386,8 +372,8 @@ class TuyaBLEMeshLight(LightEntity):
             power_off_after: Send power off after transition completes.
             target_rgb: Target RGB color tuple, or None.
         """
-        device = self._coordinator.device
-        state = self._coordinator.state
+        device = self.coordinator.device
+        state = self.coordinator.state
 
         steps = min(int(duration * 10), 50)
         if steps < 2:
@@ -429,18 +415,8 @@ class TuyaBLEMeshLight(LightEntity):
         if power_off_after:
             await device.send_power(False)
 
-    async def async_added_to_hass(self) -> None:
-        """Register state listener when added to HA."""
-        self._remove_listener = self._coordinator.add_listener(self._handle_coordinator_update)
-
     async def async_will_remove_from_hass(self) -> None:
-        """Remove state listener when removed from HA."""
+        """Clean up transition and pending command tasks."""
         self._cancel_transition()
         self._cancel_pending_command()
-        if self._remove_listener is not None:
-            self._remove_listener()
-            self._remove_listener = None
-
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator."""
-        self.async_write_ha_state()
+        await super().async_will_remove_from_hass()

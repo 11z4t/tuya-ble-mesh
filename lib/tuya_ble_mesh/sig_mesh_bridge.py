@@ -11,10 +11,11 @@ Provides two bridge device classes:
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 from collections.abc import Callable
 from typing import Any
+
+import aiohttp
 
 from tuya_ble_mesh.exceptions import ConnectionError as MeshConnectionError
 from tuya_ble_mesh.exceptions import SIGMeshError
