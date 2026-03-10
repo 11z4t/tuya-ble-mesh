@@ -275,7 +275,7 @@ async def _test_bridge_with_session(hass: Any, host: str, port: int) -> bool:
             body = await resp.text()
             data = _parse_json_body(body)
             return data.get("status") == "ok"
-    except asyncio.TimeoutError:
+    except TimeoutError:
         _LOGGER.debug("Bridge test timed out for %s:%d", host, port)
         return False
     except Exception as exc:
@@ -311,7 +311,7 @@ async def _test_bridge_device_reachable(
                     if dev_mac == mac_upper:
                         return {"found": True, "error": None, "rssi": dev.get("rssi")}
             return {"found": False, "error": "device_not_found"}
-    except asyncio.TimeoutError:
+    except TimeoutError:
         return {"found": False, "error": "timeout"}
     except Exception as exc:
         _LOGGER.debug("Device reachability check failed: %s", exc, exc_info=True)
@@ -353,8 +353,9 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                     errors["base"] = cred_error
 
                 vendor_id = user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
-                if not _validate_vendor_id(vendor_id):
-                    errors[CONF_VENDOR_ID] = "invalid_vendor_id"
+                vendor_error = _validate_vendor_id(vendor_id)
+                if vendor_error:
+                    errors[CONF_VENDOR_ID] = vendor_error
 
             if not errors:
                 new_data = {**self._config_entry.data, **user_input}
@@ -638,8 +639,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     errors["base"] = cred_error
                 else:
                     vendor_id = user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
-                    if not _validate_vendor_id(vendor_id):
-                        errors[CONF_VENDOR_ID] = "invalid_vendor_id"
+                    vendor_error = _validate_vendor_id(vendor_id)
+                    if vendor_error:
+                        errors[CONF_VENDOR_ID] = vendor_error
 
                 if not errors:
                     short = mac[-8:]

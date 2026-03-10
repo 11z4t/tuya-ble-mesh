@@ -30,7 +30,10 @@ if TYPE_CHECKING:
     from homeassistant.helpers.storage import Store
     from tuya_ble_mesh.device import MeshDevice  # type: ignore[import-not-found]
     from tuya_ble_mesh.protocol import StatusResponse  # type: ignore[import-not-found]
-    from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice, TelinkBridgeDevice  # type: ignore[import-not-found]
+    from tuya_ble_mesh.sig_mesh_bridge import (  # type: ignore[import-not-found]
+        SIGMeshBridgeDevice,
+        TelinkBridgeDevice,
+    )
     from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
     from tuya_ble_mesh.sig_mesh_protocol import CompositionData  # type: ignore[import-not-found]
 
@@ -53,7 +56,10 @@ _LOGGER = logging.getLogger(__name__)
 # Structured logging: MeshLogAdapter injects correlation ID + device MAC into records.
 # Falls back to plain _LOGGER if lib is not importable (tests without full lib).
 try:
-    from tuya_ble_mesh.logging_context import MeshLogAdapter, mesh_operation  # type: ignore[import-not-found]
+    from tuya_ble_mesh.logging_context import (  # type: ignore[import-not-found]
+        MeshLogAdapter,
+        mesh_operation,
+    )
 
     _MESH_LOGGER: logging.Logger | MeshLogAdapter = MeshLogAdapter(logging.getLogger(__name__), {})
     _HAS_MESH_LOGGER = True
