@@ -24,3 +24,14 @@ set_log_level:
             - info
             - warning
             - error
+
+get_diagnostics:
+  name: Get diagnostics
+  description: Retrieve connection statistics and diagnostic information for a device.
+  fields:
+    device_id:
+      name: Device
+      description: The Tuya BLE Mesh device to get diagnostics for.
+      required: true
+      selector:
+        text:

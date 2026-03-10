@@ -270,6 +270,32 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         _logging.getLogger("tuya_ble_mesh").setLevel(level)
         _LOGGER.info("Log level set to %s", level_str)
 
+    async def handle_get_diagnostics(call: ServiceCall) -> None:
+        """Get diagnostic information for a device.
+
+        Args:
+            call: Service call with device_id field.
+        """
+        device_id: str = call.data.get("device_id", "")
+        coordinator = _get_coordinator_for_device(hass, device_id)
+        if coordinator is None:
+            raise HomeAssistantError(f"Device not found: {device_id}")
+
+        stats = coordinator.statistics
+        diagnostics = {
+            "device_address": coordinator.device.address,
+            "available": coordinator.state.available,
+            "connection_uptime": f"{stats.connection_uptime:.1f}s",
+            "total_reconnects": stats.total_reconnects,
+            "total_errors": stats.total_errors,
+            "connection_errors": stats.connection_errors,
+            "command_errors": stats.command_errors,
+            "avg_response_time": f"{stats.avg_response_time:.3f}s",
+            "rssi": coordinator.state.rssi,
+            "firmware_version": coordinator.state.firmware_version,
+        }
+        _LOGGER.info("Diagnostics for %s: %s", device_id, diagnostics)
+
     hass.services.async_register(
         DOMAIN,
         "identify",
@@ -285,6 +311,12 @@ async def _async_register_services(hass: HomeAssistant) -> None:
                 vol.Required("level"): vol.In(["debug", "info", "warning", "error"]),
             }
         ),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "get_diagnostics",
+        handle_get_diagnostics,
+        schema=vol.Schema({vol.Required("device_id"): str}),
     )
 
 
