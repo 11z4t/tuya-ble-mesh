@@ -82,6 +82,9 @@ class ConnectionStatistics:
     response_times: deque[float] = field(default_factory=lambda: deque(maxlen=100))
     last_error: str | None = None
     last_error_time: float | None = None
+    connection_uptime: float = 0.0  # Total seconds connected
+    last_disconnect_time: float | None = None
+    avg_response_time: float = 0.0  # Average response time in seconds
 
 
 class TuyaBLEMeshCoordinator:
@@ -293,6 +296,13 @@ class TuyaBLEMeshCoordinator:
         is lost (write failure or keep-alive timeout).
         """
         _LOGGER.warning("Device disconnected: %s", self._device.address)
+
+        # Update connection statistics
+        if self._stats.connect_time is not None:
+            uptime = time.time() - self._stats.connect_time
+            self._stats.connection_uptime += uptime
+        self._stats.last_disconnect_time = time.time()
+
         self._state.available = False
         self._stop_rssi_polling()
         self._notify_listeners()
