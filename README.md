@@ -2,7 +2,7 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?logo=homeassistantcommunitystore)](https://github.com/hacs/integration)
 [![CI](https://github.com/kvista-se/tuya-ble-mesh/actions/workflows/ci.yml/badge.svg)](https://github.com/kvista-se/tuya-ble-mesh/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.20.2-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.20.6-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![HA 2024.1+](https://img.shields.io/badge/HA-2024.1%2B-blue.svg)](https://www.home-assistant.io)
 [![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](tests/)
@@ -107,7 +107,7 @@ Devices using the Tuya BLE Mesh / Telink stack with service UUID `fe07`:
 | Device type | Light or Plug | Light |
 | MAC Address | BLE MAC (XX:XX:XX:XX:XX:XX) | *required* |
 | Bridge Host | IP/hostname of the bridge RPi | *required* |
-| Bridge Port | Bridge daemon HTTP port | `8787` |
+| Bridge Port | Bridge daemon HTTP port | `8099` |
 | Mesh Name | Mesh network name | `out_of_mesh` |
 | Mesh Password | Mesh network password | `123456` |
 | Vendor ID | Vendor identifier (hex) | `0x1001` |
@@ -120,7 +120,7 @@ The bridge daemon runs on a Raspberry Pi with Bluetooth, close to your mesh devi
 # On the RPi
 cd ~/malmbergs-bt
 source ~/malmbergs-ble/bin/activate
-python scripts/ble_mesh_daemon.py --host 0.0.0.0 --port 8787
+python scripts/ble_mesh_daemon.py --host 0.0.0.0 --port 8099
 ```
 
 The daemon exposes a simple HTTP API that the HA integration uses to send commands and receive status.
@@ -165,7 +165,7 @@ Each device creates:
 ```
 ┌──────────────┐     HTTP      ┌──────────────┐     BLE Mesh     ┌─────────┐
 │ Home         │◄─────────────►│ Raspberry Pi │◄────────────────►│ Light 1 │
-│ Assistant    │   (port 8787) │ (Bridge)     │                  ├─────────┤
+│ Assistant    │   (port 8099) │ (Bridge)     │                  ├─────────┤
 │              │               │              │◄────────────────►│ Light 2 │
 └──────────────┘               └──────────────┘                  ├─────────┤
                                                                  │ Plug 1  │
