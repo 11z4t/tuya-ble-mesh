@@ -349,13 +349,24 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                     result = await _test_bridge_with_session(self.hass, host, port)
                     if not result:
                         errors["base"] = "cannot_connect"
-            elif device_type not in (DEVICE_TYPE_SIG_PLUG,):
+            elif device_type == DEVICE_TYPE_SIG_PLUG:
+                unicast_target = user_input.get(CONF_UNICAST_TARGET, "00B0")
+                unicast_error = _validate_unicast_address(unicast_target)
+                if unicast_error:
+                    errors[CONF_UNICAST_TARGET] = unicast_error
+                iv_index = user_input.get(CONF_IV_INDEX, DEFAULT_IV_INDEX)
+                iv_error = _validate_iv_index(iv_index)
+                if iv_error:
+                    errors[CONF_IV_INDEX] = iv_error
+            else:
                 name = user_input.get(CONF_MESH_NAME, "")
                 pwd = user_input.get(CONF_MESH_PASSWORD, "")
-                cred_error = _validate_mesh_credentials(name, pwd)
-                if cred_error:
-                    errors["base"] = cred_error
-
+                name_error = _validate_mesh_credential(name)
+                if name_error:
+                    errors[CONF_MESH_NAME] = name_error
+                pwd_error = _validate_mesh_credential(pwd)
+                if pwd_error:
+                    errors[CONF_MESH_PASSWORD] = pwd_error
                 vendor_id = user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
                 vendor_error = _validate_vendor_id(vendor_id)
                 if vendor_error:
@@ -487,7 +498,6 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         """Initialize config flow state for a new Tuya BLE Mesh entry."""
         super().__init__()
         self._discovery_info: dict[str, Any] | None = None
-        self._discovery_timestamp: float = 0.0  # Track when discovery started
         # Stored provisioning keys set by _run_provision
         self._prov_net_key: str = ""
         self._prov_dev_key: str = ""
@@ -506,16 +516,24 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         # Detect device type from advertised service UUIDs
         service_uuids = getattr(discovery_info, "service_uuids", [])
         is_sig = SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids
-        device_category = "SIG Mesh" if is_sig else "Telink Mesh"
         rssi = getattr(discovery_info, "rssi", None)
+
+        # Check for Telink Mesh UUID prefix
+        is_telink = any(
+            str(uuid).lower().startswith(_TELINK_UUID_PREFIX)
+            for uuid in service_uuids
+        )
 
         # Auto-detect device label for discovery card
         if is_sig:
             device_label = "Mesh Plug"
-        elif name.startswith("tymesh"):
+            device_category = "SIG Mesh"
+        elif is_telink or name.startswith("tymesh"):
             device_label = "Mesh Light"
+            device_category = "Telink Mesh"
         else:
             device_label = "Mesh Device"
+            device_category = "Telink Mesh"
 
         # Set title_placeholders BEFORE async_set_unique_id for discovery card
         self.context["title_placeholders"] = {"name": f"{device_label} {address}"}
@@ -523,16 +541,34 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         await self.async_set_unique_id(address)
         self._abort_if_unique_id_configured()
 
+        # Check device is still reachable (stale discovery protection)
+        try:
+            from homeassistant.components.bluetooth import async_ble_device_from_address
+
+            ble_device = async_ble_device_from_address(self.hass, address, connectable=False)
+            if ble_device is None:
+                _LOGGER.warning("Device %s not found in BLE registry, aborting stale flow", address)
+                return self.async_abort(reason="device_not_available")
+        except Exception:
+            pass  # BLE manager not initialized (e.g., during testing), proceed normally
+
         self._discovery_info = {
             "address": address,
             "name": name,
             "rssi": rssi,
             "device_category": device_category,
-            "_raw_info": discovery_info,
         }
-        self._discovery_timestamp = time.time()
 
-        # All device types go through the same confirm step
+        # Auto-detect Telink as Light for zero-knowledge flow
+        if is_telink:
+            self._discovery_info["auto_device_type"] = DEVICE_TYPE_LIGHT
+            _LOGGER.info("Telink Mesh device auto-detected as Light: %s", address)
+
+        # SIG Mesh goes directly to provisioning
+        if is_sig:
+            _LOGGER.info("SIG Mesh device detected: %s", address)
+            return await self.async_step_sig_plug()
+
         return await self.async_step_confirm()
 
     async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
@@ -641,17 +677,19 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     }
                     return await self.async_step_sig_plug(None)
 
-                # Validate mesh credentials
+                # Validate mesh credentials (per-field errors)
                 mesh_name = user_input.get(CONF_MESH_NAME, "out_of_mesh")
                 mesh_pass = user_input.get(CONF_MESH_PASSWORD, "123456")  # pragma: allowlist secret
-                cred_error = _validate_mesh_credentials(mesh_name, mesh_pass)
-                if cred_error:
-                    errors["base"] = cred_error
-                else:
-                    vendor_id = user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
-                    vendor_error = _validate_vendor_id(vendor_id)
-                    if vendor_error:
-                        errors[CONF_VENDOR_ID] = vendor_error
+                name_error = _validate_mesh_credential(mesh_name)
+                if name_error:
+                    errors[CONF_MESH_NAME] = name_error
+                pass_error = _validate_mesh_credential(mesh_pass)
+                if pass_error:
+                    errors[CONF_MESH_PASSWORD] = pass_error
+                vendor_id = user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
+                vendor_error = _validate_vendor_id(vendor_id)
+                if vendor_error:
+                    errors[CONF_VENDOR_ID] = vendor_error
 
                 if not errors:
                     short = mac[-8:]
@@ -707,31 +745,31 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         """
         errors: dict[str, str] = {}
 
-        # Validate device is still discoverable before showing form or provisioning
-        if self._discovery_info is not None:
-            from homeassistant.components import bluetooth as ha_bluetooth
-            mac = self._discovery_info["address"]
-
-            # Check if flow is stale (TTL expired)
-            age = time.time() - self._discovery_timestamp
-            if age > _DISCOVERY_FLOW_TTL:
-                _LOGGER.warning(
-                    "Discovery flow for %s expired (age: %.0fs > TTL: %ds), aborting",
-                    mac, age, _DISCOVERY_FLOW_TTL
-                )
-                return self.async_abort(reason="device_not_found")
-
-            # Check if device is still advertising
-            device = ha_bluetooth.async_ble_device_from_address(self.hass, mac, connectable=True)
-            if device is None:
-                _LOGGER.warning("Device %s no longer advertising, aborting flow", mac)
-                return self.async_abort(reason="device_not_found")
-
         if user_input is not None and self._discovery_info is not None:
             mac = self._discovery_info["address"]
             try:
                 net_key_hex, dev_key_hex, app_key_hex = await self._run_provision(mac)
+            except asyncio.TimeoutError:
+                _LOGGER.warning("Provisioning timed out for %s", mac)
+                errors["base"] = "timeout"
             except Exception as exc:
+                # Map specific exceptions to error keys
+                error_key = "provisioning_failed"
+                try:
+                    from tuya_ble_mesh.exceptions import (  # type: ignore[import-not-found]
+                        DeviceNotFoundError,
+                        ProvisioningError,
+                    )
+                    from tuya_ble_mesh.exceptions import TimeoutError as MeshTimeoutError  # type: ignore[import-not-found]
+
+                    if isinstance(exc, DeviceNotFoundError):
+                        error_key = "device_not_found"
+                    elif isinstance(exc, MeshTimeoutError):
+                        error_key = "timeout"
+                    elif isinstance(exc, ProvisioningError):
+                        error_key = "provisioning_failed"
+                except ImportError:
+                    pass
                 _LOGGER.warning(
                     "Provisioning failed for %s: %s: %s",
                     mac,
@@ -739,7 +777,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     exc,
                     exc_info=True,
                 )
-                errors["base"] = "provisioning_failed"
+                errors["base"] = error_key
             else:
                 await self.async_set_unique_id(mac)
                 self._abort_if_unique_id_configured()
@@ -899,29 +937,23 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         if user_input is not None and self._discovery_info is not None:
             host = user_input.get(CONF_BRIDGE_HOST, "")
             port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+            unicast_target = user_input.get(CONF_UNICAST_TARGET, "00B0")
+
+            # Validate host and unicast address together (accumulate errors)
             host_error = _validate_bridge_host(host)
             if host_error:
                 errors[CONF_BRIDGE_HOST] = host_error
-            else:
-                # Step 1: Test bridge is reachable
+            unicast_error = _validate_unicast_address(unicast_target)
+            if unicast_error:
+                errors[CONF_UNICAST_TARGET] = unicast_error
+
+            if not errors:
+                # Test bridge reachability
                 bridge_result = await _test_bridge_with_session(self.hass, host, port)
                 if not bridge_result:
                     errors["base"] = "cannot_connect"
                 else:
-                    # Step 2: Check if device MAC is visible from bridge
                     mac = self._discovery_info["address"]
-                    dev_result = await _test_bridge_device_reachable(
-                        self.hass, host, port, mac
-                    )
-                    if not dev_result["found"]:
-                        # Device not found is a warning — allow setup to continue
-                        # (device may be in mesh, not advertising at this moment)
-                        _LOGGER.info(
-                            "Device %s not visible from bridge at setup time (%s) — allowing",
-                            mac,
-                            dev_result.get("error"),
-                        )
-
                     await self.async_set_unique_id(mac)
                     self._abort_if_unique_id_configured()
                     return self.async_create_entry(
@@ -929,7 +961,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                         data={
                             CONF_MAC_ADDRESS: mac,
                             CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_BRIDGE_PLUG,
-                            CONF_UNICAST_TARGET: user_input.get(CONF_UNICAST_TARGET, "00B0"),
+                            CONF_UNICAST_TARGET: unicast_target,
                             CONF_BRIDGE_HOST: host,
                             CONF_BRIDGE_PORT: port,
                         },
