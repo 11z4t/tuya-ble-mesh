@@ -104,9 +104,13 @@ _SEQ_STORE_VERSION = 1
 _MAX_CALLBACK_ERRORS = 3
 
 
-@dataclass
+@dataclass(slots=True)
 class TuyaBLEMeshDeviceState:
-    """Current state of a Tuya BLE Mesh device."""
+    """Current state of a Tuya BLE Mesh device.
+
+    Mutable for now (many callers update fields directly).
+    Target: frozen=True with dataclasses.replace() in v0.25+.
+    """
 
     is_on: bool = False
     brightness: int = 0
@@ -519,27 +523,50 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         self._dispatch_update()
 
     async def async_stop(self) -> None:
-        """Stop the coordinator — disconnect and cancel reconnection."""
+        """Stop the coordinator — disconnect and cancel reconnection.
+
+        Cancels all background tasks and awaits their completion to prevent
+        'task was destroyed but it is pending' warnings and resource leaks.
+        """
         self._running = False
 
         # Persist seq before stopping
         await self._save_seq()
 
-        self._stop_rssi_polling()
-
+        # Cancel all background tasks and await them
+        tasks_to_cancel: list[asyncio.Task[None]] = []
+        if self._rssi_task is not None:
+            self._rssi_task.cancel()
+            tasks_to_cancel.append(self._rssi_task)
+            self._rssi_task = None
         if self._reconnect_task is not None:
             self._reconnect_task.cancel()
+            tasks_to_cancel.append(self._reconnect_task)
             self._reconnect_task = None
+        if self._seq_persist_task is not None:
+            self._seq_persist_task.cancel()
+            tasks_to_cancel.append(self._seq_persist_task)
+            self._seq_persist_task = None
 
-        if hasattr(self._device, "unregister_onoff_callback"):
-            self._device.unregister_onoff_callback(self._on_onoff_update)
-        if hasattr(self._device, "unregister_vendor_callback"):
-            self._device.unregister_vendor_callback(self._on_vendor_update)
-        if hasattr(self._device, "unregister_composition_callback"):
-            self._device.unregister_composition_callback(self._on_composition_update)
-        if hasattr(self._device, "unregister_status_callback"):
-            self._device.unregister_status_callback(self._on_status_update)
-        self._device.unregister_disconnect_callback(self._on_disconnect)
+        if tasks_to_cancel:
+            await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
+
+        # Unregister callbacks (try/except in case device is already gone)
+        for attr, callback in (
+            ("unregister_onoff_callback", self._on_onoff_update),
+            ("unregister_vendor_callback", self._on_vendor_update),
+            ("unregister_composition_callback", self._on_composition_update),
+            ("unregister_status_callback", self._on_status_update),
+        ):
+            if hasattr(self._device, attr):
+                try:
+                    getattr(self._device, attr)(callback)
+                except (ValueError, AttributeError):
+                    pass  # Already unregistered or device gone
+        try:
+            self._device.unregister_disconnect_callback(self._on_disconnect)
+        except (ValueError, AttributeError):
+            pass
 
         try:
             await self._device.disconnect()
