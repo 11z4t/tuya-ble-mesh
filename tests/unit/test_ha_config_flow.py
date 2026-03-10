@@ -22,8 +22,10 @@ from custom_components.tuya_ble_mesh.config_flow import (
     _test_bridge_with_session,
     _validate_bridge_host,
     _validate_hex_key,
+    _validate_iv_index,
     _validate_mac,
     _validate_mesh_credential,
+    _validate_unicast_address,
     _validate_vendor_id,
 )
 from custom_components.tuya_ble_mesh.const import (
@@ -1820,3 +1822,257 @@ class TestUserStepValidationErrors:
         assert result["type"] == "form"
         assert CONF_VENDOR_ID in result["errors"]
         assert result["errors"][CONF_VENDOR_ID] == "invalid_vendor_id"
+
+
+@pytest.mark.requires_ha
+class TestValidateIvIndex:
+    """Test _validate_iv_index() — PLAT-421."""
+
+    def test_valid_zero(self) -> None:
+        assert _validate_iv_index(0) is None
+
+    def test_valid_max(self) -> None:
+        assert _validate_iv_index(0xFFFFFFFF) is None
+
+    def test_valid_mid(self) -> None:
+        assert _validate_iv_index(100) is None
+
+    def test_negative(self) -> None:
+        assert _validate_iv_index(-1) == "invalid_iv_index"
+
+    def test_too_large(self) -> None:
+        assert _validate_iv_index(0x100000000) == "invalid_iv_index"
+
+    def test_non_int_string(self) -> None:
+        assert _validate_iv_index("5") == "invalid_iv_index"  # type: ignore[arg-type]
+
+    def test_non_int_float(self) -> None:
+        assert _validate_iv_index(1.5) == "invalid_iv_index"  # type: ignore[arg-type]
+
+    def test_bool_rejected(self) -> None:
+        # bool is a subclass of int but should be rejected
+        assert _validate_iv_index(True) == "invalid_iv_index"  # type: ignore[arg-type]
+
+    def test_none_rejected(self) -> None:
+        assert _validate_iv_index(None) == "invalid_iv_index"  # type: ignore[arg-type]
+
+
+@pytest.mark.requires_ha
+class TestValidateUnicastAddress:
+    """Test _validate_unicast_address() — PLAT-421."""
+
+    def test_valid_lowercase(self) -> None:
+        assert _validate_unicast_address("00b0") is None
+
+    def test_valid_uppercase(self) -> None:
+        assert _validate_unicast_address("00B0") is None
+
+    def test_valid_min(self) -> None:
+        assert _validate_unicast_address("0001") is None
+
+    def test_valid_max(self) -> None:
+        assert _validate_unicast_address("7FFF") is None
+
+    def test_zero_address_invalid(self) -> None:
+        # 0x0000 is unassigned per SIG Mesh spec
+        assert _validate_unicast_address("0000") == "invalid_unicast_address"
+
+    def test_group_address_invalid(self) -> None:
+        # 0x8000+ are group addresses
+        assert _validate_unicast_address("8000") == "invalid_unicast_address"
+
+    def test_too_short(self) -> None:
+        assert _validate_unicast_address("B0") == "invalid_unicast_address"
+
+    def test_too_long(self) -> None:
+        assert _validate_unicast_address("000B0") == "invalid_unicast_address"
+
+    def test_non_hex(self) -> None:
+        assert _validate_unicast_address("GGGG") == "invalid_unicast_address"
+
+    def test_empty(self) -> None:
+        assert _validate_unicast_address("") == "invalid_unicast_address"
+
+    def test_with_spaces(self) -> None:
+        assert _validate_unicast_address("  00B0  ") is None
+
+    def test_ffff_group_address(self) -> None:
+        assert _validate_unicast_address("FFFF") == "invalid_unicast_address"
+
+
+@pytest.mark.requires_ha
+class TestSigBridgeUnicastValidation:
+    """Test unicast validation in async_step_sig_bridge — PLAT-421."""
+
+    @pytest.mark.asyncio
+    async def test_invalid_unicast_shows_error(self) -> None:
+        """Invalid unicast address returns form error."""
+        flow = _make_flow()
+        flow._discovery_info = {"address": "DC:23:4D:21:43:A5", "name": "test"}
+        result = await flow.async_step_sig_bridge(
+            {
+                CONF_BRIDGE_HOST: "192.168.1.100",
+                CONF_BRIDGE_PORT: 8099,
+                CONF_UNICAST_TARGET: "FFFF",  # group address — invalid
+            }
+        )
+        assert result["type"] == "form"
+        assert CONF_UNICAST_TARGET in result["errors"]
+        assert result["errors"][CONF_UNICAST_TARGET] == "invalid_unicast_address"
+
+    @pytest.mark.asyncio
+    async def test_invalid_host_and_unicast_both_shown(self) -> None:
+        """Both host and unicast errors are shown simultaneously."""
+        flow = _make_flow()
+        flow._discovery_info = {"address": "DC:23:4D:21:43:A5", "name": "test"}
+        result = await flow.async_step_sig_bridge(
+            {
+                CONF_BRIDGE_HOST: "127.0.0.1",  # SSRF risk
+                CONF_BRIDGE_PORT: 8099,
+                CONF_UNICAST_TARGET: "0000",  # zero — invalid
+            }
+        )
+        assert result["type"] == "form"
+        assert CONF_BRIDGE_HOST in result["errors"]
+        assert CONF_UNICAST_TARGET in result["errors"]
+
+
+@pytest.mark.requires_ha
+class TestOptionsFlowValidation:
+    """Test options flow validation — PLAT-421."""
+
+    @pytest.mark.asyncio
+    async def test_options_sig_plug_invalid_unicast(self) -> None:
+        """Invalid unicast address in options shows error."""
+        config_entry = MagicMock()
+        config_entry.data = {CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG}
+        flow = TuyaBLEMeshOptionsFlow(config_entry)
+        flow.hass = MagicMock()
+        result = await flow.async_step_init(
+            {CONF_UNICAST_TARGET: "0000", CONF_IV_INDEX: 0}
+        )
+        assert result["type"] == "form"
+        assert CONF_UNICAST_TARGET in result["errors"]
+
+    @pytest.mark.asyncio
+    async def test_options_sig_plug_invalid_iv_index(self) -> None:
+        """Invalid IV index in options shows error."""
+        config_entry = MagicMock()
+        config_entry.data = {CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG}
+        flow = TuyaBLEMeshOptionsFlow(config_entry)
+        flow.hass = MagicMock()
+        result = await flow.async_step_init(
+            {CONF_UNICAST_TARGET: "00B0", CONF_IV_INDEX: -1}
+        )
+        assert result["type"] == "form"
+        assert CONF_IV_INDEX in result["errors"]
+
+    @pytest.mark.asyncio
+    async def test_options_sig_plug_valid_creates_entry(self) -> None:
+        """Valid SIG plug options create entry."""
+        config_entry = MagicMock()
+        config_entry.data = {CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG}
+        flow = TuyaBLEMeshOptionsFlow(config_entry)
+        hass = MagicMock()
+        hass.config_entries = MagicMock()
+        flow.hass = hass
+        result = await flow.async_step_init(
+            {CONF_UNICAST_TARGET: "00B0", CONF_IV_INDEX: 0}
+        )
+        assert result["type"] == "create_entry"
+
+    @pytest.mark.asyncio
+    async def test_options_bridge_invalid_host(self) -> None:
+        """Invalid bridge host in options shows error."""
+        config_entry = MagicMock()
+        config_entry.data = MagicMock()
+        config_entry.data.get = lambda k, d=None: (
+            DEVICE_TYPE_SIG_BRIDGE_PLUG if k == CONF_DEVICE_TYPE else d
+        )
+        config_entry.data.__contains__ = lambda self, k: False
+        flow = TuyaBLEMeshOptionsFlow(config_entry)
+        flow.hass = MagicMock()
+        result = await flow.async_step_init(
+            {CONF_BRIDGE_HOST: "127.0.0.1", CONF_BRIDGE_PORT: 8099}
+        )
+        assert result["type"] == "form"
+        assert CONF_BRIDGE_HOST in result["errors"]
+
+    @pytest.mark.asyncio
+    async def test_options_bridge_valid_host_creates_entry(self) -> None:
+        """Valid bridge host in options creates entry."""
+        config_entry = MagicMock()
+        config_entry.data = MagicMock()
+        config_entry.data.get = lambda k, d=None: (
+            DEVICE_TYPE_SIG_BRIDGE_PLUG if k == CONF_DEVICE_TYPE else d
+        )
+        flow = TuyaBLEMeshOptionsFlow(config_entry)
+        hass = MagicMock()
+        hass.config_entries = MagicMock()
+        flow.hass = hass
+        result = await flow.async_step_init(
+            {CONF_BRIDGE_HOST: "192.168.1.50", CONF_BRIDGE_PORT: 8099}
+        )
+        assert result["type"] == "create_entry"
+
+    @pytest.mark.asyncio
+    async def test_options_light_invalid_mesh_name(self) -> None:
+        """Mesh name > 16 bytes in options shows error."""
+        config_entry = MagicMock()
+        config_entry.data = MagicMock()
+        config_entry.data.get = lambda k, d=None: (
+            DEVICE_TYPE_LIGHT if k == CONF_DEVICE_TYPE else d
+        )
+        flow = TuyaBLEMeshOptionsFlow(config_entry)
+        flow.hass = MagicMock()
+        result = await flow.async_step_init(
+            {CONF_MESH_NAME: "x" * 17, CONF_MESH_PASSWORD: "valid"}  # pragma: allowlist secret
+        )
+        assert result["type"] == "form"
+        assert CONF_MESH_NAME in result["errors"]
+
+    @pytest.mark.asyncio
+    async def test_options_light_invalid_mesh_password(self) -> None:
+        """Mesh password > 16 bytes in options shows error."""
+        config_entry = MagicMock()
+        config_entry.data = MagicMock()
+        config_entry.data.get = lambda k, d=None: (
+            DEVICE_TYPE_LIGHT if k == CONF_DEVICE_TYPE else d
+        )
+        flow = TuyaBLEMeshOptionsFlow(config_entry)
+        flow.hass = MagicMock()
+        result = await flow.async_step_init(
+            {CONF_MESH_NAME: "valid", CONF_MESH_PASSWORD: "y" * 17}  # pragma: allowlist secret
+        )
+        assert result["type"] == "form"
+        assert CONF_MESH_PASSWORD in result["errors"]
+
+    @pytest.mark.asyncio
+    async def test_options_telink_bridge_invalid_host(self) -> None:
+        """Telink bridge invalid host in options shows error."""
+        config_entry = MagicMock()
+        config_entry.data = MagicMock()
+        config_entry.data.get = lambda k, d=None: (
+            DEVICE_TYPE_TELINK_BRIDGE_LIGHT if k == CONF_DEVICE_TYPE else d
+        )
+        flow = TuyaBLEMeshOptionsFlow(config_entry)
+        flow.hass = MagicMock()
+        result = await flow.async_step_init(
+            {CONF_BRIDGE_HOST: "http://bad/url", CONF_BRIDGE_PORT: 8099}
+        )
+        assert result["type"] == "form"
+        assert CONF_BRIDGE_HOST in result["errors"]
+
+    @pytest.mark.asyncio
+    async def test_options_no_user_input_shows_form(self) -> None:
+        """No user input shows the options form."""
+        config_entry = MagicMock()
+        config_entry.data = MagicMock()
+        config_entry.data.get = lambda k, d=None: (
+            DEVICE_TYPE_SIG_PLUG if k == CONF_DEVICE_TYPE else d
+        )
+        flow = TuyaBLEMeshOptionsFlow(config_entry)
+        flow.hass = MagicMock()
+        result = await flow.async_step_init(None)
+        assert result["type"] == "form"
+        assert result["step_id"] == "init"
