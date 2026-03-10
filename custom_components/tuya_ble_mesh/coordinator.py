@@ -303,6 +303,12 @@ class TuyaBLEMeshCoordinator:
             self._stats.connection_uptime += uptime
         self._stats.last_disconnect_time = time.time()
 
+        # Calculate average response time for diagnostics
+        if self._stats.response_times:
+            self._stats.avg_response_time = sum(self._stats.response_times) / len(
+                self._stats.response_times
+            )
+
         self._state.available = False
         self._stop_rssi_polling()
         self._notify_listeners()
