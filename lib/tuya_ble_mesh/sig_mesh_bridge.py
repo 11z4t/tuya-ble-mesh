@@ -17,8 +17,7 @@ from typing import Any
 
 import aiohttp
 
-from tuya_ble_mesh.exceptions import ConnectionError as MeshConnectionError
-from tuya_ble_mesh.exceptions import SIGMeshError
+from tuya_ble_mesh.exceptions import MeshConnectionError, SIGMeshError
 from tuya_ble_mesh.logging_context import MeshLogAdapter, mesh_operation
 
 _LOGGER = MeshLogAdapter(logging.getLogger(__name__), {})
@@ -133,7 +132,7 @@ class SIGMeshBridgeDevice:
             max_retries: Number of connection attempts.
 
         Raises:
-            ConnectionError: If bridge daemon is not reachable.
+            MeshConnectionError: If bridge daemon is not reachable.
         """
         for attempt in range(1, max_retries + 1):
             try:

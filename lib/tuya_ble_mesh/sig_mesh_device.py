@@ -26,9 +26,7 @@ from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
 
 from tuya_ble_mesh.exceptions import (
-    ConnectionError as MeshConnectionError,
-)
-from tuya_ble_mesh.exceptions import (
+    MeshConnectionError,
     SIGMeshError,
     SIGMeshKeyError,
 )
@@ -266,7 +264,7 @@ class SIGMeshDevice:
 
         Raises:
             SIGMeshKeyError: If keys cannot be loaded from 1Password.
-            ConnectionError: If BLE connection fails after all retries.
+            MeshConnectionError: If BLE connection fails after all retries.
         """
         async with mesh_operation(self._address, "connect"):
             await self._connect_impl(timeout=timeout, max_retries=max_retries)
@@ -284,7 +282,7 @@ class SIGMeshDevice:
 
         Raises:
             SIGMeshKeyError: If keys cannot be loaded.
-            ConnectionError: If BLE connection fails after all retries.
+            MeshConnectionError: If BLE connection fails after all retries.
         """
         await self._load_keys()
         self._event_loop = asyncio.get_running_loop()

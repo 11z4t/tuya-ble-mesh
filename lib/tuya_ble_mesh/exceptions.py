@@ -84,6 +84,9 @@ class CommandExpiredError(TuyaBLEMeshError):
 
 # --- Backward-compatible aliases ---
 
+# DEPRECATED: use MeshConnectionError directly. Alias kept for tests/scripts.
+ConnectionError = MeshConnectionError  # noqa: A001 — intentional builtin shadow for compat
+
 # Phase 2 → Phase 3 rename
 MalmbergsBTError = TuyaBLEMeshError
 

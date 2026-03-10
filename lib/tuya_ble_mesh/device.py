@@ -42,7 +42,7 @@ from tuya_ble_mesh.const import (
 from tuya_ble_mesh.exceptions import (
     CommandExpiredError,
     CommandQueueFullError,
-    ConnectionError,
+    MeshConnectionError,
     DisconnectedError,
     ProtocolError,
 )
@@ -237,7 +237,7 @@ class MeshDevice:
             max_retries: Maximum connection attempts.
 
         Raises:
-            ConnectionError: If connection or provisioning fails.
+            MeshConnectionError: If connection or provisioning fails.
         """
         await self._conn.connect(timeout=timeout, max_retries=max_retries)
         await self._drain_queue()
@@ -289,7 +289,7 @@ class MeshDevice:
 
         Raises:
             DisconnectedError: If not connected.
-            ConnectionError: If BLE write fails after all retries.
+            MeshConnectionError: If BLE write fails after all retries.
         """
         last_error: Exception | None = None
         backoff = 0.5
@@ -345,7 +345,7 @@ class MeshDevice:
         if last_error is not None:
             raise last_error
         msg = f"Command 0x{opcode:02X} failed after {max_retries} attempts"
-        raise ConnectionError(msg)
+        raise MeshConnectionError(msg)
 
     async def _enqueue(self, opcode: int, params: bytes, dest_id: int) -> None:
         """Add a command to the queue for later sending.

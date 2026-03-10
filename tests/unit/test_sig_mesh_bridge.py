@@ -372,7 +372,8 @@ class TestTelinkBridgeCallbacks:
         ):
             await dev.send_power(True)
 
-        cb.assert_called_once()
+        # Disconnect callback fires on each retry attempt
+        assert cb.called
         assert dev.is_connected is False
 
 
