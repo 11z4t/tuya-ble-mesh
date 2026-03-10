@@ -22,6 +22,7 @@ from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.light import (  # type: ignore[attr-defined]
     ATTR_COLOR_TEMP_KELVIN,
+    ATTR_EFFECT,
     ATTR_RGB_COLOR,
     ATTR_TRANSITION,
     ColorMode,
@@ -43,6 +44,7 @@ from custom_components.tuya_ble_mesh.const import (
     HA_BRIGHTNESS_MIN,
     HA_MIRED_MAX,
     HA_MIRED_MIN,
+    MESH_SCENES,
     PLUG_DEVICE_TYPES,
 )
 
@@ -282,7 +284,7 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
     """Light entity for a Tuya BLE Mesh device."""
 
     _attr_should_poll = False
-    _attr_supported_features = LightEntityFeature.TRANSITION
+    _attr_supported_features = LightEntityFeature.TRANSITION | LightEntityFeature.EFFECT
     _attr_name = None  # Use device name as entity name
     _attr_unique_id: str
 
@@ -361,6 +363,16 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
         """Return supported color modes."""
         return {ColorMode.COLOR_TEMP, ColorMode.RGB}
 
+    @property
+    def supported_effects(self) -> list[str]:
+        """Return the list of supported effect names (mesh scenes)."""
+        return list(MESH_SCENES.values())
+
+    @property
+    def effect(self) -> str | None:
+        """Return the currently active effect (scene) name, or None if none active."""
+        return MESH_SCENES.get(self.coordinator.state.scene_id)
+
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the light.
 
@@ -373,6 +385,18 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
         """
         self._cancel_transition()
         self._cancel_pending_command()
+
+        # Scene/effect activation takes priority and returns early
+        effect: str | None = kwargs.get(ATTR_EFFECT)
+        if effect is not None:
+            scene_id = next((sid for sid, name in MESH_SCENES.items() if name == effect), None)
+            if scene_id is not None:
+                await self.coordinator.send_command_with_retry(
+                    lambda: self.coordinator.device.send_scene(scene_id),  # type: ignore[arg-type]
+                    description=f"send_scene({scene_id})",
+                )
+                self.coordinator.set_scene_id(scene_id)
+            return
 
         transition: float | None = kwargs.get(ATTR_TRANSITION)
         brightness = kwargs.get("brightness")
