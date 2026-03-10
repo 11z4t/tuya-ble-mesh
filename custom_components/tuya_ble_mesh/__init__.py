@@ -108,7 +108,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         return device
 
     if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
-        from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice  # type: ignore[import-not-found]
+        from tuya_ble_mesh.sig_mesh_bridge import (
+            SIGMeshBridgeDevice,  # type: ignore[import-not-found]
+        )
 
         target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
         bridge_host: str = entry.data[CONF_BRIDGE_HOST]
@@ -121,7 +123,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             bridge_port,
         )
     elif device_type == DEVICE_TYPE_TELINK_BRIDGE_LIGHT:
-        from tuya_ble_mesh.sig_mesh_bridge import TelinkBridgeDevice  # type: ignore[import-not-found]
+        from tuya_ble_mesh.sig_mesh_bridge import (
+            TelinkBridgeDevice,  # type: ignore[import-not-found]
+        )
 
         bridge_host = entry.data[CONF_BRIDGE_HOST]
         bridge_port = entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
@@ -300,7 +304,9 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             "total_errors": stats.total_errors,
             "connection_errors": stats.connection_errors,
             "command_errors": stats.command_errors,
-            "avg_response_time": f"{stats.avg_response_time:.3f}s" if stats.response_times else "N/A",
+            "avg_response_time": (
+                f"{stats.avg_response_time:.3f}s" if stats.response_times else "N/A"
+            ),
             "rssi": coordinator.state.rssi,
             "firmware_version": coordinator.state.firmware_version,
             "last_error": stats.last_error,
