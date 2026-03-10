@@ -36,8 +36,8 @@
         "data": {}
       },
       "confirm": {
-        "title": "Confirm Device",
-        "description": "Found {name}. Choose device type and mesh credentials.",
+        "title": "{name} ({mac})",
+        "description": "**{category}** device discovered\n\n- **Name:** {name}\n- **MAC:** {mac}\n- **Signal:** {rssi} dBm\n\nChoose device type and mesh credentials.",
         "data": {
           "device_type": "Device Type",
           "mesh_name": "Mesh Name",
