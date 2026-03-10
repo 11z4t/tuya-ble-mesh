@@ -21,6 +21,17 @@ DEFAULT_VENDOR_ID = "0x1001"
 CONF_MESH_ADDRESS = "mesh_address"
 DEFAULT_MESH_ADDRESS = 0  # 0 = connected device itself
 
+# Advanced options keys
+CONF_DEBUG_LEVEL = "debug_level"
+CONF_COMMAND_TIMEOUT = "command_timeout"
+CONF_MAX_RECONNECTS = "max_reconnects"
+CONF_RECONNECT_STORM_THRESHOLD = "reconnect_storm_threshold"
+
+DEFAULT_DEBUG_LEVEL = "info"
+DEFAULT_COMMAND_TIMEOUT = 10
+DEFAULT_MAX_RECONNECTS = 0  # 0 = unlimited
+DEFAULT_RECONNECT_STORM_THRESHOLD = 10  # per 5-minute window
+
 # SIG Mesh config keys
 CONF_UNICAST_TARGET = "unicast_target"
 CONF_UNICAST_OUR = "unicast_our"
@@ -32,6 +43,16 @@ CONF_BRIDGE_PORT = "bridge_port"
 DEFAULT_OP_ITEM_PREFIX = "s17"
 DEFAULT_IV_INDEX = 0
 DEFAULT_BRIDGE_PORT = 8099
+
+# Error classification constants (used by coordinator and repairs)
+ERROR_BRIDGE_UNREACHABLE = "bridge_unreachable"
+ERROR_AUTH_OR_MESH_MISMATCH = "auth_or_mesh_mismatch"
+ERROR_UNSUPPORTED_VENDOR = "unsupported_vendor"
+ERROR_DEVICE_NOT_FOUND = "device_not_found"
+ERROR_TIMEOUT = "timeout"
+ERROR_RECONNECT_STORM = "reconnect_storm"
+ERROR_PROTOCOL_MISMATCH = "protocol_mismatch"
+ERROR_UNKNOWN = "unknown"
 
 # SIG Mesh key config keys (stored in config entry data)
 CONF_NET_KEY = "net_key"

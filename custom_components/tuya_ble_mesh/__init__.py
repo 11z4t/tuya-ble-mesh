@@ -7,14 +7,13 @@ Provides local BLE mesh control of Tuya/Telink-based devices
 from __future__ import annotations
 
 import logging
-import sys
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeAlias
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import HomeAssistantError
 
+from custom_components.tuya_ble_mesh._import_helper import ensure_lib_importable
 from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
     CONF_BRIDGE_HOST,
@@ -52,13 +51,7 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-# Make lib/tuya_ble_mesh importable — check bundled copy first, then dev layout
-_BUNDLED_LIB = str(Path(__file__).resolve().parent / "lib")
-_DEV_LIB = str(Path(__file__).resolve().parent.parent.parent / "lib")
-for _lib_dir in (_BUNDLED_LIB, _DEV_LIB):
-    if Path(_lib_dir).is_dir() and _lib_dir not in sys.path:
-        sys.path.insert(0, _lib_dir)
-        break
+ensure_lib_importable()
 
 
 @dataclass

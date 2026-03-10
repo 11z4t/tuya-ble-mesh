@@ -18,10 +18,10 @@
         "default": "mdi:chip"
       },
       "power": {
-        "default": "mdi:lightning-bolt"
+        "default": "mdi:flash"
       },
       "energy": {
-        "default": "mdi:lightning-bolt-circle"
+        "default": "mdi:lightning-bolt"
       }
     }
   },

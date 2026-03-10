@@ -611,7 +611,7 @@ class TestSigBridgeStep:
     @patch(
         "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
         new_callable=AsyncMock,
-        return_value=True,
+        return_value={"reachable": True},
     )
     async def test_sig_bridge_creates_entry(self, mock_bridge: AsyncMock) -> None:
         flow = _make_flow()

@@ -50,3 +50,13 @@ playwright/.cache/
 # OS
 .DS_Store
 Thumbs.db
+
+# Dev/CI artifacts (not for version control)
+FULL_CODEBASE.txt
+ha-error-logs*.txt
+coverage.json
+RELEASE_NOTES_v*.md
+
+# Root-level icon/image artifacts (kept in docs/images/ instead)
+tuya_icon_*.png
+tuya_ble_mesh_icon*.png
