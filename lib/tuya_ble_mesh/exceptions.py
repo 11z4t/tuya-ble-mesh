@@ -7,6 +7,8 @@ SECURITY: Exception messages MUST NEVER contain secret material
 (keys, passwords, tokens). Use length/type descriptions only.
 """
 
+from __future__ import annotations
+
 
 class TuyaBLEMeshError(Exception):
     """Base exception for all Tuya BLE Mesh operations."""

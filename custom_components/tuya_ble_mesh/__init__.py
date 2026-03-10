@@ -128,7 +128,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             bridge_port,
         )
     elif device_type == DEVICE_TYPE_SIG_PLUG:
-        from tuya_ble_mesh.secrets import DictSecretsManager        from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
+        from tuya_ble_mesh.secrets import DictSecretsManager
+        from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
         target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
         our_addr = int(entry.data.get(CONF_UNICAST_OUR, "0001"), 16)
         iv_index: int = entry.data.get(CONF_IV_INDEX, DEFAULT_IV_INDEX)

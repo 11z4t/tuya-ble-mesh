@@ -4,6 +4,8 @@ UUIDs, opcodes, DP types, mesh categories, and device defaults.
 All 128-bit UUIDs are lowercase strings matching bleak conventions.
 """
 
+from __future__ import annotations
+
 # --- Bluetooth SIG Base UUID ---
 # 16-bit UUIDs expand as: 0000XXXX-0000-1000-8000-00805f9b34fb
 
