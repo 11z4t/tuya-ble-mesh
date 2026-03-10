@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tuya-ble-mesh"
-version = "0.20.6"
+version = "0.21.0"
 description = "Tuya BLE Mesh protocol library for local control of Tuya/Telink BLE mesh devices"
 requires-python = ">=3.11"
 license = {text = "MIT"}
