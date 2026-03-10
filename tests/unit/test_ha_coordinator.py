@@ -1661,3 +1661,89 @@ class TestLogConnectMetrics:
         callback.assert_called_once()
         # Log should mention listener count
         assert any("1" in record.message and "listener" in record.message for record in caplog.records)
+
+
+@pytest.mark.requires_ha
+class TestBrokenListenerRemoval:
+    """Test broken listener removal after repeated failures — PLAT-419."""
+
+    def test_broken_callback_removed_after_max_errors(self) -> None:
+        """Callback removed after _MAX_CALLBACK_ERRORS consecutive failures."""
+        from custom_components.tuya_ble_mesh.coordinator import _MAX_CALLBACK_ERRORS
+
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        bad_callback = MagicMock(side_effect=RuntimeError("broken"))
+        coord.add_listener(bad_callback)
+
+        assert len(coord._listeners) == 1
+
+        # Call _notify_listeners enough times to trigger removal
+        for _ in range(_MAX_CALLBACK_ERRORS):
+            coord._notify_listeners()
+
+        # Callback should be removed after max consecutive errors
+        assert bad_callback not in coord._listeners
+
+    def test_callback_error_count_resets_on_success(self) -> None:
+        """Error count resets to 0 after callback succeeds."""
+        from custom_components.tuya_ble_mesh.coordinator import _MAX_CALLBACK_ERRORS
+
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+
+        call_count = 0
+
+        def flaky_callback() -> None:
+            nonlocal call_count
+            call_count += 1
+            if call_count < 2:
+                raise RuntimeError("flaky")
+
+        coord.add_listener(flaky_callback)
+
+        # First call fails, increments error count
+        coord._notify_listeners()
+        assert len(coord._listeners) == 1
+
+        # Second call succeeds, resets error count
+        coord._notify_listeners()
+        assert len(coord._listeners) == 1
+
+        # Error count should be cleared after success
+        cb_id = id(flaky_callback)
+        assert coord._listener_error_counts.get(cb_id, 0) == 0
+
+    def test_error_count_tracked_per_callback(self) -> None:
+        """Error counts are tracked per callback independently."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+
+        good_callback = MagicMock()
+        bad_callback = MagicMock(side_effect=RuntimeError("bad"))
+        coord.add_listener(good_callback)
+        coord.add_listener(bad_callback)
+
+        coord._notify_listeners()
+
+        # Good callback should still be there
+        assert good_callback in coord._listeners
+        # Bad callback may still be there after 1 error (not yet at max)
+        assert bad_callback in coord._listeners
+        assert coord._listener_error_counts.get(id(bad_callback), 0) == 1
+
+    def test_removed_callback_error_count_cleaned_up(self) -> None:
+        """Error count entry removed when callback is removed."""
+        from custom_components.tuya_ble_mesh.coordinator import _MAX_CALLBACK_ERRORS
+
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        bad_callback = MagicMock(side_effect=RuntimeError("bad"))
+        coord.add_listener(bad_callback)
+
+        for _ in range(_MAX_CALLBACK_ERRORS):
+            coord._notify_listeners()
+
+        cb_id = id(bad_callback)
+        assert bad_callback not in coord._listeners
+        assert cb_id not in coord._listener_error_counts
