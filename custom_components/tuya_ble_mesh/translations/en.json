@@ -1,6 +1,6 @@
 {
   "config": {
-    "flow_title": "Tuya BLE Mesh ({mac})",
+    "flow_title": "{name}",
     "step": {
       "user": {
         "title": "Tuya BLE Mesh Device",
