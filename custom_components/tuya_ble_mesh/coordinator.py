@@ -71,9 +71,16 @@ _INITIAL_BACKOFF = 5.0
 _MAX_BACKOFF = 300.0
 _BACKOFF_MULTIPLIER = 2.0
 
+# Bridge-specific reconnect parameters (shorter backoff for HTTP bridges)
+_BRIDGE_INITIAL_BACKOFF = 3.0
+_BRIDGE_MAX_BACKOFF = 120.0
+
 # Reconnect storm detection: threshold reconnects within window (seconds)
 _STORM_WINDOW_SECONDS = 300  # 5 minutes
 _STORM_DEFAULT_THRESHOLD = 10
+
+# Max consecutive reconnect failures before giving up (0 = unlimited)
+_DEFAULT_MAX_RECONNECT_FAILURES = 0
 
 
 class ErrorClass(str, Enum):
@@ -179,6 +186,8 @@ class TuyaBLEMeshCoordinator:
         # Entry name for repair issue placeholders (set externally if needed)
         self.entry_name: str = ""
         self._storm_threshold: int = _STORM_DEFAULT_THRESHOLD
+        self._max_reconnect_failures: int = _DEFAULT_MAX_RECONNECT_FAILURES
+        self._consecutive_failures: int = 0
 
     @property
     def device(self) -> AnyMeshDevice:
@@ -308,7 +317,7 @@ class TuyaBLEMeshCoordinator:
         self._seq_command_count += 1
         if self._seq_command_count >= _SEQ_PERSIST_INTERVAL:
             self._seq_command_count = 0
-            self._seq_persist_task = asyncio.ensure_future(self._save_seq())
+            self._seq_persist_task = asyncio.create_task(self._save_seq())
 
         _LOGGER.debug("OnOff update: on=%s (changed=%s)", on, changed)
         # Only notify if state changed or device just became available (avoids
@@ -424,6 +433,10 @@ class TuyaBLEMeshCoordinator:
 
         Called by MeshDevice disconnect callback when the BLE connection
         is lost (write failure or keep-alive timeout).
+
+        For bridge devices, uses shorter backoff since HTTP reconnects
+        are cheaper than BLE reconnects. Entities are marked unavailable
+        immediately and will auto-recover when reconnect succeeds.
         """
         _LOGGER.warning("Device disconnected: %s", self._device.address)
 
@@ -439,8 +452,14 @@ class TuyaBLEMeshCoordinator:
                 self._stats.response_times
             )
 
+        # Mark all state as unavailable — entities will show "unavailable" in HA
         self._state.available = False
         self._stop_rssi_polling()
+
+        # Use bridge-specific backoff if this is a bridge device
+        if self._is_bridge_device():
+            self._backoff = _BRIDGE_INITIAL_BACKOFF
+
         self._notify_listeners()
         self._schedule_reconnect()
 
@@ -570,7 +589,7 @@ class TuyaBLEMeshCoordinator:
         if self._reconnect_task is not None:
             self._reconnect_task.cancel()
 
-        self._reconnect_task = asyncio.ensure_future(self._reconnect_loop())
+        self._reconnect_task = asyncio.create_task(self._reconnect_loop())
 
     def _classify_error(self, err: Exception) -> ErrorClass:
         """Classify a connection error into a category for repair creation.
@@ -608,14 +627,36 @@ class TuyaBLEMeshCoordinator:
     async def _reconnect_loop(self) -> None:
         """Attempt reconnection with exponential backoff.
 
-        On success: clears connectivity repair issues.
+        On success: clears connectivity repair issues, resets failure counter,
+        marks entities available (triggers HA state update).
         On failure: classifies error, checks for storm, creates repair if needed.
+        Bridge devices use shorter backoff (_BRIDGE_MAX_BACKOFF).
+        Respects _max_reconnect_failures limit (0 = unlimited).
         """
+        is_bridge = self._is_bridge_device()
+        max_backoff = _BRIDGE_MAX_BACKOFF if is_bridge else _MAX_BACKOFF
+
         while self._running:
+            # Check max reconnect failure limit
+            if (
+                self._max_reconnect_failures > 0
+                and self._consecutive_failures >= self._max_reconnect_failures
+            ):
+                _LOGGER.error(
+                    "Max reconnect failures (%d) reached for %s — giving up",
+                    self._max_reconnect_failures,
+                    self._device.address,
+                )
+                self._state.available = False
+                self._notify_listeners()
+                return
+
             _LOGGER.info(
-                "Reconnecting to %s in %.0fs",
+                "Reconnecting to %s in %.0fs (attempt %d%s)",
                 self._device.address,
                 self._backoff,
+                self._consecutive_failures + 1,
+                ", bridge" if is_bridge else "",
             )
             await asyncio.sleep(self._backoff)
 
@@ -632,7 +673,8 @@ class TuyaBLEMeshCoordinator:
                 self._stats.reconnect_times.append(time.time())
                 self._state.available = True
                 self._state.firmware_version = self._device.firmware_version
-                self._backoff = _INITIAL_BACKOFF
+                self._backoff = _BRIDGE_INITIAL_BACKOFF if is_bridge else _INITIAL_BACKOFF
+                self._consecutive_failures = 0
                 self._stats.storm_detected = False
                 self._start_rssi_polling()
                 _LOGGER.info("Reconnected to %s (%.2fs)", self._device.address, response_time)
@@ -653,6 +695,7 @@ class TuyaBLEMeshCoordinator:
                         ISSUE_RECONNECT_STORM,
                     ):
                         async_delete_issue(self._hass, issue_id)
+                # Notify listeners — entities will update to available
                 self._notify_listeners()
                 return
             except Exception as err:
@@ -660,16 +703,28 @@ class TuyaBLEMeshCoordinator:
                 self._stats.connection_errors += 1
                 self._stats.last_error = str(err)
                 self._stats.last_error_time = time.time()
+                self._consecutive_failures += 1
                 error_class = self._classify_error(err)
                 self._stats.last_error_class = error_class.value
                 self._stats.reconnect_times.append(time.time())
 
                 _LOGGER.warning(
-                    "Reconnect failed for %s (class=%s)",
+                    "Reconnect failed for %s (class=%s, consecutive=%d)",
                     self._device.address,
                     error_class.value,
+                    self._consecutive_failures,
                     exc_info=True,
                 )
+
+                # Permanent errors should not retry
+                if error_class == ErrorClass.PERMANENT:
+                    _LOGGER.error(
+                        "Permanent error for %s — stopping reconnect",
+                        self._device.address,
+                    )
+                    self._state.available = False
+                    self._notify_listeners()
+                    return
 
                 # Detect reconnect storm and create repair issue (once per storm)
                 if self._hass is not None and self._check_reconnect_storm() and not self._stats.storm_detected:
@@ -677,7 +732,7 @@ class TuyaBLEMeshCoordinator:
                     from custom_components.tuya_ble_mesh.repairs import (
                         async_create_issue_reconnect_storm,
                     )
-                    asyncio.ensure_future(
+                    asyncio.create_task(
                         async_create_issue_reconnect_storm(
                             self._hass,
                             self.entry_name or self._device.address,
@@ -687,7 +742,7 @@ class TuyaBLEMeshCoordinator:
                     )
 
                 self._state.available = False
-                self._backoff = min(self._backoff * _BACKOFF_MULTIPLIER, _MAX_BACKOFF)
+                self._backoff = min(self._backoff * _BACKOFF_MULTIPLIER, max_backoff)
                 self._notify_listeners()
 
     # --- Adaptive polling ---
@@ -735,7 +790,7 @@ class TuyaBLEMeshCoordinator:
         if self._is_bridge_device():
             return  # No local BLE — skip RSSI polling
         self._stop_rssi_polling()
-        self._rssi_task = asyncio.ensure_future(self._rssi_loop())
+        self._rssi_task = asyncio.create_task(self._rssi_loop())
 
     def _stop_rssi_polling(self) -> None:
         """Stop RSSI polling."""

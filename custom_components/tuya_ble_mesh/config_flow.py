@@ -34,10 +34,6 @@ import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlow
 
-from custom_components.tuya_ble_mesh._import_helper import ensure_lib_importable
-
-ensure_lib_importable()
-
 if TYPE_CHECKING:
     from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
     from homeassistant.data_entry_flow import FlowResult
@@ -323,33 +319,43 @@ async def _test_bridge_device_reachable(
 
 
 class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
-    """Handle options for a Tuya BLE Mesh entry."""
+    """Handle options for a Tuya BLE Mesh entry.
+
+    Multi-step flow:
+      Step 1 (init): Basic device settings (mesh name/password, vendor ID,
+              or unicast address depending on device type).
+              Bridge devices route to step 2 first.
+      Step 2 (bridge_config): Bridge host/port + optional connectivity test.
+              Only shown for bridge device types.
+      Step 3 (advanced): Debug level, timeouts, reconnect thresholds.
+
+    Each step shows only fields relevant to that category. Changes are
+    accumulated across steps and committed at the final step.
+    Backward compatible: existing config entries work without migration.
+    """
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
         """Initialize options flow with the existing config entry."""
         self._config_entry = config_entry
+        # Accumulate changes across steps before committing
+        self._pending_changes: dict[str, Any] = {}
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Show basic options. Advanced settings are behind a separate step."""
+        """Step 1: Basic device settings.
+
+        Shows mesh credentials for Telink devices, unicast address for SIG
+        direct devices. Bridge devices skip directly to bridge_config step.
+        """
+        device_type = self._config_entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
+
+        # Bridge devices go directly to bridge config step
+        if device_type in (DEVICE_TYPE_SIG_BRIDGE_PLUG, DEVICE_TYPE_TELINK_BRIDGE_LIGHT):
+            return await self.async_step_bridge_config()
+
         if user_input is not None:
-            if user_input.pop("show_advanced", False):
-                return await self.async_step_advanced()
-
             errors: dict[str, str] = {}
-            device_type = self._config_entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
 
-            # Validate inputs based on device type
-            if device_type in (DEVICE_TYPE_SIG_BRIDGE_PLUG, DEVICE_TYPE_TELINK_BRIDGE_LIGHT):
-                host = user_input.get(CONF_BRIDGE_HOST, "")
-                host_error = _validate_bridge_host(host)
-                if host_error:
-                    errors[CONF_BRIDGE_HOST] = host_error
-                elif user_input.get("validate_bridge", False):
-                    port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
-                    result = await _test_bridge_with_session(self.hass, host, port)
-                    if not result:
-                        errors["base"] = "cannot_connect"
-            elif device_type == DEVICE_TYPE_SIG_PLUG:
+            if device_type == DEVICE_TYPE_SIG_PLUG:
                 unicast_target = user_input.get(CONF_UNICAST_TARGET, "00B0")
                 unicast_error = _validate_unicast_address(unicast_target)
                 if unicast_error:
@@ -372,86 +378,72 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 if vendor_error:
                     errors[CONF_VENDOR_ID] = vendor_error
 
-            if not errors:
-                new_data = {**self._config_entry.data, **user_input}
-                new_data.pop("validate_bridge", None)
-                self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
-                return self.async_create_entry(title="", data={})
+            if errors:
+                return self.async_show_form(
+                    step_id="init",
+                    data_schema=self._build_basic_schema(),
+                    errors=errors,
+                )
 
-            return self.async_show_form(
-                step_id="init",
-                data_schema=self._build_init_schema(),
-                errors=errors,
-            )
+            # Store changes and proceed to advanced step
+            self._pending_changes.update(user_input)
+            return await self.async_step_advanced()
 
         return self.async_show_form(
             step_id="init",
-            data_schema=self._build_init_schema(),
+            data_schema=self._build_basic_schema(),
         )
 
-    def _build_init_schema(self) -> vol.Schema:
-        """Build the basic options schema based on device type."""
-        device_type = self._config_entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
-        data = self._config_entry.data
+    async def async_step_bridge_config(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Step 2: Bridge-specific configuration.
 
-        if device_type in (DEVICE_TYPE_SIG_BRIDGE_PLUG, DEVICE_TYPE_TELINK_BRIDGE_LIGHT):
-            return vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_BRIDGE_HOST,
-                        default=data.get(CONF_BRIDGE_HOST, ""),
-                    ): str,
-                    vol.Optional(
-                        CONF_BRIDGE_PORT,
-                        default=data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT),
-                    ): int,
-                    vol.Optional("validate_bridge", default=False): bool,
-                    vol.Optional("show_advanced", default=False): bool,
-                }
-            )
-        elif device_type == DEVICE_TYPE_SIG_PLUG:
-            return vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_UNICAST_TARGET,
-                        default=data.get(CONF_UNICAST_TARGET, "00B0"),
-                    ): str,
-                    vol.Optional(
-                        CONF_IV_INDEX,
-                        default=data.get(CONF_IV_INDEX, DEFAULT_IV_INDEX),
-                    ): int,
-                    vol.Optional("show_advanced", default=False): bool,
-                }
-            )
-        else:
-            return vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_MESH_NAME,
-                        default=data.get(CONF_MESH_NAME, "out_of_mesh"),
-                    ): str,
-                    vol.Optional(
-                        CONF_MESH_PASSWORD,
-                        default=data.get(CONF_MESH_PASSWORD, "123456"),  # pragma: allowlist secret
-                    ): str,
-                    vol.Optional(
-                        CONF_VENDOR_ID,
-                        default=data.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID),
-                    ): str,
-                    vol.Optional(
-                        CONF_MESH_ADDRESS,
-                        default=data.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS),
-                    ): int,
-                    vol.Optional("show_advanced", default=False): bool,
-                }
-            )
+        Shows bridge host, port, and optional connectivity validation.
+        Only shown for bridge device types.
+        """
+        if user_input is not None:
+            errors: dict[str, str] = {}
+
+            host = user_input.get(CONF_BRIDGE_HOST, "")
+            host_error = _validate_bridge_host(host)
+            if host_error:
+                errors[CONF_BRIDGE_HOST] = host_error
+            elif user_input.get("validate_bridge", False):
+                port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+                result = await _test_bridge_with_session(self.hass, host, port)
+                if not result:
+                    errors["base"] = "cannot_connect"
+
+            if errors:
+                return self.async_show_form(
+                    step_id="bridge_config",
+                    data_schema=self._build_bridge_schema(),
+                    errors=errors,
+                )
+
+            # Remove UI-only fields before storing
+            user_input.pop("validate_bridge", None)
+            self._pending_changes.update(user_input)
+            return await self.async_step_advanced()
+
+        return self.async_show_form(
+            step_id="bridge_config",
+            data_schema=self._build_bridge_schema(),
+        )
 
     async def async_step_advanced(
         self, user_input: dict[str, Any] | None = None
     ) -> FlowResult:
-        """Handle advanced options: debug level, timeouts, reconnect thresholds."""
+        """Step 3: Advanced options — debug level, timeouts, reconnect thresholds.
+
+        This is the final step. Commits all accumulated changes from
+        previous steps plus advanced settings.
+        """
         if user_input is not None:
-            new_data = {**self._config_entry.data, **user_input}
+            # Merge all pending changes + advanced settings and commit
+            all_changes = {**self._pending_changes, **user_input}
+            new_data = {**self._config_entry.data, **all_changes}
             self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
             return self.async_create_entry(title="", data={})
 
@@ -480,6 +472,63 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
         )
 
         return self.async_show_form(step_id="advanced", data_schema=schema)
+
+    def _build_basic_schema(self) -> vol.Schema:
+        """Build the basic options schema based on device type."""
+        device_type = self._config_entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
+        data = self._config_entry.data
+
+        if device_type == DEVICE_TYPE_SIG_PLUG:
+            return vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_UNICAST_TARGET,
+                        default=data.get(CONF_UNICAST_TARGET, "00B0"),
+                    ): str,
+                    vol.Optional(
+                        CONF_IV_INDEX,
+                        default=data.get(CONF_IV_INDEX, DEFAULT_IV_INDEX),
+                    ): int,
+                }
+            )
+        # Telink light / plug (direct BLE)
+        return vol.Schema(
+            {
+                vol.Optional(
+                    CONF_MESH_NAME,
+                    default=data.get(CONF_MESH_NAME, "out_of_mesh"),
+                ): str,
+                vol.Optional(
+                    CONF_MESH_PASSWORD,
+                    default=data.get(CONF_MESH_PASSWORD, "123456"),  # pragma: allowlist secret
+                ): str,
+                vol.Optional(
+                    CONF_VENDOR_ID,
+                    default=data.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID),
+                ): str,
+                vol.Optional(
+                    CONF_MESH_ADDRESS,
+                    default=data.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS),
+                ): int,
+            }
+        )
+
+    def _build_bridge_schema(self) -> vol.Schema:
+        """Build the bridge configuration schema."""
+        data = self._config_entry.data
+        return vol.Schema(
+            {
+                vol.Optional(
+                    CONF_BRIDGE_HOST,
+                    default=data.get(CONF_BRIDGE_HOST, ""),
+                ): str,
+                vol.Optional(
+                    CONF_BRIDGE_PORT,
+                    default=data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT),
+                ): int,
+                vol.Optional("validate_bridge", default=False): bool,
+            }
+        )
 
 
 class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, call-arg]
@@ -758,12 +807,10 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 # Map specific exceptions to error keys
                 error_key = "provisioning_failed"
                 try:
-                    from tuya_ble_mesh.exceptions import (  # type: ignore[import-not-found]
-                        DeviceNotFoundError,
+                    from tuya_ble_mesh.exceptions import (                        DeviceNotFoundError,
                         ProvisioningError,
                     )
-                    from tuya_ble_mesh.exceptions import TimeoutError as MeshTimeoutError  # type: ignore[import-not-found]
-
+                    from tuya_ble_mesh.exceptions import TimeoutError as MeshTimeoutError
                     if isinstance(exc, DeviceNotFoundError):
                         error_key = "device_not_found"
                     elif isinstance(exc, MeshTimeoutError):

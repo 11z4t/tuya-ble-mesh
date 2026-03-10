@@ -6,6 +6,7 @@ Provides local BLE mesh control of Tuya/Telink-based devices
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, TypeAlias
@@ -13,7 +14,6 @@ from typing import TYPE_CHECKING, Any, TypeAlias
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import HomeAssistantError
 
-from custom_components.tuya_ble_mesh._import_helper import ensure_lib_importable
 from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
     CONF_BRIDGE_HOST,
@@ -50,9 +50,6 @@ if TYPE_CHECKING:
     from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
 
 _LOGGER = logging.getLogger(__name__)
-
-ensure_lib_importable()
-
 
 @dataclass
 class TuyaBLEMeshRuntimeData:
@@ -109,8 +106,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
 
     if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
         from tuya_ble_mesh.sig_mesh_bridge import (
-            SIGMeshBridgeDevice,  # type: ignore[import-not-found]
-        )
+            SIGMeshBridgeDevice,        )
 
         target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
         bridge_host: str = entry.data[CONF_BRIDGE_HOST]
@@ -124,8 +120,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         )
     elif device_type == DEVICE_TYPE_TELINK_BRIDGE_LIGHT:
         from tuya_ble_mesh.sig_mesh_bridge import (
-            TelinkBridgeDevice,  # type: ignore[import-not-found]
-        )
+            TelinkBridgeDevice,        )
 
         bridge_host = entry.data[CONF_BRIDGE_HOST]
         bridge_port = entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
@@ -136,9 +131,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             bridge_port,
         )
     elif device_type == DEVICE_TYPE_SIG_PLUG:
-        from tuya_ble_mesh.secrets import DictSecretsManager  # type: ignore[import-not-found]
-        from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
-
+        from tuya_ble_mesh.secrets import DictSecretsManager        from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
         target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
         our_addr = int(entry.data.get(CONF_UNICAST_OUR, "0001"), 16)
         iv_index: int = entry.data.get(CONF_IV_INDEX, DEFAULT_IV_INDEX)
@@ -162,8 +155,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             ble_device_callback=_ble_device_from_ha,
         )
     else:
-        from tuya_ble_mesh.device import MeshDevice  # type: ignore[import-not-found]
-
+        from tuya_ble_mesh.device import MeshDevice
         mesh_name: str = entry.data[CONF_MESH_NAME]
         mesh_password: str = entry.data[CONF_MESH_PASSWORD]
         vendor_id_hex: str = entry.data.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
@@ -267,7 +259,9 @@ async def _async_register_services(hass: HomeAssistant) -> None:
                 # Flash: off → on → off → on
                 for _ in range(3):
                     await device.send_power(False)
+                    await asyncio.sleep(0.5)
                     await device.send_power(True)
+                    await asyncio.sleep(0.5)
         except Exception as exc:
             raise HomeAssistantError(f"Failed to identify device: {exc}") from exc
 

@@ -16,16 +16,20 @@ class MeshConnectionError(TuyaBLEMeshError):
     """Failed to establish or maintain a BLE connection."""
 
 
-# Backward-compatible alias — avoids shadowing Python's built-in ConnectionError
-ConnectionError = MeshConnectionError
+# DEPRECATED: alias removed — use MeshConnectionError directly.
+# ConnectionError was shadowing Python's builtins.ConnectionError.
 
 
 class DeviceNotFoundError(TuyaBLEMeshError):
     """Target BLE device was not discovered during scanning."""
 
 
-class TimeoutError(TuyaBLEMeshError):
+class MeshTimeoutError(TuyaBLEMeshError):
     """BLE operation exceeded the allowed time limit."""
+
+
+# DEPRECATED: kept for backward compat, use MeshTimeoutError
+TimeoutError = MeshTimeoutError
 
 
 class ProvisioningError(TuyaBLEMeshError):
@@ -85,7 +89,7 @@ MalmbergsBTError = TuyaBLEMeshError
 BLEError = TuyaBLEMeshError
 BLEConnectionError = MeshConnectionError
 BLEDeviceNotFoundError = DeviceNotFoundError
-BLETimeoutError = TimeoutError
+BLETimeoutError = MeshTimeoutError
 BLEServiceError = ProtocolError
 BLECharacteristicError = ProtocolError
 BLENotificationError = MeshConnectionError

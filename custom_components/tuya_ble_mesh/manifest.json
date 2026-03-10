@@ -28,5 +28,5 @@
   "dependencies": [
     "bluetooth"
   ],
-  "requirements": []
+  "requirements": ["tuya-ble-mesh==0.20.6", "bleak>=0.21", "bleak-retry-connector>=3.0", "cryptography>=42.0", "aiohttp>=3.9"]
 }
