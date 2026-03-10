@@ -493,6 +493,15 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         Returns:
             Flow result dict.
         """
+        # Validate that device is still discoverable before processing form submission
+        if self._discovery_info is not None:
+            from homeassistant.components import bluetooth as ha_bluetooth
+            mac = self._discovery_info["address"]
+            device = ha_bluetooth.async_ble_device_from_address(self.hass, mac, connectable=False)
+            if device is None:
+                _LOGGER.warning("Device %s is no longer advertising, aborting flow", mac)
+                return self.async_abort(reason="device_not_found")
+
         if user_input is not None and self._discovery_info is not None:
             mac = self._discovery_info["address"]
             device_type = user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
@@ -656,6 +665,15 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             Flow result dict.
         """
         errors: dict[str, str] = {}
+
+        # Validate that device is still discoverable before provisioning
+        if self._discovery_info is not None:
+            from homeassistant.components import bluetooth as ha_bluetooth
+            mac = self._discovery_info["address"]
+            device = ha_bluetooth.async_ble_device_from_address(self.hass, mac, connectable=True)
+            if device is None:
+                _LOGGER.warning("Device %s is no longer advertising, aborting flow", mac)
+                return self.async_abort(reason="device_not_found")
 
         if user_input is not None and self._discovery_info is not None:
             mac = self._discovery_info["address"]
