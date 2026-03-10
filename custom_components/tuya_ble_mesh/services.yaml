@@ -7,7 +7,8 @@ identify:
       description: The Tuya BLE Mesh device to identify.
       required: true
       selector:
-        text:
+        device:
+          integration: tuya_ble_mesh
 
 set_log_level:
   name: Set log level
@@ -34,4 +35,5 @@ get_diagnostics:
       description: The Tuya BLE Mesh device to get diagnostics for.
       required: true
       selector:
-        text:
+        device:
+          integration: tuya_ble_mesh
