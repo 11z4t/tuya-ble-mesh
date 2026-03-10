@@ -356,7 +356,10 @@ class TestRuntimeSetup:
 
     @pytest.mark.asyncio
     async def test_coordinator_adaptive_polling_frequent_changes(self) -> None:
-        """Test coordinator adaptive polling with frequent changes - covers coordinator.py:471-478."""
+        """Test coordinator adaptive polling with frequent changes.
+
+        Covers coordinator.py:471-478.
+        """
         from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
 
         mock_device = MagicMock()
