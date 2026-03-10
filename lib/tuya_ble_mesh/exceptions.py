@@ -12,8 +12,12 @@ class TuyaBLEMeshError(Exception):
     """Base exception for all Tuya BLE Mesh operations."""
 
 
-class ConnectionError(TuyaBLEMeshError):
+class MeshConnectionError(TuyaBLEMeshError):
     """Failed to establish or maintain a BLE connection."""
+
+
+# Backward-compatible alias — avoids shadowing Python's built-in ConnectionError
+ConnectionError = MeshConnectionError
 
 
 class DeviceNotFoundError(TuyaBLEMeshError):
@@ -60,7 +64,7 @@ class PowerControlError(TuyaBLEMeshError):
     """Shelly power control operation failed."""
 
 
-class DisconnectedError(ConnectionError):
+class DisconnectedError(MeshConnectionError):
     """Operation attempted while device is disconnected."""
 
 
@@ -79,9 +83,9 @@ MalmbergsBTError = TuyaBLEMeshError
 
 # Phase 1 legacy aliases
 BLEError = TuyaBLEMeshError
-BLEConnectionError = ConnectionError
+BLEConnectionError = MeshConnectionError
 BLEDeviceNotFoundError = DeviceNotFoundError
 BLETimeoutError = TimeoutError
 BLEServiceError = ProtocolError
 BLECharacteristicError = ProtocolError
-BLENotificationError = ConnectionError
+BLENotificationError = MeshConnectionError

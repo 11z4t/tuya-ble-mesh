@@ -257,6 +257,9 @@ class TuyaBLEMeshLight(LightEntity):  # type: ignore[misc]
             self._transition_task = asyncio.create_task(
                 self._run_transition(target_bright, target_temp, transition, target_rgb=target_rgb)
             )
+            self._transition_task.add_done_callback(
+                lambda t: t.exception() if not t.cancelled() else None
+            )
             return
 
         if rgb_color is not None:
@@ -304,6 +307,9 @@ class TuyaBLEMeshLight(LightEntity):  # type: ignore[misc]
                     duration=transition,
                     power_off_after=True,
                 )
+            )
+            self._transition_task.add_done_callback(
+                lambda t: t.exception() if not t.cancelled() else None
             )
             return
 
