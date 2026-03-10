@@ -321,10 +321,10 @@ class TuyaBLEMeshRepairFlow(RepairsFlow):
     Routes to the appropriate fix step based on issue_id.
     """
 
-    def __init__(self, issue_id: str) -> None:
+    def __init__(self, issue_id: str | None = None) -> None:
         """Initialize repair flow with the issue to fix."""
         super().__init__()
-        self._issue_id = issue_id
+        self._issue_id = issue_id or ""
 
     async def async_step_init(self, user_input: dict[str, str] | None = None) -> FlowResult:
         """Dispatch to appropriate fix step."""
