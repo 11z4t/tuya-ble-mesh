@@ -14,6 +14,7 @@ import logging
 import os
 import re
 import sys
+import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -87,6 +88,9 @@ _MODEL_GENERIC_ONOFF_SERVER = 0x1000
 
 # Seconds to wait for device to reboot as Proxy Service after provisioning
 _POST_PROV_REBOOT_DELAY = 6.0
+
+# PLAT-509: Discovery flow TTL — flows expire after this duration if device stops advertising
+_DISCOVERY_FLOW_TTL = 300  # 5 minutes
 
 
 def _parse_json_body(body: str) -> dict[str, object]:
@@ -186,6 +190,45 @@ def _validate_mac(mac: str) -> str | None:
     if not _MAC_PATTERN.match(mac):
         return "invalid_mac"
     return None
+
+
+def _auto_detect_device_type(discovery_info: Any) -> str | None:
+    """Auto-detect device type from BLE advertisement data (PLAT-510).
+
+    Attempts to determine if a device is a Light or Plug based on:
+    - Advertised name patterns
+    - Manufacturer data hints
+
+    Args:
+        discovery_info: Bluetooth service info from discovery.
+
+    Returns:
+        Device type constant (DEVICE_TYPE_LIGHT or DEVICE_TYPE_PLUG), or None if unknown.
+    """
+    name = (getattr(discovery_info, "name", "") or "").lower()
+    manufacturer_data = getattr(discovery_info, "manufacturer_data", {})
+
+    # Check for plug indicators in name
+    if any(keyword in name for keyword in ("plug", "socket", "outlet", "switch")):
+        _LOGGER.debug("Auto-detected PLUG from name: %s", name)
+        return DEVICE_TYPE_PLUG
+
+    # Check for light indicators in name
+    if any(keyword in name for keyword in ("light", "lamp", "bulb", "rgb", "rgbw", "led")):
+        _LOGGER.debug("Auto-detected LIGHT from name: %s", name)
+        return DEVICE_TYPE_LIGHT
+
+    # Fallback: check manufacturer data for hints
+    for vendor_id, data in manufacturer_data.items():
+        if len(data) > 0:
+            _LOGGER.debug(
+                "Manufacturer data for %s: vendor_id=0x%04X, data=%s",
+                getattr(discovery_info, "address", "unknown"),
+                vendor_id,
+                data.hex(),
+            )
+
+    return None  # Unknown - user must select manually
 
 
 async def _test_bridge_with_session(hass: Any, host: str, port: int) -> bool:
@@ -317,6 +360,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         """Initialize config flow state for a new Tuya BLE Mesh entry."""
         super().__init__()
         self._discovery_info: dict[str, Any] | None = None
+        self._discovery_timestamp: float = 0.0  # PLAT-509: Track when discovery started
         # Stored provisioning keys set by _run_provision
         self._prov_net_key: str = ""
         self._prov_dev_key: str = ""
@@ -355,7 +399,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             "name": name,
             "rssi": rssi,
             "device_category": device_category,
+            "_raw_info": discovery_info,  # PLAT-510: Store for auto-detection
         }
+        self._discovery_timestamp = time.time()  # PLAT-509: Record discovery time
 
         # Auto-detect SIG Mesh devices by service UUID.
         # 0x1827 = Provisioning Service (unprovisioned device)
@@ -376,6 +422,28 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         Returns:
             Flow result dict.
         """
+        # PLAT-509: Check if discovery flow has expired (device stopped advertising)
+        if self._discovery_info is not None:
+            from homeassistant.components import bluetooth as ha_bluetooth
+            mac = self._discovery_info["address"]
+
+            # Check if flow is stale (TTL expired)
+            age = time.time() - self._discovery_timestamp
+            if age > _DISCOVERY_FLOW_TTL:
+                _LOGGER.warning(
+                    "Discovery flow for %s expired (age: %.0fs > TTL: %ds), aborting",
+                    mac, age, _DISCOVERY_FLOW_TTL
+                )
+                return self.async_abort(reason="device_not_found")
+
+            # Check if device is still advertising
+            device = ha_bluetooth.async_ble_device_from_address(self.hass, mac, connectable=False)
+            if device is None:
+                _LOGGER.warning(
+                    "Device %s no longer advertising (stale discovery card), aborting flow", mac
+                )
+                return self.async_abort(reason="device_not_found")
+
         if user_input is not None and self._discovery_info is not None:
             mac = self._discovery_info["address"]
             device_type = user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
@@ -397,11 +465,18 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 },
             )
 
+        # PLAT-510: Auto-detect device type from BLE advertisement
+        auto_detected = None
+        if self._discovery_info and "_raw_info" in self._discovery_info:
+            auto_detected = _auto_detect_device_type(self._discovery_info["_raw_info"])
+
+        default_device_type = auto_detected if auto_detected else DEVICE_TYPE_LIGHT
+
         return self.async_show_form(
             step_id="confirm",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_DEVICE_TYPE, default=DEVICE_TYPE_LIGHT): vol.In(
+                    vol.Required(CONF_DEVICE_TYPE, default=default_device_type): vol.In(
                         {DEVICE_TYPE_LIGHT: "Light", DEVICE_TYPE_PLUG: "Plug"}
                     ),
                     vol.Optional(CONF_MESH_NAME, default="out_of_mesh"): str,
@@ -509,6 +584,26 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             Flow result dict.
         """
         errors: dict[str, str] = {}
+
+        # PLAT-509: Validate device is still discoverable before showing form or provisioning
+        if self._discovery_info is not None:
+            from homeassistant.components import bluetooth as ha_bluetooth
+            mac = self._discovery_info["address"]
+
+            # Check if flow is stale (TTL expired)
+            age = time.time() - self._discovery_timestamp
+            if age > _DISCOVERY_FLOW_TTL:
+                _LOGGER.warning(
+                    "Discovery flow for %s expired (age: %.0fs > TTL: %ds), aborting",
+                    mac, age, _DISCOVERY_FLOW_TTL
+                )
+                return self.async_abort(reason="device_not_found")
+
+            # Check if device is still advertising
+            device = ha_bluetooth.async_ble_device_from_address(self.hass, mac, connectable=True)
+            if device is None:
+                _LOGGER.warning("Device %s no longer advertising, aborting flow", mac)
+                return self.async_abort(reason="device_not_found")
 
         if user_input is not None and self._discovery_info is not None:
             mac = self._discovery_info["address"]
