@@ -58,6 +58,15 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+
+def _log_task_exception(task: asyncio.Task[Any]) -> None:
+    """Log exceptions from fire-and-forget tasks instead of silently swallowing."""
+    if task.cancelled():
+        return
+    if (exc := task.exception()) is not None:
+        _LOGGER.warning("Background task %s failed: %s", task.get_name(), exc)
+
+
 # BLE mesh serializes commands — limit to one concurrent update
 PARALLEL_UPDATES = 1
 
@@ -320,7 +329,11 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
         """Return the current color temperature in kelvin."""
         if not self.coordinator.state.is_on:
             return None
+        if self.coordinator.state.color_temp == 0:
+            return None
         mired = color_temp_to_ha(self.coordinator.state.color_temp)
+        if mired == 0:
+            return None
         return round(1_000_000 / mired)
 
     _attr_min_color_temp_kelvin = 2703  # warmest (370 mireds)
@@ -381,9 +394,7 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
                     use_color_brightness=cmd.use_color_brightness,
                 )
             )
-            self._transition_task.add_done_callback(
-                lambda t: t.exception() if not t.cancelled() else None
-            )
+            self._transition_task.add_done_callback(_log_task_exception)
             return
 
         # Debounce: schedule command after short window so rapid slider
@@ -391,9 +402,7 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
         self._pending_command_task = asyncio.create_task(
             self._debounced_send_turn_on(brightness, color_temp, rgb_color, has_target)
         )
-        self._pending_command_task.add_done_callback(
-            lambda t: t.exception() if not t.cancelled() else None
-        )
+        self._pending_command_task.add_done_callback(_log_task_exception)
 
     async def _debounced_send_turn_on(
         self,
@@ -505,9 +514,7 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
                     use_color_brightness=use_color_b,
                 )
             )
-            self._transition_task.add_done_callback(
-                lambda t: t.exception() if not t.cancelled() else None
-            )
+            self._transition_task.add_done_callback(_log_task_exception)
             return
 
         await self.coordinator.send_command_with_retry(
