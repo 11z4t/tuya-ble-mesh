@@ -1,0 +1,63 @@
+{
+  "config": {
+    "flow_title": "{mac}",
+    "step": {
+      "user": {
+        "title": "Appareil Tuya BLE Mesh",
+        "description": "Entrez l'adresse MAC BLE et le type d'appareil. Les identifiants mesh par défaut (out_of_mesh/123456) sont les paramètres d'usine Tuya.",
+        "data": {
+          "mac_address": "Adresse MAC",
+          "mesh_name": "Nom du mesh",
+          "mesh_password": "Mot de passe du mesh",
+          "vendor_id": "ID du fabricant (hex, par ex. 0x1001)",
+          "device_type": "Type d'appareil",
+          "mesh_address": "Adresse mesh (0 = auto)"
+        }
+      }
+    },
+    "error": {
+      "invalid_mac": "Format d'adresse MAC invalide. Format attendu : XX:XX:XX:XX:XX:XX (séparé par deux-points).",
+      "cannot_connect": "Impossible de se connecter au démon bridge. Vérifiez l'hôte/le port et que le démon est en cours d'exécution."
+    },
+    "abort": {
+      "already_configured": "Cet appareil est déjà configuré"
+    }
+  },
+  "entity": {
+    "light": {
+      "mesh_light": {
+        "name": "Lumière"
+      }
+    },
+    "switch": {
+      "mesh_switch": {
+        "name": "Interrupteur"
+      }
+    },
+    "sensor": {
+      "rssi": {
+        "name": "Force du signal"
+      },
+      "firmware": {
+        "name": "Version du firmware"
+      },
+      "power": {
+        "name": "Puissance"
+      },
+      "energy": {
+        "name": "Énergie"
+      }
+    },
+    "update": {
+      "firmware_update": {
+        "name": "Firmware"
+      }
+    }
+  },
+  "services": {
+    "identify": {
+      "name": "Identifier l'appareil",
+      "description": "Fait clignoter la LED de l'appareil pour faciliter l'identification."
+    }
+  }
+}

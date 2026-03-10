@@ -1,0 +1,63 @@
+{
+  "config": {
+    "flow_title": "{mac}",
+    "step": {
+      "user": {
+        "title": "Tuya BLE Mesh-apparaat",
+        "description": "Voer het BLE MAC-adres en apparaattype in. Standaard mesh-inloggegevens (out_of_mesh/123456) zijn Tuya-fabrieksinstellingen.",
+        "data": {
+          "mac_address": "MAC-adres",
+          "mesh_name": "Mesh-naam",
+          "mesh_password": "Mesh-wachtwoord",
+          "vendor_id": "Leveranciers-ID (hex, bijv. 0x1001)",
+          "device_type": "Apparaattype",
+          "mesh_address": "Mesh-adres (0 = auto)"
+        }
+      }
+    },
+    "error": {
+      "invalid_mac": "Ongeldig MAC-adresformaat. Verwacht XX:XX:XX:XX:XX:XX (gescheiden door dubbele punten).",
+      "cannot_connect": "Kan geen verbinding maken met bridge-daemon. Controleer host/poort en of de daemon actief is."
+    },
+    "abort": {
+      "already_configured": "Dit apparaat is al geconfigureerd"
+    }
+  },
+  "entity": {
+    "light": {
+      "mesh_light": {
+        "name": "Licht"
+      }
+    },
+    "switch": {
+      "mesh_switch": {
+        "name": "Schakelaar"
+      }
+    },
+    "sensor": {
+      "rssi": {
+        "name": "Signaalsterkte"
+      },
+      "firmware": {
+        "name": "Firmwareversie"
+      },
+      "power": {
+        "name": "Vermogen"
+      },
+      "energy": {
+        "name": "Energie"
+      }
+    },
+    "update": {
+      "firmware_update": {
+        "name": "Firmware"
+      }
+    }
+  },
+  "services": {
+    "identify": {
+      "name": "Apparaat identificeren",
+      "description": "Laat de LED van het apparaat knipperen voor eenvoudige identificatie."
+    }
+  }
+}

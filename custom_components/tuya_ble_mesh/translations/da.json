@@ -1,0 +1,63 @@
+{
+  "config": {
+    "flow_title": "{mac}",
+    "step": {
+      "user": {
+        "title": "Tuya BLE Mesh-enhed",
+        "description": "Indtast BLE MAC-adressen og enhedstype. Standard mesh-legitimationsoplysninger (out_of_mesh/123456) er Tuya-fabriksindstillinger.",
+        "data": {
+          "mac_address": "MAC-adresse",
+          "mesh_name": "Mesh-navn",
+          "mesh_password": "Mesh-adgangskode",
+          "vendor_id": "Leverandør-ID (hex, f.eks. 0x1001)",
+          "device_type": "Enhedstype",
+          "mesh_address": "Mesh-adresse (0 = auto)"
+        }
+      }
+    },
+    "error": {
+      "invalid_mac": "Ugyldigt MAC-adresseformat. Forventet XX:XX:XX:XX:XX:XX (kolon-separeret).",
+      "cannot_connect": "Kan ikke oprette forbindelse til bridge-dæmon. Kontroller vært/port og at dæmonen kører."
+    },
+    "abort": {
+      "already_configured": "Denne enhed er allerede konfigureret"
+    }
+  },
+  "entity": {
+    "light": {
+      "mesh_light": {
+        "name": "Lys"
+      }
+    },
+    "switch": {
+      "mesh_switch": {
+        "name": "Kontakt"
+      }
+    },
+    "sensor": {
+      "rssi": {
+        "name": "Signalstyrke"
+      },
+      "firmware": {
+        "name": "Firmwareversion"
+      },
+      "power": {
+        "name": "Effekt"
+      },
+      "energy": {
+        "name": "Energi"
+      }
+    },
+    "update": {
+      "firmware_update": {
+        "name": "Firmware"
+      }
+    }
+  },
+  "services": {
+    "identify": {
+      "name": "Identificer enhed",
+      "description": "Blinker enhedens LED for nem identifikation."
+    }
+  }
+}
