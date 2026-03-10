@@ -75,6 +75,10 @@ _BACKOFF_MULTIPLIER = 2.0
 _STORM_WINDOW_SECONDS = 300  # 5 minutes
 _STORM_DEFAULT_THRESHOLD = 10
 
+# Bridge health check — poll /health when idle to detect disconnects
+_BRIDGE_HEALTH_INTERVAL = 30.0  # seconds between health polls
+_BRIDGE_HEALTH_TIMEOUT = 5.0  # HTTP timeout per poll
+
 
 class ErrorClass(str, Enum):
     """Classification of connection/protocol errors for repair creation."""
@@ -158,6 +162,7 @@ class TuyaBLEMeshCoordinator:
         self._listener_error_counts: dict[int, int] = {}
         self._reconnect_task: asyncio.Task[None] | None = None
         self._rssi_task: asyncio.Task[None] | None = None
+        self._bridge_health_task: asyncio.Task[None] | None = None
         self._backoff = _INITIAL_BACKOFF
         self._running = False
 
@@ -514,6 +519,7 @@ class TuyaBLEMeshCoordinator:
             self._state.firmware_version = self._device.firmware_version
             self._backoff = _INITIAL_BACKOFF
             self._start_rssi_polling()
+            self._start_bridge_health_polling()
             _LOGGER.info("Coordinator started for %s (%.2fs)", self._device.address, response_time)
             self._log_connect_metrics(response_time)
         except Exception as err:
@@ -539,6 +545,7 @@ class TuyaBLEMeshCoordinator:
         await self._save_seq()
 
         self._stop_rssi_polling()
+        self._stop_bridge_health_polling()
 
         if self._reconnect_task is not None:
             self._reconnect_task.cancel()
@@ -559,7 +566,10 @@ class TuyaBLEMeshCoordinator:
         except Exception:
             _LOGGER.debug("Disconnect error during stop (ignored)", exc_info=True)
 
-        self._state.available = False
+        # Mark unavailable and notify entities so UI shows unavailable immediately
+        if self._state.available:
+            self._state.available = False
+            self._notify_listeners()
         _LOGGER.info("Coordinator stopped for %s", self._device.address)
 
     def _schedule_reconnect(self) -> None:
@@ -635,6 +645,7 @@ class TuyaBLEMeshCoordinator:
                 self._backoff = _INITIAL_BACKOFF
                 self._stats.storm_detected = False
                 self._start_rssi_polling()
+                self._start_bridge_health_polling()
                 _LOGGER.info("Reconnected to %s (%.2fs)", self._device.address, response_time)
                 self._log_connect_metrics(response_time)
                 # Clear connectivity repair issues on successful reconnect
@@ -791,5 +802,60 @@ class TuyaBLEMeshCoordinator:
 
                 except Exception:
                     _LOGGER.debug("RSSI update failed (ignored)", exc_info=True)
+        except asyncio.CancelledError:
+            pass
+
+    # --- Bridge health polling ---
+
+    def _start_bridge_health_polling(self) -> None:
+        """Start periodic bridge health check for bridge devices.
+
+        Bridge devices have no keep-alive at the BLE layer. Without polling,
+        a bridge going down while idle would not be detected until the next
+        command attempt. This loop detects the disconnect proactively and
+        triggers the normal reconnect flow so entities become unavailable.
+        """
+        if not self._is_bridge_device():
+            return  # BLE devices use disconnect callbacks, not health polling
+        self._stop_bridge_health_polling()
+        self._bridge_health_task = asyncio.ensure_future(self._bridge_health_loop())
+
+    def _stop_bridge_health_polling(self) -> None:
+        """Stop bridge health polling."""
+        if self._bridge_health_task is not None:
+            self._bridge_health_task.cancel()
+            self._bridge_health_task = None
+
+    async def _bridge_health_loop(self) -> None:
+        """Periodically poll the bridge /health endpoint.
+
+        If the bridge becomes unreachable, calls _on_disconnect() to mark
+        entities unavailable and trigger exponential-backoff reconnect.
+        This ensures bridge devices auto-recover when the bridge restarts.
+        """
+        try:
+            while self._running and self._state.available:
+                await asyncio.sleep(_BRIDGE_HEALTH_INTERVAL)
+                if not self._running or not self._state.available:
+                    break
+
+                try:
+                    result = await asyncio.wait_for(
+                        self._device.connect(  # type: ignore[arg-type]
+                            timeout=_BRIDGE_HEALTH_TIMEOUT,
+                            max_retries=1,
+                        ),
+                        timeout=_BRIDGE_HEALTH_TIMEOUT + 1.0,
+                    )
+                    _ = result  # connect() returns None on success
+                    _LOGGER.debug("Bridge health check OK for %s", self._device.address)
+                except Exception:
+                    _LOGGER.warning(
+                        "Bridge health check failed for %s — triggering disconnect/reconnect",
+                        self._device.address,
+                        exc_info=True,
+                    )
+                    self._on_disconnect()
+                    break  # _on_disconnect schedules reconnect; loop will restart after
         except asyncio.CancelledError:
             pass
