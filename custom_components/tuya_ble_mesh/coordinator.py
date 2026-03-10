@@ -155,8 +155,12 @@ class ConnectionStatistics:
     # Reconnect storm tracking
     reconnect_times: deque[float] = field(default_factory=lambda: deque(maxlen=50))
     storm_detected: bool = False
-    # Reconnect timeline — last N events with error class and backoff
-    reconnect_timeline: list[ReconnectEvent] = field(default_factory=list)
+    # Reconnect timeline — last N events with error class and backoff.
+    # deque(maxlen) automatically evicts the oldest entry when full — O(1) append,
+    # no manual pop(0) needed (which would be O(n) on a plain list).
+    reconnect_timeline: deque[ReconnectEvent] = field(
+        default_factory=lambda: deque(maxlen=_RECONNECT_TIMELINE_MAX)
+    )
     # RSSI history — (timestamp, dBm) tuples for trend analysis
     rssi_history: deque[tuple[float, int]] = field(default_factory=lambda: deque(maxlen=50))
 
@@ -228,6 +232,27 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
     async def _async_update_data(self) -> None:
         """No-op — state updates arrive via BLE notifications."""
         return None
+
+    # --- Public read-only properties ---
+
+    @property
+    def consecutive_failures(self) -> int:
+        """Number of consecutive reconnect failures since last successful connect.
+
+        Read-only; mutated internally by the reconnect loop. Exposed as a
+        property so external modules (e.g. diagnostics) do not need to access
+        the private ``_consecutive_failures`` attribute.
+        """
+        return self._consecutive_failures
+
+    @property
+    def storm_threshold(self) -> int:
+        """Reconnect-storm detection threshold (number of reconnects per 5-min window).
+
+        Read-only; set from options at coordinator creation time. Exposed as a
+        property so diagnostics and tests can read it without private-attribute access.
+        """
+        return self._storm_threshold
 
     # --- Listener support ---
     # In HA context, listeners are managed by DataUpdateCoordinator.async_add_listener()
@@ -896,16 +921,16 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                         )
                     )
 
-                # Record reconnect event for timeline diagnostics
-                _event = ReconnectEvent(
-                    timestamp=time.time(),
-                    error_class=error_class.value,
-                    backoff=self._backoff,
-                    attempt=self._consecutive_failures,
+                # Record reconnect event for timeline diagnostics.
+                # deque(maxlen=_RECONNECT_TIMELINE_MAX) evicts oldest automatically.
+                self._stats.reconnect_timeline.append(
+                    ReconnectEvent(
+                        timestamp=time.time(),
+                        error_class=error_class.value,
+                        backoff=self._backoff,
+                        attempt=self._consecutive_failures,
+                    )
                 )
-                if len(self._stats.reconnect_timeline) >= _RECONNECT_TIMELINE_MAX:
-                    self._stats.reconnect_timeline.pop(0)
-                self._stats.reconnect_timeline.append(_event)
 
                 self._state = replace(self._state, available=False)
                 self._backoff = min(self._backoff * _BACKOFF_MULTIPLIER, max_backoff)
