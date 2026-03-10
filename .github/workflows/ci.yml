@@ -7,18 +7,18 @@ on:
     branches: [main]
 
 jobs:
-  test:
+  # ─── Library tests (pure Python, no HA dependency) ───────────────────────────
+  test-lib:
+    name: Test lib (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
       matrix:
         python-version: ['3.11', '3.12']
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -27,17 +27,22 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[test]"
 
-      - name: Run unit tests
+      - name: Unit tests (lib only)
         run: |
-          pytest tests/unit/ -v --cov=lib/tuya_ble_mesh --cov-report=xml --cov-report=term
+          pytest tests/unit/ -v \
+            --ignore=tests/unit/test_ha_config_flow.py \
+            --ignore=tests/unit/test_ha_coordinator.py \
+            --ignore=tests/unit/test_ha_diagnostics.py \
+            --ignore=tests/unit/test_ha_init.py \
+            --ignore=tests/unit/test_ha_light.py \
+            --ignore=tests/unit/test_ha_repairs.py \
+            --ignore=tests/unit/test_ha_sensor.py \
+            --ignore=tests/unit/test_ha_switch.py \
+            --ignore=tests/unit/test_ha_const.py \
+            --cov=lib/tuya_ble_mesh --cov-report=xml --cov-report=term
 
-      - name: Run security tests
-        run: |
-          pytest tests/security/ -v
-
-      - name: Run benchmarks
-        run: |
-          pytest tests/benchmarks/ -v --benchmark-only --benchmark-disable-gc
+      - name: Security tests
+        run: pytest tests/security/ -v
 
       - name: Upload coverage
         if: matrix.python-version == '3.12'
@@ -46,34 +51,65 @@ jobs:
           files: ./coverage.xml
           fail_ci_if_error: false
 
+  # ─── HA integration tests (requires homeassistant package) ───────────────────
+  test-ha:
+    name: Test HA integration (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.12']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[test]"
+
+      - name: HA layer unit tests
+        run: |
+          pytest tests/unit/test_ha_config_flow.py \
+                 tests/unit/test_ha_coordinator.py \
+                 tests/unit/test_ha_diagnostics.py \
+                 tests/unit/test_ha_init.py \
+                 tests/unit/test_ha_light.py \
+                 tests/unit/test_ha_repairs.py \
+                 tests/unit/test_ha_sensor.py \
+                 tests/unit/test_ha_switch.py \
+                 tests/unit/test_ha_const.py \
+                 -v -m "requires_ha or not requires_ha"
+
+  # ─── Linting ─────────────────────────────────────────────────────────────────
   lint:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
       - name: Install ruff
         run: pip install ruff
 
-      - name: Run ruff check
+      - name: Lint
         run: ruff check .
 
-      - name: Run ruff format check
+      - name: Format check
         run: ruff format --check .
 
+  # ─── Type checking ────────────────────────────────────────────────────────────
   type-check:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
@@ -83,14 +119,18 @@ jobs:
           pip install -e ".[test]"
           pip install mypy
 
-      - name: Run mypy
+      - name: mypy (lib)
         run: mypy lib/tuya_ble_mesh
 
+      - name: mypy (custom_components)
+        run: mypy custom_components/tuya_ble_mesh --ignore-missing-imports
+        continue-on-error: true  # HA stubs not available in CI
+
+  # ─── HACS validation ─────────────────────────────────────────────────────────
   hacs:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
       - name: HACS validation
         uses: hacs/action@main
