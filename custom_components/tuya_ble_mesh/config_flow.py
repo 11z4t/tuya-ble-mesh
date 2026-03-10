@@ -223,12 +223,48 @@ def _validate_vendor_id(value: str) -> str | None:
     value = value.strip()
     if not _VENDOR_ID_PATTERN.match(value):
         return "invalid_vendor_id"
-    try:
-        parsed = int(value, 16)
-        if not 0 <= parsed <= 0xFFFF:
-            return "invalid_vendor_id"
-    except ValueError:
-        return "invalid_vendor_id"
+    return None
+
+
+def _validate_iv_index(value: int) -> str | None:
+    """Validate a SIG Mesh IV index value.
+
+    IV index must be a non-negative 32-bit unsigned integer (0–4294967295).
+
+    Args:
+        value: IV index to validate.
+
+    Returns:
+        None if valid, error key string if invalid.
+    """
+    if not isinstance(value, int) or isinstance(value, bool):
+        return "invalid_iv_index"
+    if not 0 <= value <= 0xFFFFFFFF:
+        return "invalid_iv_index"
+    return None
+
+
+_UNICAST_ADDR_PATTERN = re.compile(r"^[0-9A-Fa-f]{4}$")
+
+
+def _validate_unicast_address(value: str) -> str | None:
+    """Validate a 4-character hex unicast address for SIG Mesh.
+
+    Unicast addresses must be in range 0x0001–0x7FFF (SIG Mesh spec).
+    Address 0x0000 is unassigned; 0x8000–0xFFFF are group addresses.
+
+    Args:
+        value: Unicast address string (e.g. ``"00B0"``).
+
+    Returns:
+        None if valid, error key string if invalid.
+    """
+    value = value.strip()
+    if not _UNICAST_ADDR_PATTERN.match(value):
+        return "invalid_unicast_address"
+    parsed = int(value, 16)
+    if not 0x0001 <= parsed <= 0x7FFF:
+        return "invalid_unicast_address"
     return None
 
 
@@ -281,11 +317,48 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):
         Returns:
             Flow result dict.
         """
+        errors: dict[str, str] = {}
+
         if user_input is not None:
-            # Merge new data into config entry
-            new_data = {**self._config_entry.data, **user_input}
-            self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
-            return self.async_create_entry(title="", data={})
+            device_type = self._config_entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
+
+            # Validate SIG plug-specific options
+            if device_type == DEVICE_TYPE_SIG_PLUG:
+                unicast_val = str(user_input.get(CONF_UNICAST_TARGET, "00B0"))
+                unicast_error = _validate_unicast_address(unicast_val)
+                if unicast_error:
+                    errors[CONF_UNICAST_TARGET] = unicast_error
+                iv_val = user_input.get(CONF_IV_INDEX, 0)
+                iv_error = _validate_iv_index(iv_val)
+                if iv_error:
+                    errors[CONF_IV_INDEX] = iv_error
+
+            # Validate bridge host for bridge devices
+            if device_type in (DEVICE_TYPE_SIG_BRIDGE_PLUG, DEVICE_TYPE_TELINK_BRIDGE_LIGHT):
+                host_val = user_input.get(CONF_BRIDGE_HOST, "")
+                if host_val:
+                    host_error = _validate_bridge_host(str(host_val))
+                    if host_error:
+                        errors[CONF_BRIDGE_HOST] = host_error
+
+            # Validate mesh credentials for direct BLE devices
+            if device_type in (DEVICE_TYPE_LIGHT, DEVICE_TYPE_PLUG):
+                name_val = user_input.get(CONF_MESH_NAME, "")
+                if name_val:
+                    name_error = _validate_mesh_credential(str(name_val))
+                    if name_error:
+                        errors[CONF_MESH_NAME] = name_error
+                pass_val = user_input.get(CONF_MESH_PASSWORD, "")
+                if pass_val:
+                    pass_error = _validate_mesh_credential(str(pass_val))
+                    if pass_error:
+                        errors[CONF_MESH_PASSWORD] = pass_error
+
+            if not errors:
+                # Merge new data into config entry
+                new_data = {**self._config_entry.data, **user_input}
+                self.hass.config_entries.async_update_entry(self._config_entry, data=new_data)
+                return self.async_create_entry(title="", data={})
 
         device_type = self._config_entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
 
@@ -342,7 +415,7 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):
                 }
             )
 
-        return self.async_show_form(step_id="init", data_schema=schema)
+        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
 
 
 class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
@@ -838,25 +911,30 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         if user_input is not None and self._discovery_info is not None:
             host = user_input.get(CONF_BRIDGE_HOST, "")
             port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+            unicast_target = user_input.get(CONF_UNICAST_TARGET, "00B0")
             host_error = _validate_bridge_host(host)
             if host_error:
                 errors[CONF_BRIDGE_HOST] = host_error
-            elif not await _test_bridge_with_session(self.hass, host, port):
-                errors["base"] = "cannot_connect"
-            else:
-                mac = self._discovery_info["address"]
-                await self.async_set_unique_id(mac)
-                self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title=f"SIG Bridge Plug {mac[-8:]}",
-                    data={
-                        CONF_MAC_ADDRESS: mac,
-                        CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_BRIDGE_PLUG,
-                        CONF_UNICAST_TARGET: user_input.get(CONF_UNICAST_TARGET, "00B0"),
-                        CONF_BRIDGE_HOST: host,
-                        CONF_BRIDGE_PORT: port,
-                    },
-                )
+            unicast_error = _validate_unicast_address(str(unicast_target))
+            if unicast_error:
+                errors[CONF_UNICAST_TARGET] = unicast_error
+            if not errors:
+                if not await _test_bridge_with_session(self.hass, host, port):
+                    errors["base"] = "cannot_connect"
+                else:
+                    mac = self._discovery_info["address"]
+                    await self.async_set_unique_id(mac)
+                    self._abort_if_unique_id_configured()
+                    return self.async_create_entry(
+                        title=f"SIG Bridge Plug {mac[-8:]}",
+                        data={
+                            CONF_MAC_ADDRESS: mac,
+                            CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_BRIDGE_PLUG,
+                            CONF_UNICAST_TARGET: unicast_target,
+                            CONF_BRIDGE_HOST: host,
+                            CONF_BRIDGE_PORT: port,
+                        },
+                    )
 
         return self.async_show_form(
             step_id="sig_bridge",
