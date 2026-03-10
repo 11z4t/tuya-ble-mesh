@@ -334,6 +334,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         Returns:
             Flow result dict.
         """
+        from homeassistant.components.bluetooth import async_ble_device_from_address
+
         address: str = discovery_info.address
         name: str = discovery_info.name or ""
 
@@ -343,6 +345,20 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         await self.async_set_unique_id(address)
         self._abort_if_unique_id_configured()
 
+        # PLAT-509: Check if device is still advertising (stale flow protection)
+        # If the device is not currently available in HA's bluetooth stack, ignore the discovery.
+        # This prevents stale discovery flows from persisting after a device stops advertising.
+        try:
+            ble_device = async_ble_device_from_address(self.hass, address, connectable=False)
+            if ble_device is None:
+                _LOGGER.debug(
+                    "Ignoring stale discovery for %s (device no longer advertising)", address
+                )
+                return self.async_abort(reason="device_not_available")
+        except RuntimeError:
+            # BluetoothManager not initialized (e.g. in tests) — skip stale check
+            _LOGGER.debug("BluetoothManager not available, skipping stale check for %s", address)
+
         # Detect device type from advertised name
         device_category = "SIG Mesh" if any(
             u in getattr(discovery_info, "service_uuids", [])
@@ -350,18 +366,31 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         ) else "Telink Mesh"
         rssi = getattr(discovery_info, "rssi", None)
 
+        # PLAT-510: Auto-detect device type based on service UUIDs
+        service_uuids = getattr(discovery_info, "service_uuids", [])
+        auto_device_type = None
+
+        if SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids:
+            # SIG Mesh device → Plug
+            auto_device_type = DEVICE_TYPE_SIG_PLUG
+        elif any(
+            uuid.startswith("00010203-0405-0607-0809-0a0b0c0d") for uuid in service_uuids
+        ):
+            # Telink mesh UUID prefix → Light
+            auto_device_type = DEVICE_TYPE_LIGHT
+
         self._discovery_info = {
             "address": address,
             "name": name,
             "rssi": rssi,
             "device_category": device_category,
+            "auto_device_type": auto_device_type,
         }
 
         # Auto-detect SIG Mesh devices by service UUID.
         # 0x1827 = Provisioning Service (unprovisioned device)
         # 0x1828 = Proxy Service (already provisioned)
-        service_uuids = getattr(discovery_info, "service_uuids", [])
-        if SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids:
+        if auto_device_type == DEVICE_TYPE_SIG_PLUG:
             _LOGGER.info("SIG Mesh device detected: %s", address)
             return await self.async_step_sig_plug()
 
@@ -397,11 +426,18 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 },
             )
 
+        # PLAT-510: Use auto-detected device type as default if available
+        default_device_type = DEVICE_TYPE_LIGHT
+        if self._discovery_info:
+            auto_type = self._discovery_info.get("auto_device_type")
+            if auto_type in (DEVICE_TYPE_LIGHT, DEVICE_TYPE_PLUG):
+                default_device_type = auto_type
+
         return self.async_show_form(
             step_id="confirm",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_DEVICE_TYPE, default=DEVICE_TYPE_LIGHT): vol.In(
+                    vol.Required(CONF_DEVICE_TYPE, default=default_device_type): vol.In(
                         {DEVICE_TYPE_LIGHT: "Light", DEVICE_TYPE_PLUG: "Plug"}
                     ),
                     vol.Optional(CONF_MESH_NAME, default="out_of_mesh"): str,
