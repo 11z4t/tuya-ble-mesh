@@ -25,7 +25,7 @@ from tuya_ble_mesh.const import (
     TELINK_CMD_STATUS_QUERY,
     TELINK_VENDOR_ID,
 )
-from tuya_ble_mesh.exceptions import ConnectionError, DisconnectedError
+from tuya_ble_mesh.exceptions import MeshConnectionError, DisconnectedError
 from tuya_ble_mesh.protocol import encode_command_packet
 from tuya_ble_mesh.provisioner import provision
 from tuya_ble_mesh.scanner import mac_to_bytes
@@ -170,7 +170,7 @@ class BLEConnection:
             max_retries: Maximum connection attempts.
 
         Raises:
-            ConnectionError: If connection or provisioning fails.
+            MeshConnectionError: If connection or provisioning fails.
         """
         if self._state == ConnectionState.READY:
             _LOGGER.debug("Already connected to %s", self._address)
@@ -188,7 +188,7 @@ class BLEConnection:
         if self._client is None:
             self._state = ConnectionState.DISCONNECTED
             msg = "BLE client not set after connect"
-            raise ConnectionError(msg)
+            raise MeshConnectionError(msg)
 
         self._state = ConnectionState.PAIRING
 
@@ -202,7 +202,7 @@ class BLEConnection:
         except Exception as exc:
             await self._cleanup()
             msg = f"Provisioning failed for {self._address}"
-            raise ConnectionError(msg) from exc
+            raise MeshConnectionError(msg) from exc
 
         await self._read_firmware_version()
 
@@ -233,7 +233,7 @@ class BLEConnection:
                         "Ensure device is powered on and in range of a BLE adapter "
                         "or ESPHome proxy."
                     )
-                    raise ConnectionError(msg)
+                    raise MeshConnectionError(msg)
 
                 self._client = await establish_connection(
                     BleakClient,
@@ -247,7 +247,7 @@ class BLEConnection:
                     max_retries,
                 )
                 return
-            except ConnectionError:
+            except MeshConnectionError:
                 self._client = None
                 raise
             except (Exception, asyncio.CancelledError) as exc:
@@ -264,7 +264,7 @@ class BLEConnection:
                 await asyncio.sleep(backoff)
 
         msg = f"Failed to connect to {self._address} after {max_retries} attempts"
-        raise ConnectionError(msg) from last_exc
+        raise MeshConnectionError(msg) from last_exc
 
     async def _read_firmware_version(self) -> None:
         """Read firmware version from Device Information Service (0x2A26)."""
@@ -328,7 +328,7 @@ class BLEConnection:
 
         Raises:
             DisconnectedError: If not in READY state.
-            ConnectionError: If write fails (triggers disconnect detection).
+            MeshConnectionError: If write fails (triggers disconnect detection).
         """
         if self._state != ConnectionState.READY or self._client is None:
             msg = "Not connected"
@@ -340,7 +340,7 @@ class BLEConnection:
             _LOGGER.warning("Write failed, triggering disconnect: %s", type(exc).__name__)
             await self._handle_disconnect()
             msg = f"Write failed to {self._address}"
-            raise ConnectionError(msg) from exc
+            raise MeshConnectionError(msg) from exc
 
         # Reset keep-alive timer on successful write
         self._restart_keep_alive()

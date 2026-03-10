@@ -36,6 +36,7 @@ from custom_components.tuya_ble_mesh.const import (
     DEVICE_TYPE_SIG_BRIDGE_PLUG,
     DEVICE_TYPE_SIG_PLUG,
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
+    KNOWN_VENDOR_IDS,
 )
 
 REDACTED = "**REDACTED**"
@@ -55,12 +56,8 @@ _SENSITIVE_KEYS = frozenset(
 _IP_PATTERN = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 _MAC_PATTERN = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
 
-# Known vendor ID mapping (hex string → brand name)
-_KNOWN_VENDORS: dict[str, str] = {
-    "0x1001": "Malmbergs BT Smart",
-    "0x0160": "AwoX",
-    "0x0211": "Dimond/retsimx",
-}
+# Re-export from const (single source of truth)
+_KNOWN_VENDORS = KNOWN_VENDOR_IDS
 
 
 def _redact_string(text: str | Any) -> str:

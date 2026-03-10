@@ -25,6 +25,8 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory  # type: ignore[attr-defined]
 from homeassistant.helpers.typing import StateType
 
+from custom_components.tuya_ble_mesh.entity import TuyaBLEMeshEntity
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -144,17 +146,15 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class TuyaBLEMeshSensor(SensorEntity):
+class TuyaBLEMeshSensor(TuyaBLEMeshEntity, SensorEntity):
     """Unified sensor entity for Tuya BLE Mesh devices using EntityDescription pattern.
 
-    This class replaces individual sensor classes (RSSI, firmware, power, energy)
-    with a single, data-driven implementation following HA Core Platinum patterns.
-    All sensor-specific behavior is defined in SENSOR_DESCRIPTIONS via value_fn
-    and available_fn callables.
+    Inherits CoordinatorEntity (via TuyaBLEMeshEntity) for automatic state
+    updates. All sensor-specific behavior is defined in SENSOR_DESCRIPTIONS
+    via value_fn and available_fn callables.
     """
 
     _attr_should_poll = False
-    _attr_has_entity_name = True
     _attr_unique_id: str
 
     entity_description: TuyaBLEMeshSensorEntityDescription
@@ -166,67 +166,22 @@ class TuyaBLEMeshSensor(SensorEntity):
         description: TuyaBLEMeshSensorEntityDescription,
         device_info: DeviceInfo | None = None,
     ) -> None:
-        """Initialize the sensor entity.
-
-        Args:
-            coordinator: Coordinator managing device state.
-            entry_id: Config entry ID for this integration instance.
-            description: Sensor entity description defining sensor behavior.
-            device_info: Device registry information.
-        """
+        """Initialize the sensor entity."""
+        super().__init__(coordinator, entry_id, device_info)
         self.entity_description = description
-        self._coordinator = coordinator
-        self._entry_id = entry_id
         self._attr_unique_id = f"{coordinator.device.address}_{description.key}"
-        if device_info is not None:
-            self._attr_device_info = device_info
-        self._remove_listener: Any = None
-
-    @property
-    def unique_id(self) -> str:
-        """Return unique ID for this sensor."""
-        return self._attr_unique_id
 
     @property
     def available(self) -> bool:
-        """Return True if the sensor is available.
-
-        Uses description.available_fn if provided, otherwise falls back
-        to coordinator.state.available. This allows sensors like power/energy
-        to report unavailable if the device doesn't support those features.
-        """
+        """Return True if the sensor is available."""
         if (
             self.entity_description.available_fn is not None
-            and not self.entity_description.available_fn(self._coordinator.state)
+            and not self.entity_description.available_fn(self.coordinator.state)
         ):
             return False
-        # Base availability from coordinator
-        return self._coordinator.state.available
+        return self.coordinator.state.available
 
     @property
     def native_value(self) -> StateType:
-        """Return the current sensor value.
-
-        Extracts the value from coordinator state using the value_fn
-        defined in the entity description. This eliminates duplicate
-        property definitions across multiple sensor classes.
-        """
-        return self.entity_description.value_fn(self._coordinator.state)
-
-    async def async_added_to_hass(self) -> None:
-        """Register state listener when added to Home Assistant."""
-        self._remove_listener = self._coordinator.add_listener(self._handle_coordinator_update)
-
-    async def async_will_remove_from_hass(self) -> None:
-        """Remove state listener when removed from Home Assistant."""
-        if self._remove_listener is not None:
-            self._remove_listener()
-            self._remove_listener = None
-
-    def _handle_coordinator_update(self) -> None:
-        """Handle updated data from the coordinator.
-
-        Called by coordinator when device state changes. Triggers
-        entity state write to Home Assistant.
-        """
-        self.async_write_ha_state()
+        """Return the current sensor value."""
+        return self.entity_description.value_fn(self.coordinator.state)

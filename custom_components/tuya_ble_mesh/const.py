@@ -89,3 +89,18 @@ HA_MIRED_MAX = 370  # warmest (2703K)
 # Color brightness mapping: device 0-255 ↔ HA 0-255 (same scale)
 DEVICE_COLOR_BRIGHTNESS_MIN = 0
 DEVICE_COLOR_BRIGHTNESS_MAX = 255
+
+# --- Vendor ID Registry (single source of truth) ---
+# Maps vendor ID hex string to human-readable brand name.
+# These are BLE SIG company IDs or Telink mesh vendor bytes (LE uint16 as 0xNNNN).
+# Used by config_flow, diagnostics, and validation.
+#
+# Known devices confirmed via HCI snoop / BLE scan:
+#   Malmbergs BT Smart  : 0x1001  (TELINK_VENDOR_ID = bytes([0x01, 0x10]))
+#   AwoX                : 0x0160
+#   Dimond/retsimx      : 0x0211
+KNOWN_VENDOR_IDS: dict[str, str] = {
+    "0x1001": "Malmbergs BT Smart",
+    "0x0160": "AwoX",
+    "0x0211": "Dimond/retsimx",
+}

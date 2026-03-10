@@ -23,6 +23,8 @@ Modules:
     const — Protocol constants
 """
 
+from __future__ import annotations
+
 from tuya_ble_mesh.connection import ConnectionState
 from tuya_ble_mesh.device import MeshDevice
 from tuya_ble_mesh.dps import DeviceProfile, list_profiles, load_profile, load_profile_by_model
@@ -30,7 +32,7 @@ from tuya_ble_mesh.exceptions import (
     AuthenticationError,
     CommandExpiredError,
     CommandQueueFullError,
-    ConnectionError,
+    MeshConnectionError,
     CryptoError,
     DeviceNotFoundError,
     DisconnectedError,
@@ -41,7 +43,7 @@ from tuya_ble_mesh.exceptions import (
     SecretAccessError,
     SIGMeshError,
     SIGMeshKeyError,
-    TimeoutError,
+    MeshTimeoutError,
     TuyaBLEMeshError,
 )
 from tuya_ble_mesh.power import ShellyPowerController
@@ -90,7 +92,7 @@ __all__ = [
     "CommandExpiredError",
     "CommandQueueFullError",
     "CompositionData",
-    "ConnectionError",
+    "MeshConnectionError",
     "ConnectionState",
     "CryptoError",
     "DeviceNotFoundError",
@@ -112,7 +114,7 @@ __all__ = [
     "SegmentHeader",
     "ShellyPowerController",
     "StatusResponse",
-    "TimeoutError",
+    "MeshTimeoutError",
     "TuyaBLEMeshError",
     "TuyaVendorDP",
     "config_appkey_add",
