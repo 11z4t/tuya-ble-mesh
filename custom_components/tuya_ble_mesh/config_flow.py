@@ -268,6 +268,43 @@ def _validate_unicast_address(value: str) -> str | None:
     return None
 
 
+def _auto_detect_device_type(discovery_info: Any) -> str:
+    """Auto-detect device type from BLE advertisement data.
+
+    Analyzes manufacturer data, service data, and device name to determine
+    if the device is a Light or Plug. Falls back to DEVICE_TYPE_LIGHT if
+    detection is uncertain.
+
+    Args:
+        discovery_info: BluetoothServiceInfoBleak from HA bluetooth integration.
+
+    Returns:
+        DEVICE_TYPE_LIGHT or DEVICE_TYPE_PLUG.
+    """
+    name = (discovery_info.name or "").lower()
+
+    # Check device name for obvious indicators
+    if "plug" in name or "socket" in name or "outlet" in name:
+        return DEVICE_TYPE_PLUG
+    if "light" in name or "bulb" in name or "lamp" in name:
+        return DEVICE_TYPE_LIGHT
+
+    # Check manufacturer data for vendor-specific indicators
+    # Tuya devices often include product category in manufacturer data
+    manufacturer_data = getattr(discovery_info, "manufacturer_data", {})
+    for company_id, data in manufacturer_data.items():
+        if isinstance(data, bytes) and len(data) > 0:
+            # Some Tuya plugs have 0x05 category byte, lights have 0x01
+            # This is heuristic and may need refinement
+            if len(data) >= 2:
+                category_byte = data[1] if len(data) > 1 else data[0]
+                if category_byte in (0x05, 0x07):  # Common plug categories
+                    return DEVICE_TYPE_PLUG
+
+    # Default to Light if uncertain (safer default as lights are more common)
+    return DEVICE_TYPE_LIGHT
+
+
 async def _test_bridge_with_session(hass: Any, host: str, port: int) -> bool:
     """Test if bridge daemon is reachable using HA's aiohttp websession.
 
@@ -472,6 +509,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             "name": name,
             "rssi": rssi,
             "device_category": device_category,
+            "_raw_info": discovery_info,  # Store raw info for auto-detection
         }
 
         # Auto-detect SIG Mesh devices by service UUID.
@@ -523,11 +561,16 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 },
             )
 
+        # Auto-detect device type for default value
+        auto_detected_type = DEVICE_TYPE_LIGHT
+        if self._discovery_info and "_raw_info" in self._discovery_info:
+            auto_detected_type = _auto_detect_device_type(self._discovery_info["_raw_info"])
+
         return self.async_show_form(
             step_id="confirm",
             data_schema=vol.Schema(
                 {
-                    vol.Required(CONF_DEVICE_TYPE, default=DEVICE_TYPE_LIGHT): vol.In(
+                    vol.Required(CONF_DEVICE_TYPE, default=auto_detected_type): vol.In(
                         {DEVICE_TYPE_LIGHT: "Light", DEVICE_TYPE_PLUG: "Plug"}
                     ),
                     vol.Optional(CONF_MESH_NAME, default="out_of_mesh"): str,
