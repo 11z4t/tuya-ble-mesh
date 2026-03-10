@@ -1,7 +1,7 @@
 """Tests for bridge connection handling, error paths, and reconnect logic.
 
 Covers:
-  - Bridge disconnect → entities marked unavailable → auto-recovery
+  - Bridge disconnect -> entities marked unavailable -> auto-recovery
   - Exponential backoff with bridge-specific parameters
   - Retry logic for BLE write commands
   - Coordinator reconnect with bridge devices
@@ -12,7 +12,6 @@ Covers:
 from __future__ import annotations
 
 import asyncio
-import json
 import sys
 from pathlib import Path
 from typing import Any
@@ -25,7 +24,6 @@ _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
 sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
-from tuya_ble_mesh.exceptions import ConnectionError as MeshConnectionError  # noqa: E402
 from tuya_ble_mesh.exceptions import SIGMeshError  # noqa: E402
 from tuya_ble_mesh.sig_mesh_bridge import (  # noqa: E402
     SIGMeshBridgeDevice,
@@ -42,25 +40,7 @@ from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     TuyaBLEMeshDeviceState,
 )
 
-_PATCH_HTTP = "tuya_ble_mesh.sig_mesh_bridge.asyncio.open_connection"
 _PATCH_SLEEP = "custom_components.tuya_ble_mesh.coordinator.asyncio.sleep"
-
-
-def _make_mock_connection(response_body: dict) -> tuple[AsyncMock, MagicMock]:
-    """Create mock reader/writer for HTTP response."""
-    body_str = json.dumps(response_body)
-    http_response = f"HTTP/1.1 200 OK\r\nContent-Length: {len(body_str)}\r\n\r\n{body_str}"
-
-    reader = AsyncMock()
-    reader.read = AsyncMock(return_value=http_response.encode())
-
-    writer = MagicMock()
-    writer.write = MagicMock()
-    writer.drain = AsyncMock()
-    writer.close = MagicMock()
-    writer.wait_closed = AsyncMock()
-
-    return reader, writer
 
 
 def _make_bridge_device() -> SIGMeshBridgeDevice:
@@ -218,7 +198,6 @@ class TestCoordinatorReconnectLoop:
         coord._backoff = 200.0  # High starting backoff
 
         backoff_values: list[float] = []
-        original_sleep = asyncio.sleep
 
         async def capture_sleep(delay: float) -> None:
             backoff_values.append(delay)
@@ -243,33 +222,19 @@ class TestSIGBridgeSendPowerRetry:
         dev._connected = True
 
         # First attempt fails, second succeeds
-        post_reader, post_writer = _make_mock_connection({"ok": True})
-        fail_reader, fail_writer = _make_mock_connection(
-            {"action": "on", "success": False, "error": "BLE timeout", "timestamp": 1}
-        )
-        success_reader, success_writer = _make_mock_connection(
-            {"action": "on", "success": True, "status": "ON", "timestamp": 2}
-        )
+        get_call_count = 0
 
-        call_count = 0
+        async def mock_get(path: str, **kw: Any) -> dict[str, Any]:
+            nonlocal get_call_count
+            get_call_count += 1
+            if get_call_count == 1:
+                return {"action": "on", "success": False, "error": "BLE timeout", "timestamp": 1}
+            return {"action": "on", "success": True, "status": "ON", "timestamp": 2}
 
-        async def mock_open(*_a: Any, **_kw: Any) -> tuple:
-            nonlocal call_count
-            call_count += 1
-            if call_count <= 2:
-                # First POST + first GET (failure result)
-                if call_count == 1:
-                    return post_reader, post_writer
-                return fail_reader, fail_writer
-            # Second POST + second GET (success)
-            if call_count == 3:
-                return post_reader, post_writer
-            return success_reader, success_writer
+        dev._http_get = AsyncMock(side_effect=mock_get)  # type: ignore[method-assign]
+        dev._http_post = AsyncMock(return_value={"ok": True})  # type: ignore[method-assign]
 
-        with (
-            patch(_PATCH_HTTP, side_effect=mock_open),
-            patch("tuya_ble_mesh.sig_mesh_bridge.asyncio.sleep", new_callable=AsyncMock),
-        ):
+        with patch("tuya_ble_mesh.sig_mesh_bridge.asyncio.sleep", new_callable=AsyncMock):
             await dev.send_power(True, max_retries=2)
 
     @pytest.mark.asyncio
@@ -278,22 +243,12 @@ class TestSIGBridgeSendPowerRetry:
         dev = _make_bridge_device()
         dev._connected = True
 
-        post_reader, post_writer = _make_mock_connection({"ok": True})
-        fail_reader, fail_writer = _make_mock_connection(
-            {"action": "on", "success": False, "error": "fail", "timestamp": 1}
+        dev._http_get = AsyncMock(  # type: ignore[method-assign]
+            return_value={"action": "on", "success": False, "error": "fail", "timestamp": 1},
         )
-
-        call_count = 0
-
-        async def mock_open(*_a: Any, **_kw: Any) -> tuple:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return post_reader, post_writer
-            return fail_reader, fail_writer
+        dev._http_post = AsyncMock(return_value={"ok": True})  # type: ignore[method-assign]
 
         with (
-            patch(_PATCH_HTTP, side_effect=mock_open),
             patch("tuya_ble_mesh.sig_mesh_bridge.asyncio.sleep", new_callable=AsyncMock),
             pytest.raises(SIGMeshError, match="failed after 1 attempts"),
         ):
@@ -309,37 +264,35 @@ class TestTelinkBridgeRetry:
         dev = _make_telink_device()
         dev._connected = True
 
-        post_reader, post_writer = _make_mock_connection({"ok": True})
-        success_reader, success_writer = _make_mock_connection(
-            {"action": "on", "device_type": "telink", "success": True, "timestamp": 1}
-        )
+        get_call_count = 0
 
-        call_count = 0
-
-        async def mock_open(*_a: Any, **_kw: Any) -> tuple:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                # First attempt: POST succeeds but GET raises (bridge down)
-                return post_reader, post_writer
-            if call_count == 2:
-                # Poll fails
+        async def mock_get(path: str, **kw: Any) -> dict[str, Any]:
+            nonlocal get_call_count
+            get_call_count += 1
+            if get_call_count == 1:
+                # First poll: bridge unreachable
                 raise OSError("unreachable")
-            if call_count == 3:
-                # Retry: POST succeeds
-                return post_reader, post_writer
-            # Retry: GET succeeds
-            return success_reader, success_writer
+            # Retry poll: success
+            return {"action": "on", "device_type": "telink", "success": True, "timestamp": 1}
+
+        post_call_count = 0
+
+        async def mock_post(path: str, data: Any = None, **kw: Any) -> dict[str, Any]:
+            nonlocal post_call_count
+            post_call_count += 1
+            return {"ok": True}
+
+        dev._http_get = AsyncMock(side_effect=mock_get)  # type: ignore[method-assign]
+        dev._http_post = AsyncMock(side_effect=mock_post)  # type: ignore[method-assign]
 
         with (
-            patch(_PATCH_HTTP, side_effect=mock_open),
             patch("tuya_ble_mesh.sig_mesh_bridge._MAX_POLL_ATTEMPTS", 1),
             patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0.01),
             patch("tuya_ble_mesh.sig_mesh_bridge.asyncio.sleep", new_callable=AsyncMock),
         ):
-            # This will fail on first attempt (timeout) then succeed on retry
-            # But since _fire_disconnect sets _connected=False, the retry will
-            # fail with "not connected". Test the retry mechanism itself:
+            # First attempt will timeout (only 1 poll, and it fails),
+            # which sets _connected=False. The retry wrapper then raises
+            # because _connected is False. This tests the error path.
             dev._connected = True
             try:
                 await dev.send_power(True)
@@ -399,35 +352,6 @@ class TestBridgeCRLFInjection:
     def test_sig_bridge_accepts_valid_host(self) -> None:
         dev = SIGMeshBridgeDevice("DC:23:4F:10:52:C4", 0x00B0, "192.168.5.10", 8099)
         assert dev.address == "DC:23:4F:10:52:C4"
-
-
-# --- Bridge HTTP Body Parsing ---
-
-
-class TestBridgeHTTPEdgeCases:
-    """Test edge cases in bridge HTTP response parsing."""
-
-    def test_empty_response_raises(self) -> None:
-        with pytest.raises(MeshConnectionError, match="missing body"):
-            SIGMeshBridgeDevice._parse_http_body("")
-
-    def test_no_separator_raises(self) -> None:
-        with pytest.raises(MeshConnectionError, match="missing body"):
-            SIGMeshBridgeDevice._parse_http_body("HTTP/1.1 200 OK no body")
-
-    def test_valid_response_parsed(self) -> None:
-        body = SIGMeshBridgeDevice._parse_http_body(
-            'HTTP/1.1 200 OK\r\n\r\n{"status":"ok"}'
-        )
-        assert json.loads(body) == {"status": "ok"}
-
-    def test_multiple_separators_parsed(self) -> None:
-        """Only first separator should split headers from body."""
-        body = SIGMeshBridgeDevice._parse_http_body(
-            'HTTP/1.1 200 OK\r\n\r\n{"data":"\r\n\r\n"}'
-        )
-        parsed = json.loads(body)
-        assert parsed["data"] == "\r\n\r\n"
 
 
 # --- Coordinator Bridge Detection ---

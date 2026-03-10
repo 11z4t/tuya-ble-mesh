@@ -20,6 +20,8 @@ ECB is used ONLY in telink_aes_encrypt() — a single-block primitive.
 It is NEVER called directly with multi-block user data.
 """
 
+from __future__ import annotations
+
 import hmac
 import os
 
