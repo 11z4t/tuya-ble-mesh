@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from pathlib import Path
 from typing import Any
@@ -2076,3 +2077,120 @@ class TestOptionsFlowValidation:
         result = await flow.async_step_init(None)
         assert result["type"] == "form"
         assert result["step_id"] == "init"
+
+
+@pytest.mark.requires_ha
+class TestSigPlugErrorHandling:
+    """Test specific error types in async_step_sig_plug — PLAT-419."""
+
+    def _make_sig_plug_flow(self) -> TuyaBLEMeshConfigFlow:
+        flow = _make_flow()
+        flow._discovery_info = {
+            "address": "AA:BB:CC:DD:EE:FF",
+            "name": "SIG Mesh FF",
+        }
+        return flow
+
+    @pytest.mark.asyncio
+    async def test_asyncio_timeout_error_returns_timeout_key(self) -> None:
+        """asyncio.TimeoutError → error key 'timeout' (line 732-733)."""
+        flow = self._make_sig_plug_flow()
+        with patch.object(
+            flow,
+            "_run_provision",
+            new=AsyncMock(side_effect=asyncio.TimeoutError()),
+        ):
+            result = await flow.async_step_sig_plug({})
+        assert result["type"] == "form"
+        assert result["errors"]["base"] == "timeout"
+
+    @pytest.mark.asyncio
+    async def test_mesh_device_not_found_returns_device_not_found(self) -> None:
+        """DeviceNotFoundError → error key 'device_not_found' (line 745-746)."""
+        from tuya_ble_mesh.exceptions import DeviceNotFoundError
+
+        flow = self._make_sig_plug_flow()
+        with patch.object(
+            flow,
+            "_run_provision",
+            new=AsyncMock(side_effect=DeviceNotFoundError("not found")),
+        ):
+            result = await flow.async_step_sig_plug({})
+        assert result["type"] == "form"
+        assert result["errors"]["base"] == "device_not_found"
+
+    @pytest.mark.asyncio
+    async def test_mesh_timeout_error_returns_timeout_key(self) -> None:
+        """tuya_ble_mesh.TimeoutError → error key 'timeout' (line 748-749)."""
+        from tuya_ble_mesh.exceptions import TimeoutError as MeshTimeoutError
+
+        flow = self._make_sig_plug_flow()
+        with patch.object(
+            flow,
+            "_run_provision",
+            new=AsyncMock(side_effect=MeshTimeoutError("timed out")),
+        ):
+            result = await flow.async_step_sig_plug({})
+        assert result["type"] == "form"
+        assert result["errors"]["base"] == "timeout"
+
+    @pytest.mark.asyncio
+    async def test_provisioning_error_returns_provisioning_failed(self) -> None:
+        """ProvisioningError → error key 'provisioning_failed' (line 750-754)."""
+        from tuya_ble_mesh.exceptions import ProvisioningError
+
+        flow = self._make_sig_plug_flow()
+        with patch.object(
+            flow,
+            "_run_provision",
+            new=AsyncMock(side_effect=ProvisioningError("handshake failed")),
+        ):
+            result = await flow.async_step_sig_plug({})
+        assert result["type"] == "form"
+        assert result["errors"]["base"] == "provisioning_failed"
+
+    @pytest.mark.asyncio
+    async def test_generic_exception_fallback_to_provisioning_failed(self) -> None:
+        """Generic exception falls through to provisioning_failed."""
+        flow = self._make_sig_plug_flow()
+        with patch.object(
+            flow,
+            "_run_provision",
+            new=AsyncMock(side_effect=ValueError("unexpected")),
+        ):
+            result = await flow.async_step_sig_plug({})
+        assert result["type"] == "form"
+        assert result["errors"]["base"] == "provisioning_failed"
+
+    @pytest.mark.asyncio
+    async def test_import_error_fallback(self) -> None:
+        """ImportError on exceptions import falls back to generic message (line 763-770)."""
+        import asyncio as _asyncio
+
+        flow = self._make_sig_plug_flow()
+
+        with (
+            patch.object(
+                flow,
+                "_run_provision",
+                new=AsyncMock(side_effect=RuntimeError("fail")),
+            ),
+            patch(
+                "custom_components.tuya_ble_mesh.config_flow.__builtins__",
+                {},
+            ),
+        ):
+            # Simulate ImportError by patching import inside the except block
+            original_import = __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
+
+            def mock_import(name: str, *args: Any, **kwargs: Any) -> Any:
+                if name == "tuya_ble_mesh.exceptions":
+                    raise ImportError("no module")
+                return original_import(name, *args, **kwargs)
+
+            with patch("builtins.__import__", side_effect=mock_import):
+                result = await flow.async_step_sig_plug({})
+
+        assert result["type"] == "form"
+        # Should default to provisioning_failed
+        assert result["errors"]["base"] == "provisioning_failed"
