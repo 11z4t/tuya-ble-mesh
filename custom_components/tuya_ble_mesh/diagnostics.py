@@ -231,7 +231,7 @@ async def async_get_config_entry_diagnostics(
         diag["firmware_compatibility"] = {
             "version": fw_version,
             "status": "compatible" if state.available else "unknown",
-            "protocol": "SIG_Mesh" if hasattr(device, "set_seq") else "Tuya_BLE",
+            "protocol": coordinator.capabilities.protocol,
         }
 
         # Mesh network topology info

@@ -28,6 +28,7 @@ from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     TuyaBLEMeshCoordinator,
     TuyaBLEMeshDeviceState,
 )
+from custom_components.tuya_ble_mesh.device_capabilities import DeviceCapabilities  # noqa: E402
 
 _PATCH_SLEEP = "custom_components.tuya_ble_mesh.coordinator.asyncio.sleep"
 
@@ -1954,3 +1955,91 @@ class TestCommandDebouncing:
 
         coord.device.send_brightness.assert_not_called()
         coord.device.send_power.assert_called_once_with(False)
+
+
+@pytest.mark.requires_ha
+class TestDeviceCapabilities:
+    """Tests for DeviceCapabilities.from_device() and coordinator.capabilities."""
+
+    def _make_tuya_ble_device(self) -> MagicMock:
+        """Mock for MeshDevice / TelinkBridgeDevice (Tuya BLE protocol)."""
+        device = MagicMock(spec=[
+            "address",
+            "register_status_callback",
+            "unregister_status_callback",
+            "register_disconnect_callback",
+            "unregister_disconnect_callback",
+            "send_brightness",
+        ])
+        device.address = "AA:BB:CC:DD:EE:FF"
+        return device
+
+    def _make_sig_mesh_device(self) -> MagicMock:
+        """Mock for SIGMeshDevice (SIG Mesh protocol, direct BLE)."""
+        device = MagicMock(spec=[
+            "address",
+            "register_onoff_callback",
+            "unregister_onoff_callback",
+            "register_vendor_callback",
+            "unregister_vendor_callback",
+            "register_composition_callback",
+            "unregister_composition_callback",
+            "register_disconnect_callback",
+            "unregister_disconnect_callback",
+            "set_seq",
+            "get_seq",
+        ])
+        device.address = "BB:CC:DD:EE:FF:00"
+        return device
+
+    def test_tuya_ble_device_capabilities(self) -> None:
+        """Tuya BLE device: has_status_callback=True, has_onoff_callback=False."""
+        device = self._make_tuya_ble_device()
+        caps = DeviceCapabilities.from_device(device)
+
+        assert caps.has_status_callback is True
+        assert caps.has_onoff_callback is False
+        assert caps.has_vendor_callback is False
+        assert caps.has_composition_callback is False
+        assert caps.has_sig_sequence is False
+        assert caps.has_light_control is True
+        assert caps.protocol == "Tuya_BLE"
+
+    def test_sig_mesh_device_capabilities(self) -> None:
+        """SIG Mesh device: has_sig_sequence=True, protocol=SIG_Mesh."""
+        device = self._make_sig_mesh_device()
+        caps = DeviceCapabilities.from_device(device)
+
+        assert caps.has_status_callback is False
+        assert caps.has_onoff_callback is True
+        assert caps.has_vendor_callback is True
+        assert caps.has_composition_callback is True
+        assert caps.has_sig_sequence is True
+        assert caps.has_light_control is False
+        assert caps.protocol == "SIG_Mesh"
+
+    def test_power_monitoring_absent_by_default(self) -> None:
+        """Device without supports_power_monitoring → has_power_monitoring=False."""
+        device = MagicMock(spec=["address", "register_disconnect_callback"])
+        device.address = "AA:BB:CC:DD:EE:FF"
+        caps = DeviceCapabilities.from_device(device)
+
+        assert caps.has_power_monitoring is False
+
+    def test_power_monitoring_detected(self) -> None:
+        """Device with supports_power_monitoring=True → has_power_monitoring=True."""
+        device = MagicMock()
+        device.address = "AA:BB:CC:DD:EE:FF"
+        device.supports_power_monitoring = True
+        caps = DeviceCapabilities.from_device(device)
+
+        assert caps.has_power_monitoring is True
+
+    def test_coordinator_exposes_capabilities(self) -> None:
+        """Coordinator should expose capabilities built from its device."""
+        device = self._make_tuya_ble_device()
+        coord = TuyaBLEMeshCoordinator(device)
+
+        assert isinstance(coord.capabilities, DeviceCapabilities)
+        assert coord.capabilities.has_status_callback is True
+        assert coord.capabilities.protocol == "Tuya_BLE"
