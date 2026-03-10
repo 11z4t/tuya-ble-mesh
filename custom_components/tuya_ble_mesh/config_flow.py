@@ -399,6 +399,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
     async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Confirm bluetooth discovery and choose device type.
 
+        PLAT-511: Zero-knowledge config flow — if device type is auto-detected
+        and user provides no custom values, create entry directly without showing form.
+
         Args:
             user_input: User confirmation input.
 
@@ -427,11 +430,39 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             )
 
         # PLAT-510: Use auto-detected device type as default if available
+        # PLAT-511: If device type is confidently auto-detected, skip form and create entry directly
         default_device_type = DEVICE_TYPE_LIGHT
+        auto_detected = False
         if self._discovery_info:
             auto_type = self._discovery_info.get("auto_device_type")
             if auto_type in (DEVICE_TYPE_LIGHT, DEVICE_TYPE_PLUG):
                 default_device_type = auto_type
+                auto_detected = True
+
+        # PLAT-511: Zero-knowledge flow — if type is auto-detected, create entry with defaults
+        if auto_detected and self._discovery_info:
+            mac = self._discovery_info["address"]
+            short_mac = mac[-8:]
+            title = (
+                f"BLE Mesh Plug {short_mac}"
+                if default_device_type == DEVICE_TYPE_PLUG
+                else f"BLE Mesh Light {short_mac}"
+            )
+            _LOGGER.info(
+                "Zero-knowledge config: auto-detected %s, creating entry with defaults",
+                default_device_type,
+            )
+            return self.async_create_entry(
+                title=title,
+                data={
+                    CONF_MAC_ADDRESS: mac,
+                    CONF_MESH_NAME: "out_of_mesh",
+                    CONF_MESH_PASSWORD: "123456",
+                    CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
+                    CONF_DEVICE_TYPE: default_device_type,
+                    CONF_MESH_ADDRESS: DEFAULT_MESH_ADDRESS,
+                },
+            )
 
         return self.async_show_form(
             step_id="confirm",
