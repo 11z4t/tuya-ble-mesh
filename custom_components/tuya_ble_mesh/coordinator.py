@@ -27,6 +27,8 @@ from typing import TYPE_CHECKING, Union
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
+from custom_components.tuya_ble_mesh.device_capabilities import DeviceCapabilities
+
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.storage import Store
@@ -172,6 +174,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                 update_interval=None,  # Push-based, no polling
             )
         self._device: AnyMeshDevice = device
+        self.capabilities = DeviceCapabilities.from_device(device)
         self._state = TuyaBLEMeshDeviceState()
         self._reconnect_task: asyncio.Task[None] | None = None
         self._rssi_task: asyncio.Task[None] | None = None
@@ -502,7 +505,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         """
         if self._hass is None or self._entry_id is None:
             return
-        if not hasattr(self._device, "set_seq"):
+        if not self.capabilities.has_sig_sequence:
             return
 
         from homeassistant.helpers.storage import Store
@@ -529,7 +532,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
         No-op if store is not initialized.
         """
-        if self._seq_store is None or not hasattr(self._device, "get_seq"):
+        if self._seq_store is None or not self.capabilities.has_sig_sequence:
             return
 
         seq = self._device.get_seq()
@@ -543,14 +546,14 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         # Restore sequence number before connecting
         await self._load_seq()
 
-        # Wire callbacks based on device type (duck-typing)
-        if hasattr(self._device, "register_onoff_callback"):
+        # Wire callbacks based on device capabilities
+        if self.capabilities.has_onoff_callback:
             self._device.register_onoff_callback(self._on_onoff_update)
-        if hasattr(self._device, "register_vendor_callback"):
+        if self.capabilities.has_vendor_callback:
             self._device.register_vendor_callback(self._on_vendor_update)
-        if hasattr(self._device, "register_composition_callback"):
+        if self.capabilities.has_composition_callback:
             self._device.register_composition_callback(self._on_composition_update)
-        if hasattr(self._device, "register_status_callback"):
+        if self.capabilities.has_status_callback:
             self._device.register_status_callback(self._on_status_update)
         self._device.register_disconnect_callback(self._on_disconnect)
 
@@ -596,13 +599,13 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             self._reconnect_task.cancel()
             self._reconnect_task = None
 
-        if hasattr(self._device, "unregister_onoff_callback"):
+        if self.capabilities.has_onoff_callback:
             self._device.unregister_onoff_callback(self._on_onoff_update)
-        if hasattr(self._device, "unregister_vendor_callback"):
+        if self.capabilities.has_vendor_callback:
             self._device.unregister_vendor_callback(self._on_vendor_update)
-        if hasattr(self._device, "unregister_composition_callback"):
+        if self.capabilities.has_composition_callback:
             self._device.unregister_composition_callback(self._on_composition_update)
-        if hasattr(self._device, "unregister_status_callback"):
+        if self.capabilities.has_status_callback:
             self._device.unregister_status_callback(self._on_status_update)
         self._device.unregister_disconnect_callback(self._on_disconnect)
 

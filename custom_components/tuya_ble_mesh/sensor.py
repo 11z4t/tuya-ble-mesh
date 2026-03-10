@@ -129,9 +129,7 @@ async def async_setup_entry(
     entities: list[SensorEntity] = []
     for description in SENSOR_DESCRIPTIONS:
         # Power/energy sensors require device support
-        if description.key in ("power", "energy") and not getattr(
-            coordinator.device, "supports_power_monitoring", False
-        ):
+        if description.key in ("power", "energy") and not coordinator.capabilities.has_power_monitoring:
             continue
 
         entities.append(
