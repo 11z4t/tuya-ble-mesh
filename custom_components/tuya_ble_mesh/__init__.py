@@ -290,9 +290,11 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             "total_errors": stats.total_errors,
             "connection_errors": stats.connection_errors,
             "command_errors": stats.command_errors,
-            "avg_response_time": f"{stats.avg_response_time:.3f}s",
+            "avg_response_time": f"{stats.avg_response_time:.3f}s" if stats.response_times else "N/A",
             "rssi": coordinator.state.rssi,
             "firmware_version": coordinator.state.firmware_version,
+            "last_error": stats.last_error,
+            "last_disconnect": stats.last_disconnect_time,
         }
         _LOGGER.info("Diagnostics for %s: %s", device_id, diagnostics)
 
