@@ -770,6 +770,102 @@ class TestServiceHandlers:
             with pytest.raises(HomeAssistantError, match="Device not found"):
                 await identify_handler(call)
 
+    @pytest.mark.asyncio
+    async def test_get_diagnostics_service_returns_info(self) -> None:
+        """get_diagnostics service returns coordinator stats — covers __init__.py:296-316."""
+        from custom_components.tuya_ble_mesh import async_setup_entry
+        from custom_components.tuya_ble_mesh.coordinator import ConnectionStatistics
+
+        hass = make_mock_hass()
+        hass.services = MagicMock()
+        hass.services.has_service = MagicMock(return_value=False)
+        registered_handlers: dict[str, Any] = {}
+
+        def mock_register(domain: str, service: str, handler: Any, **kwargs: Any) -> None:
+            registered_handlers[service] = handler
+
+        hass.services.async_register = mock_register
+
+        entry = make_mock_entry()
+        mock_device, mock_coord = _make_patches()
+
+        # Use a real ConnectionStatistics so format specifiers work
+        mock_coord.statistics = ConnectionStatistics(
+            connection_uptime=10.0,
+            total_reconnects=0,
+            total_errors=0,
+            connection_errors=0,
+            command_errors=0,
+            avg_response_time=0.0,
+        )
+
+        with (
+            patch(_PATCH_MESH_DEVICE, return_value=mock_device),
+            patch(_PATCH_COORDINATOR, return_value=mock_coord),
+        ):
+            await async_setup_entry(hass, entry)
+
+        assert "get_diagnostics" in registered_handlers
+        get_diag_handler = registered_handlers["get_diagnostics"]
+
+        call = MagicMock()
+        call.data = {"device_id": "test_device_id"}
+
+        with (
+            patch(
+                "homeassistant.helpers.device_registry.async_get"
+            ) as mock_reg_getter,
+        ):
+            mock_dev_reg = MagicMock()
+            mock_device_entry = MagicMock()
+            mock_device_entry.config_entries = {entry.entry_id}
+            mock_dev_reg.async_get = MagicMock(return_value=mock_device_entry)
+            mock_reg_getter.return_value = mock_dev_reg
+            hass.config_entries.async_get_entry = MagicMock(return_value=entry)
+
+            # Should complete without error and log diagnostics
+            await get_diag_handler(call)
+
+    @pytest.mark.asyncio
+    async def test_get_diagnostics_service_raises_on_missing_device(self) -> None:
+        """get_diagnostics raises HomeAssistantError when device not found."""
+        from custom_components.tuya_ble_mesh import async_setup_entry
+
+        hass = make_mock_hass()
+        hass.services = MagicMock()
+        hass.services.has_service = MagicMock(return_value=False)
+        registered_handlers: dict[str, Any] = {}
+
+        def mock_register(domain: str, service: str, handler: Any, **kwargs: Any) -> None:
+            registered_handlers[service] = handler
+
+        hass.services.async_register = mock_register
+
+        entry = make_mock_entry()
+        mock_device, mock_coord = _make_patches()
+
+        with (
+            patch(_PATCH_MESH_DEVICE, return_value=mock_device),
+            patch(_PATCH_COORDINATOR, return_value=mock_coord),
+        ):
+            await async_setup_entry(hass, entry)
+
+        get_diag_handler = registered_handlers["get_diagnostics"]
+        call = MagicMock()
+        call.data = {"device_id": "nonexistent"}
+
+        with (
+            patch(
+                "homeassistant.helpers.device_registry.async_get"
+            ) as mock_reg_getter,
+        ):
+            mock_dev_reg = MagicMock()
+            mock_dev_reg.async_get = MagicMock(return_value=None)
+            mock_reg_getter.return_value = mock_dev_reg
+
+            with pytest.raises(HomeAssistantError, match="Device not found"):
+                await get_diag_handler(call)
+
 
 @pytest.mark.requires_ha
 class TestUpdateListener:

@@ -99,12 +99,23 @@ class TestFullLifecycle:
         }
         mock_entry.async_on_unload = MagicMock(return_value=None)
 
-        # Mock the MeshDevice
+        # Mock the MeshDevice and device registry (avoids HA Store I/O)
+        mock_registry = AsyncMock()
+        mock_registry.async_load = AsyncMock()
+        mock_registry.register_device = MagicMock()
+        mock_registry.record_connection = MagicMock()
+        mock_registry.record_error = MagicMock()
+        mock_registry.async_save = AsyncMock()
+
         with (
             patch("tuya_ble_mesh.device.MeshDevice") as mock_device_cls,
             patch(
                 "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator.async_start"
             ) as mock_start,
+            patch(
+                "custom_components.tuya_ble_mesh.TuyaBLEMeshDeviceRegistry",
+                return_value=mock_registry,
+            ),
         ):
             mock_device = MagicMock()
             mock_device.address = "DC:23:4D:21:43:A5"
@@ -219,6 +230,13 @@ class TestFullLifecycle:
         }
         mock_entry.async_on_unload = MagicMock(return_value=None)
 
+        mock_registry = AsyncMock()
+        mock_registry.async_load = AsyncMock()
+        mock_registry.register_device = MagicMock()
+        mock_registry.record_connection = MagicMock()
+        mock_registry.record_error = MagicMock()
+        mock_registry.async_save = AsyncMock()
+
         with (
             patch("tuya_ble_mesh.device.MeshDevice") as mock_device_cls,
             patch(
@@ -227,6 +245,10 @@ class TestFullLifecycle:
             patch(
                 "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator.async_stop"
             ) as mock_stop,
+            patch(
+                "custom_components.tuya_ble_mesh.TuyaBLEMeshDeviceRegistry",
+                return_value=mock_registry,
+            ),
         ):
             mock_device = MagicMock()
             mock_device.address = "DC:23:4D:21:43:A5"
@@ -385,11 +407,22 @@ class TestRuntimeDataIntegrity:
             if original_start:
                 await original_start(self)
 
+        mock_registry = AsyncMock()
+        mock_registry.async_load = AsyncMock()
+        mock_registry.register_device = MagicMock()
+        mock_registry.record_connection = MagicMock()
+        mock_registry.record_error = MagicMock()
+        mock_registry.async_save = AsyncMock()
+
         with (
             patch("tuya_ble_mesh.device.MeshDevice") as mock_device_cls,
             patch(
                 "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator.async_start",
                 new=track_start,
+            ),
+            patch(
+                "custom_components.tuya_ble_mesh.TuyaBLEMeshDeviceRegistry",
+                return_value=mock_registry,
             ),
         ):
             mock_device = MagicMock()

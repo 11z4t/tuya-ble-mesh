@@ -128,6 +128,37 @@ _DEBUG_LEVEL_CHOICES = {
 _TELINK_UUID_PREFIX = "00010203-0405-0607-0809-0a0b0c0d"
 
 
+def _auto_detect_device_type(discovery_info: Any) -> str:
+    """Heuristically detect whether a BLE device is a plug or a light.
+
+    Priority:
+    1. Device name keywords: "plug", "socket", "outlet" → plug; "light", "bulb", "lamp" → light
+    2. Manufacturer data category byte (byte index 1 of any manufacturer payload):
+       0x05 or 0x07 → plug
+    3. Default: light
+
+    Args:
+        discovery_info: BluetoothServiceInfoBleak or any object with
+            ``.name`` (str) and ``.manufacturer_data`` (dict[int, bytes]) attributes.
+
+    Returns:
+        DEVICE_TYPE_PLUG or DEVICE_TYPE_LIGHT constant string.
+    """
+    name_lower = (getattr(discovery_info, "name", "") or "").lower()
+    if any(kw in name_lower for kw in ("plug", "socket", "outlet")):
+        return DEVICE_TYPE_PLUG
+    if any(kw in name_lower for kw in ("light", "bulb", "lamp")):
+        return DEVICE_TYPE_LIGHT
+
+    # Check manufacturer data category byte
+    manufacturer_data: dict[int, bytes] = getattr(discovery_info, "manufacturer_data", {}) or {}
+    for payload in manufacturer_data.values():
+        if len(payload) >= 2 and payload[1] in (0x05, 0x07):
+            return DEVICE_TYPE_PLUG
+
+    return DEVICE_TYPE_LIGHT
+
+
 def _parse_json_body(body: str) -> dict[str, object]:
     """Parse a JSON string, returning an empty dict on failure."""
     import json
@@ -831,6 +862,18 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
         if user_input is not None and self._discovery_info is not None:
             mac = self._discovery_info["address"]
+
+            # Fast-fail: if device is not visible in the BLE registry, abort early
+            # rather than spending 5 retry attempts on an invisible device.
+            from homeassistant.components import bluetooth as _ha_bt
+
+            _ble = _ha_bt.async_ble_device_from_address(self.hass, mac.upper(), connectable=True)
+            if _ble is None:
+                _ble = _ha_bt.async_ble_device_from_address(self.hass, mac.upper(), connectable=False)
+            if _ble is None:
+                _LOGGER.warning("SIG Mesh device %s not found via BLE registry — aborting", mac)
+                return self.async_abort(reason="device_not_found")
+
             try:
                 net_key_hex, dev_key_hex, app_key_hex = await self._run_provision(mac)
             except asyncio.TimeoutError:

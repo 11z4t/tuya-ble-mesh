@@ -54,6 +54,21 @@ _LOGGER = logging.getLogger(__name__)
 ensure_lib_importable()
 
 
+def _get_entry_option(entry: ConfigEntry, key: str, default: Any = None) -> Any:
+    """Read a configurable option from entry.options with fallback to entry.data.
+
+    This handles migration: existing entries have everything in data, while
+    new or updated entries store user-configurable settings in options.
+
+    Identity fields (MAC, device_type, keys) remain only in data.
+    Configurable fields (mesh credentials, bridge host/port, vendor ID, etc.)
+    may live in options after the user visits the options flow.
+    """
+    if key in (entry.options or {}):
+        return entry.options[key]
+    return entry.data.get(key, default)
+
+
 @dataclass
 class TuyaBLEMeshRuntimeData:
     """Runtime data stored in config entry for Tuya BLE Mesh.
@@ -112,9 +127,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             SIGMeshBridgeDevice,  # type: ignore[import-not-found]
         )
 
+        # unicast_target is identity — stays in data; bridge settings are configurable
         target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
-        bridge_host: str = entry.data[CONF_BRIDGE_HOST]
-        bridge_port: int = entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+        bridge_host: str = _get_entry_option(entry, CONF_BRIDGE_HOST, "")
+        bridge_port: int = _get_entry_option(entry, CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
 
         device = SIGMeshBridgeDevice(
             mac_address,
@@ -127,8 +143,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             TelinkBridgeDevice,  # type: ignore[import-not-found]
         )
 
-        bridge_host = entry.data[CONF_BRIDGE_HOST]
-        bridge_port = entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+        bridge_host = _get_entry_option(entry, CONF_BRIDGE_HOST, "")
+        bridge_port = _get_entry_option(entry, CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
 
         device = TelinkBridgeDevice(
             mac_address,
@@ -139,11 +155,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         from tuya_ble_mesh.secrets import DictSecretsManager  # type: ignore[import-not-found]
         from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
 
+        # Unicast addresses and keys are identity — always from data
         target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
         our_addr = int(entry.data.get(CONF_UNICAST_OUR, "0001"), 16)
-        iv_index: int = entry.data.get(CONF_IV_INDEX, DEFAULT_IV_INDEX)
+        # iv_index may need updating when BLE network is reset — configurable
+        iv_index: int = _get_entry_option(entry, CONF_IV_INDEX, DEFAULT_IV_INDEX)
 
-        # Build secrets dict from config entry keys
+        # Build secrets dict from config entry keys (identity fields, always from data)
         target_hex = f"{target_addr:04x}"
         op_prefix = "cfg"
         secrets_dict = {
@@ -164,13 +182,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
     else:
         from tuya_ble_mesh.device import MeshDevice  # type: ignore[import-not-found]
 
-        mesh_name: str = entry.data[CONF_MESH_NAME]
-        mesh_password: str = entry.data[CONF_MESH_PASSWORD]
-        vendor_id_hex: str = entry.data.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
+        # Mesh credentials and vendor settings are configurable — read from options first
+        mesh_name: str = _get_entry_option(entry, CONF_MESH_NAME, "out_of_mesh")
+        mesh_password: str = _get_entry_option(entry, CONF_MESH_PASSWORD, "123456")
+        vendor_id_hex: str = _get_entry_option(entry, CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
         vendor_id_int = int(vendor_id_hex, 16)
         vendor_id_bytes = vendor_id_int.to_bytes(2, "little")
 
-        mesh_addr: int = entry.data.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS)
+        mesh_addr: int = _get_entry_option(entry, CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS)
 
         device = MeshDevice(
             mac_address,

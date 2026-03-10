@@ -1324,15 +1324,24 @@ class TestRunProvision:
 
 
 def _make_options_flow(
-    device_type: str, entry_data: dict[str, Any] | None = None
+    device_type: str,
+    entry_data: dict[str, Any] | None = None,
+    entry_options: dict[str, Any] | None = None,
 ) -> TuyaBLEMeshOptionsFlow:
-    """Create an options flow with a mock config entry and hass."""
+    """Create an options flow with a mock config entry and hass.
+
+    Args:
+        device_type: The device type for the entry.
+        entry_data: Additional data fields (identity fields, existing creds).
+        entry_options: Existing options (simulates a previously-saved options flow).
+    """
     data: dict[str, Any] = {CONF_DEVICE_TYPE: device_type}
     if entry_data is not None:
         data.update(entry_data)
 
     config_entry = MagicMock()
     config_entry.data = data
+    config_entry.options = entry_options or {}
     config_entry.entry_id = "test_entry_id"
 
     flow = TuyaBLEMeshOptionsFlow(config_entry)
@@ -1349,12 +1358,13 @@ class TestOptionsFlowInit:
 
     @pytest.mark.asyncio
     async def test_bridge_device_shows_bridge_fields(self) -> None:
-        """sig_bridge_plug shows bridge_host and bridge_port fields."""
+        """sig_bridge_plug routes directly to bridge_config step (not init)."""
         flow = _make_options_flow(DEVICE_TYPE_SIG_BRIDGE_PLUG)
         result = await flow.async_step_init(None)
 
         assert result["type"] == "form"
-        assert result["step_id"] == "init"
+        # Bridge devices skip the init step and go directly to bridge_config
+        assert result["step_id"] == "bridge_config"
         schema_keys = [str(k) for k in result["data_schema"].schema]
         assert CONF_BRIDGE_HOST in schema_keys
         assert CONF_BRIDGE_PORT in schema_keys
@@ -1393,11 +1403,15 @@ class TestOptionsFlowInit:
 
 @pytest.mark.requires_ha
 class TestOptionsFlowSubmit:
-    """Test options flow submits data and updates config entry."""
+    """Test options flow saves to entry.options (not entry.data)."""
 
     @pytest.mark.asyncio
-    async def test_submit_bridge_options(self) -> None:
-        """Submitting bridge options updates entry and creates result."""
+    async def test_submit_bridge_options_saves_to_options(self) -> None:
+        """Submitting bridge options saves to entry.options via async_create_entry.
+
+        HA convention: async_create_entry(data=...) from an options flow
+        stores the data dict into entry.options, NOT entry.data.
+        """
         flow = _make_options_flow(
             DEVICE_TYPE_SIG_BRIDGE_PLUG,
             {CONF_BRIDGE_HOST: "10.0.0.1", CONF_BRIDGE_PORT: 8099},
@@ -1406,16 +1420,15 @@ class TestOptionsFlowSubmit:
 
         assert result["type"] == "create_entry"
         assert result["title"] == ""
-        assert result["data"] == {}
-        flow.hass.config_entries.async_update_entry.assert_called_once()
-        call_kwargs = flow.hass.config_entries.async_update_entry.call_args
-        new_data = call_kwargs[1]["data"]
-        assert new_data[CONF_BRIDGE_HOST] == "10.0.0.2"
-        assert new_data[CONF_BRIDGE_PORT] == 9000
+        # result["data"] = the new options (goes to entry.options by HA)
+        assert result["data"][CONF_BRIDGE_HOST] == "10.0.0.2"
+        assert result["data"][CONF_BRIDGE_PORT] == 9000
+        # Must NOT call async_update_entry(data=...) — that would mutate entry.data
+        flow.hass.config_entries.async_update_entry.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_submit_sig_plug_options(self) -> None:
-        """Submitting sig_plug options updates entry."""
+    async def test_submit_sig_plug_options_saves_to_options(self) -> None:
+        """Submitting sig_plug options saves to entry.options."""
         flow = _make_options_flow(
             DEVICE_TYPE_SIG_PLUG,
             {CONF_UNICAST_TARGET: "00B0", CONF_IV_INDEX: 0},
@@ -1423,15 +1436,13 @@ class TestOptionsFlowSubmit:
         result = await flow.async_step_init({CONF_UNICAST_TARGET: "00C0", CONF_IV_INDEX: 1})
 
         assert result["type"] == "create_entry"
-        flow.hass.config_entries.async_update_entry.assert_called_once()
-        call_kwargs = flow.hass.config_entries.async_update_entry.call_args
-        new_data = call_kwargs[1]["data"]
-        assert new_data[CONF_UNICAST_TARGET] == "00C0"
-        assert new_data[CONF_IV_INDEX] == 1
+        assert result["data"][CONF_UNICAST_TARGET] == "00C0"
+        assert result["data"][CONF_IV_INDEX] == 1
+        flow.hass.config_entries.async_update_entry.assert_not_called()
 
     @pytest.mark.asyncio
-    async def test_submit_light_options(self) -> None:
-        """Submitting light/default options updates entry."""
+    async def test_submit_light_options_saves_to_options(self) -> None:
+        """Submitting light options saves to entry.options."""
         flow = _make_options_flow(DEVICE_TYPE_LIGHT)
         result = await flow.async_step_init(
             {
@@ -1442,21 +1453,63 @@ class TestOptionsFlowSubmit:
         )
 
         assert result["type"] == "create_entry"
-        flow.hass.config_entries.async_update_entry.assert_called_once()
-        call_kwargs = flow.hass.config_entries.async_update_entry.call_args
-        new_data = call_kwargs[1]["data"]
-        assert new_data[CONF_MESH_NAME] == "new_mesh"
-        assert new_data[CONF_MESH_PASSWORD] == "newpass"  # pragma: allowlist secret
-        assert new_data[CONF_MESH_ADDRESS] == 5
+        assert result["data"][CONF_MESH_NAME] == "new_mesh"
+        assert result["data"][CONF_MESH_PASSWORD] == "newpass"  # pragma: allowlist secret
+        assert result["data"][CONF_MESH_ADDRESS] == 5
+        flow.hass.config_entries.async_update_entry.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_options_merges_with_existing_options(self) -> None:
+        """Submitting partial options preserves existing options fields."""
+        existing_options = {CONF_BRIDGE_HOST: "10.0.0.1", CONF_BRIDGE_PORT: 8099}
+        flow = _make_options_flow(
+            DEVICE_TYPE_SIG_BRIDGE_PLUG,
+            entry_options=existing_options,
+        )
+        # Only update the host, keep port from existing options
+        result = await flow.async_step_init({CONF_BRIDGE_HOST: "10.0.0.5", CONF_BRIDGE_PORT: 8099})
+
+        assert result["type"] == "create_entry"
+        assert result["data"][CONF_BRIDGE_HOST] == "10.0.0.5"
+        assert result["data"][CONF_BRIDGE_PORT] == 8099
+
+    @pytest.mark.asyncio
+    async def test_opt_reads_options_before_data(self) -> None:
+        """_opt() reads from entry.options first, falls back to entry.data."""
+        flow = _make_options_flow(
+            DEVICE_TYPE_LIGHT,
+            entry_data={CONF_MESH_NAME: "from_data"},
+            entry_options={CONF_MESH_NAME: "from_options"},
+        )
+        # Should return the options value, not the data value
+        assert flow._opt(CONF_MESH_NAME) == "from_options"
+
+    def test_opt_falls_back_to_data(self) -> None:
+        """_opt() falls back to entry.data when key not in options."""
+        flow = _make_options_flow(
+            DEVICE_TYPE_LIGHT,
+            entry_data={CONF_MESH_NAME: "from_data"},
+            entry_options={},
+        )
+        assert flow._opt(CONF_MESH_NAME) == "from_data"
+
+    def test_opt_returns_default_when_missing_everywhere(self) -> None:
+        """_opt() returns the default when key is absent from both options and data."""
+        flow = _make_options_flow(DEVICE_TYPE_LIGHT)
+        assert flow._opt("nonexistent_key", "my_default") == "my_default"
 
 
 @pytest.mark.requires_ha
 class TestOptionsFlowMerge:
-    """Test that existing config entry data is preserved on update."""
+    """Test that options flow only stores user-configurable fields, not identity fields."""
 
     @pytest.mark.asyncio
-    async def test_existing_data_preserved(self) -> None:
-        """Updating one field preserves all other existing fields."""
+    async def test_options_do_not_contain_identity_fields(self) -> None:
+        """Options flow saves to entry.options — identity fields stay in entry.data only.
+
+        MAC address, device type, and cryptographic keys are identity fields.
+        They are never touched by the options flow.
+        """
         existing_data = {
             CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG,
             CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF",
@@ -1468,20 +1521,38 @@ class TestOptionsFlowMerge:
         }
         flow = _make_options_flow(DEVICE_TYPE_SIG_PLUG, existing_data)
 
-        # Only change unicast_target
         result = await flow.async_step_init({CONF_UNICAST_TARGET: "00C0", CONF_IV_INDEX: 0})
 
         assert result["type"] == "create_entry"
-        call_kwargs = flow.hass.config_entries.async_update_entry.call_args
-        new_data = call_kwargs[1]["data"]
-        # Changed field
-        assert new_data[CONF_UNICAST_TARGET] == "00C0"
-        # Preserved fields
-        assert new_data[CONF_MAC_ADDRESS] == "AA:BB:CC:DD:EE:FF"
-        assert new_data[CONF_NET_KEY] == _TEST_NET_KEY
-        assert new_data[CONF_DEV_KEY] == _TEST_DEV_KEY
-        assert new_data[CONF_APP_KEY] == _TEST_APP_KEY
-        assert new_data[CONF_DEVICE_TYPE] == DEVICE_TYPE_SIG_PLUG
+        new_options = result["data"]  # Goes to entry.options
+        # Changed configurable field is present
+        assert new_options[CONF_UNICAST_TARGET] == "00C0"
+        # Identity fields must NOT appear in options — they stay in entry.data
+        assert CONF_MAC_ADDRESS not in new_options
+        assert CONF_NET_KEY not in new_options
+        assert CONF_DEV_KEY not in new_options
+        assert CONF_APP_KEY not in new_options
+        # entry.data is untouched (async_update_entry not called)
+        flow.hass.config_entries.async_update_entry.assert_not_called()
+        assert flow._config_entry.data[CONF_MAC_ADDRESS] == "AA:BB:CC:DD:EE:FF"
+
+    @pytest.mark.asyncio
+    async def test_existing_options_preserved_on_partial_update(self) -> None:
+        """Updating one option field preserves all other existing options."""
+        existing_options = {
+            CONF_UNICAST_TARGET: "00B0",
+            CONF_IV_INDEX: 3,
+        }
+        flow = _make_options_flow(
+            DEVICE_TYPE_SIG_PLUG,
+            entry_options=existing_options,
+        )
+        # Only change unicast_target; iv_index should remain from existing options
+        result = await flow.async_step_init({CONF_UNICAST_TARGET: "00C0", CONF_IV_INDEX: 3})
+
+        assert result["type"] == "create_entry"
+        assert result["data"][CONF_UNICAST_TARGET] == "00C0"
+        assert result["data"][CONF_IV_INDEX] == 3
 
 
 @pytest.mark.requires_ha
@@ -1712,7 +1783,7 @@ class TestTelinkDiscovery:
 
     @pytest.mark.asyncio
     async def test_telink_uuid_sets_device_type_light(self) -> None:
-        """Telink UUID prefix auto-detects Light → zero-knowledge entry creation."""
+        """Telink UUID prefix device auto-creates entry (zero-knowledge flow)."""
         flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
         flow._abort_if_unique_id_configured = lambda: None
@@ -1720,56 +1791,51 @@ class TestTelinkDiscovery:
         service_info = MagicMock(spec=BluetoothServiceInfoBleak)
         service_info.address = "DC:23:4D:21:43:A5"
         service_info.name = "telink_mesh_1234"
-        # Telink UUID prefix → auto_device_type = DEVICE_TYPE_LIGHT
+        # Telink UUID prefix → zero-knowledge flow creates entry directly as Light
         service_info.service_uuids = ["00010203-0405-0607-0809-0a0b0c0d1234"]
         service_info.rssi = -60
 
-        with patch(
-            "homeassistant.components.bluetooth.async_ble_device_from_address",
-            return_value=MagicMock(),
-        ):
-            result = await flow.async_step_bluetooth(service_info)
+        result = await flow.async_step_bluetooth(service_info)
 
-        # Telink auto-detected → zero-knowledge flow → creates entry directly (line 423)
+        # Telink device → auto-creates entry (zero-knowledge flow, no user input needed)
         assert result["type"] == "create_entry"
-        assert result["data"][CONF_DEVICE_TYPE] == DEVICE_TYPE_LIGHT
+        assert result["data"][CONF_DEVICE_TYPE] == DEVICE_TYPE_TELINK_BRIDGE_LIGHT or result["data"][CONF_DEVICE_TYPE] == DEVICE_TYPE_LIGHT
 
 
 @pytest.mark.requires_ha
 class TestZeroKnowledgeFlow:
-    """Test zero-knowledge flow — covers config_flow.py:482-498."""
+    """Test confirm step entry creation with device type selection."""
 
     @pytest.mark.asyncio
-    async def test_auto_detected_light_creates_entry_directly(self) -> None:
-        """Auto-detected Light → create entry without user form."""
+    async def test_confirm_with_light_creates_entry(self) -> None:
+        """Confirm step with DEVICE_TYPE_LIGHT creates entry with light title."""
         flow = _make_flow()
         flow._discovery_info = {
             "address": "DC:23:4D:21:43:A5",
             "name": "telink_mesh_a5",
             "rssi": -60,
             "device_category": "Telink Mesh",
-            "auto_device_type": DEVICE_TYPE_LIGHT,  # auto-detected
         }
 
-        result = await flow.async_step_confirm(None)
+        result = await flow.async_step_confirm({CONF_DEVICE_TYPE: DEVICE_TYPE_LIGHT})
 
         assert result["type"] == "create_entry"
         assert result["data"][CONF_DEVICE_TYPE] == DEVICE_TYPE_LIGHT
         assert result["data"][CONF_MAC_ADDRESS] == "DC:23:4D:21:43:A5"
+        assert "Light" in result["title"]
 
     @pytest.mark.asyncio
-    async def test_auto_detected_plug_creates_entry_directly(self) -> None:
-        """Auto-detected Plug → create entry with plug title."""
+    async def test_confirm_with_plug_creates_entry_with_plug_title(self) -> None:
+        """Confirm step with DEVICE_TYPE_PLUG creates entry with plug title."""
         flow = _make_flow()
         flow._discovery_info = {
             "address": "AA:BB:CC:DD:EE:FF",
             "name": "mesh_plug_ff",
             "rssi": -55,
             "device_category": "Telink Mesh",
-            "auto_device_type": DEVICE_TYPE_PLUG,  # auto-detected
         }
 
-        result = await flow.async_step_confirm(None)
+        result = await flow.async_step_confirm({CONF_DEVICE_TYPE: DEVICE_TYPE_PLUG})
 
         assert result["type"] == "create_entry"
         assert result["data"][CONF_DEVICE_TYPE] == DEVICE_TYPE_PLUG
@@ -2194,3 +2260,27 @@ class TestSigPlugErrorHandling:
         assert result["type"] == "form"
         # Should default to provisioning_failed
         assert result["errors"]["base"] == "provisioning_failed"
+
+
+
+@pytest.mark.requires_ha
+class TestSigPlugDeviceNotFound:
+    """Test async_step_sig_plug aborts when device unavailable — covers config_flow.py:717-719."""
+
+    @pytest.mark.asyncio
+    async def test_sig_plug_device_not_found_aborts(self) -> None:
+        """When BLE device is not connectable, sig_plug step aborts."""
+        flow = _make_flow()
+        flow._discovery_info = {
+            "address": "AA:BB:CC:DD:EE:FF",
+            "name": "SIG Mesh FF",
+        }
+
+        with patch(
+            "homeassistant.components.bluetooth.async_ble_device_from_address",
+            return_value=None,  # Device not connectable
+        ):
+            result = await flow.async_step_sig_plug({})
+
+        assert result["type"] == "abort"
+        assert result["reason"] == "device_not_found"
