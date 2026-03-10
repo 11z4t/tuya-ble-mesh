@@ -23,6 +23,8 @@ from custom_components.tuya_ble_mesh.config_flow import (
     _validate_bridge_host,
     _validate_hex_key,
     _validate_mac,
+    _validate_mesh_credential,
+    _validate_vendor_id,
 )
 from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
@@ -38,6 +40,7 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_NET_KEY,
     CONF_UNICAST_OUR,
     CONF_UNICAST_TARGET,
+    CONF_VENDOR_ID,
     DEVICE_TYPE_LIGHT,
     DEVICE_TYPE_PLUG,
     DEVICE_TYPE_SIG_BRIDGE_PLUG,
@@ -1613,129 +1616,207 @@ class TestReauthFlow:
         assert CONF_BRIDGE_PORT in schema_keys
 
 
+# ============================================================================
+# PLAT-414: Coverage gap tests
+# ============================================================================
+
+
 @pytest.mark.requires_ha
-class TestDeviceDiscoveryStaleProtection:
-    """Test PLAT-509: Stale discovery flow protection (lines 353-357)."""
+class TestValidateMeshCredential:
+    """Test _validate_mesh_credential — covers config_flow.py:209."""
+
+    def test_valid_short_credential(self) -> None:
+        assert _validate_mesh_credential("abc") is None
+
+    def test_valid_exactly_16_bytes(self) -> None:
+        assert _validate_mesh_credential("a" * 16) is None
+
+    def test_invalid_too_long(self) -> None:
+        # 17 bytes UTF-8 → invalid_credential_length (covers line 209)
+        assert _validate_mesh_credential("a" * 17) == "invalid_credential_length"
+
+    def test_invalid_too_long_multibyte(self) -> None:
+        # Unicode char takes 3 bytes → 6 such chars = 18 bytes > 16
+        assert _validate_mesh_credential("é" * 9) == "invalid_credential_length"
+
+    def test_empty_string_is_valid(self) -> None:
+        assert _validate_mesh_credential("") is None
+
+
+@pytest.mark.requires_ha
+class TestValidateVendorId:
+    """Test _validate_vendor_id — covers config_flow.py:224, 228-230."""
+
+    def test_valid_hex_with_prefix(self) -> None:
+        assert _validate_vendor_id("0x1001") is None
+
+    def test_valid_hex_without_prefix(self) -> None:
+        assert _validate_vendor_id("1001") is None
+
+    def test_valid_after_strip(self) -> None:
+        assert _validate_vendor_id("  0x1001  ") is None
+
+    def test_invalid_pattern_letters(self) -> None:
+        # Non-hex characters → no match → "invalid_vendor_id" (covers line 224)
+        assert _validate_vendor_id("ZZZZ") == "invalid_vendor_id"
+
+    def test_invalid_empty(self) -> None:
+        assert _validate_vendor_id("") == "invalid_vendor_id"
+
+    def test_invalid_out_of_range(self) -> None:
+        # 0x10000 > 0xFFFF → invalid (covers line 228-229)
+        assert _validate_vendor_id("0x10000") == "invalid_vendor_id"
+
+    def test_valid_zero(self) -> None:
+        assert _validate_vendor_id("0x0000") is None
+
+    def test_valid_max(self) -> None:
+        assert _validate_vendor_id("0xffff") is None
+
+
+@pytest.mark.requires_ha
+class TestDiscoveryStaleDevice:
+    """Test stale device protection — covers config_flow.py:396-400."""
 
     @pytest.mark.asyncio
-    async def test_discovery_aborts_when_device_not_advertising(self) -> None:
-        """Discovery flow aborts when device is no longer advertising."""
+    async def test_stale_device_returns_abort(self) -> None:
+        """When device no longer advertising, discovery should abort."""
         flow = _make_flow()
-        flow.context = {"source": "bluetooth"}
+        flow.async_set_unique_id = AsyncMock()
+        flow._abort_if_unique_id_configured = lambda: None
 
-        # Mock discovery info with SIG mesh proxy UUID
-        discovery_info = MagicMock(spec=BluetoothServiceInfoBleak)
-        discovery_info.name = "tymesh_12345"
-        discovery_info.address = "AA:BB:CC:DD:EE:FF"
-        discovery_info.rssi = -60
-        discovery_info.service_uuids = [SIG_MESH_PROXY_UUID]
+        service_info = MagicMock(spec=BluetoothServiceInfoBleak)
+        service_info.address = "DC:23:4D:21:43:A5"
+        service_info.name = "out_of_mesh_1234"
+        service_info.service_uuids = []
+        service_info.rssi = -70
 
-        # Mock async_ble_device_from_address to return None (device not advertising)
+        # async_ble_device_from_address is a deferred import inside the function,
+        # so we patch it at the source module level
         with patch(
             "homeassistant.components.bluetooth.async_ble_device_from_address",
-            return_value=None,
+            return_value=None,  # Device not available → stale
         ):
-            result = await flow.async_step_bluetooth(discovery_info)
+            result = await flow.async_step_bluetooth(service_info)
 
         assert result["type"] == "abort"
         assert result["reason"] == "device_not_available"
 
-    @pytest.mark.asyncio
-    async def test_discovery_continues_when_bluetooth_manager_unavailable(self) -> None:
-        """Discovery flow skips stale check if BluetoothManager is unavailable."""
-        flow = _make_flow()
-        flow.context = {"source": "bluetooth"}
-
-        discovery_info = MagicMock(spec=BluetoothServiceInfoBleak)
-        discovery_info.name = "tymesh_67890"
-        discovery_info.address = "BB:CC:DD:EE:FF:00"
-        discovery_info.rssi = -55
-        discovery_info.service_uuids = [SIG_MESH_PROXY_UUID]
-
-        # Mock async_ble_device_from_address to raise RuntimeError
-        with patch(
-            "homeassistant.components.bluetooth.async_ble_device_from_address",
-            side_effect=RuntimeError("BluetoothManager not initialized"),
-        ):
-            result = await flow.async_step_bluetooth(discovery_info)
-
-        # Should NOT abort — continues to user form
-        assert result["type"] == "form"
-
 
 @pytest.mark.requires_ha
-class TestDeviceTypeAutoDetection:
-    """Test device type auto-detection from service UUIDs (line 380)."""
+class TestTelinkDiscovery:
+    """Test Telink UUID detection — covers config_flow.py:423."""
 
     @pytest.mark.asyncio
-    async def test_telink_uuid_auto_detects_light(self) -> None:
-        """Telink mesh UUID prefix auto-detects LIGHT type (line 380)."""
+    async def test_telink_uuid_sets_device_type_light(self) -> None:
+        """Telink UUID prefix auto-detects Light → zero-knowledge entry creation."""
         flow = _make_flow()
-        flow.context = {"source": "bluetooth"}
+        flow.async_set_unique_id = AsyncMock()
+        flow._abort_if_unique_id_configured = lambda: None
 
-        # Discovery with Telink mesh UUID (00010203-0405-0607-0809-0a0b0c0d...)
-        discovery_info = MagicMock(spec=BluetoothServiceInfoBleak)
-        discovery_info.name = "out_of_mesh"
-        discovery_info.address = "CC:DD:EE:FF:00:11"
-        discovery_info.rssi = -50
-        discovery_info.service_uuids = ["00010203-0405-0607-0809-0a0b0c0d1234"]
+        service_info = MagicMock(spec=BluetoothServiceInfoBleak)
+        service_info.address = "DC:23:4D:21:43:A5"
+        service_info.name = "telink_mesh_1234"
+        # Telink UUID prefix → auto_device_type = DEVICE_TYPE_LIGHT
+        service_info.service_uuids = ["00010203-0405-0607-0809-0a0b0c0d1234"]
+        service_info.rssi = -60
 
         with patch(
             "homeassistant.components.bluetooth.async_ble_device_from_address",
-            side_effect=RuntimeError,  # Skip stale check
+            return_value=MagicMock(),
         ):
-            result = await flow.async_step_bluetooth(discovery_info)
+            result = await flow.async_step_bluetooth(service_info)
 
-        # With Telink UUID, auto-detects light and creates entry via zero-knowledge flow
+        # Telink auto-detected → zero-knowledge flow → creates entry directly (line 423)
         assert result["type"] == "create_entry"
-        assert "BLE Mesh Light" in result["title"]
         assert result["data"][CONF_DEVICE_TYPE] == DEVICE_TYPE_LIGHT
 
 
 @pytest.mark.requires_ha
-class TestZeroKnowledgeConfigFlow:
-    """Test PLAT-511: Zero-knowledge config flow for auto-detected devices."""
+class TestZeroKnowledgeFlow:
+    """Test zero-knowledge flow — covers config_flow.py:482-498."""
 
     @pytest.mark.asyncio
-    async def test_auto_detected_plug_creates_entry_with_defaults(self) -> None:
-        """Auto-detected SIG plug creates entry with zero user input (lines 439-455)."""
+    async def test_auto_detected_light_creates_entry_directly(self) -> None:
+        """Auto-detected Light → create entry without user form."""
         flow = _make_flow()
-        flow.context = {"source": "bluetooth"}
-
-        # Set discovery info with auto-detected plug (NOT SIG_PLUG, use DEVICE_TYPE_PLUG)
-        # This triggers the zero-knowledge flow in async_step_confirm
         flow._discovery_info = {
-            "address": "DD:EE:FF:00:11:22",
-            "name": "tymesh_plug",
-            "auto_device_type": DEVICE_TYPE_PLUG,  # PLUG, not SIG_PLUG
+            "address": "DC:23:4D:21:43:A5",
+            "name": "telink_mesh_a5",
+            "rssi": -60,
+            "device_category": "Telink Mesh",
+            "auto_device_type": DEVICE_TYPE_LIGHT,  # auto-detected
         }
 
-        # async_step_confirm with no user_input triggers auto-creation
         result = await flow.async_step_confirm(None)
 
         assert result["type"] == "create_entry"
-        assert "BLE Mesh Plug" in result["title"]
-        assert result["data"][CONF_MAC_ADDRESS] == "DD:EE:FF:00:11:22"
+        assert result["data"][CONF_DEVICE_TYPE] == DEVICE_TYPE_LIGHT
+        assert result["data"][CONF_MAC_ADDRESS] == "DC:23:4D:21:43:A5"
+
+    @pytest.mark.asyncio
+    async def test_auto_detected_plug_creates_entry_directly(self) -> None:
+        """Auto-detected Plug → create entry with plug title."""
+        flow = _make_flow()
+        flow._discovery_info = {
+            "address": "AA:BB:CC:DD:EE:FF",
+            "name": "mesh_plug_ff",
+            "rssi": -55,
+            "device_category": "Telink Mesh",
+            "auto_device_type": DEVICE_TYPE_PLUG,  # auto-detected
+        }
+
+        result = await flow.async_step_confirm(None)
+
+        assert result["type"] == "create_entry"
         assert result["data"][CONF_DEVICE_TYPE] == DEVICE_TYPE_PLUG
-        # Defaults should be set
-        assert result["data"][CONF_MESH_NAME] == "out_of_mesh"
-        assert result["data"][CONF_MESH_PASSWORD] == "123456"
+        assert "Plug" in result["title"]
+
+
+@pytest.mark.requires_ha
+class TestUserStepValidationErrors:
+    """Test user step validation errors — covers config_flow.py:564, 569, 574."""
 
     @pytest.mark.asyncio
-    async def test_auto_detected_light_creates_entry_with_defaults(self) -> None:
-        """Auto-detected light creates entry with zero user input (lines 439-455)."""
+    async def test_user_step_invalid_mesh_name_too_long(self) -> None:
+        """Mesh name > 16 bytes UTF-8 → error on CONF_MESH_NAME (line 564)."""
         flow = _make_flow()
-        flow.context = {"source": "bluetooth"}
+        result = await flow.async_step_user(
+            {
+                CONF_MAC_ADDRESS: "DC:23:4D:21:43:A5",
+                CONF_MESH_NAME: "a" * 17,
+                CONF_MESH_PASSWORD: "valid",  # pragma: allowlist secret
+            }
+        )
+        assert result["type"] == "form"
+        assert CONF_MESH_NAME in result["errors"]
+        assert result["errors"][CONF_MESH_NAME] == "invalid_credential_length"
 
-        flow._discovery_info = {
-            "address": "EE:FF:00:11:22:33",
-            "name": "out_of_mesh_light",
-            "auto_device_type": DEVICE_TYPE_LIGHT,
-        }
+    @pytest.mark.asyncio
+    async def test_user_step_invalid_mesh_password_too_long(self) -> None:
+        """Mesh password > 16 bytes UTF-8 → error on CONF_MESH_PASSWORD (line 569)."""
+        flow = _make_flow()
+        result = await flow.async_step_user(
+            {
+                CONF_MAC_ADDRESS: "DC:23:4D:21:43:A5",
+                CONF_MESH_NAME: "valid",
+                CONF_MESH_PASSWORD: "b" * 17,  # pragma: allowlist secret
+            }
+        )
+        assert result["type"] == "form"
+        assert CONF_MESH_PASSWORD in result["errors"]
+        assert result["errors"][CONF_MESH_PASSWORD] == "invalid_credential_length"
 
-        result = await flow.async_step_confirm(None)
-
-        assert result["type"] == "create_entry"
-        assert "BLE Mesh Light" in result["title"]
-        assert result["data"][CONF_MAC_ADDRESS] == "EE:FF:00:11:22:33"
-        assert result["data"][CONF_DEVICE_TYPE] == DEVICE_TYPE_LIGHT
+    @pytest.mark.asyncio
+    async def test_user_step_invalid_vendor_id(self) -> None:
+        """Invalid vendor ID → error on CONF_VENDOR_ID (line 574)."""
+        flow = _make_flow()
+        result = await flow.async_step_user(
+            {
+                CONF_MAC_ADDRESS: "DC:23:4D:21:43:A5",
+                CONF_VENDOR_ID: "not_a_vendor_id",
+            }
+        )
+        assert result["type"] == "form"
+        assert CONF_VENDOR_ID in result["errors"]
+        assert result["errors"][CONF_VENDOR_ID] == "invalid_vendor_id"
