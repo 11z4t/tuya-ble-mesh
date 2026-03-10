@@ -1078,14 +1078,16 @@ class TestRunProvision:
         mock_device.send_config_appkey_add = AsyncMock(return_value=True)
         mock_device.send_config_model_app_bind = AsyncMock(return_value=True)
 
-        with patch("tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner") as mock_prov_cls:
-            with patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device):
-                with patch("asyncio.sleep", new_callable=AsyncMock):
-                    mock_provisioner = MagicMock()
-                    mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
-                    mock_prov_cls.return_value = mock_provisioner
+        with (
+            patch("tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner") as mock_prov_cls,
+            patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            mock_provisioner = MagicMock()
+            mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
+            mock_prov_cls.return_value = mock_provisioner
 
-                    net_key, dev_key, app_key = await flow._run_provision("AA:BB:CC:DD:EE:FF")
+            net_key, dev_key, app_key = await flow._run_provision("AA:BB:CC:DD:EE:FF")
 
         # Verify keys are 32-char hex strings
         assert len(net_key) == 32
@@ -1109,14 +1111,16 @@ class TestRunProvision:
         mock_device.send_config_appkey_add = AsyncMock(return_value=False)  # FAIL
         mock_device.send_config_model_app_bind = AsyncMock(return_value=True)
 
-        with patch("tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner") as mock_prov_cls:
-            with patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device):
-                with patch("asyncio.sleep", new_callable=AsyncMock):
-                    mock_provisioner = MagicMock()
-                    mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
-                    mock_prov_cls.return_value = mock_provisioner
+        with (
+            patch("tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner") as mock_prov_cls,
+            patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            mock_provisioner = MagicMock()
+            mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
+            mock_prov_cls.return_value = mock_provisioner
 
-                    net_key, dev_key, app_key = await flow._run_provision("AA:BB:CC:DD:EE:FF")
+            net_key, dev_key, _app_key = await flow._run_provision("AA:BB:CC:DD:EE:FF")
 
         # Should still return keys (warning logged)
         assert len(net_key) == 32
@@ -1137,14 +1141,16 @@ class TestRunProvision:
         mock_device.send_config_appkey_add = AsyncMock(return_value=True)
         mock_device.send_config_model_app_bind = AsyncMock(return_value=False)  # FAIL
 
-        with patch("tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner") as mock_prov_cls:
-            with patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device):
-                with patch("asyncio.sleep", new_callable=AsyncMock):
-                    mock_provisioner = MagicMock()
-                    mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
-                    mock_prov_cls.return_value = mock_provisioner
+        with (
+            patch("tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner") as mock_prov_cls,
+            patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            mock_provisioner = MagicMock()
+            mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
+            mock_prov_cls.return_value = mock_provisioner
 
-                    net_key, dev_key, app_key = await flow._run_provision("AA:BB:CC:DD:EE:FF")
+            net_key, dev_key, _app_key = await flow._run_provision("AA:BB:CC:DD:EE:FF")
 
         # Should still return keys
         assert len(net_key) == 32
@@ -1163,15 +1169,17 @@ class TestRunProvision:
         mock_device.connect = AsyncMock(side_effect=Exception("connection timeout"))
         mock_device.disconnect = AsyncMock()
 
-        with patch("tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner") as mock_prov_cls:
-            with patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device):
-                with patch("asyncio.sleep", new_callable=AsyncMock):
-                    mock_provisioner = MagicMock()
-                    mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
-                    mock_prov_cls.return_value = mock_provisioner
+        with (
+            patch("tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner") as mock_prov_cls,
+            patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            mock_provisioner = MagicMock()
+            mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
+            mock_prov_cls.return_value = mock_provisioner
 
-                    # Should still return keys despite post-config failure
-                    net_key, dev_key, app_key = await flow._run_provision("AA:BB:CC:DD:EE:FF")
+            # Should still return keys despite post-config failure
+            net_key, dev_key, _app_key = await flow._run_provision("AA:BB:CC:DD:EE:FF")
 
         assert len(net_key) == 32
         assert dev_key == _TEST_DEV_KEY
@@ -1203,11 +1211,20 @@ class TestRunProvision:
 
         # Mock establish_connection to avoid real BLE calls
         mock_client = MagicMock()
-        with patch("bleak_retry_connector.establish_connection", new_callable=AsyncMock, return_value=mock_client):
-            with patch("tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner", side_effect=capture_provisioner_init):
-                with patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device):
-                    with patch("asyncio.sleep", new_callable=AsyncMock):
-                        await flow._run_provision("AA:BB:CC:DD:EE:FF")
+        with (
+            patch(
+                "bleak_retry_connector.establish_connection",
+                new_callable=AsyncMock,
+                return_value=mock_client,
+            ),
+            patch(
+                "tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner",
+                side_effect=capture_provisioner_init,
+            ),
+            patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            await flow._run_provision("AA:BB:CC:DD:EE:FF")
 
         # Verify callbacks were passed
         assert "ble_device_callback" in captured_provisioner_kwargs
@@ -1219,24 +1236,28 @@ class TestRunProvision:
 
         # Test ble_device_cb with connectable=True device
         mock_ble_device_connectable = MagicMock()
-        with patch("homeassistant.components.bluetooth.async_ble_device_from_address", return_value=mock_ble_device_connectable):
+        with patch(
+            "homeassistant.components.bluetooth.async_ble_device_from_address",
+            return_value=mock_ble_device_connectable,
+        ):
             result = ble_device_cb("AA:BB:CC:DD:EE:FF")
             assert result is mock_ble_device_connectable
 
         # Test ble_device_cb fallback to connectable=False when connectable=True returns None
-        with patch("homeassistant.components.bluetooth.async_ble_device_from_address") as mock_bt:
+        with patch(
+            "homeassistant.components.bluetooth.async_ble_device_from_address"
+        ) as mock_bt:
             mock_ble_device_non_connectable = MagicMock()
-            mock_bt.side_effect = [None, mock_ble_device_non_connectable]  # First call returns None
+            mock_bt.side_effect = [None, mock_ble_device_non_connectable]
             result = ble_device_cb("AA:BB:CC:DD:EE:FF")
             assert result is mock_ble_device_non_connectable
 
-        # Test ble_connect_cb - verify it's callable and actually calls establish_connection
+        # Test ble_connect_cb - verify it's callable and calls establish_connection
         assert callable(ble_connect_cb)
-        # Call the callback to cover line 602 - it will use the mock_client from the outer patch
+        # Call the callback to cover line 602 - uses mock_client from the outer patch
         mock_ble_device = MagicMock()
         mock_ble_device.address = "AA:BB:CC:DD:EE:FF"
         result = await ble_connect_cb(mock_ble_device)
-        # Just verify the callback returned something (using the mocked establish_connection from above)
         assert result is not None
 
     @pytest.mark.asyncio
@@ -1265,21 +1286,32 @@ class TestRunProvision:
 
         # Mock establish_connection to avoid real BLE calls
         mock_client = MagicMock()
-        with patch("bleak_retry_connector.establish_connection", new_callable=AsyncMock, return_value=mock_client):
-            with patch("tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner", side_effect=capture_provisioner_init):
-                with patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device):
-                    with patch("asyncio.sleep", new_callable=AsyncMock):
-                        await flow._run_provision("AA:BB:CC:DD:EE:FF")
+        with (
+            patch(
+                "bleak_retry_connector.establish_connection",
+                new_callable=AsyncMock,
+                return_value=mock_client,
+            ),
+            patch(
+                "tuya_ble_mesh.sig_mesh_provisioner.SIGMeshProvisioner",
+                side_effect=capture_provisioner_init,
+            ),
+            patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
+            await flow._run_provision("AA:BB:CC:DD:EE:FF")
 
         # Verify callbacks were passed
         assert "ble_device_callback" in captured_provisioner_kwargs
         assert "ble_connect_callback" in captured_provisioner_kwargs
 
         ble_device_cb = captured_provisioner_kwargs["ble_device_callback"]
-        ble_connect_cb = captured_provisioner_kwargs["ble_connect_callback"]
+        _ble_connect_cb = captured_provisioner_kwargs["ble_connect_callback"]
 
         # Test ble_device_cb when device not found (both connectable=True and False return None)
-        with patch("homeassistant.components.bluetooth.async_ble_device_from_address") as mock_bt:
+        with patch(
+            "homeassistant.components.bluetooth.async_ble_device_from_address"
+        ) as mock_bt:
             mock_bt.return_value = None  # Both calls return None
             result = ble_device_cb("AA:BB:CC:DD:EE:FF")
             assert result is None

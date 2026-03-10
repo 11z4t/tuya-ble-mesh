@@ -570,7 +570,7 @@ async def connect_with_retry(
             _LOGGER.info("Connected to %s (MTU=%d)", mac, client.mtu_size)
             return client
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             last_error = f"timeout after {timeout}s"
             connect_failures += 1
             print(f"  [{attempt}/{retries}] Connection timeout")

@@ -15,10 +15,10 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
 from tuya_ble_mesh.protocol import (
-    encode_command_packet,
     decode_command_packet,
     decode_dp_value,
     decode_status,
+    encode_command_packet,
     encode_command_payload,
 )
 
