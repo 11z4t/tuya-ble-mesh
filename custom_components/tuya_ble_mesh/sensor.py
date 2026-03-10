@@ -22,7 +22,7 @@ from homeassistant.const import (
     UnitOfPower,
 )
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity import EntityCategory
+from homeassistant.helpers.entity import EntityCategory  # type: ignore[attr-defined]
 from homeassistant.helpers.typing import StateType
 
 if TYPE_CHECKING:
@@ -45,7 +45,7 @@ PARALLEL_UPDATES = 1
 
 
 @dataclass(frozen=True, kw_only=True)
-class TuyaBLEMeshSensorEntityDescription(SensorEntityDescription):  # type: ignore[misc]
+class TuyaBLEMeshSensorEntityDescription(SensorEntityDescription):
     """Extended sensor entity description for Tuya BLE Mesh sensors.
 
     Attributes:
@@ -144,7 +144,7 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class TuyaBLEMeshSensor(SensorEntity):  # type: ignore[misc]
+class TuyaBLEMeshSensor(SensorEntity):
     """Unified sensor entity for Tuya BLE Mesh devices using EntityDescription pattern.
 
     This class replaces individual sensor classes (RSSI, firmware, power, energy)
@@ -155,6 +155,7 @@ class TuyaBLEMeshSensor(SensorEntity):  # type: ignore[misc]
 
     _attr_should_poll = False
     _attr_has_entity_name = True
+    _attr_unique_id: str
 
     entity_description: TuyaBLEMeshSensorEntityDescription
 

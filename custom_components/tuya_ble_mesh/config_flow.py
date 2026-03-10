@@ -26,6 +26,7 @@ for _lib_dir in (_BUNDLED_LIB, _DEV_LIB):
         break
 
 import voluptuous as vol  # noqa: E402
+from aiohttp import ClientTimeout  # noqa: E402
 from homeassistant import config_entries  # noqa: E402
 from homeassistant.config_entries import ConfigFlow  # noqa: E402
 
@@ -250,7 +251,7 @@ async def _test_bridge_with_session(hass: Any, host: str, port: int) -> bool:
     session = async_get_clientsession(hass)
     url = f"http://{host}:{port}/health"
     try:
-        async with session.get(url, timeout=_BRIDGE_TEST_TIMEOUT) as resp:
+        async with session.get(url, timeout=ClientTimeout(total=_BRIDGE_TEST_TIMEOUT)) as resp:
             if resp.status != 200:
                 return False
             body = await resp.text()
@@ -260,7 +261,7 @@ async def _test_bridge_with_session(hass: Any, host: str, port: int) -> bool:
     return False
 
 
-class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
+class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):
     """Handle options for a Tuya BLE Mesh entry."""
 
     def __init__(self, config_entry: config_entries.ConfigEntry) -> None:
@@ -344,7 +345,7 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
         return self.async_show_form(step_id="init", data_schema=schema)
 
 
-class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, call-arg]
+class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
     """Handle a config flow for Tuya BLE Mesh."""
 
     VERSION = 1
@@ -365,7 +366,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         self._prov_dev_key: str = ""
         self._prov_app_key: str = ""
 
-    async def async_step_bluetooth(
+    async def async_step_bluetooth(  # type: ignore[override]
         self,
         discovery_info: BluetoothServiceInfoBleak,
     ) -> FlowResult:
@@ -541,7 +542,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             },
         )
 
-    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:  # type: ignore[override]
         """Handle manual setup.
 
         Args:
@@ -709,9 +710,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         from bleak import BleakClient
         from bleak_retry_connector import establish_connection
         from homeassistant.components import bluetooth as ha_bluetooth
-        from tuya_ble_mesh.secrets import DictSecretsManager
-        from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
-        from tuya_ble_mesh.sig_mesh_provisioner import SIGMeshProvisioner
+        from tuya_ble_mesh.secrets import DictSecretsManager  # type: ignore[import-not-found]
+        from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
+        from tuya_ble_mesh.sig_mesh_provisioner import SIGMeshProvisioner  # type: ignore[import-not-found]
 
         # Generate fresh random keys (SECURITY: never logged)
         net_key = os.urandom(16)
