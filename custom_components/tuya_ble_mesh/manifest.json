@@ -1,7 +1,7 @@
 {
   "domain": "tuya_ble_mesh",
   "name": "Tuya BLE Mesh",
-  "version": "0.21.0",
+  "version": "0.22.0",
   "integration_type": "hub",
   "documentation": "https://github.com/11z4t/tuya-ble-mesh",
   "issue_tracker": "https://github.com/11z4t/tuya-ble-mesh/issues",
@@ -28,5 +28,5 @@
   "dependencies": [
     "bluetooth"
   ],
-  "requirements": ["tuya-ble-mesh==0.21.0", "bleak>=0.21", "bleak-retry-connector>=3.0", "cryptography>=42.0", "aiohttp>=3.9"]
+  "requirements": ["tuya-ble-mesh==0.22.0", "bleak>=0.21", "bleak-retry-connector>=3.0", "cryptography>=42.0", "aiohttp>=3.9"]
 }
