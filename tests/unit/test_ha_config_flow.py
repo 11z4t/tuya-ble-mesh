@@ -2334,13 +2334,16 @@ class TestReconfigureStep:
 
     @pytest.mark.asyncio
     async def test_reconfigure_succeeds_for_direct_device(self) -> None:
-        """Valid mesh credential update triggers reload and abort with success."""
+        """Valid mesh credential update aborts with reconfigure_successful.
+
+        async_update_reload_and_abort() handles entry update + reload scheduling
+        atomically — we assert only the observable outcome (abort reason) and
+        that the entry data was updated, not the internal reload scheduling.
+        """
         flow, entry = self._make_flow_with_entry(
             DEVICE_TYPE_LIGHT,
             {CONF_MESH_NAME: "oldmesh", CONF_MESH_PASSWORD: "oldcred"},
         )
-
-        flow.hass.config_entries.async_reload = AsyncMock()
 
         result = await flow.async_step_reconfigure(
             {CONF_MESH_NAME: "newmesh", CONF_MESH_PASSWORD: "newcred"}
@@ -2348,8 +2351,8 @@ class TestReconfigureStep:
 
         assert result["type"] == "abort"
         assert result["reason"] == "reconfigure_successful"
+        # async_update_reload_and_abort calls async_update_entry internally
         flow.hass.config_entries.async_update_entry.assert_called_once()
-        flow.hass.config_entries.async_reload.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_reconfigure_bridge_validates_host(self) -> None:

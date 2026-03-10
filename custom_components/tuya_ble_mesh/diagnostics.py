@@ -312,8 +312,8 @@ async def async_get_config_entry_diagnostics(
             "command_error_rate": round(
                 stats.command_errors / max(stats.total_reconnects + 1, 1), 3
             ),
-            "consecutive_failures": coordinator._consecutive_failures,
-            "storm_threshold": coordinator._storm_threshold,
+            "consecutive_failures": coordinator.consecutive_failures,
+            "storm_threshold": coordinator.storm_threshold,
         }
 
     return diag

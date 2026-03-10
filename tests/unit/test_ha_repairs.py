@@ -381,7 +381,7 @@ class TestReconnectTimeline:
         from custom_components.tuya_ble_mesh.coordinator import ConnectionStatistics
 
         stats = ConnectionStatistics()
-        assert isinstance(stats.reconnect_timeline, list)
+        assert isinstance(stats.reconnect_timeline, deque)
         assert isinstance(stats.rssi_history, deque)
         assert len(stats.reconnect_timeline) == 0
         assert len(stats.rssi_history) == 0

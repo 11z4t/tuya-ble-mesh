@@ -595,8 +595,8 @@ class TestConnectionQualitySection:
         coord.state.rssi = -72
         # Set up remaining fields needed for protocol_health
         stats.reconnect_timeline = []
-        coord._consecutive_failures = 0
-        coord._storm_threshold = 10
+        coord.consecutive_failures = 0
+        coord.storm_threshold = 10
         coord.capabilities.protocol = "Tuya_BLE"
         stats.last_error_class = "transient"
         stats.storm_detected = False
@@ -623,8 +623,8 @@ class TestConnectionQualitySection:
         stats.rssi_history = deque()
         coord.state.rssi = None
         stats.reconnect_timeline = []
-        coord._consecutive_failures = 0
-        coord._storm_threshold = 10
+        coord.consecutive_failures = 0
+        coord.storm_threshold = 10
         coord.capabilities.protocol = "SIG_Mesh"
         stats.last_error_class = "unknown"
         stats.storm_detected = False
@@ -651,8 +651,8 @@ class TestConnectionQualitySection:
         stats.rssi_history = deque()
         coord.state.rssi = -65
         stats.reconnect_timeline = []
-        coord._consecutive_failures = 0
-        coord._storm_threshold = 10
+        coord.consecutive_failures = 0
+        coord.storm_threshold = 10
         coord.capabilities.protocol = "Tuya_BLE"
         stats.last_error_class = "unknown"
         stats.storm_detected = False
@@ -675,8 +675,8 @@ class TestConnectionQualitySection:
         stats.rssi_history = deque()
         coord.state.rssi = -95
         stats.reconnect_timeline = []
-        coord._consecutive_failures = 0
-        coord._storm_threshold = 10
+        coord.consecutive_failures = 0
+        coord.storm_threshold = 10
         coord.capabilities.protocol = "Tuya_BLE"
         stats.last_error_class = "unknown"
         stats.storm_detected = False
@@ -706,8 +706,8 @@ class TestProtocolHealthSection:
         stats.reconnect_timeline = []
         stats.command_errors = 2
         stats.total_reconnects = 10
-        coord._consecutive_failures = 1
-        coord._storm_threshold = 10
+        coord.consecutive_failures = 1
+        coord.storm_threshold = 10
         coord.capabilities.protocol = "Tuya_BLE"
         stats.last_error_class = "transient"
         stats.storm_detected = False
@@ -741,8 +741,8 @@ class TestProtocolHealthSection:
         stats.reconnect_timeline = [FakeEvent("transient"), FakeEvent("bridge_down")]
         stats.command_errors = 0
         stats.total_reconnects = 5
-        coord._consecutive_failures = 0
-        coord._storm_threshold = 10
+        coord.consecutive_failures = 0
+        coord.storm_threshold = 10
         coord.capabilities.protocol = "Tuya_BLE"
         stats.last_error_class = "transient"
         stats.storm_detected = False
