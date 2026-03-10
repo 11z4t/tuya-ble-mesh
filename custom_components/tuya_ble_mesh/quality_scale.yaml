@@ -3,7 +3,7 @@
 #
 # Tuya BLE Mesh Integration - PLATINUM TIER
 # All rules verified as of 2026-03-08 by Thor (VM 903)
-# PLAT-402 Batch 5: Final verification and E2E/a11y test additions
+# Batch 5: Final verification and E2E/a11y test additions
 
 rules:
   # ============================================================================
@@ -177,4 +177,4 @@ rules:
 # - Release automation
 #
 # Quality Scale Tier: PLATINUM ⭐⭐⭐⭐
-# Verified: 2026-03-08 (PLAT-431)
+# Verified: 2026-03-08 ()
