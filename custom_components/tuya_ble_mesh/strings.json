@@ -146,6 +146,16 @@
           "description": "Logging level: debug, info, warning, or error."
         }
       }
+    },
+    "get_diagnostics": {
+      "name": "Get diagnostics",
+      "description": "Retrieve connection statistics and diagnostic information for a device.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The device to get diagnostics for."
+        }
+      }
     }
   },
   "issues": {
