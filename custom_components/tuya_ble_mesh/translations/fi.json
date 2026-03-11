@@ -4,23 +4,145 @@
     "step": {
       "user": {
         "title": "Tuya BLE Mesh -laite",
-        "description": "Syötä BLE MAC-osoite ja laitetyyppi. Oletusverkko-tunnukset (out_of_mesh/123456) ovat Tuya-tehdasasetukset.",
+        "description": "Syötä BLE MAC-osoite ja laitetyyppi. Oletusarvoiset mesh-tunnukset (out_of_mesh/123456) ovat Tuyan tehdasasetukset.",
         "data": {
           "mac_address": "MAC-osoite",
-          "mesh_name": "Verkon nimi",
-          "mesh_password": "Verkon salasana",
-          "vendor_id": "Valmistajan tunnus (hex, esim. 0x1001)",
+          "mesh_name": "Mesh-nimi",
+          "mesh_password": "Mesh-salasana",
+          "vendor_id": "Valmistajan tunnus (heksadesimaali, esim. 0x1001)",
           "device_type": "Laitetyyppi",
-          "mesh_address": "Verkko-osoite (0 = auto)"
+          "mesh_address": "Mesh-osoite (0 = automaattinen)"
+        },
+        "data_description": {
+          "mac_address": "Muoto: XX:XX:XX:XX:XX:XX",
+          "vendor_id": "Malmbergs=0x1001, AwoX=0x0160, Dimond=0x0211",
+          "mesh_name": "Tehdasasetus: out_of_mesh (enintään 16 tavua)",
+          "mesh_password": "Tehdasasetus: 123456 (enintään 16 tavua)"
+        }
+      },
+      "sig_bridge": {
+        "title": "SIG Mesh -sillan määritys",
+        "description": "Määritä BLE-sillan daemon-prosessi laitteelle **{name}**.\n\nDaemon-prosessin on oltava käynnissä ja saavutettavissa Home Assistantista. Yhteys testataan ennen jatkamista.",
+        "data": {
+          "bridge_host": "Sillan isäntä (IP-osoite tai isäntänimi)",
+          "bridge_port": "Sillan portti",
+          "unicast_target": "Kohde-yksikasteosoite (heksadesimaali)"
+        },
+        "data_description": {
+          "bridge_host": "Daemon-prosessia suorittavan Raspberry Pi:n IP-osoite tai isäntänimi",
+          "bridge_port": "Oletusarvo: 8099",
+          "unicast_target": "Oletusarvo: 00B0"
+        }
+      },
+      "telink_bridge": {
+        "title": "Telink Bridge Light -määritys",
+        "description": "Määritä BLE-sillan daemon-prosessi laitteelle **{name}**.\n\nDaemon-prosessin on oltava käynnissä ja saavutettavissa Home Assistantista. Yhteys testataan ennen jatkamista.",
+        "data": {
+          "bridge_host": "Sillan isäntä (IP-osoite tai isäntänimi)",
+          "bridge_port": "Sillan portti"
+        },
+        "data_description": {
+          "bridge_host": "Daemon-prosessia suorittavan Raspberry Pi:n IP-osoite tai isäntänimi",
+          "bridge_port": "Oletusarvo: 8099"
+        }
+      },
+      "sig_plug": {
+        "title": "SIG Mesh -pistorasia — Automaattinen valmistelu",
+        "description": "Laite **{name}** valmistetaan automaattisesti.\n\nSatunnainen NetKey ja AppKey luodaan. DevKey johdetaan ECDH-valmistelun vaihdosta. Kaikki avaimet tallennetaan turvallisesti Home Assistantin konfiguraatiotietokantaan.\n\n**Ennen Lähetä-painikkeen painamista:**\n- Varmista, että laite on tehdasasetuksissa (LED vilkkuu)\n- Varmista, että se on BLE-kantaman sisällä paikallisen sovitin tai ESPHome BLE -välityspalvelimen kanssa\n- Valmistelu kestää noin 10 sekuntia",
+        "data": {}
+      },
+      "confirm": {
+        "title": "{name}",
+        "description": "**{category}** -laite löydetty\n\n- **Nimi:** {name}\n- **MAC:** {mac}\n- **Signaali:** {rssi} dBm\n\nPainaLähetä paikoitukseen ja lisää tämä laite.",
+        "data": {}
+      },
+      "reauth_confirm": {
+        "title": "Kirjoita tunnukset uudelleen",
+        "description": "Yhteys epäonnistui — tunnukset saattavat olla muuttuneet. Kirjoita uudelleen uudelleenyhdistämiseksi.",
+        "data": {
+          "mesh_name": "Mesh-nimi",
+          "mesh_password": "Mesh-salasana",
+          "bridge_host": "Sillan isäntä",
+          "bridge_port": "Sillan portti"
+        }
+      },
+      "reconfigure": {
+        "title": "Määritä yhteys uudelleen",
+        "description": "Päivitä tämän laitteen yhteysasetukset. MAC-osoitetta ja laitetyyppiä ei voi muuttaa täällä.",
+        "data": {
+          "mesh_name": "Mesh-nimi",
+          "mesh_password": "Mesh-salasana",
+          "vendor_id": "Valmistajan tunnus (heksadesimaali)",
+          "bridge_host": "Sillan isäntä",
+          "bridge_port": "Sillan portti"
         }
       }
     },
     "error": {
-      "invalid_mac": "Virheellinen MAC-osoitteen muoto. Odotettu XX:XX:XX:XX:XX:XX (kaksoispisteet erottimena).",
-      "cannot_connect": "Yhdistäminen bridge-daemoniin ei onnistu. Tarkista isäntä/portti ja että daemon on käynnissä."
+      "invalid_mac": "Virheellinen MAC-osoitteen muoto. Odotetaan XX:XX:XX:XX:XX:XX (kaksoispiste erotellut heksa).",
+      "invalid_key": "Virheellinen avaimen muoto (odotetaan 32 heksadesimaalista merkkiä).",
+      "invalid_bridge_host": "Virheellinen sillan isäntä. Syötä isäntänimi tai IP-osoite (ei URL-osoitetta). Loopback- ja link-local-osoitteet eivät ole sallittuja.",
+      "invalid_credential_length": "Mesh-nimi ja salasana eivät saa kumpiakaan olla pidempiä kuin 16 tavua.",
+      "invalid_vendor_id": "Virheellinen valmistajan tunnus. Odotetaan 1–4 heksadesimaalista numeroa, valinnainen 0x-etuliite (esim. 0x1001).",
+      "bridge_unreachable": "Sillan daemon-prosessia ei voi saavuttaa annetulla isännällä/portilla. Tarkista, että daemon on käynnissä ja että Home Assistant voi käyttää sitä verkossasi.",
+      "auth_or_mesh_mismatch": "Silta saavutettiin, mutta laite hylkäsi mesh-tunnukset. Tarkista mesh-nimi ja salasana.",
+      "unsupported_vendor": "Valmistajan tunnusta ei tunnistettu. Tarkista BLE:n snoop-lokeja oikeiden valmistajataavujen löytämiseksi.",
+      "device_not_found": "Laitteen MAC-osoitetta ei näy sillasta. Varmista, että laite on kytketty päälle ja BLE-kantaman sisällä.",
+      "timeout": "Toiminto aikakatkesi. Silta tai laite ei vastannut ajoissa.",
+      "unknown_protocol": "Protokollan neuvottelu epäonnistui. Tämä saattaa ilmaista sillan firmware-ristiriitaa.",
+      "cannot_connect": "Laitteeseen ei voitu muodostaa yhteyttä. Varmista, että se on kytketty päälle, BLE-kantaman sisällä ja pariliitosta-tilassa.",
+      "pairing_failed": "Pariliitos epäonnistui. Laite ei vastannut tai hylkäsi yhteyden. Varmista, että se on tehdasasetus-tilassa ja BLE-kantaman sisällä.",
+      "provisioning_failed": "Valmistelu epäonnistui. Varmista, että laite on tehdasasetus-tilassa (LED vilkkuu), BLE-kantaman sisällä ja yritä uudelleen. Tarkista HA-lokit yksityiskohdista."
     },
     "abort": {
-      "already_configured": "Tämä laite on jo määritetty"
+      "already_configured": "Tämä laite on jo määritetty",
+      "reauth_successful": "Uudelleentodennus onnistui",
+      "reconfigure_successful": "Uudelleenmäärittäminen onnistui",
+      "entry_not_found": "Konfiguraatiotapahtumaa ei löydy",
+      "device_not_available": "Laite ei enää mainosta itseään. Se saattaa olla kantaman ulkopuolella, poistettu käytöstä tai jo määritetty.",
+      "device_not_found": "Laitetta ei löytynyt BLE-rekisteristä."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tuya BLE Mesh -vaihtoehdot",
+        "description": "Päivitä sillan yhteys tai mesh-tunnukset. Ota **Näytä lisäasetukset** käyttöön aikakatkaisu- ja uudelleenyhdistämisvaihtoehtojen saamiseksi.",
+        "data": {
+          "mesh_name": "Mesh-nimi",
+          "mesh_password": "Mesh-salasana",
+          "vendor_id": "Valmistajan tunnus (heksadesimaali)",
+          "mesh_address": "Mesh-osoite (0 = automaattinen)",
+          "bridge_host": "Sillan isäntä",
+          "bridge_port": "Sillan portti",
+          "unicast_target": "Kohde-yksikasteosoite (heksadesimaali)",
+          "iv_index": "IV-indeksi",
+          "validate_bridge": "Testaa sillan yhteys ennen tallentamista",
+          "show_advanced": "Näytä lisäasetukset"
+        }
+      },
+      "advanced": {
+        "title": "Lisäasetukset",
+        "description": "Säädä debug-yksityiskohtaisuutta, komentojen aikakaitsuja ja uudelleenyhdistämisen myrskynsuojausta.",
+        "data": {
+          "debug_level": "Lokitaso BLE mesh -verkolle",
+          "command_timeout": "Komennon aikakatkaisu (sekuntia)",
+          "max_reconnects": "Enimmäisuudelleenyhdistämisyritykset (0 = rajoittamaton)",
+          "reconnect_storm_threshold": "Uudelleenyhdistämisen myrskykynnys (per 5 minuuttia)"
+        },
+        "data_description": {
+          "debug_level": "Ohjaa BLE mesh -lokien yksityiskohtaisuutta. Varoitus on suositeltava normaalikäytölle.",
+          "command_timeout": "Kauanko odotetaan laitteen vastausta ennen uudelleenyrityä (3–60 sekuntia).",
+          "max_reconnects": "Rajoita kokonaisuudelleenyhdistämisyrityksiä. 0 = jatka yrityä loputtomasti.",
+          "reconnect_storm_threshold": "Luo korjauspyyntö, jos tämä monta uudelleenyhdistämistä tapahtuu 5 minuutin kuluessa."
+        }
+      }
+    },
+    "error": {
+      "invalid_bridge_host": "Virheellinen sillan isäntä. Syötä isäntänimi tai IP-osoite (ei URL-osoitetta).",
+      "bridge_unreachable": "Sillan daemon-prosessia ei voi saavuttaa. Tarkista isäntä/portti ja että daemon on käynnissä.",
+      "invalid_credential_length": "Mesh-nimi ja salasana eivät saa kumpiakaan olla pidempiä kuin 16 tavua.",
+      "invalid_vendor_id": "Virheellinen valmistajan tunnus. Odotetaan 1–4 heksadesimaalista numeroa (esim. 0x1001)."
     }
   },
   "entity": {
@@ -39,7 +161,7 @@
         "name": "Signaalin voimakkuus"
       },
       "firmware": {
-        "name": "Laiteohjelmistoversio"
+        "name": "Firmware-versio"
       },
       "power": {
         "name": "Teho"
@@ -50,14 +172,133 @@
     },
     "update": {
       "firmware_update": {
-        "name": "Laiteohjelmisto"
+        "name": "Firmware"
       }
+    }
+  },
+  "exceptions": {
+    "connection_failed": {
+      "message": "Yhteyden muodostaminen laitteeseen {device} epäonnistui: {error}"
+    },
+    "command_timeout": {
+      "message": "Komennon aikakatkaisu laitteelle {device}"
+    },
+    "provisioning_failed": {
+      "message": "Laitteen {device} valmistelu epäonnistui: {error}"
+    },
+    "invalid_key": {
+      "message": "Virheellinen mesh-avaimen muoto"
     }
   },
   "services": {
     "identify": {
       "name": "Tunnista laite",
-      "description": "Vilkuttaa laitteen LED-valoa helpompaa tunnistamista varten."
+      "description": "Vilkuta laitteen LED-valoa sen löytämisen helpottamiseksi.",
+      "fields": {
+        "device_id": {
+          "name": "Laite",
+          "description": "Tunnistettava laite (vilkuta LED-valoa)."
+        }
+      }
+    },
+    "set_log_level": {
+      "name": "Aseta lokitaso",
+      "description": "Muuta BLE mesh -lokitason yksityiskohtaisuutta ilman Home Assistantin uudelleenkäynnistystä.",
+      "fields": {
+        "level": {
+          "name": "Taso",
+          "description": "Lokitaso: debug, info, warning tai error."
+        }
+      }
+    },
+    "get_diagnostics": {
+      "name": "Hae diagnostiikka",
+      "description": "Kirjoita laitteen diagnostiikkatiedot HA-lokiin.",
+      "fields": {
+        "device_id": {
+          "name": "Laite",
+          "description": "Laite, jolle halutaan diagnostiikka."
+        }
+      }
+    }
+  },
+  "issues": {
+    "bridge_unreachable": {
+      "title": "Sillan daemon-prosessi ei saavutettavissa: {host}:{port}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Silta ei saavutettavissa: {host}:{port}",
+            "description": "BLE-sillan daemon-prosessi osoitteessa **{host}:{port}** ei vastaa.\n\n**Tarkistukset:**\n1. Onko sillan isäntä kytketty päälle?\n2. Onko daemon käynnissä? Suorita: `systemctl status tuya-ble-bridge`\n3. Onko portti {port} saavutettavissa Home Assistantista?\n4. Testaa: `curl http://{host}:{port}/health`\n\nTämä ongelma poistuu automaattisesti, kun daemon tulee takaisin verkoon."
+          }
+        }
+      }
+    },
+    "auth_or_mesh_mismatch": {
+      "title": "Mesh-tunnusten ristiriita: {device}",
+      "fix_flow": {
+        "step": {
+          "reauth_hint": {
+            "title": "Korjaus: Päivitä mesh-tunnukset",
+            "description": "Laite **{device}** hylkää tallennetut mesh-tunnukset.\n\n**Korjaus:**\n1. Siirry kohtaan **Asetukset → Integraatiot → {device} → Määritä**\n2. Päivitä mesh-nimi ja salasana vastaaviksi laitteen kanssa\n3. Tehdasasetukset: nimi=`out_of_mesh`, salasana=`123456`\n\nJos laite tehdasasetettiin, poista ja lisää integraatio uudelleen."
+          },
+          "credentials": {
+            "title": "Kirjoita uudet tunnukset",
+            "description": "Laite hylkäsi tallennetut tunnukset. Syötä päivitetyt mesh-tunnukset tai sillan yhteysasetukset alla.",
+            "data": {
+              "mesh_name": "Mesh-nimi",
+              "mesh_password": "Mesh-salasana",
+              "bridge_host": "Sillan isäntä",
+              "bridge_port": "Sillan portti"
+            }
+          }
+        }
+      }
+    },
+    "unsupported_vendor": {
+      "title": "Tuntematon valmistaja ID: {device} ({vendor_id})",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Korjaus: Päivitä valmistajan ID",
+            "description": "Valmistajan ID **{vendor_id}** laitteelle **{device}** ei ole tunnistettu.\n\n**Oikean ID:n löytäminen:**\n1. Käytä BLE-kuuntelija laitteen mainoksien kaappamiseen\n2. Etsi valmistajakohtaiset tiedot — valmistajataavut ovat payload-offsetissa `[3:5]`\n3. Tunnetut ID:t: Malmbergs=`0x1001`, AwoX=`0x0160`, Dimond=`0x0211`\n\n**Korjaus:** Siirry kohtaan **Asetukset → Integraatiot → {device} → Määritä** ja päivitä valmistajan ID."
+          }
+        }
+      }
+    },
+    "device_not_found": {
+      "title": "Laite ei näkyvissä: {device} (…{mac})"
+    },
+    "timeout": {
+      "title": "Toistuvat aikakatkaisu: {device} ({operation})"
+    },
+    "reconnect_storm": {
+      "title": "Uudelleenyhdistämisen silmukka: {device}",
+      "fix_flow": {
+        "step": {
+          "storm_confirm": {
+            "title": "Vahvista uudelleenyhdistämisen myrsky",
+            "description": "**{device}** muodosti uudelleen yhteyden **{count}** kertaa {window} minuutin kuluessa.\n\n**Tarkistukset:**\n1. Onko laite vakaa (ei käynnisty toistuvasti)?\n2. Onko BLE-signaali riittävä (RSSI > −80 dBm)?\n3. Tarkista sillan lokit virhekuvioiden varalta.\n\nTämän ongelman vahvistaminen ei pysäytä uudelleenyhdistämisiä — se vain poistaa ilmoituksen. Ratkaise ensin taustalla oleva ongelma."
+          }
+        }
+      }
+    },
+    "protocol_mismatch": {
+      "title": "Protokollan ristiriita: {device}"
+    },
+    "provisioning_failed": {
+      "title": "Valmistelu epäonnistui: {device}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Korjaa valmistelun epäonnistuminen",
+            "description": "SIG Mesh -valmistelu epäonnistui laitteelle **{device}**.\n\n**Korjaus:**\n1. Poista tämä integraatiotapahtuma\n2. Tehdasasetukset laite: 5× nopea virtakytkin (LED vilkkuu nopeasti, kun valmis)\n3. Lisää integraatio uudelleen LED-valon vilkkuessa\n\nVarmista, että laite on BLE-kantaman sisällä paikallisen sovitin tai ESPHome BLE -välityspalvelimen kanssa valmistelun aikana."
+          }
+        }
+      }
+    },
+    "key_mismatch": {
+      "title": "Avaimen ristiriita: {device}"
     }
   }
 }

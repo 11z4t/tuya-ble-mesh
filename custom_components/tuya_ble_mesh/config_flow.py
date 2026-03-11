@@ -59,6 +59,8 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_VENDOR_ID,
     DEFAULT_BRIDGE_PORT,
     DEFAULT_COMMAND_TIMEOUT,
+    DEFAULT_FACTORY_MESH_NAME,
+    DEFAULT_FACTORY_MESH_PASSWORD,
     DEFAULT_DEBUG_LEVEL,
     DEFAULT_IV_INDEX,
     DEFAULT_MAX_RECONNECTS,
@@ -471,11 +473,11 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
             {
                 vol.Optional(
                     CONF_MESH_NAME,
-                    default=self._opt(CONF_MESH_NAME, "out_of_mesh"),
+                    default=self._opt(CONF_MESH_NAME, DEFAULT_FACTORY_MESH_NAME),
                 ): str,
                 vol.Optional(
                     CONF_MESH_PASSWORD,
-                    default=self._opt(CONF_MESH_PASSWORD, "123456"),  # pragma: allowlist secret
+                    default=self._opt(CONF_MESH_PASSWORD, DEFAULT_FACTORY_MESH_PASSWORD),  # pragma: allowlist secret
                 ): str,
                 vol.Optional(
                     CONF_VENDOR_ID,
@@ -607,7 +609,7 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
         All user-configurable runtime settings go into entry.options.
         """
         new_options = {**(self._config_entry.options or {}), **self._pending_data}
-        return self.async_create_entry(title="", data=new_options)
+        return self.async_create_entry(data=new_options)
 
 
 class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, call-arg]
@@ -749,8 +751,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
                 device = MeshDevice(
                     mac,
-                    b"out_of_mesh",
-                    b"123456",  # pragma: allowlist secret
+                    DEFAULT_FACTORY_MESH_NAME.encode("utf-8"),
+                    DEFAULT_FACTORY_MESH_PASSWORD.encode("utf-8"),  # pragma: allowlist secret
                     vendor_id=bytes.fromhex(DEFAULT_VENDOR_ID),
                     ble_device_callback=ble_device_cb,
                 )
@@ -766,8 +768,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     title=f"BLE {type_label} {short_mac}",
                     data={
                         CONF_MAC_ADDRESS: mac,
-                        CONF_MESH_NAME: "out_of_mesh",
-                        CONF_MESH_PASSWORD: "123456",  # pragma: allowlist secret
+                        CONF_MESH_NAME: DEFAULT_FACTORY_MESH_NAME,
+                        CONF_MESH_PASSWORD: DEFAULT_FACTORY_MESH_PASSWORD,  # pragma: allowlist secret
                         CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
                         CONF_DEVICE_TYPE: auto_type,
                         CONF_MESH_ADDRESS: DEFAULT_MESH_ADDRESS,
@@ -838,8 +840,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     return await self.async_step_sig_plug(None)
 
                 # Validate mesh credentials (per-field errors)
-                mesh_name = user_input.get(CONF_MESH_NAME, "out_of_mesh")
-                mesh_pass = user_input.get(CONF_MESH_PASSWORD, "123456")  # pragma: allowlist secret
+                mesh_name = user_input.get(CONF_MESH_NAME, DEFAULT_FACTORY_MESH_NAME)
+                mesh_pass = user_input.get(CONF_MESH_PASSWORD, DEFAULT_FACTORY_MESH_PASSWORD)  # pragma: allowlist secret
                 name_error = _validate_mesh_credential(mesh_name)
                 if name_error:
                     errors[CONF_MESH_NAME] = name_error
@@ -884,8 +886,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                             DEVICE_TYPE_SIG_PLUG: "SIG Mesh Plug (direct BLE)",
                         }
                     ),
-                    vol.Optional(CONF_MESH_NAME, default="out_of_mesh"): str,
-                    vol.Optional(CONF_MESH_PASSWORD, default="123456"): str,  # pragma: allowlist secret
+                    vol.Optional(CONF_MESH_NAME, default=DEFAULT_FACTORY_MESH_NAME): str,
+                    vol.Optional(CONF_MESH_PASSWORD, default=DEFAULT_FACTORY_MESH_PASSWORD): str,  # pragma: allowlist secret
                     vol.Optional(CONF_VENDOR_ID, default=DEFAULT_VENDOR_ID): str,
                     vol.Optional(CONF_MESH_ADDRESS, default=DEFAULT_MESH_ADDRESS): int,
                 }
@@ -1341,7 +1343,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         else:
             schema = vol.Schema(
                 {
-                    vol.Optional(CONF_MESH_NAME, default="out_of_mesh"): str,
+                    vol.Optional(CONF_MESH_NAME, default=DEFAULT_FACTORY_MESH_NAME): str,
                     vol.Optional(CONF_MESH_PASSWORD, default=""): str,
                 }
             )
