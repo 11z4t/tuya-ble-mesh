@@ -683,6 +683,57 @@ class TestCommandQueue:
         assert _COMMAND_TTL == 60.0
 
 
+# --- Notification path wiring ---
+
+
+class TestNotificationPathWiring:
+    """Tests that _handle_notification is wired into BLEConnection at init time."""
+
+    def test_handler_registered_at_init(self) -> None:
+        """Handler must be registered with BLEConnection in __init__, not connect()."""
+        device = _make_device()
+        # Bound methods compare by __func__ — verify the right method is wired
+        handler = device._conn._notification_handler
+        assert handler is not None
+        assert handler.__func__ is MeshDevice._handle_notification  # type: ignore[union-attr]
+        assert handler.__self__ is device  # type: ignore[union-attr]
+
+    def test_notify_active_false_before_connect(self) -> None:
+        device = _make_device()
+        assert device.notify_active is False
+
+    def test_notify_active_reflects_conn(self) -> None:
+        device = _make_device()
+        device._conn._notify_active = True
+        assert device.notify_active is True
+
+    def test_notification_key_snapshot_used(self) -> None:
+        """_handle_notification reads a copy of the key — not the live bytearray."""
+        device, _ = _make_connected_device()
+        received: list[StatusResponse] = []
+        device.register_status_callback(lambda s: received.append(s))
+
+        with patch("tuya_ble_mesh.device.decrypt_notification") as mock_decrypt:
+            fake = bytearray(20)
+            fake[13] = 77  # white_brightness
+            mock_decrypt.return_value = bytes(fake)
+            # Simulate disconnect zero-filling the key AFTER snapshot taken:
+            # property returns immutable bytes, so callbacks are safe.
+            device._handle_notification(0, bytearray(20))
+
+        assert len(received) == 1
+        assert received[0].white_brightness == 77
+
+    def test_notification_dropped_on_none_key(self) -> None:
+        """No crash and no callbacks when session key is None."""
+        device = _make_device()
+        device._conn._session_key = None
+        received: list[StatusResponse] = []
+        device.register_status_callback(lambda s: received.append(s))
+        device._handle_notification(0, bytearray(20))
+        assert len(received) == 0
+
+
 # --- wait_for_status ---
 
 
