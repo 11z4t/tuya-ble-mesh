@@ -664,7 +664,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             device_label = "Mesh Plug" if detected_type == DEVICE_TYPE_PLUG else "Mesh Light"
             device_category = "Telink Mesh"
         else:
-            device_label = "Mesh Device"
+            # out_of_mesh* devices — auto-detect type, default to Light
+            detected_type = _auto_detect_device_type(discovery_info)
+            device_label = "Mesh Plug" if detected_type == DEVICE_TYPE_PLUG else "Mesh Light"
             device_category = "Telink Mesh"
 
         # Set title_placeholders for discovery card with descriptive name
@@ -697,15 +699,14 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             "device_category": device_category,
         }
 
-        # Auto-detect Telink device type (Light or Plug) for zero-knowledge flow
-        if is_telink:
-            # Re-use detection from above
+        # Auto-detect device type for all non-SIG devices
+        if not is_sig:
             if "Plug" in device_label:
                 detected_type = DEVICE_TYPE_PLUG
             else:
                 detected_type = DEVICE_TYPE_LIGHT
             self._discovery_info["auto_device_type"] = detected_type
-            _LOGGER.info("Telink Mesh device auto-detected as %s: %s", device_label, address)
+            _LOGGER.info("Mesh device auto-detected as %s: %s", device_label, address)
 
         # SIG Mesh goes directly to provisioning
         if is_sig:
@@ -715,72 +716,67 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         return await self.async_step_confirm()
 
     async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Confirm bluetooth discovery and choose device type + mesh credentials."""
+        """Confirm bluetooth discovery — no fields, just confirm and pair.
+
+        When user clicks Submit:
+        1. Try to connect/pair with factory defaults (out_of_mesh/123456)
+        2. If pairing succeeds → create entry with auto-detected device type
+        3. If pairing fails → show error, do NOT create entry
+        """
         errors: dict[str, str] = {}
-
         disc = self._discovery_info or {}
-
-        # Zero-knowledge flow: if auto_device_type is set, create entry directly
-        if user_input is None and disc.get("auto_device_type"):
-            auto_type = disc["auto_device_type"]
-            mac = disc["address"]
-            short_mac = mac[-8:]
-            type_label = "Plug" if auto_type == DEVICE_TYPE_PLUG else "Light"
-            await self.async_set_unique_id(mac)
-            self._abort_if_unique_id_configured()
-            return self.async_create_entry(
-                title=f"BLE Mesh {type_label} {short_mac}",
-                data={
-                    CONF_MAC_ADDRESS: mac,
-                    CONF_MESH_NAME: "out_of_mesh",
-                    CONF_MESH_PASSWORD: "123456",  # pragma: allowlist secret
-                    CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
-                    CONF_DEVICE_TYPE: auto_type,
-                    CONF_MESH_ADDRESS: DEFAULT_MESH_ADDRESS,
-                },
-            )
 
         if user_input is not None and self._discovery_info is not None:
             mac = self._discovery_info["address"]
-            device_type = user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
-            mesh_name = user_input.get(CONF_MESH_NAME, "out_of_mesh")
-            mesh_pass = user_input.get(CONF_MESH_PASSWORD, "123456")  # pragma: allowlist secret
-            vendor_id = user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
+            auto_type = disc.get("auto_device_type", DEVICE_TYPE_LIGHT)
 
-            # Validate credentials
-            cred_error = _validate_mesh_credentials(mesh_name, mesh_pass)
-            if cred_error:
-                errors["base"] = cred_error
-            elif _validate_vendor_id(vendor_id):
-                errors[CONF_VENDOR_ID] = "invalid_vendor_id"
-            else:
+            # Try to pair with factory defaults
+            try:
+                from homeassistant.components.bluetooth import async_ble_device_from_address
+                from tuya_ble_mesh.device import MeshDevice
+
+                ble_device_cb = None
+                try:
+                    def _ble_cb(addr: str) -> Any:
+                        return async_ble_device_from_address(
+                            self.hass, addr.upper(), connectable=True
+                        )
+                    ble_device_cb = _ble_cb
+                except Exception:
+                    pass
+
+                device = MeshDevice(
+                    mac,
+                    b"out_of_mesh",
+                    b"123456",  # pragma: allowlist secret
+                    vendor_id=bytes.fromhex(DEFAULT_VENDOR_ID),
+                    ble_device_callback=ble_device_cb,
+                )
+                await device.connect(timeout=15.0, max_retries=3)
+                await device.disconnect()
+                _LOGGER.info("Pairing succeeded for %s", mac)
+            except Exception as exc:
+                _LOGGER.warning("Pairing failed for %s: %s", mac, exc)
+                errors["base"] = "pairing_failed"
+
+            if not errors:
                 short_mac = mac[-8:]
-                type_label = "Plug" if device_type == DEVICE_TYPE_PLUG else "Light"
+                type_label = "Plug" if auto_type == DEVICE_TYPE_PLUG else "Light"
                 return self.async_create_entry(
                     title=f"BLE Mesh {type_label} {short_mac}",
                     data={
                         CONF_MAC_ADDRESS: mac,
-                        CONF_MESH_NAME: mesh_name,
-                        CONF_MESH_PASSWORD: mesh_pass,
-                        CONF_VENDOR_ID: vendor_id,
-                        CONF_DEVICE_TYPE: device_type,
-                        CONF_MESH_ADDRESS: user_input.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS),
+                        CONF_MESH_NAME: "out_of_mesh",
+                        CONF_MESH_PASSWORD: "123456",  # pragma: allowlist secret
+                        CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
+                        CONF_DEVICE_TYPE: auto_type,
+                        CONF_MESH_ADDRESS: DEFAULT_MESH_ADDRESS,
                     },
                 )
 
         return self.async_show_form(
             step_id="confirm",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_DEVICE_TYPE, default=DEVICE_TYPE_LIGHT): vol.In(
-                        {DEVICE_TYPE_LIGHT: "Light", DEVICE_TYPE_PLUG: "Plug"}
-                    ),
-                    vol.Optional(CONF_MESH_NAME, default="out_of_mesh"): str,
-                    vol.Optional(CONF_MESH_PASSWORD, default="123456"): str,  # pragma: allowlist secret
-                    vol.Optional(CONF_VENDOR_ID, default=DEFAULT_VENDOR_ID): str,
-                    vol.Optional(CONF_MESH_ADDRESS, default=DEFAULT_MESH_ADDRESS): int,
-                }
-            ),
+            data_schema=vol.Schema({}),
             description_placeholders={
                 "name": disc.get("name", "Unknown"),
                 "mac": disc.get("address", ""),
