@@ -232,7 +232,9 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         self._raised_repair_issues: set[str] = set()
 
         # Standalone listener support (test / non-HA mode, hass=None)
-        self._listeners: list[Callable[[], None]] = []
+        # NOTE: Do NOT touch self._listeners — the parent
+        # DataUpdateCoordinator.__init__() manages it for HA's listener system.
+        self._standalone_listeners: list[Callable[[], None]] = []
         self._listener_error_counts: dict[int, int] = {}
 
         # Rate limiting: semaphore caps concurrent BLE commands per device
@@ -276,11 +278,11 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
         Returns a callback to remove the listener.
         """
-        self._listeners.append(listener)
+        self._standalone_listeners.append(listener)
 
         def _remove() -> None:
             try:
-                self._listeners.remove(listener)
+                self._standalone_listeners.remove(listener)
             except ValueError:
                 pass
             self._listener_error_counts.pop(id(listener), None)
@@ -289,7 +291,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
     def _notify_listeners(self) -> None:
         """Notify standalone listeners (used in test mode when hass=None)."""
-        listeners = list(self._listeners)
+        listeners = list(self._standalone_listeners)
         _LOGGER.debug("Notifying %d listener(s)", len(listeners))
         for listener in listeners:
             try:
@@ -301,7 +303,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                 self._listener_error_counts[cb_id] = count
                 if count >= _MAX_CALLBACK_ERRORS:
                     try:
-                        self._listeners.remove(listener)
+                        self._standalone_listeners.remove(listener)
                     except (ValueError, AttributeError):
                         pass
                     self._listener_error_counts.pop(cb_id, None)
