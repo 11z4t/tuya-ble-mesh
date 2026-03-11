@@ -171,12 +171,40 @@
   },
   "issues": {
     "provisioning_failed": {
-      "title": "Enhetsprovisionering misslyckades",
+      "title": "Provisionering misslyckades: {device}",
       "description": "Det gick inte att provisionera {device}. Kontrollera att den är i fabriksåterställt läge och inom BLE-räckvidd, konfigurera sedan om integrationen."
     },
     "bridge_unreachable": {
-      "title": "Bridge onåbar",
+      "title": "Bridge-daemon onåbar: {host}:{port}",
       "description": "Det går inte att nå BLE bridge på {host}:{port}. Kontrollera nätverksanslutningen och att bridge-daemon körs."
+    },
+    "auth_or_mesh_mismatch": {
+      "title": "Mesh-uppgifter stämmer inte: {device}",
+      "description": "Mesh-uppgifterna stämmer inte för {device}. Kontrollera mesh-namn och lösenord."
+    },
+    "unsupported_vendor": {
+      "title": "Vendor ID stöds ej: {device} ({vendor_id})",
+      "description": "Vendor ID {vendor_id} stöds inte för {device}."
+    },
+    "device_not_found": {
+      "title": "Enhet ej synlig: {device} (…{mac})",
+      "description": "Enheten {device} (…{mac}) kunde inte hittas i BLE-registret."
+    },
+    "timeout": {
+      "title": "Upprepade timeouts: {device} ({operation})",
+      "description": "Upprepade timeouts för {device} vid {operation}."
+    },
+    "reconnect_storm": {
+      "title": "Återanslutningsloop: {device}",
+      "description": "Enheten {device} har hamnat i en återanslutningsloop."
+    },
+    "protocol_mismatch": {
+      "title": "Protokollmismatch: {device}",
+      "description": "Protokollet stämmer inte för {device}."
+    },
+    "key_mismatch": {
+      "title": "Nyckelmismatch: {device}",
+      "description": "Krypteringsnycklarna stämmer inte för {device}."
     }
   }
 }
