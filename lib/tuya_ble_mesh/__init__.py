@@ -57,7 +57,9 @@ from tuya_ble_mesh.scanner import (
 )
 from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
 from tuya_ble_mesh.sig_mesh_protocol import (
+    TUYA_CMD_TIMESTAMP_SYNC,
     TUYA_VENDOR_OPCODE,
+    TUYA_VENDOR_WRITE_UNACK,
     AccessMessage,
     CompositionData,
     MeshKeys,
@@ -65,6 +67,7 @@ from tuya_ble_mesh.sig_mesh_protocol import (
     ProxyPDU,
     SegmentHeader,
     TuyaVendorDP,
+    TuyaVendorFrame,
     config_appkey_add,
     config_composition_get,
     config_model_app_bind,
@@ -82,11 +85,15 @@ from tuya_ble_mesh.sig_mesh_protocol import (
     parse_proxy_pdu,
     parse_segment_header,
     parse_tuya_vendor_dps,
+    parse_tuya_vendor_frame,
     reassemble_and_decrypt_segments,
+    tuya_vendor_timestamp_response,
 )
 
 __all__ = [
+    "TUYA_CMD_TIMESTAMP_SYNC",
     "TUYA_VENDOR_OPCODE",
+    "TUYA_VENDOR_WRITE_UNACK",
     "AccessMessage",
     "AuthenticationError",
     "CommandExpiredError",
@@ -117,6 +124,7 @@ __all__ = [
     "MeshTimeoutError",
     "TuyaBLEMeshError",
     "TuyaVendorDP",
+    "TuyaVendorFrame",
     "config_appkey_add",
     "config_composition_get",
     "config_model_app_bind",
@@ -138,7 +146,9 @@ __all__ = [
     "parse_proxy_pdu",
     "parse_segment_header",
     "parse_tuya_vendor_dps",
+    "parse_tuya_vendor_frame",
     "provision",
+    "tuya_vendor_timestamp_response",
     "reassemble_and_decrypt_segments",
     "scan_for_devices",
     "scan_for_tuya_devices",

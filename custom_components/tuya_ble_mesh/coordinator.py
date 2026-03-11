@@ -465,7 +465,8 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
     def _on_vendor_update(self, opcode: int, params: bytes) -> None:
         """Handle a Tuya vendor message from a SIG Mesh device.
 
-        Parses vendor DPs for power/energy data.
+        Parses vendor frames: DP data updates power/energy state,
+        timestamp sync requests get an automatic response.
 
         Args:
             opcode: 3-byte vendor opcode.
@@ -474,18 +475,28 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         from tuya_ble_mesh.sig_mesh_protocol import (
             DP_ID_ENERGY_KWH,
             DP_ID_POWER_W,
+            TUYA_CMD_TIMESTAMP_SYNC,
             TUYA_VENDOR_OPCODE,
-            parse_tuya_vendor_dps,
+            parse_tuya_vendor_frame,
+            tuya_vendor_timestamp_response,
         )
 
         if opcode != TUYA_VENDOR_OPCODE:
             return
 
-        dps = parse_tuya_vendor_dps(params)
+        frame = parse_tuya_vendor_frame(params)
+
+        # Respond to timestamp sync requests automatically
+        if frame.command == TUYA_CMD_TIMESTAMP_SYNC:
+            _LOGGER.info("Device requested timestamp sync — sending response")
+            self.hass.async_create_task(self._send_timestamp_response())
+            return
+
+        # Process DP data
         power_w = self._state.power_w
         energy_kwh = self._state.energy_kwh
         updated = False
-        for dp in dps:
+        for dp in frame.dps:
             if dp.dp_id == DP_ID_POWER_W and len(dp.value) >= 1:
                 raw = int.from_bytes(dp.value, "big")
                 power_w = raw / 10.0
@@ -500,6 +511,17 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         if updated:
             self._state = replace(self._state, power_w=power_w, energy_kwh=energy_kwh, available=True)
             self._dispatch_update()
+
+    async def _send_timestamp_response(self) -> None:
+        """Send Tuya vendor timestamp sync response to device."""
+        from tuya_ble_mesh.sig_mesh_protocol import tuya_vendor_timestamp_response
+
+        try:
+            payload = tuya_vendor_timestamp_response()
+            await self._device.send_vendor_command(payload)
+            _LOGGER.info("Timestamp sync response sent")
+        except Exception:
+            _LOGGER.warning("Failed to send timestamp sync response", exc_info=True)
 
     def _on_composition_update(self, comp: CompositionData) -> None:
         """Handle a Composition Data response from a SIG Mesh device.

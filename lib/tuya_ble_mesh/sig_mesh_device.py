@@ -485,6 +485,65 @@ class SIGMeshDevice:
         msg = f"BLE write failed for {self._address} after {max_retries} attempts"
         raise MeshConnectionError(msg) from last_error
 
+    async def send_vendor_command(self, access_payload: bytes) -> None:
+        """Send a Tuya vendor model command (uses AppKey encryption).
+
+        Args:
+            access_payload: Complete access layer payload including opcode bytes.
+
+        Raises:
+            SIGMeshError: If not connected or keys not loaded.
+            MeshConnectionError: If BLE write fails.
+        """
+        if self._client is None or self._keys is None:
+            msg = "Not connected"
+            raise SIGMeshError(msg)
+
+        app_key = self._keys.app_key
+        if app_key is None:
+            msg = "No application key loaded"
+            raise SIGMeshKeyError(msg)
+
+        seq = await self._next_seq()
+
+        transport_pdu = make_access_unsegmented(
+            app_key,
+            self._our_addr,
+            self._target_addr,
+            seq,
+            self._keys.iv_index,
+            access_payload,
+            akf=1,
+            aid=self._keys.aid,
+        )
+
+        network_pdu = encrypt_network_pdu(
+            self._keys.enc_key,
+            self._keys.priv_key,
+            self._keys.nid,
+            ctl=0,
+            ttl=_DEFAULT_TTL,
+            seq=seq,
+            src=self._our_addr,
+            dst=self._target_addr,
+            transport_pdu=transport_pdu,
+            iv_index=self._keys.iv_index,
+        )
+
+        proxy_pdu = make_proxy_pdu(network_pdu)
+
+        await self._client.write_gatt_char(
+            SIG_MESH_PROXY_DATA_IN, proxy_pdu, response=False
+        )
+
+        _LOGGER.info(
+            "Vendor command sent to 0x%04X (opcode=%s, seq=%d, %d bytes)",
+            self._target_addr,
+            access_payload[:3].hex(),
+            seq,
+            len(access_payload),
+        )
+
     async def request_composition_data(self) -> None:
         """Send Config Composition Data Get to retrieve device info.
 
