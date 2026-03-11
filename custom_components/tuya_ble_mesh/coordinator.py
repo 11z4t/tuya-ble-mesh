@@ -28,6 +28,15 @@ from typing import TYPE_CHECKING, Union
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from custom_components.tuya_ble_mesh.device_capabilities import DeviceCapabilities
+from tuya_ble_mesh.exceptions import (
+    AuthenticationError,
+    CryptoError,
+    DeviceNotFoundError,
+    MeshConnectionError,
+    MeshTimeoutError,
+    ProtocolError,
+    SIGMeshKeyError,
+)
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -697,23 +706,44 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
     def _classify_error(self, err: Exception) -> ErrorClass:
         """Classify a connection error into a category for repair creation.
 
-        Uses exception type name and message keywords to determine root cause.
+        Primary path: isinstance checks against the lib exception hierarchy —
+        deterministic, rename-safe, and independent of message wording.
+        Fallback: string heuristics for generic OS/asyncio errors that are not
+        wrapped in a lib exception (e.g. ConnectionRefusedError from aiohttp).
         """
-        err_type = type(err).__name__.lower()
-        err_msg = str(err).lower()
-
-        if "timeout" in err_type or "timeout" in err_msg:
-            return ErrorClass.TRANSIENT
-        if "auth" in err_type or "auth" in err_msg or "password" in err_msg or "credential" in err_msg:
+        # --- Lib exception hierarchy (isinstance — authoritative) ---
+        if isinstance(err, (AuthenticationError, CryptoError, SIGMeshKeyError)):
             return ErrorClass.MESH_AUTH
-        if "protocol" in err_type or "protocol" in err_msg or "version" in err_msg:
+        if isinstance(err, MeshTimeoutError):
+            return ErrorClass.TRANSIENT
+        if isinstance(err, ProtocolError):
+            return ErrorClass.PROTOCOL
+        if isinstance(err, DeviceNotFoundError):
+            return ErrorClass.DEVICE_OFFLINE
+        if isinstance(err, MeshConnectionError):
+            # Generic connection failure — could be bridge-down or BLE drop.
+            # Use message heuristics to distinguish the two.
+            err_msg = str(err).lower()
+            if (
+                "connection refused" in err_msg
+                or "unreachable" in err_msg
+                or "no route" in err_msg
+            ):
+                return ErrorClass.BRIDGE_DOWN
+            return ErrorClass.TRANSIENT
+
+        # --- Fallback: generic OS / asyncio / aiohttp errors ---
+        err_msg = str(err).lower()
+        if "timeout" in err_msg or isinstance(err, (asyncio.TimeoutError, TimeoutError)):
+            return ErrorClass.TRANSIENT
+        if "auth" in err_msg or "password" in err_msg or "credential" in err_msg:
+            return ErrorClass.MESH_AUTH
+        if "protocol" in err_msg or "version" in err_msg:
             return ErrorClass.PROTOCOL
         if "connection refused" in err_msg or "unreachable" in err_msg or "no route" in err_msg:
             return ErrorClass.BRIDGE_DOWN
-        if "not found" in err_msg or "device not found" in err_msg:
+        if "not found" in err_msg:
             return ErrorClass.DEVICE_OFFLINE
-        if "vendor" in err_msg or "unsupported" in err_msg:
-            return ErrorClass.PERMANENT
         return ErrorClass.UNKNOWN
 
     def _maybe_create_repair_issue(self, error_class: ErrorClass) -> None:

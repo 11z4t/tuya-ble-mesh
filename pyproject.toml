@@ -65,6 +65,7 @@ disable_error_code = ["misc"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["lib"]
 asyncio_mode = "auto"
 markers = [
     "integration: requires real hardware (Shelly, BLE, sniffer)",
