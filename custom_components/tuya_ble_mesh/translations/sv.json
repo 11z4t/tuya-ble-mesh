@@ -55,6 +55,17 @@
           "bridge_host": "Bridge-värd",
           "bridge_port": "Bridge-port"
         }
+      },
+      "reconfigure": {
+        "title": "Konfigurera om anslutning",
+        "description": "Uppdatera anslutningsinställningarna för den här enheten. MAC-adress och enhetstyp kan inte ändras här.",
+        "data": {
+          "mesh_name": "Mesh-namn",
+          "mesh_password": "Mesh-lösenord",
+          "vendor_id": "Vendor ID (hex)",
+          "bridge_host": "Bridge-värd",
+          "bridge_port": "Bridge-port"
+        }
       }
     },
     "error": {
@@ -69,7 +80,10 @@
     "abort": {
       "already_configured": "Enheten är redan konfigurerad",
       "reauth_successful": "Omautentisering lyckades",
-      "device_not_available": "Enheten sänder inte längre. Den kan vara utanför räckvidd, avstängd eller redan konfigurerad."
+      "reconfigure_successful": "Omkonfigurering lyckades",
+      "entry_not_found": "Konfigurationsposten hittades inte",
+      "device_not_available": "Enheten sänder inte längre. Den kan vara utanför räckvidd, avstängd eller redan konfigurerad.",
+      "device_not_found": "Enheten hittades inte i BLE-registret."
     }
   },
   "options": {
