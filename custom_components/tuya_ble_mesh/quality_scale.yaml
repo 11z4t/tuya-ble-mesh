@@ -1,0 +1,113 @@
+rules:
+  # Bronze
+  action-setup:
+    status: done
+  appropriate-polling:
+    status: done
+    comment: Push-based via BLE notifications, no polling
+  brands:
+    status: done
+  common-modules:
+    status: done
+  config-flow:
+    status: done
+  config-flow-test-coverage:
+    status: done
+  dependency-transparency:
+    status: done
+  docs-actions:
+    status: done
+  docs-high-level-description:
+    status: done
+  docs-installation-instructions:
+    status: done
+  docs-removal-instructions:
+    status: done
+  entity-event-setup:
+    status: done
+  entity-unique-id:
+    status: done
+  has-entity-name:
+    status: done
+  runtime-data:
+    status: done
+  test-before-configure:
+    status: done
+  test-before-setup:
+    status: done
+  unique-config-entry:
+    status: done
+
+  # Silver
+  config-entry-unloading:
+    status: done
+  log-when-unavailable:
+    status: done
+  entity-unavailable:
+    status: done
+  action-exceptions:
+    status: done
+  reauthentication-flow:
+    status: done
+  parallel-updates:
+    status: done
+    comment: PARALLEL_UPDATES = 1 for BLE serialization
+  test-coverage:
+    status: done
+    comment: 99% coverage, 1239 tests
+
+  # Gold
+  entity-translations:
+    status: done
+  reconfiguration-flow:
+    status: done
+  repair-issues:
+    status: done
+    comment: 9 repair issue types with auto-recovery
+  stale-devices:
+    status: todo
+  diagnostics:
+    status: done
+    comment: Multi-layer redaction, RSSI trends, response time percentiles
+  discovery:
+    status: done
+    comment: Bluetooth discovery with 4 matchers
+  discovery-update-info:
+    status: done
+  docs-data-update:
+    status: done
+  docs-examples:
+    status: todo
+  docs-known-limitations:
+    status: todo
+  docs-supported-devices:
+    status: todo
+  docs-supported-functions:
+    status: todo
+  docs-troubleshooting:
+    status: todo
+  dynamic-devices:
+    status: todo
+  entity-category:
+    status: done
+    comment: RSSI sensor as DIAGNOSTIC
+  entity-device-class:
+    status: done
+  entity-disabled-by-default:
+    status: done
+    comment: Firmware sensor disabled by default
+  integration-owner:
+    status: done
+  strict-typing:
+    status: done
+    comment: mypy --strict passes
+
+  # Platinum
+  async-dependency:
+    status: done
+    comment: Full async BLE stack
+  inject-websession:
+    status: done
+    comment: Bridge connectivity uses HA shared aiohttp session
+  strict-typing:
+    status: done

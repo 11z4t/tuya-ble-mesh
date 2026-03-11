@@ -24,10 +24,10 @@ from __future__ import annotations
 
 import asyncio
 import ipaddress
+import json
 import logging
 import os
 import re
-import time
 from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
@@ -150,8 +150,6 @@ def _auto_detect_device_type(discovery_info: Any) -> str:
 
 def _parse_json_body(body: str) -> dict[str, object]:
     """Parse a JSON string, returning an empty dict on failure."""
-    import json
-
     try:
         result = json.loads(body)
         return result if isinstance(result, dict) else {}
@@ -1184,7 +1182,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         re-adding the config entry. The underlying MAC address and device
         type are preserved unchanged.
         """
-        entry = self.hass.config_entries.async_get_entry(self.context.get("entry_id", ""))
+        entry = self.hass.config_entries.async_get_entry(
+            self.context.get("config_entry_id") or self.context.get("entry_id", "")
+        )
         if entry is None:
             return self.async_abort(reason="entry_not_found")
 
@@ -1274,7 +1274,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         """Re-enter mesh credentials after authentication failure."""
         errors: dict[str, str] = {}
 
-        entry = self.hass.config_entries.async_get_entry(self.context.get("entry_id", ""))
+        entry = self.hass.config_entries.async_get_entry(
+            self.context.get("config_entry_id") or self.context.get("entry_id", "")
+        )
 
         if user_input is not None and entry is not None:
             device_type = entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
