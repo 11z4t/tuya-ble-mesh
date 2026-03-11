@@ -742,9 +742,15 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 ble_device_cb = None
                 try:
                     def _ble_cb(addr: str) -> Any:
-                        return async_ble_device_from_address(
+                        # Try connectable first, fall back to non-connectable
+                        dev = async_ble_device_from_address(
                             self.hass, addr.upper(), connectable=True
                         )
+                        if dev is None:
+                            dev = async_ble_device_from_address(
+                                self.hass, addr.upper(), connectable=False
+                            )
+                        return dev
                     ble_device_cb = _ble_cb
                 except Exception:
                     pass

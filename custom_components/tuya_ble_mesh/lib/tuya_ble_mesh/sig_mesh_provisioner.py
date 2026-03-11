@@ -341,11 +341,18 @@ class SIGMeshProvisioner:
 
                 # Verify Provisioning Service is present
                 try:
-                    services = await asyncio.wait_for(
-                        client.get_services(),
-                        timeout=5.0,
-                    )
-                    if not any(str(s.uuid) == PROV_SERVICE for s in services.services.values()):
+                    # HA's HaBleakClientWrapper uses .services property, not .get_services()
+                    if hasattr(client, "get_services"):
+                        services = await asyncio.wait_for(
+                            client.get_services(),
+                            timeout=5.0,
+                        )
+                    else:
+                        services = client.services
+                    if services and not any(
+                        str(s.uuid) == PROV_SERVICE
+                        for s in (services.services.values() if hasattr(services, "services") else services)
+                    ):
                         msg = f"Device {address} does not expose Provisioning Service (0x1827)"
                         raise ProvisioningError(msg)
                 except TimeoutError:
