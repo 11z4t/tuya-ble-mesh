@@ -475,3 +475,93 @@ class TestBackoff:
 
     def test_max_backoff(self) -> None:
         assert _MAX_BACKOFF == 300.0
+
+
+# --- _start_notify_safe ---
+
+
+class TestStartNotifySafe:
+    """Tests for the _start_notify_safe notification subscription helper."""
+
+    @pytest.mark.asyncio
+    async def test_returns_true_when_start_notify_succeeds(self) -> None:
+        conn, client = _make_ready_conn()
+        client.start_notify = AsyncMock()
+        handler = MagicMock()
+        conn.set_notification_handler(handler)
+
+        result = await conn._start_notify_safe()
+
+        assert result is True
+        assert conn.notify_active is True
+        client.start_notify.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_returns_false_when_start_notify_fails(self) -> None:
+        conn, client = _make_ready_conn()
+        client.start_notify = AsyncMock(side_effect=EOFError("BlueZ crash"))
+        handler = MagicMock()
+        conn.set_notification_handler(handler)
+
+        result = await conn._start_notify_safe()
+
+        assert result is False
+        assert conn.notify_active is False
+
+    @pytest.mark.asyncio
+    async def test_returns_false_when_no_handler(self) -> None:
+        conn, _ = _make_ready_conn()
+        # No handler registered
+
+        result = await conn._start_notify_safe()
+
+        assert result is False
+        assert conn.notify_active is False
+
+    @pytest.mark.asyncio
+    async def test_returns_false_when_no_client(self) -> None:
+        conn = _make_conn()
+        conn.set_notification_handler(MagicMock())
+        # No client
+
+        result = await conn._start_notify_safe()
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_notify_active_reset_on_cleanup(self) -> None:
+        conn, client = _make_ready_conn()
+        client.start_notify = AsyncMock()
+        client.disconnect = AsyncMock()
+        conn.set_notification_handler(MagicMock())
+
+        await conn._start_notify_safe()
+        assert conn.notify_active is True
+
+        await conn._cleanup()
+        assert conn.notify_active is False
+
+    @pytest.mark.asyncio
+    async def test_start_notify_called_with_correct_char_and_handler(self) -> None:
+        from tuya_ble_mesh.const import TELINK_CHAR_STATUS
+
+        conn, client = _make_ready_conn()
+        client.start_notify = AsyncMock()
+        handler = MagicMock()
+        conn.set_notification_handler(handler)
+
+        await conn._start_notify_safe()
+
+        client.start_notify.assert_called_once_with(TELINK_CHAR_STATUS, handler)
+
+    @pytest.mark.asyncio
+    async def test_notify_active_false_on_generic_exception(self) -> None:
+        """Any exception from start_notify must result in poll-only mode."""
+        conn, client = _make_ready_conn()
+        client.start_notify = AsyncMock(side_effect=RuntimeError("unexpected"))
+        conn.set_notification_handler(MagicMock())
+
+        result = await conn._start_notify_safe()
+
+        assert result is False
+        assert conn.notify_active is False

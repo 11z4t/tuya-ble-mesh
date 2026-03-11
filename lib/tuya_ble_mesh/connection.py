@@ -22,6 +22,7 @@ from bleak_retry_connector import establish_connection
 from tuya_ble_mesh.const import (
     DIS_FIRMWARE_REVISION,
     TELINK_CHAR_COMMAND,
+    TELINK_CHAR_STATUS,
     TELINK_CMD_STATUS_QUERY,
     TELINK_VENDOR_ID,
 )
@@ -107,6 +108,8 @@ class BLEConnection:
         self._keep_alive_task: asyncio.Task[None] | None = None
         self._disconnect_callbacks: list[DisconnectCallback] = []
         self._notification_handler: Callable[..., Any] | None = None
+        # True if start_notify succeeded; False = poll-only mode
+        self._notify_active: bool = False
 
     @property
     def state(self) -> ConnectionState:
@@ -129,6 +132,15 @@ class BLEConnection:
     def is_ready(self) -> bool:
         """Return True if the connection is ready for commands."""
         return self._state == ConnectionState.READY
+
+    @property
+    def notify_active(self) -> bool:
+        """Return True if GATT notification subscription is active.
+
+        False means the connection is in poll-only mode — status updates
+        only arrive via keep-alive status-query responses.
+        """
+        return self._notify_active
 
     @property
     def firmware_version(self) -> str | None:
@@ -157,6 +169,41 @@ class BLEConnection:
     def set_notification_handler(self, handler: Callable[..., Any] | None) -> None:
         """Set the handler for BLE notifications from char 1911."""
         self._notification_handler = handler
+
+    async def _start_notify_safe(self) -> bool:
+        """Subscribe to TELINK_CHAR_STATUS GATT notifications.
+
+        Telink BLE mesh devices do NOT support standard CCCD writes via
+        ``start_notify`` on BlueZ ≤ 5.83 (triggers EOFError that kills the
+        BleakClient).  We call ``start_notify`` anyway — on newer BlueZ and
+        non-Linux backends it works correctly.  On older BlueZ we catch the
+        error and fall back to *poll-only mode* where state updates arrive
+        exclusively via keep-alive status-query responses.
+
+        Returns:
+            ``True`` if GATT notification subscription is active.
+            ``False`` if fell back to poll-only mode.
+        """
+        if self._client is None or self._notification_handler is None:
+            return False
+
+        try:
+            await self._client.start_notify(TELINK_CHAR_STATUS, self._notification_handler)
+            self._notify_active = True
+            _LOGGER.info(
+                "GATT notification subscription active for %s (push mode)",
+                self._address,
+            )
+        except Exception as exc:
+            self._notify_active = False
+            _LOGGER.warning(
+                "start_notify failed for %s (%s) — running in poll-only mode. "
+                "Status updates arrive via keep-alive queries only.",
+                self._address,
+                type(exc).__name__,
+            )
+
+        return self._notify_active
 
     async def connect(
         self,
@@ -208,6 +255,7 @@ class BLEConnection:
 
         self._state = ConnectionState.READY
         self._start_keep_alive()
+        await self._start_notify_safe()
         _LOGGER.info("Connected and provisioned: %s", self._address)
 
     async def _connect_with_retry(
@@ -304,6 +352,7 @@ class BLEConnection:
     async def _cleanup(self) -> None:
         """Clean up resources and transition to DISCONNECTED."""
         self._stop_keep_alive()
+        self._notify_active = False
 
         # Zero-fill session key before clearing
         if self._session_key is not None:
