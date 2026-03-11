@@ -759,7 +759,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             _LOGGER.setLevel(_logging.DEBUG)
 
             _LOGGER.warning(
-                "[PAIR] ===== PAIRING START for %s (v0.25.14) =====", mac
+                "[PAIR] ===== PAIRING START for %s (v0.25.15) =====", mac
             )
             _LOGGER.warning(
                 "[PAIR] auto_type=%s, type_label=%s, short_mac=%s",
@@ -1112,7 +1112,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             _logging.getLogger(_log_name).setLevel(_logging.DEBUG)
 
         _LOGGER.warning(
-            "[SIG-PAIR] ===== SIG PROVISIONING START for %s (v0.25.14) =====", mac
+            "[SIG-PAIR] ===== SIG PROVISIONING START for %s (v0.25.15) =====", mac
         )
         _LOGGER.warning(
             "[SIG-PAIR] unicast=0x%04X, iv_index=%d, adapter=hci0",
@@ -1159,6 +1159,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             DictSecretsManager(secrets_dict),
             op_item_prefix=op_prefix,
             iv_index=DEFAULT_IV_INDEX,
+            ble_device_callback=None,  # Force direct BLE, no HA proxy
+            adapter="hci0",  # Force local adapter for post-prov config
         )
         try:
             await device.connect(timeout=20.0, max_retries=5)

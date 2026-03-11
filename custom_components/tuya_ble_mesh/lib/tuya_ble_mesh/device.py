@@ -110,6 +110,7 @@ class MeshDevice:
         mesh_id: int = MESH_ADDRESS_DEFAULT,
         vendor_id: bytes = TELINK_VENDOR_ID,
         ble_device_callback: Any = None,
+        adapter: str | None = None,
     ) -> None:
         """Initialize a mesh device interface.
 
@@ -121,6 +122,8 @@ class MeshDevice:
             vendor_id: 2-byte vendor identifier (default: TELINK_VENDOR_ID).
             ble_device_callback: Optional callback(address) → BLEDevice for
                 HA Bluetooth Proxy support. If None, uses BleakScanner.
+            adapter: BLE adapter name (e.g. "hci0"). Forces scan and connect
+                via this specific adapter, bypassing HA's habluetooth routing.
         """
         self._address = address.upper()
         self._mesh_id = mesh_id
@@ -132,10 +135,13 @@ class MeshDevice:
             mesh_password,
             vendor_id=vendor_id,
             ble_device_callback=ble_device_callback,
+            adapter=adapter,
         )
         self._status_callbacks: list[StatusCallback] = []
         self._disconnect_callbacks: list[DisconnectCallback] = []
         self._queue: list[_QueuedCommand] = []
+        # Wire up notification and disconnect callbacks to BLEConnection
+        self._conn.set_notification_handler(self._handle_notification)
         self._conn.register_disconnect_callback(self._on_disconnect)
 
     @property
@@ -167,6 +173,11 @@ class MeshDevice:
         return self._conn.firmware_version
 
     @property
+    def notify_active(self) -> bool:
+        """Return True if GATT push notifications are active (not poll-only)."""
+        return self._conn.notify_active
+
+    @property
     def connection(self) -> BLEConnection:
         """Return the underlying BLE connection."""
         return self._conn
@@ -188,10 +199,16 @@ class MeshDevice:
         self._disconnect_callbacks.remove(callback)
 
     def _handle_notification(self, _sender: BleakGATTCharacteristic, data: bytearray) -> None:
-        """Handle a raw BLE notification from characteristic 1911."""
-        key = self._conn.session_key
+        """Handle a raw BLE notification from characteristic 1911.
+
+        Called by Bleak (possibly from a worker thread).  We take an
+        immutable snapshot of the session key first so that a concurrent
+        disconnect/cleanup cannot zero the key mid-decrypt.
+        """
+        # Atomic snapshot: session_key property returns immutable bytes or None
+        key: bytes | None = self._conn.session_key
         if key is None:
-            _LOGGER.warning("Notification received but no session key")
+            _LOGGER.debug("Notification dropped: no session key (device disconnecting?)")
             return
 
         try:

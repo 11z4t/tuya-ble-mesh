@@ -185,6 +185,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             f"{op_prefix}-app-key/password": entry.data.get(CONF_APP_KEY, ""),
         }
 
+        # SIG Mesh devices need direct BLE access (GATT Proxy), NOT through
+        # HA's habluetooth/ESPHome proxy which can't handle mesh GATT properly.
+        # Use adapter=None at runtime — let bleak pick the best available adapter.
+        # During pairing (config_flow), we force adapter="hci0" explicitly.
         device = SIGMeshDevice(
             mac_address,
             target_addr,
@@ -192,7 +196,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             DictSecretsManager(secrets_dict),
             op_item_prefix=op_prefix,
             iv_index=iv_index,
-            ble_device_callback=_ble_device_from_ha,
+            ble_device_callback=None,  # Direct BLE, bypass HA proxy
         )
     else:
         from tuya_ble_mesh.device import MeshDevice

@@ -110,6 +110,7 @@ class MeshDevice:
         mesh_id: int = MESH_ADDRESS_DEFAULT,
         vendor_id: bytes = TELINK_VENDOR_ID,
         ble_device_callback: Any = None,
+        adapter: str | None = None,
     ) -> None:
         """Initialize a mesh device interface.
 
@@ -121,6 +122,8 @@ class MeshDevice:
             vendor_id: 2-byte vendor identifier (default: TELINK_VENDOR_ID).
             ble_device_callback: Optional callback(address) → BLEDevice for
                 HA Bluetooth Proxy support. If None, uses BleakScanner.
+            adapter: BLE adapter name (e.g. "hci0"). Forces scan and connect
+                via this specific adapter, bypassing HA's habluetooth routing.
         """
         self._address = address.upper()
         self._mesh_id = mesh_id
@@ -132,6 +135,7 @@ class MeshDevice:
             mesh_password,
             vendor_id=vendor_id,
             ble_device_callback=ble_device_callback,
+            adapter=adapter,
         )
         self._status_callbacks: list[StatusCallback] = []
         self._disconnect_callbacks: list[DisconnectCallback] = []
