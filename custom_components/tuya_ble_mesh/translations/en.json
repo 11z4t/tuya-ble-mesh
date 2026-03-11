@@ -1,6 +1,6 @@
 {
   "config": {
-    "flow_title": "{mac}",
+    "flow_title": "{name}",
     "step": {
       "user": {
         "title": "Tuya BLE Mesh Device",
@@ -71,6 +71,17 @@
           "bridge_host": "Bridge Host",
           "bridge_port": "Bridge Port"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure Connection",
+        "description": "Update the connection settings for this device. The MAC address and device type cannot be changed here.",
+        "data": {
+          "mesh_name": "Mesh Name",
+          "mesh_password": "Mesh Password",
+          "vendor_id": "Vendor ID (hex)",
+          "bridge_host": "Bridge Host",
+          "bridge_port": "Bridge Port"
+        }
       }
     },
     "error": {
@@ -91,7 +102,10 @@
     "abort": {
       "already_configured": "This device is already configured",
       "reauth_successful": "Re-authentication successful",
-      "device_not_available": "Device is no longer advertising. It may be out of range, powered off, or already configured."
+      "reconfigure_successful": "Reconfiguration successful",
+      "entry_not_found": "Config entry not found",
+      "device_not_available": "Device is no longer advertising. It may be out of range, powered off, or already configured.",
+      "device_not_found": "Device not found in BLE registry."
     }
   },
   "options": {

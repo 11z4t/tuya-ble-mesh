@@ -236,7 +236,7 @@ class TestBluetoothStep:
     async def test_bluetooth_discovery(self) -> None:
         flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
-        flow._abort_if_unique_id_configured = lambda: None
+        flow._abort_if_unique_id_configured = lambda **kwargs: None
 
         service_info = MagicMock(spec=BluetoothServiceInfoBleak)
         service_info.address = "DC:23:4D:21:43:A5"
@@ -465,7 +465,7 @@ class TestAutoDiscovery:
         """Device with 0x1828 service UUID should route to sig_plug step."""
         flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
-        flow._abort_if_unique_id_configured = lambda: None
+        flow._abort_if_unique_id_configured = lambda **kwargs: None
 
         service_info = MagicMock(spec=BluetoothServiceInfoBleak)
         service_info.address = "AA:BB:CC:DD:EE:FF"
@@ -482,7 +482,7 @@ class TestAutoDiscovery:
         """Device without 0x1828 UUID should route to confirm step."""
         flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
-        flow._abort_if_unique_id_configured = lambda: None
+        flow._abort_if_unique_id_configured = lambda **kwargs: None
 
         service_info = MagicMock(spec=BluetoothServiceInfoBleak)
         service_info.address = "DC:23:4D:21:43:A5"
@@ -499,7 +499,7 @@ class TestAutoDiscovery:
         """Discovery info should be populated for sig_plug step."""
         flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
-        flow._abort_if_unique_id_configured = lambda: None
+        flow._abort_if_unique_id_configured = lambda **kwargs: None
 
         service_info = MagicMock(spec=BluetoothServiceInfoBleak)
         service_info.address = "AA:BB:CC:DD:EE:FF"
@@ -516,7 +516,7 @@ class TestAutoDiscovery:
         """Device without service_uuids attribute should route to confirm."""
         flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
-        flow._abort_if_unique_id_configured = lambda: None
+        flow._abort_if_unique_id_configured = lambda **kwargs: None
 
         service_info = MagicMock(spec=BluetoothServiceInfoBleak)
         service_info.address = "DC:23:4D:21:43:A5"
@@ -534,7 +534,7 @@ class TestAutoDiscovery:
         """Proxy discovery → sig_plug form → entry creation."""
         flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
-        flow._abort_if_unique_id_configured = lambda: None
+        flow._abort_if_unique_id_configured = lambda **kwargs: None
 
         service_info = MagicMock(spec=BluetoothServiceInfoBleak)
         service_info.address = "AA:BB:CC:DD:EE:FF"
@@ -1757,7 +1757,7 @@ class TestDiscoveryStaleDevice:
         """When device no longer advertising, discovery should abort."""
         flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
-        flow._abort_if_unique_id_configured = lambda: None
+        flow._abort_if_unique_id_configured = lambda **kwargs: None
 
         service_info = MagicMock(spec=BluetoothServiceInfoBleak)
         service_info.address = "DC:23:4D:21:43:A5"
@@ -1786,7 +1786,7 @@ class TestTelinkDiscovery:
         """Telink UUID prefix device auto-creates entry (zero-knowledge flow)."""
         flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
-        flow._abort_if_unique_id_configured = lambda: None
+        flow._abort_if_unique_id_configured = lambda **kwargs: None
 
         service_info = MagicMock(spec=BluetoothServiceInfoBleak)
         service_info.address = "DC:23:4D:21:43:A5"
