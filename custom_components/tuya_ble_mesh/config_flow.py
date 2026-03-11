@@ -99,7 +99,8 @@ _UNICAST_DEVICE_DEFAULT = 0x00B0
 _MODEL_GENERIC_ONOFF_SERVER = 0x1000
 
 # Seconds to wait for device to reboot as Proxy Service after provisioning
-_POST_PROV_REBOOT_DELAY = 6.0
+# 15s: some SIG Mesh devices need >10s to boot + start Proxy advertising
+_POST_PROV_REBOOT_DELAY = 15.0
 
 # Discovery flow TTL — flows expire after this duration if device stops advertising
 _DISCOVERY_FLOW_TTL = 300  # 5 minutes
@@ -821,8 +822,22 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 )
                 client = _RawBleakClient(ble_device, adapter="hci0", timeout=15.0)
                 _LOGGER.warning("[PAIR] Step 5a: client.connect() starting (raw BlueZ, no habluetooth)...")
-                # BleakClientBlueZDBus.connect() requires 'pair' arg (differs from BleakClient API)
-                await asyncio.wait_for(client.connect(pair=False), timeout=20.0)
+                # BleakClientBlueZDBus.connect() requires 'pair' positional arg in some
+                # bleak versions, but not all. Try without first, then with pair=False.
+                try:
+                    await asyncio.wait_for(client.connect(pair=False), timeout=15.0)
+                except TypeError:
+                    _LOGGER.warning("[PAIR] Step 5a: pair= not supported, retrying without")
+                    await asyncio.wait_for(client.connect(), timeout=15.0)
+                except asyncio.TimeoutError:
+                    _LOGGER.warning("[PAIR] Step 5a: connect(pair=False) timed out, retrying with pair=True")
+                    # Some devices need BlueZ bonding to complete GATT connection
+                    try:
+                        await client.disconnect()
+                    except Exception:
+                        pass
+                    client = _RawBleakClient(ble_device, adapter="hci0", timeout=15.0)
+                    await asyncio.wait_for(client.connect(pair=True), timeout=20.0)
                 _LOGGER.warning(
                     "[PAIR] Step 5 OK: GATT connected (is_connected=%s, mtu=%s)",
                     client.is_connected,
@@ -1170,29 +1185,66 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             ble_device_callback=None,  # Force direct BLE, no HA proxy
             adapter="hci0",  # Force local adapter for post-prov config
         )
-        try:
-            await device.connect(timeout=20.0, max_retries=5)
-            appkey_ok = await device.send_config_appkey_add(app_key)
-            if not appkey_ok:
-                _LOGGER.warning("AppKey Add returned non-success for %s", mac)
-            await asyncio.sleep(0.5)
-            bind_ok = await device.send_config_model_app_bind(
-                _UNICAST_DEVICE_DEFAULT, 0, _MODEL_GENERIC_ONOFF_SERVER
-            )
-            if not bind_ok:
-                _LOGGER.warning(
-                    "Model App Bind returned non-success for %s (model=0x%04X)",
-                    mac,
-                    _MODEL_GENERIC_ONOFF_SERVER,
+        # Retry post-provisioning up to 3 times with increasing delay.
+        # The device may take varying time to start Proxy Service after reboot.
+        post_prov_ok = False
+        for attempt in range(3):
+            try:
+                if attempt > 0:
+                    extra_delay = 5.0 * attempt
+                    _LOGGER.warning(
+                        "[SIG-PAIR] Post-prov retry %d, waiting %.0fs extra...",
+                        attempt + 1, extra_delay,
+                    )
+                    await asyncio.sleep(extra_delay)
+
+                await device.connect(timeout=20.0, max_retries=3)
+
+                appkey_ok = await device.send_config_appkey_add(app_key)
+                if not appkey_ok:
+                    _LOGGER.warning("AppKey Add returned non-success for %s", mac)
+
+                await asyncio.sleep(1.0)
+
+                bind_ok = await device.send_config_model_app_bind(
+                    _UNICAST_DEVICE_DEFAULT, 0, _MODEL_GENERIC_ONOFF_SERVER
                 )
-        except Exception:
+                if not bind_ok:
+                    _LOGGER.warning(
+                        "Model App Bind returned non-success for %s (model=0x%04X)",
+                        mac,
+                        _MODEL_GENERIC_ONOFF_SERVER,
+                    )
+
+                post_prov_ok = True
+                _LOGGER.warning(
+                    "[SIG-PAIR] Post-provisioning config OK for %s (appkey=%s, bind=%s)",
+                    mac, appkey_ok, bind_ok,
+                )
+                break
+
+            except Exception:
+                _LOGGER.warning(
+                    "[SIG-PAIR] Post-prov attempt %d failed for %s",
+                    attempt + 1, mac,
+                    exc_info=True,
+                )
+                try:
+                    await device.disconnect()
+                except Exception:
+                    pass
+
+        if not post_prov_ok:
             _LOGGER.warning(
-                "Post-provisioning config failed for %s (device provisioned but AppKey not bound)",
+                "[SIG-PAIR] Post-provisioning FAILED after 3 attempts for %s "
+                "(device provisioned but AppKey not bound — device may need factory reset)",
                 mac,
-                exc_info=True,
             )
-        finally:
+
+        try:
             await device.disconnect()
+        except Exception:
+            pass
 
         return net_key.hex(), result.dev_key.hex(), app_key.hex()
 
