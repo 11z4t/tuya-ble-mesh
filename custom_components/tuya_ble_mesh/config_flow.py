@@ -717,9 +717,10 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         """Confirm bluetooth discovery — no fields, just confirm and pair.
 
         When user clicks Submit:
-        1. Try to connect/pair with factory defaults (out_of_mesh/123456)
-        2. If pairing succeeds → create entry with auto-detected device type
-        3. If pairing fails → show error, do NOT create entry
+        1. Try direct BLE pairing with factory defaults
+        2. If direct fails → auto-test bridge at known host (192.168.1.124:8099)
+        3. If bridge works → create entry as bridge device
+        4. If nothing works → show error
         """
         errors: dict[str, str] = {}
         disc = self._discovery_info or {}
@@ -727,8 +728,11 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         if user_input is not None and self._discovery_info is not None:
             mac = self._discovery_info["address"]
             auto_type = disc.get("auto_device_type", DEVICE_TYPE_LIGHT)
+            short_mac = mac[-8:]
+            type_label = "Plug" if auto_type == DEVICE_TYPE_PLUG else "Light"
 
-            # Try to pair with factory defaults
+            # Step 1: Try direct BLE pairing
+            direct_ok = False
             try:
                 from homeassistant.components.bluetooth import async_ble_device_from_address
                 from tuya_ble_mesh.device import MeshDevice
@@ -752,14 +756,12 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 )
                 await device.connect(timeout=15.0, max_retries=3)
                 await device.disconnect()
-                _LOGGER.info("Pairing succeeded for %s", mac)
+                _LOGGER.info("Direct BLE pairing succeeded for %s", mac)
+                direct_ok = True
             except Exception as exc:
-                _LOGGER.warning("Pairing failed for %s: %s", mac, exc)
-                errors["base"] = "pairing_failed"
+                _LOGGER.info("Direct BLE pairing failed for %s: %s — trying bridge", mac, exc)
 
-            if not errors:
-                short_mac = mac[-8:]
-                type_label = "Plug" if auto_type == DEVICE_TYPE_PLUG else "Light"
+            if direct_ok:
                 return self.async_create_entry(
                     title=f"BLE {type_label} {short_mac}",
                     data={
@@ -771,6 +773,27 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                         CONF_MESH_ADDRESS: DEFAULT_MESH_ADDRESS,
                     },
                 )
+
+            # Step 2: Auto-test bridge at known address
+            bridge_host = "192.168.1.124"
+            bridge_port = DEFAULT_BRIDGE_PORT
+            bridge_ok = await _test_bridge_with_session(self.hass, bridge_host, bridge_port)
+
+            if bridge_ok:
+                _LOGGER.info("Bridge at %s:%d reachable — creating bridge entry for %s", bridge_host, bridge_port, mac)
+                return self.async_create_entry(
+                    title=f"BLE {type_label} {short_mac}",
+                    data={
+                        CONF_MAC_ADDRESS: mac,
+                        CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
+                        CONF_BRIDGE_HOST: bridge_host,
+                        CONF_BRIDGE_PORT: bridge_port,
+                    },
+                )
+
+            # Neither direct BLE nor bridge worked
+            _LOGGER.warning("Neither direct BLE nor bridge pairing succeeded for %s", mac)
+            errors["base"] = "pairing_failed"
 
         return self.async_show_form(
             step_id="confirm",
