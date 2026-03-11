@@ -821,7 +821,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 )
                 client = _RawBleakClient(ble_device, adapter="hci0", timeout=15.0)
                 _LOGGER.warning("[PAIR] Step 5a: client.connect() starting (raw BlueZ, no habluetooth)...")
-                await asyncio.wait_for(client.connect(), timeout=20.0)
+                # BleakClientBlueZDBus.connect() requires 'pair' arg (differs from BleakClient API)
+                await asyncio.wait_for(client.connect(pair=False), timeout=20.0)
                 _LOGGER.warning(
                     "[PAIR] Step 5 OK: GATT connected (is_connected=%s, mtu=%s)",
                     client.is_connected,
