@@ -38,7 +38,7 @@
       },
       "confirm": {
         "title": "{name}",
-        "description": "**{category}**-enhet hittad\n\n- **Namn:** {name}\n- **MAC:** {mac}\n- **Signal:** {rssi} dBm\n\nKlicka Skicka för att para och lägga till enheten.",
+        "description": "**{name}** ({mac})\nSignal: {rssi} dBm\n\nKlicka Skicka för att para och lägga till enheten.",
         "data": {}
       },
       "reauth_confirm": {
