@@ -77,15 +77,20 @@ rules:
   docs-data-update:
     status: done
   docs-examples:
-    status: todo
+    status: done
+    comment: docs/EXAMPLES.md with automation examples (sunset, dimming, groups, scenes, motion, etc.)
   docs-known-limitations:
-    status: todo
+    status: done
+    comment: docs/KNOWN_LIMITATIONS.md with BLE/protocol/hardware/feature limitations and workarounds
   docs-supported-devices:
-    status: todo
+    status: done
+    comment: Updated with SIG Mesh support, S17 plug status, auto-detection criteria, protocol comparison
   docs-supported-functions:
-    status: todo
+    status: done
+    comment: docs/SUPPORTED_FUNCTIONS.md with entity tables, DP IDs, SIG models, feature matrix
   docs-troubleshooting:
-    status: todo
+    status: done
+    comment: USER_GUIDE.md enhanced with pairing_failed, bridge auto-detection, ESPHome proxy, vendor ID guide
   dynamic-devices:
     status: todo
   entity-category:
