@@ -62,7 +62,7 @@ class TuyaBLEMeshFirmwareUpdateEntity(TuyaBLEMeshEntity, UpdateEntity):
     ) -> None:
         """Initialise the firmware update entity."""
         super().__init__(coordinator, entry_id, device_info)  # type: ignore[arg-type]
-        self._attr_unique_id = f"{entry_id}_firmware"
+        self._attr_unique_id = f"{coordinator.device.address}_firmware"
 
     @property
     def installed_version(self) -> str | None:

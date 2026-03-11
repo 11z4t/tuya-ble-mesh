@@ -21,6 +21,10 @@ DEFAULT_VENDOR_ID = "0x1001"
 CONF_MESH_ADDRESS = "mesh_address"
 DEFAULT_MESH_ADDRESS = 0  # 0 = connected device itself
 
+# Factory default mesh credentials (Tuya BLE Mesh)
+DEFAULT_FACTORY_MESH_NAME = "out_of_mesh"
+DEFAULT_FACTORY_MESH_PASSWORD = "123456"  # pragma: allowlist secret
+
 # Advanced options keys
 CONF_DEBUG_LEVEL = "debug_level"
 CONF_COMMAND_TIMEOUT = "command_timeout"

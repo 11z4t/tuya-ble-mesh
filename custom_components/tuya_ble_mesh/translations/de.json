@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Tuya BLE Mesh-Gerät",
-        "description": "Geben Sie die BLE-MAC-Adresse und Gerätetyp ein. Standard-Mesh-Anmeldedaten (out_of_mesh/123456) sind Tuya-Werkseinstellungen.",
+        "description": "Geben Sie die BLE-MAC-Adresse und den Gerätetyp ein. Standard-Mesh-Anmeldedaten (out_of_mesh/123456) sind Tuya-Werkseinstellungen.",
         "data": {
           "mac_address": "MAC-Adresse",
           "mesh_name": "Mesh-Name",
@@ -12,15 +12,137 @@
           "vendor_id": "Hersteller-ID (hex, z.B. 0x1001)",
           "device_type": "Gerätetyp",
           "mesh_address": "Mesh-Adresse (0 = auto)"
+        },
+        "data_description": {
+          "mac_address": "Format: XX:XX:XX:XX:XX:XX",
+          "vendor_id": "Malmbergs=0x1001, AwoX=0x0160, Dimond=0x0211",
+          "mesh_name": "Werkseinstellung: out_of_mesh (max 16 Bytes)",
+          "mesh_password": "Werkseinstellung: 123456 (max 16 Bytes)"
+        }
+      },
+      "sig_bridge": {
+        "title": "SIG Mesh Bridge-Konfiguration",
+        "description": "Konfigurieren Sie den BLE-Bridge-Daemon für **{name}**.\n\nDer Bridge-Daemon muss laufen und von Home Assistant aus erreichbar sein. Die Verbindung wird vor dem Fortfahren getestet.",
+        "data": {
+          "bridge_host": "Bridge-Host (IP-Adresse oder Hostname)",
+          "bridge_port": "Bridge-Port",
+          "unicast_target": "Ziel-Unicast-Adresse (hex)"
+        },
+        "data_description": {
+          "bridge_host": "IP-Adresse oder Hostname des Raspberry Pi, auf dem der Bridge-Daemon läuft",
+          "bridge_port": "Standard: 8099",
+          "unicast_target": "Standard: 00B0"
+        }
+      },
+      "telink_bridge": {
+        "title": "Telink Bridge Light-Konfiguration",
+        "description": "Konfigurieren Sie den BLE-Bridge-Daemon für **{name}**.\n\nDer Bridge-Daemon muss laufen und von Home Assistant aus erreichbar sein. Die Verbindung wird vor dem Fortfahren getestet.",
+        "data": {
+          "bridge_host": "Bridge-Host (IP-Adresse oder Hostname)",
+          "bridge_port": "Bridge-Port"
+        },
+        "data_description": {
+          "bridge_host": "IP-Adresse oder Hostname des Raspberry Pi, auf dem der Bridge-Daemon läuft",
+          "bridge_port": "Standard: 8099"
+        }
+      },
+      "sig_plug": {
+        "title": "SIG Mesh Plug — Automatische Bereitstellung",
+        "description": "Das Gerät **{name}** wird automatisch bereitgestellt.\n\nEin zufälliger NetKey und AppKey werden generiert. Der DevKey wird aus dem ECDH-Bereitstellungsaustausch abgeleitet. Alle Schlüssel werden sicher in der Home Assistant-Konfigurationsdatenbank gespeichert.\n\n**Vor dem Klicken auf Senden:**\n- Stellen Sie sicher, dass sich das Gerät im Werkszustand befindet (LED blinkt)\n- Stellen Sie sicher, dass es sich in BLE-Reichweite eines lokalen Adapters oder ESPHome BLE-Proxys befindet\n- Die Bereitstellung dauert etwa 10 Sekunden",
+        "data": {}
+      },
+      "confirm": {
+        "title": "{name}",
+        "description": "**{category}**-Gerät erkannt\n\n- **Name:** {name}\n- **MAC:** {mac}\n- **Signal:** {rssi} dBm\n\nKlicken Sie auf Senden, um dieses Gerät zu koppeln und hinzuzufügen.",
+        "data": {}
+      },
+      "reauth_confirm": {
+        "title": "Anmeldedaten erneut eingeben",
+        "description": "Verbindung fehlgeschlagen — Anmeldedaten wurden möglicherweise geändert. Geben Sie sie erneut ein, um die Verbindung wiederherzustellen.",
+        "data": {
+          "mesh_name": "Mesh-Name",
+          "mesh_password": "Mesh-Passwort",
+          "bridge_host": "Bridge-Host",
+          "bridge_port": "Bridge-Port"
+        }
+      },
+      "reconfigure": {
+        "title": "Verbindung neu konfigurieren",
+        "description": "Aktualisieren Sie die Verbindungseinstellungen für dieses Gerät. Die MAC-Adresse und der Gerätetyp können hier nicht geändert werden.",
+        "data": {
+          "mesh_name": "Mesh-Name",
+          "mesh_password": "Mesh-Passwort",
+          "vendor_id": "Hersteller-ID (hex)",
+          "bridge_host": "Bridge-Host",
+          "bridge_port": "Bridge-Port"
         }
       }
     },
     "error": {
       "invalid_mac": "Ungültiges MAC-Adressenformat. Erwartet XX:XX:XX:XX:XX:XX (durch Doppelpunkt getrennt).",
-      "cannot_connect": "Verbindung zum Bridge-Daemon nicht möglich. Überprüfen Sie Host/Port und dass der Daemon läuft."
+      "invalid_key": "Ungültiges Schlüsselformat (32 Hex-Zeichen erwartet).",
+      "invalid_bridge_host": "Ungültiger Bridge-Host. Geben Sie einen Hostnamen oder eine IP-Adresse ein (keine URL). Loopback- und Link-Local-Adressen sind nicht erlaubt.",
+      "invalid_credential_length": "Mesh-Name und Passwort müssen jeweils 16 Bytes oder weniger sein.",
+      "invalid_vendor_id": "Ungültige Hersteller-ID. Erwartet werden 1–4 Hex-Ziffern mit optionalem 0x-Präfix (z.B. 0x1001).",
+      "bridge_unreachable": "Bridge-Daemon unter dem angegebenen Host/Port nicht erreichbar. Überprüfen Sie, ob der Daemon läuft und ob Home Assistant im Netzwerk darauf zugreifen kann.",
+      "auth_or_mesh_mismatch": "Bridge erreicht, aber Gerät hat Mesh-Anmeldedaten abgelehnt. Überprüfen Sie Mesh-Name und Passwort.",
+      "unsupported_vendor": "Hersteller-ID nicht erkannt. Überprüfen Sie BLE-Snoop-Logs für die korrekten Hersteller-Bytes.",
+      "device_not_found": "Geräte-MAC von Bridge aus nicht sichtbar. Stellen Sie sicher, dass das Gerät eingeschaltet und in BLE-Reichweite ist.",
+      "timeout": "Zeitüberschreitung. Bridge oder Gerät hat nicht rechtzeitig geantwortet.",
+      "unknown_protocol": "Protokollaushandlung fehlgeschlagen. Dies kann auf eine Bridge-Firmware-Inkompatibilität hinweisen.",
+      "cannot_connect": "Verbindung zum Gerät nicht möglich. Stellen Sie sicher, dass es eingeschaltet, in BLE-Reichweite und im Kopplungsmodus ist.",
+      "pairing_failed": "Kopplung fehlgeschlagen. Das Gerät hat nicht geantwortet oder die Verbindung abgelehnt. Stellen Sie sicher, dass es sich im Werkszustand befindet und in BLE-Reichweite ist.",
+      "provisioning_failed": "Bereitstellung fehlgeschlagen. Stellen Sie sicher, dass sich das Gerät im Werkszustand befindet (LED blinkt), in BLE-Reichweite ist, und versuchen Sie es erneut. Überprüfen Sie die HA-Protokolle für Details."
     },
     "abort": {
-      "already_configured": "Dieses Gerät ist bereits konfiguriert"
+      "already_configured": "Dieses Gerät ist bereits konfiguriert",
+      "reauth_successful": "Erneute Authentifizierung erfolgreich",
+      "reconfigure_successful": "Neukonfiguration erfolgreich",
+      "entry_not_found": "Konfigurationseintrag nicht gefunden",
+      "device_not_available": "Gerät sendet nicht mehr. Es könnte außer Reichweite, ausgeschaltet oder bereits konfiguriert sein.",
+      "device_not_found": "Gerät nicht im BLE-Register gefunden."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Tuya BLE Mesh-Optionen",
+        "description": "Aktualisieren Sie die Bridge-Verbindung oder Mesh-Anmeldedaten. Aktivieren Sie **Erweiterte Einstellungen anzeigen** für Timeout- und Wiederverbindungsoptionen.",
+        "data": {
+          "mesh_name": "Mesh-Name",
+          "mesh_password": "Mesh-Passwort",
+          "vendor_id": "Hersteller-ID (hex)",
+          "mesh_address": "Mesh-Adresse (0 = auto)",
+          "bridge_host": "Bridge-Host",
+          "bridge_port": "Bridge-Port",
+          "unicast_target": "Ziel-Unicast-Adresse (hex)",
+          "iv_index": "IV-Index",
+          "validate_bridge": "Bridge-Verbindung vor dem Speichern testen",
+          "show_advanced": "Erweiterte Einstellungen anzeigen"
+        }
+      },
+      "advanced": {
+        "title": "Erweiterte Einstellungen",
+        "description": "Passen Sie Debug-Ausführlichkeit, Befehls-Timeouts und Wiederverbindungs-Schutz an.",
+        "data": {
+          "debug_level": "Protokollstufe für BLE Mesh",
+          "command_timeout": "Befehls-Timeout (Sekunden)",
+          "max_reconnects": "Max. Wiederverbindungsversuche (0 = unbegrenzt)",
+          "reconnect_storm_threshold": "Wiederverbindungs-Sturm-Schwelle (pro 5 Minuten)"
+        },
+        "data_description": {
+          "debug_level": "Steuert die Ausführlichkeit der BLE Mesh-Protokolle. Warning wird für den normalen Gebrauch empfohlen.",
+          "command_timeout": "Wie lange auf eine Geräteantwort gewartet wird, bevor wiederholt wird (3–60 Sekunden).",
+          "max_reconnects": "Begrenzen Sie die Gesamtzahl der Wiederverbindungsversuche. 0 = unbegrenzt weiter versuchen.",
+          "reconnect_storm_threshold": "Erstellen Sie ein Reparaturproblem, wenn so viele Wiederverbindungen innerhalb von 5 Minuten auftreten."
+        }
+      }
+    },
+    "error": {
+      "invalid_bridge_host": "Ungültiger Bridge-Host. Geben Sie einen Hostnamen oder eine IP-Adresse ein (keine URL).",
+      "bridge_unreachable": "Bridge-Daemon nicht erreichbar. Überprüfen Sie Host/Port und ob der Daemon läuft.",
+      "invalid_credential_length": "Mesh-Name und Passwort müssen jeweils 16 Bytes oder weniger sein.",
+      "invalid_vendor_id": "Ungültige Hersteller-ID. Erwartet werden 1–4 Hex-Ziffern (z.B. 0x1001)."
     }
   },
   "entity": {
@@ -54,10 +176,129 @@
       }
     }
   },
+  "exceptions": {
+    "connection_failed": {
+      "message": "Verbindung zu {device} fehlgeschlagen: {error}"
+    },
+    "command_timeout": {
+      "message": "Befehl für {device} hat Zeitüberschreitung erreicht"
+    },
+    "provisioning_failed": {
+      "message": "Bereitstellung für {device} fehlgeschlagen: {error}"
+    },
+    "invalid_key": {
+      "message": "Ungültiges Mesh-Schlüsselformat"
+    }
+  },
   "services": {
     "identify": {
       "name": "Gerät identifizieren",
-      "description": "Blinkt die Geräte-LED zur einfachen Identifizierung."
+      "description": "Blinken Sie die Geräte-LED, um es leicht zu finden.",
+      "fields": {
+        "device_id": {
+          "name": "Gerät",
+          "description": "Das zu identifizierende Gerät (LED blinken)."
+        }
+      }
+    },
+    "set_log_level": {
+      "name": "Protokollstufe festlegen",
+      "description": "Ändern Sie die BLE Mesh-Protokollausführlichkeit, ohne Home Assistant neu zu starten.",
+      "fields": {
+        "level": {
+          "name": "Stufe",
+          "description": "Protokollstufe: debug, info, warning oder error."
+        }
+      }
+    },
+    "get_diagnostics": {
+      "name": "Diagnoseinformationen abrufen",
+      "description": "Protokollieren Sie Diagnoseinformationen für ein Gerät im HA-Protokoll.",
+      "fields": {
+        "device_id": {
+          "name": "Gerät",
+          "description": "Das Gerät, für das Diagnoseinformationen abgerufen werden sollen."
+        }
+      }
+    }
+  },
+  "issues": {
+    "bridge_unreachable": {
+      "title": "Bridge-Daemon nicht erreichbar: {host}:{port}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Bridge nicht erreichbar: {host}:{port}",
+            "description": "Der BLE-Bridge-Daemon unter **{host}:{port}** antwortet nicht.\n\n**Überprüfungen:**\n1. Ist der Bridge-Host eingeschaltet?\n2. Läuft der Daemon? Ausführen: `systemctl status tuya-ble-bridge`\n3. Ist Port {port} von Home Assistant aus zugänglich?\n4. Test: `curl http://{host}:{port}/health`\n\nDieses Problem wird automatisch behoben, wenn der Daemon wieder online ist."
+          }
+        }
+      }
+    },
+    "auth_or_mesh_mismatch": {
+      "title": "Mesh-Anmeldedaten stimmen nicht überein: {device}",
+      "fix_flow": {
+        "step": {
+          "reauth_hint": {
+            "title": "Beheben: Mesh-Anmeldedaten aktualisieren",
+            "description": "Das Gerät **{device}** lehnt die gespeicherten Mesh-Anmeldedaten ab.\n\n**Zum Beheben:**\n1. Gehen Sie zu **Einstellungen → Integrationen → {device} → Konfigurieren**\n2. Aktualisieren Sie Mesh-Name und Passwort, um mit dem Gerät übereinzustimmen\n3. Werkseinstellungen: name=`out_of_mesh`, password=`123456`\n\nWenn das Gerät auf Werkseinstellungen zurückgesetzt wurde, löschen Sie die Integration und fügen Sie sie erneut hinzu."
+          },
+          "credentials": {
+            "title": "Neue Anmeldedaten eingeben",
+            "description": "Das Gerät hat die gespeicherten Anmeldedaten abgelehnt. Geben Sie aktualisierte Mesh-Anmeldedaten oder Bridge-Verbindungseinstellungen unten ein.",
+            "data": {
+              "mesh_name": "Mesh-Name",
+              "mesh_password": "Mesh-Passwort",
+              "bridge_host": "Bridge-Host",
+              "bridge_port": "Bridge-Port"
+            }
+          }
+        }
+      }
+    },
+    "unsupported_vendor": {
+      "title": "Nicht unterstützte Hersteller-ID: {device} ({vendor_id})",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Beheben: Hersteller-ID aktualisieren",
+            "description": "Die Hersteller-ID **{vendor_id}** für **{device}** wird nicht erkannt.\n\n**Um die richtige ID zu finden:**\n1. Verwenden Sie einen BLE-Sniffer, um Werbungen vom Gerät zu erfassen\n2. Sehen Sie sich herstellerspezifische Daten an — Hersteller-Bytes befinden sich bei Payload-Offset `[3:5]`\n3. Bekannte IDs: Malmbergs=`0x1001`, AwoX=`0x0160`, Dimond=`0x0211`\n\n**Zum Beheben:** Gehen Sie zu **Einstellungen → Integrationen → {device} → Konfigurieren** und aktualisieren Sie die Hersteller-ID."
+          }
+        }
+      }
+    },
+    "device_not_found": {
+      "title": "Gerät nicht sichtbar: {device} (…{mac})"
+    },
+    "timeout": {
+      "title": "Wiederholte Zeitüberschreitungen: {device} ({operation})"
+    },
+    "reconnect_storm": {
+      "title": "Wiederverbindungsschleife: {device}",
+      "fix_flow": {
+        "step": {
+          "storm_confirm": {
+            "title": "Wiederverbindungs-Sturm bestätigen",
+            "description": "**{device}** wurde **{count}** Mal in {window} Minuten wiederverbunden.\n\n**Überprüfungen:**\n1. Ist das Gerät stabil (startet nicht wiederholt neu)?\n2. Ist das BLE-Signal ausreichend (RSSI > −80 dBm)?\n3. Überprüfen Sie Bridge-Protokolle auf Fehlermuster.\n\nDas Bestätigen dieses Problems stoppt keine Wiederverbindungen — es löscht nur die Benachrichtigung. Beheben Sie zuerst die zugrunde liegende Ursache."
+          }
+        }
+      }
+    },
+    "protocol_mismatch": {
+      "title": "Protokoll-Inkompatibilität: {device}"
+    },
+    "provisioning_failed": {
+      "title": "Bereitstellung fehlgeschlagen: {device}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Bereitstellungsfehler beheben",
+            "description": "SIG Mesh-Bereitstellung für **{device}** fehlgeschlagen.\n\n**Zum Beheben:**\n1. Löschen Sie diesen Integrationseintrag\n2. Setzen Sie das Gerät auf Werkseinstellungen zurück: 5× schneller Ein/Aus-Zyklus (LED blinkt schnell, wenn bereit)\n3. Fügen Sie die Integration erneut hinzu, während die LED blinkt\n\nStellen Sie sicher, dass sich das Gerät während der Bereitstellung in BLE-Reichweite eines lokalen Adapters oder ESPHome BLE-Proxys befindet."
+          }
+        }
+      }
+    },
+    "key_mismatch": {
+      "title": "Schlüssel-Inkompatibilität: {device}"
     }
   }
 }

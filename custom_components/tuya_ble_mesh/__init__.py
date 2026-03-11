@@ -40,6 +40,8 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_UNICAST_TARGET,
     CONF_VENDOR_ID,
     DEFAULT_BRIDGE_PORT,
+    DEFAULT_FACTORY_MESH_NAME,
+    DEFAULT_FACTORY_MESH_PASSWORD,
     DEFAULT_IV_INDEX,
     DEFAULT_MESH_ADDRESS,
     DEFAULT_VENDOR_ID,
@@ -196,8 +198,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         from tuya_ble_mesh.device import MeshDevice
 
         # Mesh credentials and vendor settings are configurable — read from options first
-        mesh_name: str = _get_entry_option(entry, CONF_MESH_NAME, "out_of_mesh")
-        mesh_password: str = _get_entry_option(entry, CONF_MESH_PASSWORD, "123456")
+        mesh_name: str = _get_entry_option(entry, CONF_MESH_NAME, DEFAULT_FACTORY_MESH_NAME)
+        mesh_password: str = _get_entry_option(entry, CONF_MESH_PASSWORD, DEFAULT_FACTORY_MESH_PASSWORD)
         vendor_id_hex: str = _get_entry_option(entry, CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
         vendor_id_int = int(vendor_id_hex, 16)
         vendor_id_bytes = vendor_id_int.to_bytes(2, "little")

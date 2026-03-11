@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Tuya BLE Mesh-enhet",
-        "description": "Ange BLE MAC-adress och mesh-uppgifter.\n\nObs: Standarduppgifter (out_of_mesh/123456) är fabriksinställda. Mesh-uppgifter sparas i Home Assistants konfigurationsdatabas.",
+        "description": "Ange BLE MAC-adress och enhetstyp. Standarduppgifter (out_of_mesh/123456) är Tuya fabriksinställningar.",
         "data": {
           "mac_address": "MAC-adress",
           "mesh_name": "Mesh-namn",
@@ -12,28 +12,43 @@
           "vendor_id": "Vendor ID (hex, t.ex. 0x1001)",
           "device_type": "Enhetstyp",
           "mesh_address": "Mesh-adress (0 = auto)"
+        },
+        "data_description": {
+          "mac_address": "Format: XX:XX:XX:XX:XX:XX",
+          "vendor_id": "Malmbergs=0x1001, AwoX=0x0160, Dimond=0x0211",
+          "mesh_name": "Fabriksstandard: out_of_mesh (max 16 byte)",
+          "mesh_password": "Fabriksstandard: 123456 (max 16 byte)"
         }
       },
       "sig_bridge": {
         "title": "SIG Mesh Bridge-konfiguration",
-        "description": "Konfigurera BLE bridge-daemon-anslutning för {name}.",
+        "description": "Konfigurera BLE bridge-daemon för **{name}**.\n\nBridge-daemonen måste köra och vara nåbar från Home Assistant. Anslutningen kommer att testas innan fortsättning.",
         "data": {
-          "bridge_host": "Bridge-värd (RPi IP-adress)",
+          "bridge_host": "Bridge-värd (IP-adress eller värdnamn)",
           "bridge_port": "Bridge-port",
           "unicast_target": "Mål-unicast-adress (hex)"
+        },
+        "data_description": {
+          "bridge_host": "IP-adress eller värdnamn för Raspberry Pi som kör bridge-daemonen",
+          "bridge_port": "Standard: 8099",
+          "unicast_target": "Standard: 00B0"
         }
       },
       "telink_bridge": {
-        "title": "Telink Bridge-ljus",
-        "description": "Konfigurera BLE bridge-daemon-anslutning för {name}.",
+        "title": "Telink Bridge Light-konfiguration",
+        "description": "Konfigurera BLE bridge-daemon för **{name}**.\n\nBridge-daemonen måste köra och vara nåbar från Home Assistant. Anslutningen kommer att testas innan fortsättning.",
         "data": {
-          "bridge_host": "Bridge-värd (RPi IP-adress)",
+          "bridge_host": "Bridge-värd (IP-adress eller värdnamn)",
           "bridge_port": "Bridge-port"
+        },
+        "data_description": {
+          "bridge_host": "IP-adress eller värdnamn för Raspberry Pi som kör bridge-daemonen",
+          "bridge_port": "Standard: 8099"
         }
       },
       "sig_plug": {
         "title": "SIG Mesh Plug — Automatisk provisionering",
-        "description": "Enheten **{name}** provisioneras automatiskt.\n\nEn slumpmässig NetKey och AppKey genereras. DevKey härleds från ECDH-provisioneringsutbytet. Alla nycklar sparas i Home Assistants konfigurationsdatabas.\n\nKontrollera att enheten är i fabriksåterställt läge (annonserar Provisioning Service 0x1827) och inom BLE-räckvidd för en lokal adapter eller ESPHome BLE-proxy, klicka sedan på Skicka.",
+        "description": "Enheten **{name}** kommer att provisioneras automatiskt.\n\nEn slumpmässig NetKey och AppKey genereras. DevKey härleds från ECDH-provisioneringsutbytet. Alla nycklar sparas säkert i Home Assistants konfigurationsdatabas.\n\n**Innan du klickar på Skicka:**\n- Kontrollera att enheten är i fabriksåterställt läge (LED blinkar)\n- Kontrollera att den är inom BLE-räckvidd för en lokal adapter eller ESPHome BLE-proxy\n- Provisionering tar cirka 10 sekunder",
         "data": {}
       },
       "confirm": {
@@ -42,8 +57,8 @@
         "data": {}
       },
       "reauth_confirm": {
-        "title": "Ange mesh-uppgifter igen",
-        "description": "Autentiseringen misslyckades. Ange mesh-uppgifterna på nytt för att återansluta.",
+        "title": "Ange uppgifter på nytt",
+        "description": "Anslutning misslyckades — uppgifterna kan ha ändrats. Ange på nytt för att återansluta.",
         "data": {
           "mesh_name": "Mesh-namn",
           "mesh_password": "Mesh-lösenord",
@@ -64,14 +79,20 @@
       }
     },
     "error": {
-      "invalid_mac": "Ogiltigt MAC-adressformat (förväntat XX:XX:XX:XX:XX:XX)",
-      "invalid_key": "Ogiltigt nyckelformat (förväntat 32 hex-tecken)",
-      "invalid_bridge_host": "Ogiltig bridge-värd. Använd ett värdnamn eller IP-adress (inte en URL). Loopback- och länklocala adresser är inte tillåtna.",
+      "invalid_mac": "Ogiltigt MAC-adressformat. Förväntat XX:XX:XX:XX:XX:XX (kolon-separerad hex).",
+      "invalid_key": "Ogiltigt nyckelformat (förväntat 32 hex-tecken).",
+      "invalid_bridge_host": "Ogiltig bridge-värd. Ange ett värdnamn eller IP-adress (inte en URL). Loopback- och link-local-adresser är inte tillåtna.",
       "invalid_credential_length": "Mesh-namn och lösenord måste vara 16 byte eller kortare.",
-      "invalid_vendor_id": "Ogiltigt Vendor ID (förväntat 1–4 hex-siffror, t.ex. 0x1001).",
+      "invalid_vendor_id": "Ogiltigt Vendor ID. Förväntat 1–4 hex-siffror med valfritt 0x-prefix (t.ex. 0x1001).",
+      "bridge_unreachable": "Kan inte nå bridge-daemon på angiven värd/port. Kontrollera att daemonen kör och att Home Assistant kan nå den på nätverket.",
+      "auth_or_mesh_mismatch": "Bridge nådd men enheten avvisade mesh-uppgifterna. Verifiera mesh-namn och lösenord.",
+      "unsupported_vendor": "Vendor ID känns inte igen. Kontrollera BLE snoop-loggar för rätta vendor-bytes.",
+      "device_not_found": "Enhets-MAC inte synlig från bridge. Kontrollera att enheten är påslagen och inom BLE-räckvidd.",
+      "timeout": "Operationen fick timeout. Bridge eller enheten svarade inte i tid.",
+      "unknown_protocol": "Protokollförhandling misslyckades. Detta kan indikera en bridge firmware-mismatch.",
       "cannot_connect": "Kunde inte ansluta till enheten. Kontrollera att den är påslagen, inom BLE-räckvidd och i parningsläge.",
       "pairing_failed": "Parning misslyckades. Enheten svarade inte eller avvisade anslutningen. Kontrollera att den är i fabriksåterställt läge och inom BLE-räckvidd.",
-      "provisioning_failed": "Provisionering misslyckades. Kontrollera att enheten är i fabriksåterställt läge, inom BLE-räckvidd för en lokal adapter eller ESPHome BLE-proxy, och försök igen. Se Home Assistant-loggar för detaljer."
+      "provisioning_failed": "Provisionering misslyckades. Kontrollera att enheten är i fabriksåterställt läge (LED blinkar), inom BLE-räckvidd, och försök igen. Kontrollera HA-loggar för detaljer."
     },
     "abort": {
       "already_configured": "Enheten är redan konfigurerad",
@@ -86,16 +107,42 @@
     "step": {
       "init": {
         "title": "Tuya BLE Mesh-alternativ",
+        "description": "Uppdatera bridge-anslutning eller mesh-uppgifter. Aktivera **Visa avancerade inställningar** för timeout- och återanslutningsalternativ.",
         "data": {
           "mesh_name": "Mesh-namn",
           "mesh_password": "Mesh-lösenord",
+          "vendor_id": "Vendor ID (hex)",
           "mesh_address": "Mesh-adress (0 = auto)",
           "bridge_host": "Bridge-värd",
           "bridge_port": "Bridge-port",
           "unicast_target": "Mål-unicast-adress (hex)",
-          "iv_index": "IV-index"
+          "iv_index": "IV-index",
+          "validate_bridge": "Testa bridge-anslutning före sparande",
+          "show_advanced": "Visa avancerade inställningar"
+        }
+      },
+      "advanced": {
+        "title": "Avancerade inställningar",
+        "description": "Justera debug-detaljnivå, kommando-timeouts och återanslutningsskydd.",
+        "data": {
+          "debug_level": "Loggnivå för BLE mesh",
+          "command_timeout": "Kommando-timeout (sekunder)",
+          "max_reconnects": "Max återanslutningsförsök (0 = obegränsat)",
+          "reconnect_storm_threshold": "Återanslutningsstorm-tröskel (per 5 minuter)"
+        },
+        "data_description": {
+          "debug_level": "Styr detaljnivå för BLE mesh-loggar. Warning rekommenderas för normal användning.",
+          "command_timeout": "Hur länge att vänta på enhetssvar innan retry (3–60 sekunder).",
+          "max_reconnects": "Begränsa totala återanslutningsförsök. 0 = fortsätt försöka på obestämd tid.",
+          "reconnect_storm_threshold": "Skapa ett reparationsproblem om detta antal återanslutningar sker inom 5 minuter."
         }
       }
+    },
+    "error": {
+      "invalid_bridge_host": "Ogiltig bridge-värd. Ange ett värdnamn eller IP-adress (inte en URL).",
+      "bridge_unreachable": "Kan inte nå bridge-daemon. Verifiera värd/port och att daemonen kör.",
+      "invalid_credential_length": "Mesh-namn och lösenord måste vara 16 byte eller kortare.",
+      "invalid_vendor_id": "Ogiltigt Vendor ID. Förväntat 1–4 hex-siffror (t.ex. 0x1001)."
     }
   },
   "entity": {
@@ -163,44 +210,95 @@
           "description": "Loggnivå: debug, info, warning eller error."
         }
       }
+    },
+    "get_diagnostics": {
+      "name": "Hämta diagnostik",
+      "description": "Logga diagnostikinformation för en enhet till HA-loggen.",
+      "fields": {
+        "device_id": {
+          "name": "Enhet",
+          "description": "Enheten att hämta diagnostik för."
+        }
+      }
     }
   },
   "issues": {
-    "provisioning_failed": {
-      "title": "Provisionering misslyckades: {device}",
-      "description": "Det gick inte att provisionera {device}. Kontrollera att den är i fabriksåterställt läge och inom BLE-räckvidd, konfigurera sedan om integrationen."
-    },
     "bridge_unreachable": {
       "title": "Bridge-daemon onåbar: {host}:{port}",
-      "description": "Det går inte att nå BLE bridge på {host}:{port}. Kontrollera nätverksanslutningen och att bridge-daemon körs."
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Bridge onåbar: {host}:{port}",
+            "description": "BLE bridge-daemonen på **{host}:{port}** svarar inte.\n\n**Kontroller:**\n1. Är bridge-värden påslagen?\n2. Kör daemonen? Kör: `systemctl status tuya-ble-bridge`\n3. Är port {port} nåbar från Home Assistant?\n4. Testa: `curl http://{host}:{port}/health`\n\nDetta problem rensas automatiskt när daemonen kommer tillbaka online."
+          }
+        }
+      }
     },
     "auth_or_mesh_mismatch": {
       "title": "Mesh-uppgifter stämmer inte: {device}",
-      "description": "Mesh-uppgifterna stämmer inte för {device}. Kontrollera mesh-namn och lösenord."
+      "fix_flow": {
+        "step": {
+          "reauth_hint": {
+            "title": "Fix: Uppdatera mesh-uppgifter",
+            "description": "Enheten **{device}** avvisar de lagrade mesh-uppgifterna.\n\n**För att fixa:**\n1. Gå till **Inställningar → Integrationer → {device} → Konfigurera**\n2. Uppdatera mesh-namn och lösenord för att matcha enheten\n3. Fabriksstandarder: namn=`out_of_mesh`, lösenord=`123456`\n\nOm enheten fabriksåterställdes, ta bort och lägg till integrationen igen."
+          },
+          "credentials": {
+            "title": "Ange nya uppgifter",
+            "description": "Enheten avvisade de lagrade uppgifterna. Ange uppdaterade mesh-uppgifter eller bridge-anslutningsinställningar nedan.",
+            "data": {
+              "mesh_name": "Mesh-namn",
+              "mesh_password": "Mesh-lösenord",
+              "bridge_host": "Bridge-värd",
+              "bridge_port": "Bridge-port"
+            }
+          }
+        }
+      }
     },
     "unsupported_vendor": {
       "title": "Vendor ID stöds ej: {device} ({vendor_id})",
-      "description": "Vendor ID {vendor_id} stöds inte för {device}."
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Fix: Uppdatera vendor ID",
+            "description": "Vendor ID **{vendor_id}** för **{device}** känns inte igen.\n\n**För att hitta rätt ID:**\n1. Använd en BLE-sniffer för att fånga announcements från enheten\n2. Titta på manufacturer-specific data — vendor-bytes är på payload offset `[3:5]`\n3. Kända ID: Malmbergs=`0x1001`, AwoX=`0x0160`, Dimond=`0x0211`\n\n**För att fixa:** Gå till **Inställningar → Integrationer → {device} → Konfigurera** och uppdatera Vendor ID."
+          }
+        }
+      }
     },
     "device_not_found": {
-      "title": "Enhet ej synlig: {device} (…{mac})",
-      "description": "Enheten {device} (…{mac}) kunde inte hittas i BLE-registret."
+      "title": "Enhet ej synlig: {device} (…{mac})"
     },
     "timeout": {
-      "title": "Upprepade timeouts: {device} ({operation})",
-      "description": "Upprepade timeouts för {device} vid {operation}."
+      "title": "Upprepade timeouts: {device} ({operation})"
     },
     "reconnect_storm": {
       "title": "Återanslutningsloop: {device}",
-      "description": "Enheten {device} har hamnat i en återanslutningsloop."
+      "fix_flow": {
+        "step": {
+          "storm_confirm": {
+            "title": "Bekräfta återanslutningsstorm",
+            "description": "**{device}** återanslöt **{count}** gånger på {window} minuter.\n\n**Kontroller:**\n1. Är enheten stabil (startar inte om upprepade gånger)?\n2. Är BLE-signalen tillräcklig (RSSI > −80 dBm)?\n3. Kontrollera bridge-loggar för felmönster.\n\nAtt bekräfta detta problem stoppar inte återanslutningar — det rensar bara notifieringen. Åtgärda grundorsaken först."
+          }
+        }
+      }
     },
     "protocol_mismatch": {
-      "title": "Protokollmismatch: {device}",
-      "description": "Protokollet stämmer inte för {device}."
+      "title": "Protokollmismatch: {device}"
+    },
+    "provisioning_failed": {
+      "title": "Provisionering misslyckades: {device}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Fixa provisioneringsfel",
+            "description": "SIG Mesh-provisionering misslyckades för **{device}**.\n\n**För att fixa:**\n1. Ta bort denna integrationspost\n2. Fabriksåterställ enheten: 5× snabb av/på-cykel (LED blinkar snabbt när redo)\n3. Lägg till integrationen igen medan LED blinkar\n\nKontrollera att enheten är inom BLE-räckvidd för en lokal adapter eller ESPHome BLE-proxy under provisionering."
+          }
+        }
+      }
     },
     "key_mismatch": {
-      "title": "Nyckelmismatch: {device}",
-      "description": "Krypteringsnycklarna stämmer inte för {device}."
+      "title": "Nyckelmismatch: {device}"
     }
   }
 }
