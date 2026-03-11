@@ -654,17 +654,16 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
         # Auto-detect device label for discovery card
         if is_sig:
-            device_label = "Mesh Plug"
+            device_label = "BLE Plug"
             device_category = "SIG Mesh"
         elif is_telink or name.startswith("tymesh"):
-            # Use auto-detection to determine if it's a plug or light
             detected_type = _auto_detect_device_type(discovery_info)
-            device_label = "Mesh Plug" if detected_type == DEVICE_TYPE_PLUG else "Mesh Light"
+            device_label = "BLE Plug" if detected_type == DEVICE_TYPE_PLUG else "BLE Light"
             device_category = "Telink Mesh"
         else:
             # out_of_mesh* devices — auto-detect type, default to Light
             detected_type = _auto_detect_device_type(discovery_info)
-            device_label = "Mesh Plug" if detected_type == DEVICE_TYPE_PLUG else "Mesh Light"
+            device_label = "BLE Plug" if detected_type == DEVICE_TYPE_PLUG else "BLE Light"
             device_category = "Telink Mesh"
 
         # Set title_placeholders for discovery card with descriptive name
@@ -693,6 +692,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         self._discovery_info = {
             "address": address,
             "name": name,
+            "display_name": display_name,
             "rssi": rssi,
             "device_category": device_category,
         }
@@ -761,7 +761,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 short_mac = mac[-8:]
                 type_label = "Plug" if auto_type == DEVICE_TYPE_PLUG else "Light"
                 return self.async_create_entry(
-                    title=f"BLE Mesh {type_label} {short_mac}",
+                    title=f"BLE {type_label} {short_mac}",
                     data={
                         CONF_MAC_ADDRESS: mac,
                         CONF_MESH_NAME: "out_of_mesh",
@@ -776,7 +776,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             step_id="confirm",
             data_schema=vol.Schema({}),
             description_placeholders={
-                "name": disc.get("name", "Unknown"),
+                "name": disc.get("display_name", disc.get("name", "Unknown")),
                 "mac": disc.get("address", ""),
                 "rssi": str(disc.get("rssi", "?")),
                 "category": disc.get("device_category", ""),
@@ -834,7 +834,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     await self.async_set_unique_id(mac.upper())
                     self._abort_if_unique_id_configured()
                     return self.async_create_entry(
-                        title=f"BLE Mesh {type_label} {short}",
+                        title=f"BLE {type_label} {short}",
                         data={
                             CONF_MAC_ADDRESS: mac.upper(),
                             CONF_MESH_NAME: mesh_name,
