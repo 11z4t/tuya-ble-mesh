@@ -1,16 +1,20 @@
 # Supported Devices
 
-This integration works with Tuya BLE Mesh devices using the Telink firmware
-stack. These devices advertise the `fe07` BLE service UUID and use GATT
-characteristics with the Telink base UUID (`00010203-0405-0607-0809-0a0b0c0dXXXX`).
+This integration works with **two types** of Tuya BLE Mesh devices:
+
+1. **Telink Proprietary Mesh** — Devices using the Telink firmware stack (service UUID `fe07`, GATT UUID `00010203-0405-0607-0809-0a0b0c0dXXXX`)
+2. **SIG Mesh (Bluetooth Mesh)** — Standard Bluetooth Mesh devices (GATT services `0x1827` Provisioning, `0x1828` Proxy)
+
+Both protocols are fully supported and can coexist on the same Home Assistant instance.
 
 ## Tested Devices
 
-| Brand | Model | Product | Vendor ID | Features | Status |
-|-------|-------|---------|-----------|----------|--------|
-| Malmbergs BT Smart | 9952126 | LED Driver | `0x1001` | Power, brightness, color temp | Working |
-| Malmbergs BT Smart | 9917071 | Smart Plug S17 | — | Power on/off | Research |
-| Malmbergs BT Smart | 9917073 | Smart Plug S17 | — | Power on/off, energy monitoring | Research |
+| Brand | Model | Product | Mesh Type | Vendor ID | Features | Status |
+|-------|-------|---------|-----------|-----------|----------|--------|
+| Malmbergs BT Smart | 9952126 | LED Driver | Telink Proprietary | `0x1001` | Power, brightness, color temp | ✅ Working |
+| Malmbergs BT Smart | 9917072 | Smart Plug S17 | SIG Mesh | N/A | Power on/off | ✅ Working |
+| Malmbergs BT Smart | 9917071 | Smart Plug S17 | SIG Mesh | N/A | Power on/off | ✅ Expected Working |
+| Malmbergs BT Smart | 9917073 | Smart Plug S17 | SIG Mesh | N/A | Power on/off | ✅ Expected Working |
 
 ## Known Compatible Brands
 
@@ -62,38 +66,64 @@ If you get a new device working with a different vendor ID:
 
 ## Detection Criteria
 
-The integration discovers devices automatically if they match:
+The integration **auto-detects** devices using multiple methods:
 
+### Telink Proprietary Mesh
 - BLE local name starts with `out_of_mesh` (unprovisioned)
 - BLE local name starts with `tymesh` (provisioned)
+- Service UUID `0xfe07` present
 
-Devices with other names may work via manual MAC address entry.
+### SIG Mesh (Bluetooth Mesh)
+- GATT service `0x1827` (Mesh Provisioning Service) present
+- GATT service `0x1828` (Mesh Proxy Service) present
+- BLE local name starts with `out_of_mesh` (common for unprovisioned devices)
 
-## S17 Smart Plug — Research Notes
+Devices with other names may work via manual MAC address entry during config flow.
 
-Malmbergs sells two S17 plug variants with the same underlying logic:
+## S17 Smart Plug — Implementation Notes
 
-| Article | Description | Notes |
-|---------|-------------|-------|
-| 9917071 | Smart Plug S17 | On/off control |
-| 9917073 | Smart Plug S17 | Same as 9917071, likely with energy monitoring |
+Malmbergs sells S17 plug variants using **SIG Mesh (Bluetooth Mesh)** protocol:
+
+| Article | Description | Protocol | Features |
+|---------|-------------|----------|----------|
+| 9917072 | Smart Plug S17 | SIG Mesh | On/off control (tested, working) |
+| 9917071 | Smart Plug S17 | SIG Mesh | On/off control (expected working) |
+| 9917073 | Smart Plug S17 | SIG Mesh | On/off control (expected working, energy monitoring not yet implemented) |
 
 The S17 plug uses a **different protocol** than the LED driver:
 
-- **Advertising UUID:** `0000fe07` (same as LED driver)
-- **GATT UUIDs:** `c44f42b1-f5cf-479b-b515-9f1bb009XXXX` (NOT Telink)
-- **Protocol:** Standard Bluetooth SIG Mesh (confirmed via btsnoop analysis)
-- **Communication:** Via SIG Mesh Proxy node (DC:23:4F), not direct GATT
+- **Protocol:** Standard Bluetooth SIG Mesh (not Telink proprietary)
+- **GATT Services:** `0x1827` (Provisioning), `0x1828` (Proxy)
+- **Discovery:** Auto-detected via standard SIG Mesh service UUIDs
+- **Provisioning:** Supports standard PB-GATT provisioning flow
+- **Communication:** Via SIG Mesh Generic OnOff Server model (SIG Model ID `0x1000`)
 
-The Malmbergs app communicates with the S17 through a mesh proxy connection
-using standard SIG Mesh Network PDUs (UUID 0x2ADD/0x2ADE), not the Telink
-proprietary protocol used for the LED driver.
+**Status**: Fully supported as of v0.20.6. The integration auto-detects SIG Mesh devices and provisions them using standard Bluetooth Mesh protocol.
+
+## Protocol Support Summary
+
+| Protocol | Status | Example Devices | Bridge Required |
+|----------|--------|-----------------|-----------------|
+| **Telink Proprietary Mesh** | ✅ Fully Supported | Malmbergs 9952126 LED Driver | Yes (bridge daemon) |
+| **SIG Mesh (Bluetooth Mesh)** | ✅ Fully Supported | Malmbergs 9917072 Smart Plug S17 | No (direct HA or ESPHome proxy) |
+
+### Key Differences
+
+**Telink Proprietary Mesh:**
+- Requires **bridge daemon** running on a Raspberry Pi or similar device
+- HA cannot communicate directly via Bluetooth (vendor-specific protocol)
+- Fast provisioning with mesh name/password
+- Compact DP commands for light control
+
+**SIG Mesh (Bluetooth Mesh):**
+- Works **directly with Home Assistant Bluetooth** or **ESPHome BLE proxies**
+- Standard PB-GATT provisioning (no bridge needed)
+- Uses standard SIG Mesh models (Generic OnOff, Generic Level, etc.)
+- Wider ecosystem compatibility
 
 ## Known Limitations
 
-- Only Telink-based proprietary Tuya Mesh is supported currently (not SIG Mesh)
-- S17 smart plugs require SIG Mesh support (not yet implemented)
-- Color temperature DP ID is not confirmed for all devices
-- Some devices may use different DP IDs or command formats
-- The compact DP format (opcode 0xD2) is confirmed for Malmbergs only;
-  other brands may use standard Telink commands (0xD0, 0xF1, etc.)
+- **Energy monitoring** for smart plugs (DP ID tracking) is not yet implemented
+- **Color temperature DP ID** varies between Telink device models (vendor-dependent)
+- The **compact DP format** (opcode 0xD2) is confirmed for Malmbergs Telink devices only; other brands may use standard Telink commands (0xD0, 0xF1, etc.)
+- **RGB color control** is protocol-supported but minimally tested (lack of RGB hardware)
