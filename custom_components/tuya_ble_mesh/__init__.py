@@ -93,6 +93,15 @@ class TuyaBLEMeshRuntimeData:
 TuyaBLEMeshConfigEntry: TypeAlias = ConfigEntry[TuyaBLEMeshRuntimeData]
 
 
+async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+    """Migrate config entry to latest version."""
+    if entry.version > 1:
+        return False
+    # Version 1 is current — no migration needed yet
+    _LOGGER.debug("Migration not needed for entry %s (version %s)", entry.entry_id, entry.version)
+    return True
+
+
 async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) -> bool:
     """Set up Tuya BLE Mesh from a config entry.
 
