@@ -671,9 +671,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         short_mac = address[-8:]
         display_name = f"{device_label} {short_mac}"
         self.context["title_placeholders"] = {
-            "mac": short_mac,
             "name": display_name,
-            "local_name": name,
+            "mac": short_mac,
+            "address": address,
         }
 
         await self.async_set_unique_id(address)
