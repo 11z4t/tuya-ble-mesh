@@ -759,7 +759,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             _LOGGER.setLevel(_logging.DEBUG)
 
             _LOGGER.warning(
-                "[PAIR] ===== PAIRING START for %s (v0.25.15) =====", mac
+                "[PAIR] ===== PAIRING START for %s (v0.25.16) =====", mac
             )
             _LOGGER.warning(
                 "[PAIR] auto_type=%s, type_label=%s, short_mac=%s",
@@ -769,9 +769,13 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             )
 
             try:
-                _LOGGER.warning("[PAIR] Step 1: Importing bleak...")
-                from bleak import BleakClient as _RawBleakClient
+                _LOGGER.warning("[PAIR] Step 1: Importing REAL bleak (bypassing habluetooth)...")
+                # CRITICAL: HA's habluetooth monkey-patches bleak.BleakClient with
+                # HaBleakClientWrapper which intercepts connect() and routes through
+                # ESPHome proxy. We must import the REAL BlueZ backend directly
+                # for the BleakClient — habluetooth only patches the client, not the scanner.
                 from bleak import BleakScanner as _RawBleakScanner
+                from bleak.backends.bluezdbus.client import BleakClientBlueZDBus as _RawBleakClient
 
                 _LOGGER.warning("[PAIR] Step 2: Importing provisioner...")
                 from tuya_ble_mesh.provisioner import provision
@@ -807,13 +811,16 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     type(ble_device).__name__,
                 )
 
-                # Step 1b: Connect via local adapter (bypass habluetooth)
+                # Step 1b: Connect via REAL BlueZ backend (bypass habluetooth wrapper)
+                # habluetooth monkey-patches bleak.BleakClient → HaBleakClientWrapper
+                # which routes connect() through ESPHome proxy. Using the raw BlueZ
+                # D-Bus backend directly avoids this interception.
                 _LOGGER.warning(
-                    "[PAIR] Step 5: BleakClient(%s, adapter=hci0, timeout=15)...",
+                    "[PAIR] Step 5: BleakClientBlueZDBus(%s, adapter=hci0, timeout=15)...",
                     mac,
                 )
                 client = _RawBleakClient(ble_device, adapter="hci0", timeout=15.0)
-                _LOGGER.warning("[PAIR] Step 5a: client.connect() starting...")
+                _LOGGER.warning("[PAIR] Step 5a: client.connect() starting (raw BlueZ, no habluetooth)...")
                 await asyncio.wait_for(client.connect(), timeout=20.0)
                 _LOGGER.warning(
                     "[PAIR] Step 5 OK: GATT connected (is_connected=%s, mtu=%s)",
@@ -1112,7 +1119,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             _logging.getLogger(_log_name).setLevel(_logging.DEBUG)
 
         _LOGGER.warning(
-            "[SIG-PAIR] ===== SIG PROVISIONING START for %s (v0.25.15) =====", mac
+            "[SIG-PAIR] ===== SIG PROVISIONING START for %s (v0.25.16) =====", mac
         )
         _LOGGER.warning(
             "[SIG-PAIR] unicast=0x%04X, iv_index=%d, adapter=hci0",
