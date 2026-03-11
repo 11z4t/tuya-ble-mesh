@@ -740,19 +740,54 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             # We force adapter="hci0" to bypass HA's habluetooth which would
             # route through the proxy (causing hangs on Telink GATT).
             direct_ok = False
+
+            # Enable max debug logging for pairing
+            import logging as _logging
+
+            for _log_name in (
+                "tuya_ble_mesh",
+                "tuya_ble_mesh.provisioner",
+                "tuya_ble_mesh.connection",
+                "tuya_ble_mesh.device",
+                "tuya_ble_mesh.protocol",
+                "tuya_ble_mesh.crypto",
+                "bleak",
+                "bleak.backends",
+                "custom_components.tuya_ble_mesh",
+            ):
+                _logging.getLogger(_log_name).setLevel(_logging.DEBUG)
+            _LOGGER.setLevel(_logging.DEBUG)
+
+            _LOGGER.warning(
+                "[PAIR] ===== PAIRING START for %s (v0.25.14) =====", mac
+            )
+            _LOGGER.warning(
+                "[PAIR] auto_type=%s, type_label=%s, short_mac=%s",
+                auto_type,
+                type_label,
+                short_mac,
+            )
+
             try:
-                _LOGGER.info(
-                    "[PAIR] Starting Telink pairing for %s (factory defaults)", mac
-                )
+                _LOGGER.warning("[PAIR] Step 1: Importing bleak...")
                 from bleak import BleakClient as _RawBleakClient
                 from bleak import BleakScanner as _RawBleakScanner
 
+                _LOGGER.warning("[PAIR] Step 2: Importing provisioner...")
                 from tuya_ble_mesh.provisioner import provision
 
                 vid_hex = DEFAULT_VENDOR_ID.replace("0x", "").replace("0X", "")
+                _LOGGER.warning(
+                    "[PAIR] Step 3: vid_hex=%s, mesh_name=%s",
+                    vid_hex,
+                    DEFAULT_FACTORY_MESH_NAME,
+                )
 
                 # Step 1a: Scan for device on LOCAL adapter (hci0)
-                _LOGGER.info("[PAIR] Scanning for %s on hci0 (10s timeout)...", mac)
+                _LOGGER.warning(
+                    "[PAIR] Step 4: BleakScanner.find_device_by_address(%s, timeout=10, adapter=hci0)...",
+                    mac,
+                )
                 ble_device = await asyncio.wait_for(
                     _RawBleakScanner.find_device_by_address(
                         mac, timeout=10.0, adapter="hci0"
@@ -761,23 +796,48 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 )
 
                 if ble_device is None:
-                    _LOGGER.warning("[PAIR] Device %s not found on hci0 scan", mac)
+                    _LOGGER.warning("[PAIR] Step 4 FAILED: Device %s not found on hci0 scan", mac)
                     raise TimeoutError(f"Device {mac} not found on local BLE adapter")
 
-                _LOGGER.info(
-                    "[PAIR] Found %s (name=%s) on hci0, connecting...",
+                _LOGGER.warning(
+                    "[PAIR] Step 4 OK: Found %s (name=%s, rssi=%s, details=%s)",
                     mac,
                     ble_device.name,
+                    getattr(ble_device, "rssi", "?"),
+                    type(ble_device).__name__,
                 )
 
                 # Step 1b: Connect via local adapter (bypass habluetooth)
+                _LOGGER.warning(
+                    "[PAIR] Step 5: BleakClient(%s, adapter=hci0, timeout=15)...",
+                    mac,
+                )
                 client = _RawBleakClient(ble_device, adapter="hci0", timeout=15.0)
+                _LOGGER.warning("[PAIR] Step 5a: client.connect() starting...")
                 await asyncio.wait_for(client.connect(), timeout=20.0)
-                _LOGGER.info("[PAIR] GATT connected to %s, provisioning...", mac)
+                _LOGGER.warning(
+                    "[PAIR] Step 5 OK: GATT connected (is_connected=%s, mtu=%s)",
+                    client.is_connected,
+                    getattr(client, "mtu_size", "?"),
+                )
+
+                # Log discovered services
+                try:
+                    services = client.services
+                    if services:
+                        for svc in services:
+                            _LOGGER.warning(
+                                "[PAIR] Service: %s (%s)",
+                                svc.uuid,
+                                svc.description if hasattr(svc, "description") else "",
+                            )
+                except Exception as svc_exc:
+                    _LOGGER.warning("[PAIR] Could not list services: %s", svc_exc)
 
                 # Step 1c: Provision (Telink mesh session key exchange)
-                from tuya_ble_mesh.scanner import mac_to_bytes
-
+                _LOGGER.warning(
+                    "[PAIR] Step 6: provision(client, mesh_name, mesh_password)..."
+                )
                 session_key = await asyncio.wait_for(
                     provision(
                         client,
@@ -786,25 +846,32 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     ),
                     timeout=15.0,
                 )
-                _LOGGER.info(
-                    "[PAIR] Provisioning succeeded for %s (key length: %d)",
-                    mac,
+                _LOGGER.warning(
+                    "[PAIR] Step 6 OK: Provisioning succeeded (key length: %d)",
                     len(session_key),
                 )
 
                 # Disconnect — the coordinator will reconnect later
+                _LOGGER.warning("[PAIR] Step 7: Disconnecting...")
                 await client.disconnect()
-                _LOGGER.info("[PAIR] Disconnected from %s — pairing complete", mac)
+                _LOGGER.warning("[PAIR] Step 7 OK: Disconnected — pairing complete")
                 direct_ok = True
 
-            except asyncio.TimeoutError:
-                _LOGGER.warning("[PAIR] Timeout during pairing of %s", mac)
+            except asyncio.TimeoutError as te:
+                _LOGGER.warning(
+                    "[PAIR] TIMEOUT during pairing of %s: %s", mac, te, exc_info=True
+                )
+            except ImportError as ie:
+                _LOGGER.warning(
+                    "[PAIR] IMPORT ERROR during pairing: %s", ie, exc_info=True
+                )
             except Exception as exc:
                 _LOGGER.warning(
-                    "[PAIR] BLE pairing failed for %s: %s (%s) — trying bridge",
+                    "[PAIR] EXCEPTION during pairing of %s: %s (%s)",
                     mac,
                     exc,
                     type(exc).__name__,
+                    exc_info=True,
                 )
 
             if direct_ok:
@@ -1033,10 +1100,24 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         net_key = os.urandom(16)
         app_key = os.urandom(16)
 
-        _LOGGER.info(
-            "Auto-provisioning SIG Mesh device %s via local BLE adapter (unicast=0x%04X)",
-            mac,
+        # Enable max debug logging for SIG provisioning
+        import logging as _logging
+
+        for _log_name in (
+            "tuya_ble_mesh",
+            "tuya_ble_mesh.sig_mesh_provisioner",
+            "tuya_ble_mesh.sig_mesh_device",
+            "bleak",
+        ):
+            _logging.getLogger(_log_name).setLevel(_logging.DEBUG)
+
+        _LOGGER.warning(
+            "[SIG-PAIR] ===== SIG PROVISIONING START for %s (v0.25.14) =====", mac
+        )
+        _LOGGER.warning(
+            "[SIG-PAIR] unicast=0x%04X, iv_index=%d, adapter=hci0",
             _UNICAST_DEVICE_DEFAULT,
+            DEFAULT_IV_INDEX,
         )
 
         # Phase 1: PB-GATT provisioning — direct bleak, not via HA BLE manager/proxy
