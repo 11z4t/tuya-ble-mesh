@@ -115,6 +115,7 @@ class TestFullLifecycle:
             patch(
                 "custom_components.tuya_ble_mesh.TuyaBLEMeshDeviceRegistry",
                 return_value=mock_registry,
+                create=True,
             ),
         ):
             mock_device = MagicMock()
@@ -192,7 +193,8 @@ class TestFullLifecycle:
             await coord.async_start()
 
         # Mark as connected
-        coord._state.available = True
+        from dataclasses import replace as dc_replace
+        coord._state = dc_replace(coord._state, available=True)
 
         # Entity should now be available
         assert light.available is True
@@ -248,6 +250,7 @@ class TestFullLifecycle:
             patch(
                 "custom_components.tuya_ble_mesh.TuyaBLEMeshDeviceRegistry",
                 return_value=mock_registry,
+                create=True,
             ),
         ):
             mock_device = MagicMock()
@@ -423,6 +426,7 @@ class TestRuntimeDataIntegrity:
             patch(
                 "custom_components.tuya_ble_mesh.TuyaBLEMeshDeviceRegistry",
                 return_value=mock_registry,
+                create=True,
             ),
         ):
             mock_device = MagicMock()
@@ -463,5 +467,5 @@ class TestRuntimeDataIntegrity:
         light = TuyaBLEMeshLight(runtime.coordinator, mock_entry)
 
         # Verify entity has access to coordinator
-        assert light._coordinator is not None
-        assert light._coordinator.device.address == "DC:23:4D:21:43:A5"
+        assert light.coordinator is not None
+        assert light.coordinator.device.address == "DC:23:4D:21:43:A5"

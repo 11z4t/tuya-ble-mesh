@@ -298,6 +298,7 @@ class TestDiagnosticsBasics:
         mock_config_entry = MagicMock()
         mock_config_entry.entry_id = "test_entry"
         mock_config_entry.data = {"address": "DC:23:4D:21:43:A5"}
+        mock_config_entry.runtime_data = None  # Prevent MagicMock from returning truthy value
 
         mock_device = MagicMock()
         type(mock_device).address = property(lambda self: "DC:23:4D:21:43:A5")
