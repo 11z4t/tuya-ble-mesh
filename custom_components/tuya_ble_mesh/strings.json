@@ -52,15 +52,9 @@
         "data": {}
       },
       "confirm": {
-        "title": "{name} ({mac})",
-        "description": "**{category}** device discovered\n\n- **Name:** {name}\n- **MAC:** {mac}\n- **Signal:** {rssi} dBm\n\nChoose device type and verify mesh credentials.",
-        "data": {
-          "device_type": "Device Type",
-          "mesh_name": "Mesh Name",
-          "mesh_password": "Mesh Password",
-          "vendor_id": "Vendor ID (hex)",
-          "mesh_address": "Mesh Address (0 = auto)"
-        }
+        "title": "{name}",
+        "description": "**{category}** device discovered\n\n- **Name:** {name}\n- **MAC:** {mac}\n- **Signal:** {rssi} dBm\n\nClick Submit to pair and add this device.",
+        "data": {}
       },
       "reauth_confirm": {
         "title": "Re-enter Credentials",
@@ -96,7 +90,8 @@
       "device_not_found": "Device MAC not visible from bridge. Ensure the device is powered and within BLE range.",
       "timeout": "Operation timed out. The bridge or device did not respond in time.",
       "unknown_protocol": "Protocol negotiation failed. This may indicate a bridge firmware mismatch.",
-      "cannot_connect": "Cannot connect to bridge daemon. Verify host/port and that the daemon is running.",
+      "cannot_connect": "Could not connect to the device. Ensure it is powered on, within BLE range, and in pairing mode.",
+      "pairing_failed": "Pairing failed. The device did not respond or rejected the connection. Ensure it is in factory-reset state and within BLE range.",
       "provisioning_failed": "Provisioning failed. Ensure the device is in factory-reset state (LED flashing), within BLE range, and try again. Check HA logs for details."
     },
     "abort": {
