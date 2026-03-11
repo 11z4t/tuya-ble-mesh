@@ -541,6 +541,19 @@ class SIGMeshProvisioner:
                 )
                 raise ProvisioningError(msg)
 
+        # BlueZ requires pairing (bonding) before CCCD writes work on some devices.
+        # Without this, start_notify fails with "org.bluez.Error.Failed: Failed to subscribe".
+        try:
+            if hasattr(client, "pair"):
+                _LOGGER.info("Provisioning: pairing (BlueZ bond) before GATT subscribe")
+                await asyncio.wait_for(client.pair(), timeout=10.0)
+        except Exception as pair_exc:
+            _LOGGER.warning(
+                "BlueZ pair() failed (%s: %s) — trying start_notify anyway",
+                type(pair_exc).__name__,
+                pair_exc,
+            )
+
         await client.start_notify(PROV_DATA_OUT, _on_notify)
 
         # ---- Step 1: Invite ----
