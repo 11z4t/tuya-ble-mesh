@@ -749,11 +749,13 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 except Exception:
                     pass
 
+                # Strip 0x prefix for bytes.fromhex
+                vid_hex = DEFAULT_VENDOR_ID.replace("0x", "").replace("0X", "")
                 device = MeshDevice(
                     mac,
                     DEFAULT_FACTORY_MESH_NAME.encode("utf-8"),
                     DEFAULT_FACTORY_MESH_PASSWORD.encode("utf-8"),  # pragma: allowlist secret
-                    vendor_id=bytes.fromhex(DEFAULT_VENDOR_ID),
+                    vendor_id=bytes.fromhex(vid_hex),
                     ble_device_callback=ble_device_cb,
                 )
                 await device.connect(timeout=15.0, max_retries=3)
@@ -761,7 +763,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 _LOGGER.info("Direct BLE pairing succeeded for %s", mac)
                 direct_ok = True
             except Exception as exc:
-                _LOGGER.info("Direct BLE pairing failed for %s: %s — trying bridge", mac, exc)
+                _LOGGER.warning("Direct BLE pairing failed for %s: %s — trying bridge", mac, exc)
 
             if direct_ok:
                 return self.async_create_entry(
