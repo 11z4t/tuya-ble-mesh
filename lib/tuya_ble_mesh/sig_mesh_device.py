@@ -115,6 +115,7 @@ class SIGMeshDevice:
         op_item_prefix: str = "s17",
         iv_index: int = 0,
         ble_device_callback: Any = None,
+        adapter: str | None = None,
     ) -> None:
         """Initialize a SIG Mesh device interface.
 
@@ -127,6 +128,8 @@ class SIGMeshDevice:
             iv_index: Mesh IV Index.
             ble_device_callback: Optional callback(address) → BLEDevice for
                 HA Bluetooth Proxy support. If None, uses BleakScanner.
+            adapter: BLE adapter name (e.g. "hci0"). Forces scan and connect
+                via this specific adapter, bypassing HA's habluetooth routing.
         """
         self._address = address.upper()
         self._target_addr = target_addr
@@ -135,6 +138,7 @@ class SIGMeshDevice:
         self._op_item_prefix = op_item_prefix
         self._iv_index = iv_index
         self._ble_device_callback = ble_device_callback
+        self._adapter = adapter
 
         self._client: BleakClient | None = None
         self._keys: MeshKeys | None = None
@@ -301,22 +305,43 @@ class SIGMeshDevice:
                 if self._ble_device_callback is not None:
                     device = self._ble_device_callback(self._address)
                 else:
+                    scan_kwargs: dict[str, Any] = {"timeout": timeout}
+                    if self._adapter is not None:
+                        scan_kwargs["adapter"] = self._adapter
+                    _LOGGER.debug(
+                        "Scanning for %s (adapter=%s)",
+                        self._address,
+                        self._adapter or "default",
+                    )
                     device = await BleakScanner.find_device_by_address(
-                        self._address, timeout=timeout
+                        self._address, **scan_kwargs
                     )
                 if device is None:
                     msg = f"Device {self._address} not found"
                     raise MeshConnectionError(msg)
 
-                client = BleakClient(
-                    device,
-                    timeout=timeout,
-                    disconnected_callback=self._on_ble_disconnect,
-                )
+                client_kwargs: dict[str, Any] = {
+                    "timeout": timeout,
+                    "disconnected_callback": self._on_ble_disconnect,
+                }
+                if self._adapter is not None:
+                    client_kwargs["adapter"] = self._adapter
+                client = BleakClient(device, **client_kwargs)
                 await client.connect()
 
                 # Subscribe to Proxy Data Out notifications
-                await client.start_notify(SIG_MESH_PROXY_DATA_OUT, self._on_notify)
+                # Wrap in try/except: on some BlueZ versions, start_notify
+                # triggers EOFError on the D-Bus connection for mesh devices.
+                try:
+                    await client.start_notify(SIG_MESH_PROXY_DATA_OUT, self._on_notify)
+                except (EOFError, Exception) as notify_exc:
+                    _LOGGER.warning(
+                        "Notification subscription failed for %s: %s (%s) — "
+                        "device will work but won't receive push status updates",
+                        self._address,
+                        notify_exc,
+                        type(notify_exc).__name__,
+                    )
 
                 self._client = client
                 _LOGGER.info("Connected to %s", self._address)
