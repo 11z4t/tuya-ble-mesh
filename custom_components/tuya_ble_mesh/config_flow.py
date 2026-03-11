@@ -736,13 +736,17 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             # Step 1: Try direct BLE pairing
             direct_ok = False
             try:
-                from homeassistant.components.bluetooth import async_ble_device_from_address
                 from tuya_ble_mesh.device import MeshDevice
 
+                # Strip 0x prefix for bytes.fromhex
+                vid_hex = DEFAULT_VENDOR_ID.replace("0x", "").replace("0X", "")
+
+                # Try HA bluetooth manager first, then direct bleak
                 ble_device_cb = None
                 try:
+                    from homeassistant.components.bluetooth import async_ble_device_from_address
+
                     def _ble_cb(addr: str) -> Any:
-                        # Try connectable first, fall back to non-connectable
                         dev = async_ble_device_from_address(
                             self.hass, addr.upper(), connectable=True
                         )
@@ -755,8 +759,6 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 except Exception:
                     pass
 
-                # Strip 0x prefix for bytes.fromhex
-                vid_hex = DEFAULT_VENDOR_ID.replace("0x", "").replace("0X", "")
                 device = MeshDevice(
                     mac,
                     DEFAULT_FACTORY_MESH_NAME.encode("utf-8"),
@@ -764,10 +766,25 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     vendor_id=bytes.fromhex(vid_hex),
                     ble_device_callback=ble_device_cb,
                 )
-                await device.connect(timeout=15.0, max_retries=3)
-                await device.disconnect()
-                _LOGGER.info("Direct BLE pairing succeeded for %s", mac)
-                direct_ok = True
+
+                try:
+                    await device.connect(timeout=15.0, max_retries=3)
+                    await device.disconnect()
+                    _LOGGER.info("Direct BLE pairing succeeded for %s", mac)
+                    direct_ok = True
+                except Exception as exc1:
+                    _LOGGER.info("HA BLE pairing failed for %s: %s — trying direct bleak", mac, exc1)
+                    # Fallback: connect without ble_device_callback (pure bleak by MAC)
+                    device2 = MeshDevice(
+                        mac,
+                        DEFAULT_FACTORY_MESH_NAME.encode("utf-8"),
+                        DEFAULT_FACTORY_MESH_PASSWORD.encode("utf-8"),  # pragma: allowlist secret
+                        vendor_id=bytes.fromhex(vid_hex),
+                    )
+                    await device2.connect(timeout=20.0, max_retries=3)
+                    await device2.disconnect()
+                    _LOGGER.info("Direct bleak pairing succeeded for %s", mac)
+                    direct_ok = True
             except Exception as exc:
                 _LOGGER.warning("Direct BLE pairing failed for %s: %s — trying bridge", mac, exc)
 
