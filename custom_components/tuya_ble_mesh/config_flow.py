@@ -903,16 +903,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         if user_input is not None and self._discovery_info is not None:
             mac = self._discovery_info["address"]
 
-            # Fast-fail: if device is not visible in the BLE registry, abort early
-            # rather than spending 5 retry attempts on an invisible device.
-            from homeassistant.components import bluetooth as _ha_bt
-
-            _ble = _ha_bt.async_ble_device_from_address(self.hass, mac.upper(), connectable=True)
-            if _ble is None:
-                _ble = _ha_bt.async_ble_device_from_address(self.hass, mac.upper(), connectable=False)
-            if _ble is None:
-                _LOGGER.warning("SIG Mesh device %s not found via BLE registry — aborting", mac)
-                return self.async_abort(reason="device_not_found")
+            # Device visibility is confirmed by discovery — no need to re-check
+            # via HA BLE registry (which may route through ESPHome proxy).
 
             try:
                 net_key_hex, dev_key_hex, app_key_hex = await self._run_provision(mac)
@@ -947,7 +939,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 await self.async_set_unique_id(mac)
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
-                    title=f"SIG Mesh {mac[-8:]}",
+                    title=f"BLE Plug {mac[-8:]}",
                     data={
                         CONF_MAC_ADDRESS: mac,
                         CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG,
@@ -982,9 +974,6 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         Raises:
             ProvisioningError: If PB-GATT provisioning fails.
         """
-        from bleak import BleakClient
-        from bleak_retry_connector import establish_connection
-        from homeassistant.components import bluetooth as ha_bluetooth
         from tuya_ble_mesh.secrets import DictSecretsManager
         from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
         from tuya_ble_mesh.sig_mesh_provisioner import SIGMeshProvisioner
@@ -994,50 +983,18 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         app_key = os.urandom(16)
 
         _LOGGER.info(
-            "Auto-provisioning SIG Mesh device %s (unicast=0x%04X)",
+            "Auto-provisioning SIG Mesh device %s via local BLE adapter (unicast=0x%04X)",
             mac,
             _UNICAST_DEVICE_DEFAULT,
         )
 
-        def _ble_device_cb(address: str) -> Any:
-            """Look up BLEDevice via HA bluetooth registry (non-connectable OK)."""
-            device = ha_bluetooth.async_ble_device_from_address(
-                self.hass, address.upper(), connectable=True
-            )
-            if device is None:
-                _LOGGER.debug(
-                    "No connectable BLEDevice for %s, trying non-connectable", address
-                )
-                device = ha_bluetooth.async_ble_device_from_address(
-                    self.hass, address.upper(), connectable=False
-                )
-            if device is None:
-                _LOGGER.warning(
-                    "BLEDevice not found in HA bluetooth registry for %s. "
-                    "Ensure device is in range of a BLE adapter or ESPHome BLE proxy.",
-                    address,
-                )
-            else:
-                _LOGGER.debug("Found BLEDevice for %s: %s", address, device)
-            return device
-
-        async def _ble_connect_cb(ble_device: Any) -> BleakClient:
-            """Connect via bleak-retry-connector to avoid HA BleakClient warning."""
-            return await establish_connection(
-                BleakClient,
-                ble_device,
-                ble_device.address,
-                max_attempts=5,
-            )
-
-        # Phase 1: PB-GATT provisioning
+        # Phase 1: PB-GATT provisioning — direct bleak, not via HA BLE manager/proxy
+        # Provisioning requires full GATT connection that only the local adapter can do.
         provisioner = SIGMeshProvisioner(
             net_key=net_key,
             app_key=app_key,
             unicast_addr=_UNICAST_DEVICE_DEFAULT,
             iv_index=DEFAULT_IV_INDEX,
-            ble_device_callback=_ble_device_cb,
-            ble_connect_callback=_ble_connect_cb,
         )
         result = await provisioner.provision(mac)
 
