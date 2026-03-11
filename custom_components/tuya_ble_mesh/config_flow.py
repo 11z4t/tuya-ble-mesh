@@ -760,7 +760,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             _LOGGER.setLevel(_logging.DEBUG)
 
             _LOGGER.warning(
-                "[PAIR] ===== PAIRING START for %s (v0.25.16) =====", mac
+                "[PAIR] ===== PAIRING START for %s (v0.25.20) =====", mac
             )
             _LOGGER.warning(
                 "[PAIR] auto_type=%s, type_label=%s, short_mac=%s",
@@ -812,32 +812,65 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     type(ble_device).__name__,
                 )
 
-                # Step 1b: Connect via REAL BlueZ backend (bypass habluetooth wrapper)
-                # habluetooth monkey-patches bleak.BleakClient → HaBleakClientWrapper
-                # which routes connect() through ESPHome proxy. Using the raw BlueZ
-                # D-Bus backend directly avoids this interception.
+                # Step 4b: Remove stale BlueZ device entry to avoid connect conflicts
+                _LOGGER.warning("[PAIR] Step 4b: Removing stale BlueZ device %s...", mac)
+                try:
+                    import subprocess
+                    mac_underscored = mac.replace(":", "_")
+                    subprocess.run(
+                        ["bluetoothctl", "remove", mac],
+                        capture_output=True, timeout=5,
+                    )
+                    _LOGGER.warning("[PAIR] Step 4b: BlueZ device removed (or didn't exist)")
+                    await asyncio.sleep(1.0)  # Let BlueZ settle
+                except Exception as rm_exc:
+                    _LOGGER.warning("[PAIR] Step 4b: Could not remove BlueZ device: %s", rm_exc)
+
+                # Step 4c: Re-scan for fresh BLEDevice after removal
+                _LOGGER.warning("[PAIR] Step 4c: Re-scanning for %s...", mac)
+                ble_device = await asyncio.wait_for(
+                    _RawBleakScanner.find_device_by_address(
+                        mac, timeout=10.0, adapter="hci0"
+                    ),
+                    timeout=15.0,
+                )
+                if ble_device is None:
+                    _LOGGER.warning("[PAIR] Step 4c FAILED: Device %s not found after re-scan", mac)
+                    raise TimeoutError(f"Device {mac} not found after BlueZ cleanup")
+                _LOGGER.warning("[PAIR] Step 4c OK: Fresh device found")
+
+                # Step 5: Connect via REAL BlueZ backend (bypass habluetooth wrapper)
                 _LOGGER.warning(
-                    "[PAIR] Step 5: BleakClientBlueZDBus(%s, adapter=hci0, timeout=15)...",
+                    "[PAIR] Step 5: BleakClientBlueZDBus(%s, adapter=hci0, timeout=20)...",
                     mac,
                 )
-                client = _RawBleakClient(ble_device, adapter="hci0", timeout=15.0)
+                client = _RawBleakClient(ble_device, adapter="hci0", timeout=20.0)
                 _LOGGER.warning("[PAIR] Step 5a: client.connect() starting (raw BlueZ, no habluetooth)...")
-                # BleakClientBlueZDBus.connect() requires 'pair' positional arg in some
-                # bleak versions, but not all. Try without first, then with pair=False.
                 try:
-                    await asyncio.wait_for(client.connect(pair=False), timeout=15.0)
+                    await asyncio.wait_for(client.connect(pair=False), timeout=20.0)
                 except TypeError:
                     _LOGGER.warning("[PAIR] Step 5a: pair= not supported, retrying without")
-                    await asyncio.wait_for(client.connect(), timeout=15.0)
+                    await asyncio.wait_for(client.connect(), timeout=20.0)
                 except asyncio.TimeoutError:
                     _LOGGER.warning("[PAIR] Step 5a: connect(pair=False) timed out, retrying with pair=True")
-                    # Some devices need BlueZ bonding to complete GATT connection
                     try:
                         await client.disconnect()
                     except Exception:
                         pass
-                    client = _RawBleakClient(ble_device, adapter="hci0", timeout=15.0)
-                    await asyncio.wait_for(client.connect(pair=True), timeout=20.0)
+                    # Re-remove + re-scan before retry
+                    try:
+                        subprocess.run(["bluetoothctl", "remove", mac], capture_output=True, timeout=5)
+                        await asyncio.sleep(2.0)
+                    except Exception:
+                        pass
+                    ble_device = await asyncio.wait_for(
+                        _RawBleakScanner.find_device_by_address(mac, timeout=10.0, adapter="hci0"),
+                        timeout=15.0,
+                    )
+                    if ble_device is None:
+                        raise TimeoutError(f"Device {mac} not found after second cleanup")
+                    client = _RawBleakClient(ble_device, adapter="hci0", timeout=20.0)
+                    await asyncio.wait_for(client.connect(pair=True), timeout=25.0)
                 _LOGGER.warning(
                     "[PAIR] Step 5 OK: GATT connected (is_connected=%s, mtu=%s)",
                     client.is_connected,
@@ -1135,7 +1168,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             _logging.getLogger(_log_name).setLevel(_logging.DEBUG)
 
         _LOGGER.warning(
-            "[SIG-PAIR] ===== SIG PROVISIONING START for %s (v0.25.16) =====", mac
+            "[SIG-PAIR] ===== SIG PROVISIONING START for %s (v0.25.20) =====", mac
         )
         _LOGGER.warning(
             "[SIG-PAIR] unicast=0x%04X, iv_index=%d, adapter=hci0",
@@ -1215,6 +1248,15 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                         mac,
                         _MODEL_GENERIC_ONOFF_SERVER,
                     )
+
+                # Send timestamp sync to finalize Tuya vendor setup
+                try:
+                    from tuya_ble_mesh.sig_mesh_protocol import tuya_vendor_timestamp_response
+                    ts_payload = tuya_vendor_timestamp_response()
+                    await device.send_vendor_command(ts_payload)
+                    _LOGGER.warning("[SIG-PAIR] Timestamp sync sent to %s", mac)
+                except Exception as ts_exc:
+                    _LOGGER.warning("[SIG-PAIR] Timestamp sync failed: %s", ts_exc)
 
                 post_prov_ok = True
                 _LOGGER.warning(

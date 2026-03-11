@@ -741,8 +741,14 @@ def parse_access_opcode(data: bytes) -> tuple[int, bytes]:
 # Tuya Vendor Model (CID 0x07D0)
 # ============================================================
 
-# Tuya vendor opcode (3-byte: 0xCD D0 07)
-TUYA_VENDOR_OPCODE = 0xCDD007
+# Tuya vendor opcodes (3-byte: opcode_byte + D0 07)
+TUYA_VENDOR_OPCODE = 0xCDD007  # DATA: device → client status/report
+TUYA_VENDOR_WRITE_ACK = 0xC9D007  # WRITE: client → device with ACK
+TUYA_VENDOR_WRITE_UNACK = 0xCAD007  # WRITE: client → device no ACK
+
+# Tuya vendor frame command types
+TUYA_CMD_DP_DATA = 0x01
+TUYA_CMD_TIMESTAMP_SYNC = 0x02
 
 # Tuya DP IDs (tentative — log raw values for HW verification)
 DP_ID_SWITCH = 1
@@ -761,10 +767,63 @@ class TuyaVendorDP:
     value: bytes
 
 
+@dataclass(frozen=True)
+class TuyaVendorFrame:
+    """Parsed Tuya vendor message frame."""
+
+    command: int  # 0x01=DP data, 0x02=timestamp sync
+    data: bytes  # Raw data after header
+    dps: list[TuyaVendorDP]  # Parsed DPs (only if command=0x01)
+
+
+def parse_tuya_vendor_frame(params: bytes) -> TuyaVendorFrame:
+    """Parse a Tuya vendor message with frame header.
+
+    Tuya vendor format: ``[command 1B][data_length 1B][data NB]``
+    where command 0x01 = DP data, 0x02 = timestamp sync.
+
+    Falls back to raw DP parsing if frame header looks invalid
+    (for compatibility with devices that don't use the frame header).
+
+    Args:
+        params: Raw parameter bytes after the vendor opcode.
+
+    Returns:
+        Parsed TuyaVendorFrame.
+    """
+    if len(params) < 2:
+        _LOGGER.debug("Vendor frame too short (%d bytes)", len(params))
+        return TuyaVendorFrame(command=0, data=params, dps=[])
+
+    command = params[0]
+    data_len = params[1]
+    data = params[2:]
+
+    if command == TUYA_CMD_TIMESTAMP_SYNC:
+        _LOGGER.debug(
+            "Tuya timestamp sync request (%d data bytes): %s",
+            len(data),
+            data.hex(),
+        )
+        return TuyaVendorFrame(command=command, data=data, dps=[])
+
+    if command == TUYA_CMD_DP_DATA:
+        dps = _parse_dp_bytes(data)
+        return TuyaVendorFrame(command=command, data=data, dps=dps)
+
+    # Unknown command or no frame header — try raw DP parse
+    _LOGGER.debug(
+        "Unknown vendor command 0x%02X, trying raw DP parse on full params",
+        command,
+    )
+    dps = _parse_dp_bytes(params)
+    return TuyaVendorFrame(command=command, data=params, dps=dps)
+
+
 def parse_tuya_vendor_dps(params: bytes) -> list[TuyaVendorDP]:
     """Parse Tuya vendor DP values from access layer parameters.
 
-    Format: ``[dp_id 1B][dp_type 1B][dp_len 1B][value NB]...``
+    Handles both framed (command+length+data) and raw DP formats.
 
     Args:
         params: Raw parameter bytes after the vendor opcode.
@@ -772,28 +831,59 @@ def parse_tuya_vendor_dps(params: bytes) -> list[TuyaVendorDP]:
     Returns:
         List of parsed TuyaVendorDP.
     """
+    frame = parse_tuya_vendor_frame(params)
+    return frame.dps
+
+
+def _parse_dp_bytes(data: bytes) -> list[TuyaVendorDP]:
+    """Parse raw DP bytes: ``[dp_id 1B][dp_type 1B][dp_len 1B][value NB]...``"""
     dps: list[TuyaVendorDP] = []
     offset = 0
-    while offset < len(params):
-        if offset + 3 > len(params):
+    while offset < len(data):
+        if offset + 3 > len(data):
             _LOGGER.debug("Truncated DP header at offset %d", offset)
             break
-        dp_id = params[offset]
-        dp_type = params[offset + 1]
-        dp_len = params[offset + 2]
+        dp_id = data[offset]
+        dp_type = data[offset + 1]
+        dp_len = data[offset + 2]
         offset += 3
-        if offset + dp_len > len(params):
+        if offset + dp_len > len(data):
             _LOGGER.debug(
                 "Truncated DP value: dp_id=%d, need %d bytes, have %d",
                 dp_id,
                 dp_len,
-                len(params) - offset,
+                len(data) - offset,
             )
             break
-        value = params[offset : offset + dp_len]
+        value = data[offset : offset + dp_len]
         offset += dp_len
         dps.append(TuyaVendorDP(dp_id=dp_id, dp_type=dp_type, value=value))
     return dps
+
+
+def tuya_vendor_timestamp_response() -> bytes:
+    """Build a Tuya vendor WRITE_UNACK payload with current UTC timestamp.
+
+    Format: 3-byte opcode (0xCA D0 07) + [cmd=0x02][len=0x08][timestamp 4B BE][timezone 1B][padding 3B]
+
+    Returns:
+        Access layer payload for timestamp sync response.
+    """
+    import time
+
+    now = int(time.time())
+    # Opcode: 0xCAD007 → bytes CA D0 07
+    opcode_bytes = b"\xCA\xD0\x07"
+    # Timestamp: 4 bytes big-endian UTC seconds
+    ts_bytes = now.to_bytes(4, "big")
+    # Timezone offset: signed byte (UTC+0 = 0, UTC+1 = 1, etc.)
+    # Use local timezone
+    tz_offset = time.timezone // -3600 if not time.daylight else time.altzone // -3600
+    tz_byte = tz_offset.to_bytes(1, "big", signed=True) if -12 <= tz_offset <= 14 else b"\x00"
+    # Pad to 8 data bytes (observed in Tuya app traces)
+    data = ts_bytes + tz_byte + b"\x00\x00\x00"
+    frame = bytes([TUYA_CMD_TIMESTAMP_SYNC, len(data)]) + data
+    return opcode_bytes + frame
 
 
 # ============================================================
