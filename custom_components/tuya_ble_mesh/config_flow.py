@@ -677,7 +677,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         }
 
         await self.async_set_unique_id(address)
-        self._abort_if_unique_id_configured(updates={CONF_MAC_ADDRESS: address})
+        self._abort_if_unique_id_configured(updates={})
 
         # Check device is still reachable (stale discovery protection)
         try:
