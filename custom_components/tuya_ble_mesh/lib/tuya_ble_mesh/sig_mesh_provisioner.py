@@ -174,6 +174,7 @@ class SIGMeshProvisioner:
         flags: int = 0,
         ble_device_callback: Any | None = None,
         ble_connect_callback: Callable[[Any], Awaitable[BleakClient]] | None = None,
+        adapter: str | None = None,
     ) -> None:
         """Initialize the provisioner.
 
@@ -191,6 +192,9 @@ class SIGMeshProvisioner:
                 BleakClient.connect() directly. Pass a callback that uses
                 bleak-retry-connector to avoid the "BleakClient.connect()
                 called without bleak-retry-connector" warning in HA.
+            adapter: BLE adapter name (e.g. "hci0"). If set, forces scan
+                and connect via this specific adapter, bypassing HA's
+                habluetooth routing.
 
         Raises:
             ProvisioningError: If key lengths are invalid.
@@ -210,6 +214,7 @@ class SIGMeshProvisioner:
         self._flags = flags
         self._ble_device_callback = ble_device_callback
         self._ble_connect_callback = ble_connect_callback
+        self._adapter = adapter
 
         # Generate ECDH P-256 key pair
         self._private_key = generate_private_key(SECP256R1())
@@ -298,9 +303,17 @@ class SIGMeshProvisioner:
                 if self._ble_device_callback is not None:
                     device = self._ble_device_callback(address)
                 else:
-                    _LOGGER.debug("Scanning for device %s (timeout=%.1fs)", address, timeout)
+                    scan_kwargs: dict[str, Any] = {"timeout": timeout}
+                    if self._adapter is not None:
+                        scan_kwargs["adapter"] = self._adapter
+                    _LOGGER.debug(
+                        "Scanning for device %s (timeout=%.1fs, adapter=%s)",
+                        address,
+                        timeout,
+                        self._adapter or "default",
+                    )
                     device = await asyncio.wait_for(
-                        BleakScanner.find_device_by_address(address, timeout=timeout),
+                        BleakScanner.find_device_by_address(address, **scan_kwargs),
                         timeout=timeout + 5.0,  # Add buffer for scan overhead
                     )
 
@@ -327,7 +340,10 @@ class SIGMeshProvisioner:
                         timeout=timeout + 10.0,
                     )
                 else:
-                    client = BleakClient(device, timeout=timeout)
+                    client_kwargs: dict[str, Any] = {"timeout": timeout}
+                    if self._adapter is not None:
+                        client_kwargs["adapter"] = self._adapter
+                    client = BleakClient(device, **client_kwargs)
                     await asyncio.wait_for(
                         client.connect(),
                         timeout=timeout,

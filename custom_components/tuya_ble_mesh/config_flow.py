@@ -733,28 +733,79 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             short_mac = mac[-8:]
             type_label = "Plug" if auto_type == DEVICE_TYPE_PLUG else "Light"
 
-            # Step 1: Pair via local BLE adapter (direct bleak, NOT via proxy)
+            # Step 1: Pair via local BLE adapter (hci0, NOT via ESPHome proxy)
             # Discovery happens via ESPHome proxy (passive scan), but pairing
             # requires full GATT connection — only the local USB adapter can do this.
             # After pairing, normal control can go via proxy.
+            # We force adapter="hci0" to bypass HA's habluetooth which would
+            # route through the proxy (causing hangs on Telink GATT).
             direct_ok = False
             try:
-                from tuya_ble_mesh.device import MeshDevice
+                _LOGGER.info(
+                    "[PAIR] Starting Telink pairing for %s (factory defaults)", mac
+                )
+                from bleak import BleakClient as _RawBleakClient
+                from bleak import BleakScanner as _RawBleakScanner
+
+                from tuya_ble_mesh.provisioner import provision
 
                 vid_hex = DEFAULT_VENDOR_ID.replace("0x", "").replace("0X", "")
-                device = MeshDevice(
-                    mac,
-                    DEFAULT_FACTORY_MESH_NAME.encode("utf-8"),
-                    DEFAULT_FACTORY_MESH_PASSWORD.encode("utf-8"),  # pragma: allowlist secret
-                    vendor_id=bytes.fromhex(vid_hex),
+
+                # Step 1a: Scan for device on LOCAL adapter (hci0)
+                _LOGGER.info("[PAIR] Scanning for %s on hci0 (10s timeout)...", mac)
+                ble_device = await asyncio.wait_for(
+                    _RawBleakScanner.find_device_by_address(
+                        mac, timeout=10.0, adapter="hci0"
+                    ),
+                    timeout=15.0,
                 )
-                _LOGGER.info("Pairing %s via local BLE adapter (direct bleak)", mac)
-                await device.connect(timeout=20.0, max_retries=5)
-                await device.disconnect()
-                _LOGGER.info("BLE pairing succeeded for %s", mac)
+
+                if ble_device is None:
+                    _LOGGER.warning("[PAIR] Device %s not found on hci0 scan", mac)
+                    raise TimeoutError(f"Device {mac} not found on local BLE adapter")
+
+                _LOGGER.info(
+                    "[PAIR] Found %s (name=%s) on hci0, connecting...",
+                    mac,
+                    ble_device.name,
+                )
+
+                # Step 1b: Connect via local adapter (bypass habluetooth)
+                client = _RawBleakClient(ble_device, adapter="hci0", timeout=15.0)
+                await asyncio.wait_for(client.connect(), timeout=20.0)
+                _LOGGER.info("[PAIR] GATT connected to %s, provisioning...", mac)
+
+                # Step 1c: Provision (Telink mesh session key exchange)
+                from tuya_ble_mesh.scanner import mac_to_bytes
+
+                session_key = await asyncio.wait_for(
+                    provision(
+                        client,
+                        DEFAULT_FACTORY_MESH_NAME.encode("utf-8"),
+                        DEFAULT_FACTORY_MESH_PASSWORD.encode("utf-8"),  # pragma: allowlist secret
+                    ),
+                    timeout=15.0,
+                )
+                _LOGGER.info(
+                    "[PAIR] Provisioning succeeded for %s (key length: %d)",
+                    mac,
+                    len(session_key),
+                )
+
+                # Disconnect — the coordinator will reconnect later
+                await client.disconnect()
+                _LOGGER.info("[PAIR] Disconnected from %s — pairing complete", mac)
                 direct_ok = True
+
+            except asyncio.TimeoutError:
+                _LOGGER.warning("[PAIR] Timeout during pairing of %s", mac)
             except Exception as exc:
-                _LOGGER.warning("BLE pairing failed for %s: %s — trying bridge", mac, exc)
+                _LOGGER.warning(
+                    "[PAIR] BLE pairing failed for %s: %s (%s) — trying bridge",
+                    mac,
+                    exc,
+                    type(exc).__name__,
+                )
 
             if direct_ok:
                 return self.async_create_entry(
@@ -995,6 +1046,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             app_key=app_key,
             unicast_addr=_UNICAST_DEVICE_DEFAULT,
             iv_index=DEFAULT_IV_INDEX,
+            adapter="hci0",  # Force local adapter, bypass ESPHome proxy
         )
         result = await provisioner.provision(mac)
 
