@@ -37,14 +37,9 @@
         "data": {}
       },
       "confirm": {
-        "title": "{name} ({mac})",
-        "description": "**{category}**-enhet hittad\n\n- **Namn:** {name}\n- **MAC:** {mac}\n- **Signal:** {rssi} dBm\n\nVälj enhetstyp och mesh-uppgifter.",
-        "data": {
-          "device_type": "Enhetstyp",
-          "mesh_name": "Mesh-namn",
-          "mesh_password": "Mesh-lösenord",
-          "mesh_address": "Mesh-adress (0 = auto)"
-        }
+        "title": "{name}",
+        "description": "**{category}**-enhet hittad\n\n- **Namn:** {name}\n- **MAC:** {mac}\n- **Signal:** {rssi} dBm\n\nKlicka Skicka för att para och lägga till enheten.",
+        "data": {}
       },
       "reauth_confirm": {
         "title": "Ange mesh-uppgifter igen",
@@ -74,7 +69,8 @@
       "invalid_bridge_host": "Ogiltig bridge-värd. Använd ett värdnamn eller IP-adress (inte en URL). Loopback- och länklocala adresser är inte tillåtna.",
       "invalid_credential_length": "Mesh-namn och lösenord måste vara 16 byte eller kortare.",
       "invalid_vendor_id": "Ogiltigt Vendor ID (förväntat 1–4 hex-siffror, t.ex. 0x1001).",
-      "cannot_connect": "Kan inte ansluta till bridge-daemon. Kontrollera värd/port och att daemon körs.",
+      "cannot_connect": "Kunde inte ansluta till enheten. Kontrollera att den är påslagen, inom BLE-räckvidd och i parningsläge.",
+      "pairing_failed": "Parning misslyckades. Enheten svarade inte eller avvisade anslutningen. Kontrollera att den är i fabriksåterställt läge och inom BLE-räckvidd.",
       "provisioning_failed": "Provisionering misslyckades. Kontrollera att enheten är i fabriksåterställt läge, inom BLE-räckvidd för en lokal adapter eller ESPHome BLE-proxy, och försök igen. Se Home Assistant-loggar för detaljer."
     },
     "abort": {
