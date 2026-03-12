@@ -188,9 +188,21 @@ class _CommandDispatcher:
                     self._queue.task_done()
                     continue
 
-                # Wait for device to be ready
-                while self._running and not self._device.is_connected:
-                    await asyncio.sleep(0.5)
+                # Wait for device to be ready (event-driven, no busy-wait)
+                if not self._device.is_connected:
+                    try:
+                        # Wait for connection with periodic checks of _running flag
+                        while self._running and not self._device.is_connected:
+                            try:
+                                await asyncio.wait_for(
+                                    self._device._connected_event.wait(), timeout=1.0
+                                )
+                            except TimeoutError:
+                                # Timeout allows checking _running flag periodically
+                                continue
+                    except asyncio.CancelledError:
+                        self._queue.task_done()
+                        raise
 
                 if not self._running:
                     self._queue.task_done()
@@ -264,6 +276,8 @@ class MeshDevice:
         self._status_callbacks: list[StatusCallback] = []
         self._disconnect_callbacks: list[DisconnectCallback] = []
         self._dispatcher = _CommandDispatcher(self)
+        # Event to signal connection state changes (for dispatcher worker)
+        self._connected_event = asyncio.Event()
         # Wire up notification and disconnect callbacks to BLEConnection
         self._conn.set_notification_handler(self._handle_notification)
         self._conn.register_disconnect_callback(self._on_disconnect)
@@ -358,6 +372,7 @@ class MeshDevice:
     def _on_disconnect(self) -> None:
         """Handle disconnect from BLEConnection."""
         _LOGGER.warning("Device disconnected: %s", self._address)
+        self._connected_event.clear()  # Signal dispatcher that device is no longer ready
         for callback in list(self._disconnect_callbacks):
             try:
                 callback()
@@ -381,6 +396,7 @@ class MeshDevice:
             ConnectionError: If connection or provisioning fails.
         """
         await self._conn.connect(timeout=timeout, max_retries=max_retries)
+        self._connected_event.set()  # Signal dispatcher that device is ready
         self._dispatcher.start()
 
     async def disconnect(self) -> None:
