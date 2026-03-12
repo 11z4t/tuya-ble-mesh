@@ -3,155 +3,166 @@
     "flow_title": "{name}",
     "step": {
       "user": {
-        "title": "Tuya BLE Mesh-apparaat",
-        "description": "Voer het BLE MAC-adres en het apparaattype in. Standaard mesh-inloggegevens (out_of_mesh/123456) zijn Tuya-fabrieksinstellingen.",
+        "title": "Apparaat Toevoegen",
+        "description": "Laten we je Tuya BLE Mesh apparaat verbinden met Home Assistant.\n\n**Wat je nodig hebt:**\n- Het MAC-adres van het apparaat (staat op het label of in de handleiding)\n- Het apparaattype (lamp, stopcontact, etc.)\n- Mesh-inloggegevens (als je deze niet hebt gewijzigd, gebruik dan de standaardinstellingen hieronder)\n\n**Volgende stap:** We gaan de verbindingsmethode instellen.",
         "data": {
-          "mac_address": "MAC-adres",
-          "mesh_name": "Meshnaam",
-          "mesh_password": "Meshwachtwoord",
-          "vendor_id": "Leveranciers-ID (hex, bv. 0x1001)",
+          "mac_address": "MAC-Adres",
+          "mesh_name": "Mesh-Naam",
+          "mesh_password": "Mesh-Wachtwoord",
+          "vendor_id": "Vendor ID (hex, bijv. 0x1001)",
           "device_type": "Apparaattype",
-          "mesh_address": "Mesh-adres (0 = automatisch)"
+          "mesh_address": "Mesh-Adres (0 = automatisch)"
         },
         "data_description": {
           "mac_address": "Formaat: XX:XX:XX:XX:XX:XX",
           "vendor_id": "Malmbergs=0x1001, AwoX=0x0160, Dimond=0x0211",
-          "mesh_name": "Fabrieksinstellingen: out_of_mesh (max. 16 bytes)",
-          "mesh_password": "Fabrieksinstellingen: 123456 (max. 16 bytes)"
+          "mesh_name": "Fabrieksinstellingen: out_of_mesh (max 16 bytes)",
+          "mesh_password": "Fabrieksinstellingen: 123456 (max 16 bytes)"
         }
       },
       "sig_bridge": {
-        "title": "SIG Mesh Bridge-configuratie",
-        "description": "Configureer de BLE bridge daemon voor **{name}**.\n\nDe bridge daemon moet actief zijn en bereikbaar vanuit Home Assistant. De verbinding wordt getest voordat u doorgaat.",
+        "title": "Verbinden met je Bridge",
+        "description": "Nu gaan we **{name}** verbinden via je bridge.\n\n**Wat is een bridge?** Het is een Raspberry Pi (of vergelijkbaar apparaat) dat opdrachten doorstuurt tussen Home Assistant en je BLE-apparaten.\n\n**Voordat je doorgaat:**\n- Zorg dat je bridge-apparaat is ingeschakeld\n- Controleer of het verbonden is met hetzelfde netwerk als Home Assistant\n\n**Volgende stap:** We testen de verbinding en ronden de installatie af.",
         "data": {
-          "bridge_host": "Bridge Host (IP-adres of hostnaam)",
-          "bridge_port": "Bridge Port",
-          "unicast_target": "Doel Unicast-adres (hex)"
+          "bridge_host": "Bridge-Host (IP-adres of hostnaam)",
+          "bridge_port": "Bridge-Poort",
+          "unicast_target": "Doel Unicast-Adres (hex)"
         },
         "data_description": {
-          "bridge_host": "IP-adres of hostnaam van de Raspberry Pi waarop de bridge daemon actief is",
+          "bridge_host": "IP-adres of hostnaam van de Raspberry Pi waarop de bridge-daemon draait",
           "bridge_port": "Standaard: 8099",
           "unicast_target": "Standaard: 00B0"
         }
       },
       "telink_bridge": {
-        "title": "Telink Bridge Light-configuratie",
-        "description": "Configureer de BLE bridge daemon voor **{name}**.\n\nDe bridge daemon moet actief zijn en bereikbaar vanuit Home Assistant. De verbinding wordt getest voordat u doorgaat.",
+        "title": "Verbinden met je Bridge",
+        "description": "Nu gaan we **{name}** verbinden via je bridge.\n\n**Wat is een bridge?** Het is een Raspberry Pi (of vergelijkbaar apparaat) dat opdrachten doorstuurt tussen Home Assistant en je BLE-apparaten.\n\n**Voordat je doorgaat:**\n- Zorg dat je bridge-apparaat is ingeschakeld\n- Controleer of het verbonden is met hetzelfde netwerk als Home Assistant\n\n**Volgende stap:** We testen de verbinding en ronden de installatie af.",
         "data": {
-          "bridge_host": "Bridge Host (IP-adres of hostnaam)",
-          "bridge_port": "Bridge Port"
+          "bridge_host": "Bridge-Host (IP-adres of hostnaam)",
+          "bridge_port": "Bridge-Poort"
         },
         "data_description": {
-          "bridge_host": "IP-adres of hostnaam van de Raspberry Pi waarop de bridge daemon actief is",
+          "bridge_host": "IP-adres of hostnaam van de Raspberry Pi waarop de bridge-daemon draait",
           "bridge_port": "Standaard: 8099"
         }
       },
       "sig_plug": {
-        "title": "SIG Mesh Stekker — Automatische provisioning",
-        "description": "Het apparaat **{name}** wordt automatisch voorzien.\n\nEen willekeurige NetKey en AppKey worden gegenereerd. De DevKey wordt afgeleid van de ECDH-provisioninguitwisseling. Alle sleutels worden veilig opgeslagen in de Home Assistant-config-database.\n\n**Voordat u op Indienen klikt:**\n- Zorg ervoor dat het apparaat in fabriekresetstand staat (LED knippert)\n- Zorg ervoor dat het zich binnen BLE-bereik bevindt van een lokale adapter of ESPHome BLE-proxy\n- Provisioning duurt ongeveer 10 seconden",
+        "title": "Klaar om te Koppelen",
+        "description": "Bijna klaar! We zijn klaar om **{name}** te koppelen.\n\n**Wat gebeurt er als je op Verzenden klikt:**\n1. Home Assistant genereert veilige versleutelingssleutels\n2. Het apparaat wordt automatisch gekoppeld (duurt ongeveer 10 seconden)\n3. Alle instellingen worden veilig opgeslagen\n\n**Zorg ervoor voordat je op Verzenden klikt:**\n- De LED van het apparaat knippert (zo niet, reset het apparaat dan door de stekker 5 keer snel uit en in te steken)\n- Het apparaat is binnen Bluetooth-bereik van Home Assistant of je BLE-proxy\n\n**Volgende stap:** Klik op Verzenden en wacht ongeveer 10 seconden.",
         "data": {}
       },
       "confirm": {
-        "title": "{name}",
-        "description": "**{category}** apparaat gevonden\n\n- **Naam:** {name}\n- **MAC:** {mac}\n- **Signaal:** {rssi} dBm\n\nKlik op Indienen om dit apparaat te koppelen en toe te voegen.",
+        "title": "Bijna Klaar!",
+        "description": "Geweldig! We hebben **{name}** gevonden.\n\n**Apparaatgegevens:**\n- MAC-adres: {mac}\n- Signaalsterkte: {rssi} dBm\n\n**Wat gebeurt er nu:**\nAls je op Verzenden klikt, koppelt Home Assistant dit apparaat en voegt het toe aan je systeem. Je kunt het meteen bedienen.\n\nKlaar? Klik op Verzenden om af te ronden!",
         "data": {}
       },
       "reauth_confirm": {
-        "title": "Inloggegevens opnieuw invoeren",
-        "description": "Verbinding mislukt — inloggegevens kunnen zijn gewijzigd. Voer deze opnieuw in om opnieuw verbinding te maken.",
+        "title": "Inloggegevens Opnieuw Invoeren",
+        "description": "Verbinding mislukt — inloggegevens zijn mogelijk gewijzigd. Voer ze opnieuw in om opnieuw verbinding te maken.",
         "data": {
-          "mesh_name": "Meshnaam",
-          "mesh_password": "Meshwachtwoord",
-          "bridge_host": "Bridge Host",
-          "bridge_port": "Bridge Port"
+          "mesh_name": "Mesh-Naam",
+          "mesh_password": "Mesh-Wachtwoord",
+          "bridge_host": "Bridge-Host",
+          "bridge_port": "Bridge-Poort"
         }
       },
       "reconfigure": {
-        "title": "Verbinding opnieuw configureren",
+        "title": "Verbinding Opnieuw Instellen",
         "description": "Werk de verbindingsinstellingen voor dit apparaat bij. Het MAC-adres en apparaattype kunnen hier niet worden gewijzigd.",
         "data": {
-          "mesh_name": "Meshnaam",
-          "mesh_password": "Meshwachtwoord",
-          "vendor_id": "Leveranciers-ID (hex)",
-          "bridge_host": "Bridge Host",
-          "bridge_port": "Bridge Port"
+          "mesh_name": "Mesh-Naam",
+          "mesh_password": "Mesh-Wachtwoord",
+          "vendor_id": "Vendor ID (hex)",
+          "bridge_host": "Bridge-Host",
+          "bridge_port": "Bridge-Poort"
         }
       }
     },
     "error": {
-      "invalid_mac": "Ongeldig MAC-adres-formaat. Verwacht XX:XX:XX:XX:XX:XX (met dubbele punten gescheiden hex).",
+      "invalid_mac": "Ongeldig MAC-adres formaat. Verwacht XX:XX:XX:XX:XX:XX (gescheiden door dubbele punten).",
       "invalid_key": "Ongeldig sleutelformaat (verwacht 32 hexadecimale tekens).",
-      "invalid_bridge_host": "Ongeldige bridge host. Voer een hostnaam of IP-adres in (geen URL). Loopback en link-local adressen zijn niet toegestaan.",
-      "invalid_credential_length": "Meshnaam en wachtwoord moeten elk 16 bytes of minder zijn.",
-      "invalid_vendor_id": "Ongeldig leveranciers-ID. Verwacht 1–4 hexadecimale cijfers met optioneel 0x-voorvoegsel (bv. 0x1001).",
-      "bridge_unreachable": "Kan de bridge daemon niet bereiken op de opgegeven host/poort. Controleer of de daemon actief is en dat Home Assistant deze op uw netwerk kan bereiken.",
-      "auth_or_mesh_mismatch": "Bridge bereikt maar apparaat weigerde de mesh-inloggegevens. Controleer de meshnaam en het wachtwoord.",
-      "unsupported_vendor": "Leveranciers-ID niet herkend. Controleer BLE snoop-logboeken voor de juiste vendorbytes.",
-      "device_not_found": "Apparaat-MAC niet zichtbaar vanuit bridge. Zorg ervoor dat het apparaat aanstaat en zich binnen BLE-bereik bevindt.",
-      "timeout": "Bewerking is verlopen. De bridge of het apparaat reageerde niet op tijd.",
-      "unknown_protocol": "Protocolonderhandeling mislukt. Dit kan duiden op een bridge-firmware-verschil.",
-      "cannot_connect": "Kan geen verbinding met het apparaat maken. Zorg ervoor dat het aanstaat, zich binnen BLE-bereik bevindt en zich in koppeelmodus bevindt.",
-      "pairing_failed": "Koppelen mislukt. Het apparaat reageerde niet of weigerde de verbinding. Zorg ervoor dat het zich in fabriekresetstand bevindt en zich binnen BLE-bereik bevindt.",
-      "provisioning_failed": "Provisioning mislukt. Zorg ervoor dat het apparaat in fabriekresetstand staat (LED knippert), zich binnen BLE-bereik bevindt en probeer het opnieuw. Controleer HA-logboeken voor meer informatie.",
-      "provisioning_appkey_failed": "Provisioning mislukt tijdens AppKey-binding. Dit betekent meestal dat het apparaat zich niet in fabriekresetstand bevindt. Probeer het apparaat naar fabrieksinstellingen te resetten (3-5 keer snel uit- en aansluiten) en probeer het opnieuw.",
-      "provisioning_proxy_failed": "Provisioning mislukt tijdens Proxy Service-configuratie. Het apparaat ondersteunt de Proxy Service niet of heeft deze uitgeschakeld. Controleer de apparaatdocumentatie of probeer een ander apparaat.",
-      "provisioning_pbgatt_failed": "Provisioning mislukt tijdens PB-GATT-verbinding. Het apparaat bevindt zich buiten BLE-bereik of reageert niet. Plaats het apparaat dichter bij de BLE-adapter of ESPHome-proxy en probeer het opnieuw."
+      "invalid_bridge_host": "Ongeldige bridge-host. Voer een hostnaam of IP-adres in (geen URL). Loopback- en link-local-adressen zijn niet toegestaan.",
+      "invalid_credential_length": "Mesh-naam en wachtwoord mogen elk maximaal 16 bytes zijn.",
+      "invalid_vendor_id": "Ongeldige Vendor ID. Verwacht 1-4 hexadecimale cijfers met optionele 0x-prefix (bijv. 0x1001).",
+      "bridge_unreachable": "We kunnen geen verbinding maken met je bridge.\n\n**Wat te controleren:**\n1. Is je bridge-apparaat (Raspberry Pi) ingeschakeld en verbonden met je netwerk?\n2. Zit het op hetzelfde netwerk als Home Assistant?\n3. Probeer de bridge te pingen vanaf een ander apparaat om de netwerkverbinding te controleren\n\n**Hoe op te lossen:**\n- Controleer de stroom- en netwerkkabels van de bridge\n- Controleer of het IP-adres correct is\n- Als je recent je netwerk hebt gewijzigd, moet je mogelijk de netwerkinstellingen van de bridge bijwerken",
+      "auth_or_mesh_mismatch": "Je wachtwoord komt niet overeen.\n\n**Wat dit betekent:**\nHet apparaat reageert, maar wijst de mesh-naam of het wachtwoord dat je hebt ingevoerd af.\n\n**Hoe op te lossen:**\n1. Controleer de mesh-naam en het wachtwoord die je hebt ingevoerd\n2. Als je ze niet hebt gewijzigd, probeer dan de fabrieksinstellingen: naam = `out_of_mesh`, wachtwoord = `123456`\n3. Als je het apparaat recent hebt gereset, zijn de fabrieksinstellingen weer actief\n\n**Werkt het nog steeds niet?** Verwijder deze integratie en voeg deze opnieuw toe.",
+      "unsupported_vendor": "Vendor ID niet herkend. Controleer BLE snoop-logs voor de juiste vendor-bytes.",
+      "device_not_found": "We kunnen je apparaat niet zien.\n\n**Wat dit betekent:**\nDe bridge werkt, maar kan het Bluetooth-signaal van je apparaat niet detecteren.\n\n**Hoe op te lossen:**\n1. Zorg dat het apparaat is aangesloten en ingeschakeld\n2. Verplaats het apparaat dichter bij je bridge (binnen 10 meter)\n3. Controleer of de LED van het apparaat brandt - zo niet, probeer dan een ander stopcontact\n4. Wacht 30 seconden en probeer het opnieuw (apparaten kunnen even nodig hebben om te beginnen met uitzenden)\n\n**Dubbelcheck:** Is het MAC-adres correct? Controleer het label of de handleiding van het apparaat.",
+      "timeout": "Time-out. De bridge of het apparaat heeft niet op tijd gereageerd.",
+      "unknown_protocol": "Protocolonderhandeling mislukt. Dit kan wijzen op een mismatch in de bridge-firmware.",
+      "cannot_connect": "Kan geen verbinding maken met het apparaat. Zorg dat het is ingeschakeld, binnen BLE-bereik is en in koppelmodus staat.",
+      "pairing_failed": "Koppelen mislukt. Het apparaat heeft niet gereageerd of heeft de verbinding geweigerd. Zorg dat het in fabrieksresetmodus is en binnen BLE-bereik.",
+      "provisioning_failed": "Koppelen mislukt.\n\n**Wat ging er mis:**\nHet apparaat heeft niet gereageerd tijdens het koppelproces.\n\n**Hoe op te lossen:**\n1. **Reset je apparaat:** Haal de stekker eruit en steek deze 5 keer snel (met tussenpozen van 1 seconde) weer in. De LED moet snel knipperen als het klaar is.\n2. **Zet het dichterbij:** Zorg dat het apparaat binnen 5 meter van Home Assistant of je BLE-proxy staat\n3. **Wacht op de LED:** Klik alleen op Verzenden als de LED knippert\n4. **Probeer het opnieuw:** Verwijder deze mislukte poging en begin opnieuw\n\n**Lukt het nog steeds niet?** Bekijk de Home Assistant-logs voor meer details (Instellingen → Systeem → Logs).",
+      "provisioning_appkey_failed": "Het apparaat accepteerde de versleutelingssleutel niet.\n\n**Wat dit betekent:**\nJe apparaat staat niet in fabrieksresetmodus, dus het heeft nog oude instellingen opgeslagen.\n\n**Hoe op te lossen:**\n1. **Reset het apparaat:** Haal de stekker eruit en steek deze 5 keer snel (ongeveer 1 seconde tussen elke keer) weer in\n2. **Let op de LED:** Deze moet snel knipperen wanneer de reset voltooid is\n3. **Probeer opnieuw te koppelen:** Verwijder deze poging en voeg het apparaat opnieuw toe terwijl de LED knippert\n\n**Waarom dit gebeurt:** Als je dit apparaat eerder hebt gekoppeld, onthoudt het de oude instellingen en accepteert het geen nieuwe totdat je het reset.",
+      "provisioning_proxy_failed": "Koppelen mislukt tijdens Proxy Service-configuratie. Het apparaat ondersteunt de Proxy Service niet of heeft deze uitgeschakeld. Raadpleeg de apparaatdocumentatie of probeer een ander apparaat.",
+      "provisioning_pbgatt_failed": "Kan geen verbinding maken met het apparaat - het is te ver weg of reageert niet.\n\n**Wat dit betekent:**\nHome Assistant probeerde via Bluetooth verbinding te maken maar kon het apparaat niet bereiken.\n\n**Hoe op te lossen:**\n1. **Zet het apparaat dichterbij:** Plaats het binnen 5 meter van Home Assistant\n2. **Controleer je BLE-configuratie:**\n   - Heeft je Home Assistant-apparaat een Bluetooth-adapter?\n   - Of heb je een ESPHome BLE-proxy ingesteld?\n3. **Zorg dat het apparaat aan staat:** Controleer of het stopcontact werkt en de LED brandt\n4. **Wacht en probeer opnieuw:** Soms hebben apparaten even nodig om wakker te worden - wacht 30 seconden en probeer het opnieuw\n\n**Tip:** Hoe dichter het apparaat tijdens de eerste koppeling is, hoe betrouwbaarder de verbinding."
     },
     "abort": {
       "already_configured": "Dit apparaat is al geconfigureerd",
-      "reauth_successful": "Herauthenticatie succesvol",
-      "reconfigure_successful": "Herconfiguratie succesvol",
-      "entry_not_found": "Configuratie-invoer niet gevonden",
-      "device_not_available": "Apparaat zendt niet meer uit. Het kan buiten bereik zijn, uitgeschakeld of al geconfigureerd.",
+      "reauth_successful": "Herauthenticatie geslaagd",
+      "reconfigure_successful": "Herconfiguratie geslaagd",
+      "entry_not_found": "Configuratie-item niet gevonden",
+      "device_not_available": "Apparaat zendt niet meer uit. Het is mogelijk buiten bereik, uitgeschakeld of al geconfigureerd.",
       "device_not_found": "Apparaat niet gevonden in BLE-register."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Tuya BLE Mesh-opties",
-        "description": "Werk de bridge-verbinding of mesh-inloggegevens bij. Schakel **Geavanceerde instellingen weergeven** in voor time-out en herverbindingsopties.",
+        "title": "Tuya BLE Mesh Opties",
+        "description": "Werk de bridge-verbinding of mesh-inloggegevens bij. Schakel **Geavanceerde instellingen weergeven** in voor time-out- en herverbindingsopties.",
         "data": {
-          "mesh_name": "Meshnaam",
-          "mesh_password": "Meshwachtwoord",
-          "vendor_id": "Leveranciers-ID (hex)",
-          "mesh_address": "Mesh-adres (0 = automatisch)",
-          "bridge_host": "Bridge Host",
-          "bridge_port": "Bridge Port",
-          "unicast_target": "Doel Unicast-adres (hex)",
-          "iv_index": "IV-index",
-          "validate_bridge": "Bridge-verbinding testen voordat wordt opgeslagen",
+          "mesh_name": "Mesh-Naam",
+          "mesh_password": "Mesh-Wachtwoord",
+          "vendor_id": "Vendor ID (hex)",
+          "mesh_address": "Mesh-Adres (0 = automatisch)",
+          "bridge_host": "Bridge-Host",
+          "bridge_port": "Bridge-Poort",
+          "unicast_target": "Doel Unicast-Adres (hex)",
+          "iv_index": "IV Index",
+          "validate_bridge": "Test bridge-verbinding voordat je opslaat",
           "show_advanced": "Geavanceerde instellingen weergeven"
+        },
+        "data_description": {
+          "mesh_name": "De netwerknaam voor je Tuya BLE Mesh-apparaten (max 16 tekens). Fabrieksinstellingen: out_of_mesh",
+          "mesh_password": "Het netwerkwachtwoord voor je Tuya BLE Mesh-apparaten (max 16 tekens). Fabrieksinstellingen: 123456",
+          "vendor_id": "Fabrikant-identificatie. Veelvoorkomende waarden: Malmbergs=0x1001, AwoX=0x0160, Dimond=0x0211",
+          "mesh_address": "Apparaatadres op het mesh-netwerk. Gebruik 0 voor automatische toewijzing (aanbevolen).",
+          "bridge_host": "IP-adres of hostnaam van je Raspberry Pi waarop de bridge-daemon draait. Voorbeeld: 192.168.1.100",
+          "bridge_port": "Netwerkpoort voor bridge-communicatie (standaard: 8099). Wijzig alleen als je je bridge-configuratie hebt aangepast.",
+          "unicast_target": "SIG Mesh unicast-adres in hexadecimaal (standaard: 00B0). Alleen voor gevorderde gebruikers.",
+          "iv_index": "Mesh-netwerk initialisatievector-index. Alleen voor gevorderde gebruikers - verkeerde waarde zal communicatie verbreken.",
+          "validate_bridge": "Test de verbinding met je bridge voordat je opslaat. Aanbevolen om configuratiefouten vroegtijdig op te sporen."
         }
       },
       "advanced": {
-        "title": "Geavanceerde instellingen",
-        "description": "Pas foutopsporingsverbosity, opdrachttime-outs en herverbindingsstormbeveiliging aan.",
+        "title": "Geavanceerde Instellingen",
+        "description": "Pas debug-uitgebreidheid, opdracht-time-outs en bescherming tegen herverbindingsstormen aan.",
         "data": {
           "debug_level": "Logniveau voor BLE mesh",
-          "command_timeout": "Opdrachttime-out (seconden)",
-          "max_reconnects": "Maximum herverbindingspogingen (0 = onbeperkt)",
-          "reconnect_storm_threshold": "Herverbindingsstormdrempel (per 5 minuten)"
+          "command_timeout": "Opdracht-time-out (seconden)",
+          "max_reconnects": "Max herverbindingspogingen (0 = onbeperkt)",
+          "reconnect_storm_threshold": "Herverbindingsstorm-drempel (per 5 minuten)"
         },
         "data_description": {
-          "debug_level": "Bepaalt uitgebreidheid van BLE mesh-logboeken. Waarschuwing wordt aanbevolen voor normaal gebruik.",
-          "command_timeout": "Hoe lang te wachten op een apparaatrespons voordat opnieuw wordt geprobeerd (3–60 seconden).",
-          "max_reconnects": "Beperk totale herverbindingspogingen. 0 = blijf onbeperkt proberen.",
-          "reconnect_storm_threshold": "Een reparatieprobleem maken als zoveel herverbindingen binnen 5 minuten plaatsvinden."
+          "debug_level": "Bepaalt uitgebreidheid van BLE mesh-logs. Waarschuwing wordt aanbevolen voor normaal gebruik.",
+          "command_timeout": "Hoe lang te wachten op een apparaatreactie voordat opnieuw wordt geprobeerd (3-60 seconden).",
+          "max_reconnects": "Beperk totaal aantal herverbindingspogingen. 0 = blijf onbeperkt proberen.",
+          "reconnect_storm_threshold": "Maak een reparatieprobleem aan als dit aantal herverbindingen binnen 5 minuten plaatsvindt."
         }
       }
     },
     "error": {
-      "invalid_bridge_host": "Ongeldige bridge host. Voer een hostnaam of IP-adres in (geen URL).",
-      "bridge_unreachable": "Kan de bridge daemon niet bereiken. Controleer de host/poort en zorg ervoor dat de daemon actief is.",
-      "invalid_credential_length": "Meshnaam en wachtwoord moeten elk 16 bytes of minder zijn.",
-      "invalid_vendor_id": "Ongeldig leveranciers-ID. Verwacht 1–4 hexadecimale cijfers (bv. 0x1001)."
+      "invalid_bridge_host": "Ongeldige bridge-host. Voer een hostnaam of IP-adres in (geen URL).",
+      "bridge_unreachable": "Kan bridge-daemon niet bereiken. Controleer host/poort en of de daemon draait.",
+      "invalid_credential_length": "Mesh-naam en wachtwoord mogen elk maximaal 16 bytes zijn.",
+      "invalid_vendor_id": "Ongeldige Vendor ID. Verwacht 1-4 hexadecimale cijfers (bijv. 0x1001)."
     }
   },
   "entity": {
     "light": {
       "mesh_light": {
-        "name": "Licht"
+        "name": "Lamp"
       }
     },
     "switch": {
@@ -167,10 +178,10 @@
         "name": "Firmwareversie"
       },
       "power": {
-        "name": "Energie"
+        "name": "Vermogen"
       },
       "energy": {
-        "name": "Energieverbruik"
+        "name": "Energie"
       },
       "connection_quality": {
         "name": "Verbindingskwaliteit",
@@ -205,13 +216,13 @@
   },
   "exceptions": {
     "connection_failed": {
-      "message": "Kan geen verbinding met {device} maken: {error}"
+      "message": "Verbinding maken met {device} mislukt: {error}"
     },
     "command_timeout": {
-      "message": "Opdrachttime-out voor {device}"
+      "message": "Opdracht time-out voor {device}"
     },
     "provisioning_failed": {
-      "message": "Provisioning mislukt voor {device}: {error}"
+      "message": "Koppelen mislukt voor {device}: {error}"
     },
     "invalid_key": {
       "message": "Ongeldig mesh-sleutelformaat"
@@ -219,8 +230,8 @@
   },
   "services": {
     "identify": {
-      "name": "Apparaat identificeren",
-      "description": "Laat de apparaat-LED knipperen om het gemakkelijk te vinden.",
+      "name": "Identificeer apparaat",
+      "description": "Laat de LED van het apparaat knipperen om het gemakkelijk te vinden.",
       "fields": {
         "device_id": {
           "name": "Apparaat",
@@ -229,8 +240,8 @@
       }
     },
     "set_log_level": {
-      "name": "Logniveau instellen",
-      "description": "Wijzig BLE mesh-logboeken uitgebreidheid zonder Home Assistant opnieuw op te starten.",
+      "name": "Stel logniveau in",
+      "description": "Wijzig BLE mesh logging-uitgebreidheid zonder Home Assistant opnieuw te starten.",
       "fields": {
         "level": {
           "name": "Niveau",
@@ -239,12 +250,12 @@
       }
     },
     "get_diagnostics": {
-      "name": "Diagnostische gegevens ophalen",
-      "description": "Verbindingsstatus, signaalsterkte en foutgeschiedenis ophalen. Retourneert gestructureerde gegevens voor automatiseringen.",
+      "name": "Haal diagnostics op",
+      "description": "Log diagnostische informatie voor een apparaat naar het HA-log.",
       "fields": {
         "device_id": {
           "name": "Apparaat",
-          "description": "Het apparaat waarvoor diagnostische gegevens moeten worden opgehaald."
+          "description": "Het apparaat waarvoor diagnostics worden opgehaald."
         }
       }
     },
@@ -261,44 +272,44 @@
   },
   "issues": {
     "bridge_unreachable": {
-      "title": "Bridge daemon onbereikbaar: {host}:{port}",
+      "title": "Bridge-daemon onbereikbaar: {host}:{port}",
       "fix_flow": {
         "step": {
           "confirm": {
             "title": "Bridge onbereikbaar: {host}:{port}",
-            "description": "De BLE bridge daemon op **{host}:{port}** reageert niet.\n\n**Controles:**\n1. Is de bridge host ingeschakeld?\n2. Wordt de daemon uitgevoerd? Voer uit: `systemctl status tuya-ble-bridge`\n3. Is poort {port} toegankelijk vanuit Home Assistant?\n4. Test: `curl http://{host}:{port}/health`\n\nDit probleem wordt automatisch opgelost wanneer de daemon weer online komt."
+            "description": "De BLE bridge-daemon op **{host}:{port}** reageert niet.\n\n**Controleer:**\n1. Is de bridge-host ingeschakeld?\n2. Draait de daemon? Voer uit: `systemctl status tuya-ble-bridge`\n3. Is poort {port} toegankelijk vanuit Home Assistant?\n4. Test: `curl http://{host}:{port}/health`\n\nDit probleem wordt automatisch opgelost wanneer de daemon weer online komt."
           }
         }
       }
     },
     "auth_or_mesh_mismatch": {
-      "title": "Mesh-inloggegevensmismatch: {device}",
+      "title": "Mesh-inloggegevens komen niet overeen: {device}",
       "fix_flow": {
         "step": {
           "reauth_hint": {
-            "title": "Oplossing: Mesh-inloggegevens bijwerken",
-            "description": "Het apparaat **{device}** weigert de opgeslagen mesh-inloggegevens.\n\n**Om op te lossen:**\n1. Ga naar **Instellingen → Integraties → {device} → Configureren**\n2. Werk meshnaam en wachtwoord bij zodat deze overeenkomen met het apparaat\n3. Fabrieksinstellingen: naam=`out_of_mesh`, wachtwoord=`123456`\n\nAls het apparaat is hersteld naar fabrieksinstellingen, verwijdert u de integratie en voegt u deze opnieuw toe."
+            "title": "Oplossing: Werk mesh-inloggegevens bij",
+            "description": "Het apparaat **{device}** wijst de opgeslagen mesh-inloggegevens af.\n\n**Om op te lossen:**\n1. Ga naar **Instellingen → Integraties → {device} → Configureren**\n2. Werk mesh-naam en wachtwoord bij zodat ze overeenkomen met het apparaat\n3. Fabrieksinstellingen: naam=`out_of_mesh`, wachtwoord=`123456`\n\nAls het apparaat is gereset, verwijder dan de integratie en voeg deze opnieuw toe."
           },
           "credentials": {
-            "title": "Nieuwe inloggegevens invoeren",
-            "description": "Het apparaat weigerde de opgeslagen inloggegevens. Voer bijgewerkte mesh-inloggegevens of bridge-verbindingsinstellingen hieronder in.",
+            "title": "Voer nieuwe inloggegevens in",
+            "description": "Het apparaat heeft de opgeslagen inloggegevens afgewezen. Voer hieronder bijgewerkte mesh-inloggegevens of bridge-verbindingsinstellingen in.",
             "data": {
-              "mesh_name": "Meshnaam",
-              "mesh_password": "Meshwachtwoord",
-              "bridge_host": "Bridge Host",
-              "bridge_port": "Bridge Port"
+              "mesh_name": "Mesh-Naam",
+              "mesh_password": "Mesh-Wachtwoord",
+              "bridge_host": "Bridge-Host",
+              "bridge_port": "Bridge-Poort"
             }
           }
         }
       }
     },
     "unsupported_vendor": {
-      "title": "Niet-ondersteund leveranciers-ID: {device} ({vendor_id})",
+      "title": "Niet-ondersteunde vendor-ID: {device} ({vendor_id})",
       "fix_flow": {
         "step": {
           "confirm": {
-            "title": "Oplossing: Leveranciers-ID bijwerken",
-            "description": "Het leveranciers-ID **{vendor_id}** voor **{device}** wordt niet herkend.\n\n**Om het juiste ID te vinden:**\n1. Gebruik een BLE sniffer om advertenties van het apparaat vast te leggen\n2. Kijk naar fabrikantspecifieke gegevens — vendorbytes bevinden zich op payload-offset `[3:5]`\n3. Bekende ID's: Malmbergs=`0x1001`, AwoX=`0x0160`, Dimond=`0x0211`\n\n**Om op te lossen:** Ga naar **Instellingen → Integraties → {device} → Configureren** en werk het leveranciers-ID bij."
+            "title": "Oplossing: Werk vendor-ID bij",
+            "description": "De vendor-ID **{vendor_id}** voor **{device}** wordt niet herkend.\n\n**Om de juiste ID te vinden:**\n1. Gebruik een BLE-sniffer om advertenties van het apparaat vast te leggen\n2. Kijk naar fabrikant-specifieke data — vendor-bytes staan op payload-offset `[3:5]`\n3. Bekende ID's: Malmbergs=`0x1001`, AwoX=`0x0160`, Dimond=`0x0211`\n\n**Om op te lossen:** Ga naar **Instellingen → Integraties → {device} → Configureren** en werk de Vendor-ID bij."
           }
         }
       }
@@ -310,32 +321,32 @@
       "title": "Herhaalde time-outs: {device} ({operation})"
     },
     "reconnect_storm": {
-      "title": "Herverbindingslus: {device}",
+      "title": "Verbinding valt steeds weg: {device}",
       "fix_flow": {
         "step": {
           "storm_confirm": {
-            "title": "Herverbindingsstorm bevestigen",
-            "description": "**{device}** verbonden **{count}** keer in {window} minuten.\n\n**Controles:**\n1. Is het apparaat stabiel (niet herhaaldelijk opnieuw starten)?\n2. Is BLE-signaal adequaat (RSSI > −80 dBm)?\n3. Controleer bridge-logboeken op foutenpatronen.\n\nDeze zaak bevestigen stopt herverbindingen niet — het wist alleen de kennisgeving. Los eerst de onderliggende oorzaak op."
+            "title": "Je apparaat verbreekt steeds de verbinding",
+            "description": "**{device}** heeft **{count}** keer opnieuw verbonden in de afgelopen {window} minuten. Dit betekent meestal dat er iets mis is.\n\n**Wat te controleren:**\n1. **Signaalsterkte:** Staat het apparaat te ver van je bridge of BLE-adapter? Probeer het dichterbij te zetten.\n2. **Stroomproblemen:** Krijgt het apparaat stabiele stroom? Probeer een ander stopcontact of voedingsadapter.\n3. **Apparaatgezondheid:** Werkt het apparaat verder normaal? Het heeft mogelijk een herstart of fabrieksreset nodig.\n4. **Storing:** Staan er metalen objecten of andere elektronica tussen het apparaat en de bridge?\n\n**Wat deze knop doet:**\nAls je op OK klikt, wordt deze melding gewist, maar het probleem wordt niet opgelost. De verbindingsonderbrekingen gaan door totdat je de hoofdoorzaak hierboven aanpakt.\n\n**Hulp nodig?** Bekijk de bridge-logs in Instellingen → Systeem → Logs voor meer details."
           }
         }
       }
     },
     "protocol_mismatch": {
-      "title": "Protocolmismatch: {device}"
+      "title": "Protocol komt niet overeen: {device}"
     },
     "provisioning_failed": {
-      "title": "Provisioning mislukt: {device}",
+      "title": "Koppelen mislukt: {device}",
       "fix_flow": {
         "step": {
           "confirm": {
-            "title": "Provisioning-fout oplossen",
-            "description": "SIG Mesh-provisioning mislukt voor **{device}**.\n\n**Om op te lossen:**\n1. Verwijder deze integratie-invoer\n2. Fabrieksinstellingen van het apparaat herstellen: 5× snel uit-/inschakelen (LED knippert snel wanneer gereed)\n3. Voeg de integratie opnieuw toe terwijl de LED knippert\n\nZorg ervoor dat het apparaat zich binnen BLE-bereik bevindt van een lokale adapter of ESPHome BLE-proxy tijdens provisioning."
+            "title": "Los koppelfout op",
+            "description": "SIG Mesh-koppeling mislukt voor **{device}**.\n\n**Om op te lossen:**\n1. Verwijder deze integratie\n2. Reset het apparaat: 5× snelle stroom-cycli (LED knippert snel als het klaar is)\n3. Voeg de integratie opnieuw toe terwijl de LED knippert\n\nZorg dat het apparaat binnen BLE-bereik is van een lokale adapter of ESPHome BLE-proxy tijdens het koppelen."
           }
         }
       }
     },
     "key_mismatch": {
-      "title": "Sleutelmismatch: {device}"
+      "title": "Sleutel komt niet overeen: {device}"
     }
   }
 }
