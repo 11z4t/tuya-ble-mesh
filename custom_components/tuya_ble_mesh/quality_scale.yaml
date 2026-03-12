@@ -65,7 +65,8 @@ rules:
     status: done
     comment: 9 repair issue types with auto-recovery
   stale-devices:
-    status: todo
+    status: done
+    comment: BlueZ cache cleanup via bluetoothctl remove
   diagnostics:
     status: done
     comment: Multi-layer redaction, RSSI trends, response time percentiles
