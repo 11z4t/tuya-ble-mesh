@@ -232,7 +232,7 @@
     },
     "get_diagnostics": {
       "name": "Diagnostische gegevens ophalen",
-      "description": "Retrieve connection health, signal strength, and error history. Returns structured data for automations.",
+      "description": "Verbindingsstatus, signaalsterkte en foutgeschiedenis ophalen. Retourneert gestructureerde gegevens voor automatiseringen.",
       "fields": {
         "device_id": {
           "name": "Apparaat",
@@ -241,12 +241,12 @@
       }
     },
     "reconnect": {
-      "name": "Reconnect device",
-      "description": "Force disconnect and reconnect a device without reloading the integration.",
+      "name": "Apparaat opnieuw verbinden",
+      "description": "Verbreek de verbinding en maak opnieuw verbinding met een apparaat zonder de integratie opnieuw te laden.",
       "fields": {
         "device_id": {
-          "name": "Device",
-          "description": "The device to reconnect."
+          "name": "Apparaat",
+          "description": "Het apparaat om opnieuw mee te verbinden."
         }
       }
     }

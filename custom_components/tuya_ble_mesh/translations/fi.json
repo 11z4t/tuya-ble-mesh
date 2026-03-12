@@ -232,7 +232,7 @@
     },
     "get_diagnostics": {
       "name": "Hae diagnostiikka",
-      "description": "Retrieve connection health, signal strength, and error history. Returns structured data for automations.",
+      "description": "Hae yhteyden kunto, signaalivoimakkuus ja virhehistoria. Palauttaa rakenteellista dataa automaatioille.",
       "fields": {
         "device_id": {
           "name": "Laite",
@@ -241,12 +241,12 @@
       }
     },
     "reconnect": {
-      "name": "Reconnect device",
-      "description": "Force disconnect and reconnect a device without reloading the integration.",
+      "name": "Yhdistä laite uudelleen",
+      "description": "Pakota yhteyden katkaisu ja uudelleenyhdistäminen ilman integraation uudelleenlatausta.",
       "fields": {
         "device_id": {
-          "name": "Device",
-          "description": "The device to reconnect."
+          "name": "Laite",
+          "description": "Laite, joka yhdistetään uudelleen."
         }
       }
     }
