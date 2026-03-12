@@ -2347,7 +2347,7 @@ class TestReconfigureStep:
         atomically — we assert only the observable outcome (abort reason) and
         that the entry data was updated, not the internal reload scheduling.
         """
-        flow, entry = self._make_flow_with_entry(
+        flow, _entry = self._make_flow_with_entry(
             DEVICE_TYPE_LIGHT,
             {CONF_MESH_NAME: "oldmesh", CONF_MESH_PASSWORD: "oldcred"},
         )

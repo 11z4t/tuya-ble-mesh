@@ -337,7 +337,7 @@ class TestRepairFlowRoutingWithScopedIds:
             return {"type": "form", "step_id": "storm_confirm"}
 
         flow.async_step_storm_confirm = mock_storm  # type: ignore[method-assign]
-        result = await flow.async_step_init(None)
+        await flow.async_step_init(None)
         assert "storm_confirm" in called_step
 
     @pytest.mark.asyncio
@@ -352,7 +352,7 @@ class TestRepairFlowRoutingWithScopedIds:
             return {"type": "form", "step_id": "confirm"}
 
         flow.async_step_confirm = mock_confirm  # type: ignore[method-assign]
-        result = await flow.async_step_init(None)
+        await flow.async_step_init(None)
         assert "confirm" in called_step
 
 
