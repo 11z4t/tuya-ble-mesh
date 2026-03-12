@@ -435,7 +435,11 @@ class SIGMeshProvisioner:
                         services = client.services
                     if services and not any(
                         str(s.uuid) == PROV_SERVICE
-                        for s in (services.services.values() if hasattr(services, "services") else services)
+                        for s in (
+                            services.services.values()
+                            if hasattr(services, "services")
+                            else services
+                        )
                     ):
                         msg = f"Device {address} does not expose Provisioning Service (0x1827)"
                         raise ProvisioningError(msg)

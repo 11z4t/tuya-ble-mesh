@@ -16,18 +16,17 @@ Error classification:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import statistics
 import time
 from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
-from enum import Enum
-from typing import TYPE_CHECKING, Union
+from enum import StrEnum
+from typing import TYPE_CHECKING, Any, Union
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
-
-from custom_components.tuya_ble_mesh.device_capabilities import DeviceCapabilities
 from tuya_ble_mesh.exceptions import (
     AuthenticationError,
     CryptoError,
@@ -37,6 +36,8 @@ from tuya_ble_mesh.exceptions import (
     ProtocolError,
     SIGMeshKeyError,
 )
+
+from custom_components.tuya_ble_mesh.device_capabilities import DeviceCapabilities
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
@@ -105,7 +106,7 @@ class ReconnectEvent:
 _RECONNECT_TIMELINE_MAX = 20  # Maximum reconnect events retained in timeline
 
 
-class ErrorClass(str, Enum):
+class ErrorClass(StrEnum):
     """Classification of connection/protocol errors for repair creation."""
 
     BRIDGE_DOWN = "bridge_down"
@@ -282,10 +283,8 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         self._standalone_listeners.append(listener)
 
         def _remove() -> None:
-            try:
+            with contextlib.suppress(ValueError):
                 self._standalone_listeners.remove(listener)
-            except ValueError:
-                pass
             self._listener_error_counts.pop(id(listener), None)
 
         return _remove
@@ -303,10 +302,8 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                 count = self._listener_error_counts.get(cb_id, 0) + 1
                 self._listener_error_counts[cb_id] = count
                 if count >= _MAX_CALLBACK_ERRORS:
-                    try:
+                    with contextlib.suppress(ValueError, AttributeError):
                         self._standalone_listeners.remove(listener)
-                    except (ValueError, AttributeError):
-                        pass
                     self._listener_error_counts.pop(cb_id, None)
 
     def _dispatch_update(self) -> None:
@@ -479,7 +476,6 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             TUYA_CMD_TIMESTAMP_SYNC,
             TUYA_VENDOR_OPCODE,
             parse_tuya_vendor_frame,
-            tuya_vendor_timestamp_response,
         )
 
         if opcode != TUYA_VENDOR_OPCODE:
@@ -510,7 +506,9 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                 _LOGGER.debug("Energy: %.2f kWh (raw=%d)", energy_kwh, raw)
 
         if updated:
-            self._state = replace(self._state, power_w=power_w, energy_kwh=energy_kwh, available=True)
+            self._state = replace(
+                self._state, power_w=power_w, energy_kwh=energy_kwh, available=True
+            )
             self._dispatch_update()
 
     async def _send_timestamp_response(self) -> None:
@@ -637,7 +635,12 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             response_time = time.monotonic() - start_time
             self._stats.response_times.append(response_time)
             self._stats.connect_time = time.time()
-            self._state = replace(self._state, available=True, firmware_version=self._device.firmware_version, last_seen=time.time())
+            self._state = replace(
+                self._state,
+                available=True,
+                firmware_version=self._device.firmware_version,
+                last_seen=time.time(),
+            )
             self._backoff = _INITIAL_BACKOFF
             self._start_rssi_polling()
             _LOGGER.info("Coordinator started for %s (%.2fs)", self._device.address, response_time)
@@ -694,14 +697,11 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             ("unregister_status_callback", self._on_status_update),
         ):
             if hasattr(self._device, attr):
-                try:
+                with contextlib.suppress(ValueError, AttributeError):
+                    # Already unregistered or device gone
                     getattr(self._device, attr)(callback)
-                except (ValueError, AttributeError):
-                    pass  # Already unregistered or device gone
-        try:
+        with contextlib.suppress(ValueError, AttributeError):
             self._device.unregister_disconnect_callback(self._on_disconnect)
-        except (ValueError, AttributeError):
-            pass
 
         try:
             await self._device.disconnect()
@@ -1171,7 +1171,8 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                     if attempt < _max:
                         wait = _delay * (2 ** (attempt - 1))
                         _LOGGER.warning(
-                            "BLE command '%s' failed for %s (attempt %d/%d) — retrying in %.1fs: %s",
+                            "BLE command '%s' failed for %s (attempt %d/%d) — "
+                            "retrying in %.1fs: %s",
                             description,
                             self._device.address,
                             attempt,

@@ -26,7 +26,7 @@ from tuya_ble_mesh.const import (
     TELINK_CMD_STATUS_QUERY,
     TELINK_VENDOR_ID,
 )
-from tuya_ble_mesh.exceptions import MeshConnectionError, DisconnectedError
+from tuya_ble_mesh.exceptions import DisconnectedError, MeshConnectionError
 from tuya_ble_mesh.protocol import encode_command_packet
 from tuya_ble_mesh.provisioner import provision
 from tuya_ble_mesh.scanner import mac_to_bytes
