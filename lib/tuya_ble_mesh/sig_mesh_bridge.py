@@ -73,7 +73,7 @@ class BridgeHTTPMixin:
             ) as resp:
                 result: dict[str, Any] = await resp.json()
                 return result
-        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, aiohttp.ClientError) as exc:
             msg = f"Bridge HTTP GET {path} failed: {exc}"
             raise MeshConnectionError(msg) from exc
 
@@ -92,7 +92,7 @@ class BridgeHTTPMixin:
             ) as resp:
                 result: dict[str, Any] = await resp.json()
                 return result
-        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, aiohttp.ClientError) as exc:
             msg = f"Bridge HTTP POST {path} failed: {exc}"
             raise MeshConnectionError(msg) from exc
 

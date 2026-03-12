@@ -21,10 +21,12 @@ for _lib_dir in (_BUNDLED_LIB, _DEV_LIB):
         sys.path.insert(0, _lib_dir)
         break
 
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.exceptions import HomeAssistantError
+import contextlib  # noqa: E402
 
-from custom_components.tuya_ble_mesh.const import (
+from homeassistant.config_entries import ConfigEntry  # noqa: E402
+from homeassistant.exceptions import HomeAssistantError  # noqa: E402
+
+from custom_components.tuya_ble_mesh.const import (  # noqa: E402
     CONF_APP_KEY,
     CONF_BRIDGE_HOST,
     CONF_BRIDGE_PORT,
@@ -51,6 +53,7 @@ from custom_components.tuya_ble_mesh.const import (
     DOMAIN,
     PLATFORMS,
 )
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -141,7 +144,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
 
     if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
         from tuya_ble_mesh.sig_mesh_bridge import (
-            SIGMeshBridgeDevice,        )
+            SIGMeshBridgeDevice,
+        )
 
         # unicast_target is identity — stays in data; bridge settings are configurable
         target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
@@ -156,7 +160,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         )
     elif device_type == DEVICE_TYPE_TELINK_BRIDGE_LIGHT:
         from tuya_ble_mesh.sig_mesh_bridge import (
-            TelinkBridgeDevice,        )
+            TelinkBridgeDevice,
+        )
 
         bridge_host = _get_entry_option(entry, CONF_BRIDGE_HOST, "")
         bridge_port = _get_entry_option(entry, CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
@@ -203,7 +208,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
 
         # Mesh credentials and vendor settings are configurable — read from options first
         mesh_name: str = _get_entry_option(entry, CONF_MESH_NAME, DEFAULT_FACTORY_MESH_NAME)
-        mesh_password: str = _get_entry_option(entry, CONF_MESH_PASSWORD, DEFAULT_FACTORY_MESH_PASSWORD)
+        mesh_password: str = _get_entry_option(
+            entry, CONF_MESH_PASSWORD, DEFAULT_FACTORY_MESH_PASSWORD
+        )
         vendor_id_hex: str = _get_entry_option(entry, CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
         vendor_id_int = int(vendor_id_hex, 16)
         vendor_id_bytes = vendor_id_int.to_bytes(2, "little")
@@ -350,11 +357,9 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         coordinator = _get_coordinator_for_device(hass, device_id)
         if coordinator is None:
             raise HomeAssistantError(f"Device not found: {device_id}")
-        try:
+        with contextlib.suppress(Exception):
             await coordinator.device.disconnect()
-        except Exception:  # noqa: BLE001 — best-effort disconnect before reconnect
-            pass
-        coordinator._schedule_reconnect()  # noqa: SLF001 — internal API, same module
+        coordinator._schedule_reconnect()
         _LOGGER.info("Reconnect triggered for %s", device_id)
 
     hass.services.async_register(

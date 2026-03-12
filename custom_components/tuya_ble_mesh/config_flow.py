@@ -38,6 +38,8 @@ if TYPE_CHECKING:
     from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
     from homeassistant.data_entry_flow import FlowResult
 
+import contextlib
+
 from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
     CONF_BRIDGE_HOST,
@@ -59,9 +61,9 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_VENDOR_ID,
     DEFAULT_BRIDGE_PORT,
     DEFAULT_COMMAND_TIMEOUT,
+    DEFAULT_DEBUG_LEVEL,
     DEFAULT_FACTORY_MESH_NAME,
     DEFAULT_FACTORY_MESH_PASSWORD,
-    DEFAULT_DEBUG_LEVEL,
     DEFAULT_IV_INDEX,
     DEFAULT_MAX_RECONNECTS,
     DEFAULT_MESH_ADDRESS,
@@ -181,7 +183,7 @@ def _validate_hex_key(value: str) -> bool:
 
 
 def _validate_vendor_id(value: str) -> str | None:
-    """Validate a vendor ID hex string (1–4 hex digits, with optional 0x prefix).
+    """Validate a vendor ID hex string (1-4 hex digits, with optional 0x prefix).
 
     Returns None if valid, error key string if invalid.
     """
@@ -283,7 +285,7 @@ def _validate_mesh_credential(value: str) -> str | None:
 
 
 def _validate_iv_index(value: object) -> str | None:
-    """Validate an IV index value (must be int in range 0–0xFFFFFFFF).
+    """Validate an IV index value (must be int in range 0-0xFFFFFFFF).
 
     Returns None if valid, error key string if invalid.
     """
@@ -298,7 +300,7 @@ _UNICAST_PATTERN = re.compile(r"^[0-9A-Fa-f]{4}$")
 
 
 def _validate_unicast_address(value: str) -> str | None:
-    """Validate a SIG Mesh unicast address (4 hex digits, 0001–7FFF).
+    """Validate a SIG Mesh unicast address (4 hex digits, 0001-7FFF).
 
     Returns None if valid, error key string if invalid.
     """
@@ -493,7 +495,8 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 ): str,
                 vol.Optional(
                     CONF_MESH_PASSWORD,
-                    default=self._opt(CONF_MESH_PASSWORD, DEFAULT_FACTORY_MESH_PASSWORD),  # pragma: allowlist secret
+                    # pragma: allowlist secret
+                    default=self._opt(CONF_MESH_PASSWORD, DEFAULT_FACTORY_MESH_PASSWORD),
                 ): str,
                 vol.Optional(
                     CONF_VENDOR_ID,
@@ -758,10 +761,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
         # Auto-detect device type for all non-SIG devices
         if not is_sig:
-            if "Plug" in device_label:
-                detected_type = DEVICE_TYPE_PLUG
-            else:
-                detected_type = DEVICE_TYPE_LIGHT
+            detected_type = DEVICE_TYPE_PLUG if "Plug" in device_label else DEVICE_TYPE_LIGHT
             self._discovery_info["auto_device_type"] = detected_type
             _LOGGER.info("Mesh device auto-detected as %s: %s", device_label, address)
 
@@ -896,7 +896,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
                 # Validate mesh credentials (per-field errors)
                 mesh_name = user_input.get(CONF_MESH_NAME, DEFAULT_FACTORY_MESH_NAME)
-                mesh_pass = user_input.get(CONF_MESH_PASSWORD, DEFAULT_FACTORY_MESH_PASSWORD)  # pragma: allowlist secret
+                # pragma: allowlist secret
+                mesh_pass = user_input.get(CONF_MESH_PASSWORD, DEFAULT_FACTORY_MESH_PASSWORD)
                 name_error = _validate_mesh_credential(mesh_name)
                 if name_error:
                     errors[CONF_MESH_NAME] = name_error
@@ -942,7 +943,10 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                         }
                     ),
                     vol.Optional(CONF_MESH_NAME, default=DEFAULT_FACTORY_MESH_NAME): str,
-                    vol.Optional(CONF_MESH_PASSWORD, default=DEFAULT_FACTORY_MESH_PASSWORD): str,  # pragma: allowlist secret
+                    # pragma: allowlist secret
+                    vol.Optional(
+                        CONF_MESH_PASSWORD, default=DEFAULT_FACTORY_MESH_PASSWORD
+                    ): str,
                     vol.Optional(CONF_VENDOR_ID, default=DEFAULT_VENDOR_ID): str,
                     vol.Optional(CONF_MESH_ADDRESS, default=DEFAULT_MESH_ADDRESS): int,
                 }
@@ -989,7 +993,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
             try:
                 net_key_hex, dev_key_hex, app_key_hex = await self._run_provision(mac)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 _LOGGER.warning("Provisioning timed out for %s", mac)
                 errors["base"] = "timeout"
             except Exception as exc:
@@ -1214,7 +1218,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 )
                 break
 
-            except Exception:  # noqa: BLE001 — post-prov config may fail for many reasons
+            except Exception:
                 _LOGGER.warning(
                     "[SIG-PAIR] Post-prov attempt %d failed for %s",
                     attempt + 1, mac,
@@ -1232,10 +1236,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 mac,
             )
 
-        try:
+        with contextlib.suppress(Exception):
             await device.disconnect()
-        except Exception:  # noqa: BLE001 — final cleanup, device may already be disconnected
-            pass
 
         return net_key.hex(), result.dev_key.hex(), app_key.hex()
 

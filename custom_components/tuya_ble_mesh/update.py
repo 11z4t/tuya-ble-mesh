@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING
 
 from homeassistant.components.update import UpdateDeviceClass, UpdateEntity
 
-from custom_components.tuya_ble_mesh.const import DOMAIN
 from custom_components.tuya_ble_mesh.entity import TuyaBLEMeshEntity
 
 if TYPE_CHECKING:
