@@ -726,6 +726,27 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             self._reconnect_task.cancel()
 
         self._reconnect_task = asyncio.create_task(self._reconnect_loop())
+        self._reconnect_task.add_done_callback(self._log_task_exception)
+
+    def _log_task_exception(self, task: asyncio.Task) -> None:
+        """Log exceptions from background tasks.
+
+        Args:
+            task: The completed task to check for exceptions.
+        """
+        if task.cancelled():
+            return
+        try:
+            exc = task.exception()
+            if exc is not None:
+                _LOGGER.error(
+                    "Reconnect task failed for %s",
+                    self._device_name,
+                    exc_info=exc,
+                )
+        except Exception:
+            # Task is not done or other edge cases
+            pass
 
     def _classify_error(self, err: Exception) -> ErrorClass:
         """Classify a connection error into a category for repair creation.
