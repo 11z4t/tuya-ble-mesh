@@ -450,6 +450,12 @@ class MeshAuthRepairFlow(TuyaBLEMeshRepairFlow):
     ) -> FlowResult:
         """Collect new credentials and apply them to the config entry."""
         import voluptuous as vol
+
+        from custom_components.tuya_ble_mesh.config_flow import (
+            _test_bridge_with_session,
+            _validate_bridge_host,
+            _validate_mesh_credentials,
+        )
         from custom_components.tuya_ble_mesh.const import (
             CONF_BRIDGE_HOST,
             CONF_BRIDGE_PORT,
@@ -459,11 +465,6 @@ class MeshAuthRepairFlow(TuyaBLEMeshRepairFlow):
             DEFAULT_BRIDGE_PORT,
             DEVICE_TYPE_SIG_BRIDGE_PLUG,
             DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
-        )
-        from custom_components.tuya_ble_mesh.config_flow import (
-            _test_bridge_with_session,
-            _validate_bridge_host,
-            _validate_mesh_credentials,
         )
 
         hass = getattr(self, "hass", None)

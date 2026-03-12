@@ -18,6 +18,7 @@ Only operation names, lengths, and success/failure status are safe to log.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from collections.abc import Callable
@@ -146,10 +147,8 @@ class _CommandDispatcher:
         self._running = False
         if self._worker_task is not None:
             self._worker_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._worker_task
-            except asyncio.CancelledError:
-                pass
         # Drain any remaining items from the queue
         while not self._queue.empty():
             try:

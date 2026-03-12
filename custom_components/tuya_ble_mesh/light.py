@@ -4,7 +4,7 @@ Brightness model (two separate internal scales):
 - White brightness:  device 1-100  <-> HA 1-255  (linear, used in COLOR_TEMP mode)
 - Color brightness:  device 0-255  <-> HA 0-255  (same scale, used in RGB mode)
 
-All conversion helpers in this module use the HA scale (0/1–255) externally.
+All conversion helpers in this module use the HA scale (0/1-255) externally.
 Device-native values are never exposed through entity properties.
 
 Color temp mapping:
@@ -32,7 +32,6 @@ from homeassistant.components.light import (  # type: ignore[attr-defined]
 )
 from homeassistant.helpers.device_registry import DeviceInfo
 
-from custom_components.tuya_ble_mesh.entity import TuyaBLEMeshEntity
 from custom_components.tuya_ble_mesh.const import (
     CONF_DEVICE_TYPE,
     DEVICE_BRIGHTNESS_MAX,
@@ -48,6 +47,7 @@ from custom_components.tuya_ble_mesh.const import (
     MESH_SCENES,
     PLUG_DEVICE_TYPES,
 )
+from custom_components.tuya_ble_mesh.entity import TuyaBLEMeshEntity
 
 if TYPE_CHECKING:
     from collections.abc import Callable

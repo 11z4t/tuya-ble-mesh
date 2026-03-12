@@ -38,6 +38,8 @@ if TYPE_CHECKING:
     from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
     from homeassistant.data_entry_flow import FlowResult
 
+import contextlib
+
 from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
     CONF_BRIDGE_HOST,
@@ -59,9 +61,9 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_VENDOR_ID,
     DEFAULT_BRIDGE_PORT,
     DEFAULT_COMMAND_TIMEOUT,
+    DEFAULT_DEBUG_LEVEL,
     DEFAULT_FACTORY_MESH_NAME,
     DEFAULT_FACTORY_MESH_PASSWORD,
-    DEFAULT_DEBUG_LEVEL,
     DEFAULT_IV_INDEX,
     DEFAULT_MAX_RECONNECTS,
     DEFAULT_MESH_ADDRESS,
@@ -181,7 +183,7 @@ def _validate_hex_key(value: str) -> bool:
 
 
 def _validate_vendor_id(value: str) -> str | None:
-    """Validate a vendor ID hex string (1–4 hex digits, with optional 0x prefix).
+    """Validate a vendor ID hex string (1-4 hex digits, with optional 0x prefix).
 
     Returns None if valid, error key string if invalid.
     """
@@ -283,7 +285,7 @@ def _validate_mesh_credential(value: str) -> str | None:
 
 
 def _validate_iv_index(value: object) -> str | None:
-    """Validate an IV index value (must be int in range 0–0xFFFFFFFF).
+    """Validate an IV index value (must be int in range 0-0xFFFFFFFF).
 
     Returns None if valid, error key string if invalid.
     """
@@ -298,7 +300,7 @@ _UNICAST_PATTERN = re.compile(r"^[0-9A-Fa-f]{4}$")
 
 
 def _validate_unicast_address(value: str) -> str | None:
-    """Validate a SIG Mesh unicast address (4 hex digits, 0001–7FFF).
+    """Validate a SIG Mesh unicast address (4 hex digits, 0001-7FFF).
 
     Returns None if valid, error key string if invalid.
     """
@@ -493,7 +495,8 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 ): str,
                 vol.Optional(
                     CONF_MESH_PASSWORD,
-                    default=self._opt(CONF_MESH_PASSWORD, DEFAULT_FACTORY_MESH_PASSWORD),  # pragma: allowlist secret
+                    # pragma: allowlist secret
+                    default=self._opt(CONF_MESH_PASSWORD, DEFAULT_FACTORY_MESH_PASSWORD),
                 ): str,
                 vol.Optional(
                     CONF_VENDOR_ID,
@@ -758,10 +761,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
         # Auto-detect device type for all non-SIG devices
         if not is_sig:
-            if "Plug" in device_label:
-                detected_type = DEVICE_TYPE_PLUG
-            else:
-                detected_type = DEVICE_TYPE_LIGHT
+            detected_type = DEVICE_TYPE_PLUG if "Plug" in device_label else DEVICE_TYPE_LIGHT
             self._discovery_info["auto_device_type"] = detected_type
             _LOGGER.info("Mesh device auto-detected as %s: %s", device_label, address)
 
@@ -854,7 +854,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
                 # Step 1a: Scan for device on LOCAL adapter (hci0)
                 _LOGGER.warning(
-                    "[PAIR] Step 4: BleakScanner.find_device_by_address(%s, timeout=%s, adapter=hci0)...",
+                    "[PAIR] Step 4: BleakScanner.find_device_by_address"
+                    "(%s, timeout=%s, adapter=hci0)...",
                     mac,
                     _BLE_SCAN_TIMEOUT,
                 )
@@ -866,7 +867,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 )
 
                 if ble_device is None:
-                    _LOGGER.warning("[PAIR] Step 4 FAILED: Device %s not found on hci0 scan", mac)
+                    _LOGGER.warning(
+                        "[PAIR] Step 4 FAILED: Device %s not found on hci0 scan", mac
+                    )
                     raise TimeoutError(f"Device {mac} not found on local BLE adapter")
 
                 _LOGGER.warning(
@@ -912,19 +915,23 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     mac,
                     _BLE_CLIENT_TIMEOUT,
                 )
-                client = _RawBleakClient(ble_device, adapter="hci0", timeout=_BLE_CLIENT_TIMEOUT)
-                _LOGGER.warning("[PAIR] Step 5a: client.connect() starting (raw BlueZ, no habluetooth)...")
+                client = _RawBleakClient(
+                    ble_device, adapter="hci0", timeout=_BLE_CLIENT_TIMEOUT
+                )
+                _LOGGER.warning(
+                    "[PAIR] Step 5a: client.connect() starting (raw BlueZ, no habluetooth)..."
+                )
                 try:
                     await asyncio.wait_for(client.connect(pair=False), timeout=_BLE_CONNECT_TIMEOUT)
                 except TypeError:
                     _LOGGER.warning("[PAIR] Step 5a: pair= not supported, retrying without")
                     await asyncio.wait_for(client.connect(), timeout=_BLE_CONNECT_TIMEOUT)
-                except asyncio.TimeoutError:
-                    _LOGGER.warning("[PAIR] Step 5a: connect(pair=False) timed out, retrying with pair=True")
-                    try:
+                except TimeoutError:
+                    _LOGGER.warning(
+                        "[PAIR] Step 5a: connect(pair=False) timed out, retrying with pair=True"
+                    )
+                    with contextlib.suppress(Exception):
                         await client.disconnect()
-                    except Exception:  # noqa: BLE001 — best-effort cleanup before retry
-                        pass
                     # Re-remove + re-scan before retry
                     try:
                         proc = await asyncio.create_subprocess_exec(
@@ -936,16 +943,24 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                         await asyncio.sleep(_PAIRING_RETRY_DELAY)
                     except asyncio.CancelledError:
                         raise
-                    except Exception:  # noqa: BLE001 — bluetoothctl cleanup is best-effort
+                    except Exception:
                         pass
                     ble_device = await asyncio.wait_for(
-                        _RawBleakScanner.find_device_by_address(mac, timeout=_BLE_SCAN_TIMEOUT, adapter="hci0"),
+                        _RawBleakScanner.find_device_by_address(
+                            mac, timeout=_BLE_SCAN_TIMEOUT, adapter="hci0"
+                        ),
                         timeout=_BLE_SCAN_WAIT_TIMEOUT,
                     )
                     if ble_device is None:
-                        raise TimeoutError(f"Device {mac} not found after second cleanup")
-                    client = _RawBleakClient(ble_device, adapter="hci0", timeout=_BLE_CLIENT_TIMEOUT)
-                    await asyncio.wait_for(client.connect(pair=True), timeout=_BLE_CONNECT_PAIR_TIMEOUT)
+                        raise TimeoutError(
+                            f"Device {mac} not found after second cleanup"
+                        ) from None
+                    client = _RawBleakClient(
+                        ble_device, adapter="hci0", timeout=_BLE_CLIENT_TIMEOUT
+                    )
+                    await asyncio.wait_for(
+                        client.connect(pair=True), timeout=_BLE_CONNECT_PAIR_TIMEOUT
+                    )
                 _LOGGER.warning(
                     "[PAIR] Step 5 OK: GATT connected (is_connected=%s, mtu=%s)",
                     client.is_connected,
@@ -988,7 +1003,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 _LOGGER.warning("[PAIR] Step 7 OK: Disconnected — pairing complete")
                 direct_ok = True
 
-            except asyncio.TimeoutError as te:
+            except TimeoutError as te:
                 _LOGGER.warning(
                     "[PAIR] TIMEOUT during pairing of %s: %s", mac, te, exc_info=True
                 )
@@ -1011,7 +1026,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     data={
                         CONF_MAC_ADDRESS: mac,
                         CONF_MESH_NAME: DEFAULT_FACTORY_MESH_NAME,
-                        CONF_MESH_PASSWORD: DEFAULT_FACTORY_MESH_PASSWORD,  # pragma: allowlist secret
+                        # pragma: allowlist secret
+                        CONF_MESH_PASSWORD: DEFAULT_FACTORY_MESH_PASSWORD,
                         CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
                         CONF_DEVICE_TYPE: auto_type,
                         CONF_MESH_ADDRESS: DEFAULT_MESH_ADDRESS,
@@ -1024,7 +1040,12 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             bridge_ok = await _test_bridge_with_session(self.hass, bridge_host, bridge_port)
 
             if bridge_ok:
-                _LOGGER.info("Bridge at %s:%d reachable — creating bridge entry for %s", bridge_host, bridge_port, mac)
+                _LOGGER.info(
+                    "Bridge at %s:%d reachable — creating bridge entry for %s",
+                    bridge_host,
+                    bridge_port,
+                    mac,
+                )
                 return self.async_create_entry(
                     title=f"BLE {type_label} {short_mac}",
                     data={
@@ -1083,7 +1104,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
                 # Validate mesh credentials (per-field errors)
                 mesh_name = user_input.get(CONF_MESH_NAME, DEFAULT_FACTORY_MESH_NAME)
-                mesh_pass = user_input.get(CONF_MESH_PASSWORD, DEFAULT_FACTORY_MESH_PASSWORD)  # pragma: allowlist secret
+                # pragma: allowlist secret
+                mesh_pass = user_input.get(CONF_MESH_PASSWORD, DEFAULT_FACTORY_MESH_PASSWORD)
                 name_error = _validate_mesh_credential(mesh_name)
                 if name_error:
                     errors[CONF_MESH_NAME] = name_error
@@ -1129,7 +1151,10 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                         }
                     ),
                     vol.Optional(CONF_MESH_NAME, default=DEFAULT_FACTORY_MESH_NAME): str,
-                    vol.Optional(CONF_MESH_PASSWORD, default=DEFAULT_FACTORY_MESH_PASSWORD): str,  # pragma: allowlist secret
+                    # pragma: allowlist secret
+                    vol.Optional(
+                        CONF_MESH_PASSWORD, default=DEFAULT_FACTORY_MESH_PASSWORD
+                    ): str,
                     vol.Optional(CONF_VENDOR_ID, default=DEFAULT_VENDOR_ID): str,
                     vol.Optional(CONF_MESH_ADDRESS, default=DEFAULT_MESH_ADDRESS): int,
                 }
@@ -1166,14 +1191,15 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
             try:
                 net_key_hex, dev_key_hex, app_key_hex = await self._run_provision(mac)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 _LOGGER.warning("Provisioning timed out for %s", mac)
                 errors["base"] = "timeout"
             except Exception as exc:
                 # Map specific exceptions to error keys
                 error_key = "provisioning_failed"
                 try:
-                    from tuya_ble_mesh.exceptions import (                        DeviceNotFoundError,
+                    from tuya_ble_mesh.exceptions import (
+                        DeviceNotFoundError,
                         ProvisioningError,
                     )
                     from tuya_ble_mesh.exceptions import TimeoutError as MeshTimeoutError
@@ -1355,16 +1381,14 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 )
                 break
 
-            except Exception:  # noqa: BLE001 — post-prov config may fail for many reasons
+            except Exception:
                 _LOGGER.warning(
                     "[SIG-PAIR] Post-prov attempt %d failed for %s",
                     attempt + 1, mac,
                     exc_info=True,
                 )
-                try:
+                with contextlib.suppress(Exception):
                     await device.disconnect()
-                except Exception:  # noqa: BLE001 — best-effort disconnect between retries
-                    pass
 
         if not post_prov_ok:
             _LOGGER.warning(
@@ -1373,10 +1397,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 mac,
             )
 
-        try:
+        with contextlib.suppress(Exception):
             await device.disconnect()
-        except Exception:  # noqa: BLE001 — final cleanup, device may already be disconnected
-            pass
 
         return net_key.hex(), result.dev_key.hex(), app_key.hex()
 
