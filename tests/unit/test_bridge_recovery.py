@@ -11,6 +11,8 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
+import contextlib
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -291,10 +293,8 @@ class TestTelinkBridgeRetry:
             # which sets _connected=False. The retry wrapper then raises
             # because _connected is False. This tests the error path.
             dev._connected = True
-            try:
-                await dev.send_power(True)
-            except SIGMeshError:
-                pass  # Expected: first attempt disconnects
+            with contextlib.suppress(SIGMeshError):
+                await dev.send_power(True)  # Expected: first attempt disconnects
 
 
 # --- Bridge Error Classification ---
