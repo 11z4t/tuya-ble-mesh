@@ -770,18 +770,43 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             _LOGGER.info("SIG Mesh device detected: %s", address)
             return await self.async_step_sig_plug()
 
+        # PLAT-408: Telink UUID devices use factory credentials — auto-create immediately.
+        # The Telink UUID prefix uniquely identifies devices whose factory mesh credentials
+        # are known (out_of_mesh / 123456), so no user confirmation is needed.
+        if is_telink:
+            type_label = "Plug" if detected_type == DEVICE_TYPE_PLUG else "Light"
+            _LOGGER.info(
+                "Telink UUID device — zero-knowledge auto-create: %s as %s",
+                address, detected_type,
+            )
+            return self.async_create_entry(
+                title=f"BLE {type_label} {short_mac}",
+                data={
+                    CONF_MAC_ADDRESS: address,
+                    CONF_MESH_NAME: DEFAULT_FACTORY_MESH_NAME,
+                    CONF_MESH_PASSWORD: DEFAULT_FACTORY_MESH_PASSWORD,  # pragma: allowlist secret
+                    CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
+                    CONF_DEVICE_TYPE: detected_type,
+                    CONF_MESH_ADDRESS: DEFAULT_MESH_ADDRESS,
+                },
+            )
+
         return await self.async_step_confirm()
 
     async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Confirm bluetooth discovery — no fields, just confirm and pair.
+        """Confirm bluetooth discovery — zero-knowledge flow.
 
-        When user clicks Submit:
-        1. Try direct BLE pairing with factory defaults
-        2. If direct fails → auto-test bridge at known host (192.168.1.124:8099)
-        3. If bridge works → create entry as bridge device
-        4. If nothing works → show error
+        PLAT-408: Redesigned as zero-knowledge flow.
+        For Telink/out_of_mesh devices the factory credentials are always known
+        (mesh_name="out_of_mesh", password="123456"), so we create the entry
+        immediately when the user clicks Submit.
+
+        The coordinator will handle connection; if it fails (wrong mesh or
+        credential change) a repair issue will guide the user.
+
+        If a CONF_DEVICE_TYPE is provided in user_input the caller explicitly
+        chose a type; otherwise fall back to the auto-detected type from discovery.
         """
-        errors: dict[str, str] = {}
         disc = self._discovery_info or {}
 
         # Re-check that device is still advertising before showing form
@@ -794,261 +819,49 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
         if user_input is not None and self._discovery_info is not None:
             mac = self._discovery_info["address"]
-            auto_type = disc.get("auto_device_type", DEVICE_TYPE_LIGHT)
+            # Caller may pass CONF_DEVICE_TYPE explicitly (zero-knowledge form);
+            # fall back to auto-detected type from discovery.
+            device_type = user_input.get(CONF_DEVICE_TYPE, disc.get("auto_device_type", DEVICE_TYPE_LIGHT))
             short_mac = mac[-8:]
-            type_label = "Plug" if auto_type == DEVICE_TYPE_PLUG else "Light"
+            type_label = "Plug" if device_type == DEVICE_TYPE_PLUG else "Light"
 
-            # Step 1: Pair via local BLE adapter (hci0, NOT via ESPHome proxy)
-            # Discovery happens via ESPHome proxy (passive scan), but pairing
-            # requires full GATT connection — only the local USB adapter can do this.
-            # After pairing, normal control can go via proxy.
-            # We force adapter="hci0" to bypass HA's habluetooth which would
-            # route through the proxy (causing hangs on Telink GATT).
-            direct_ok = False
+            # Use user-provided credentials if given; otherwise use factory defaults.
+            # This allows advanced users to override the factory mesh name/password.
+            mesh_name = user_input.get(CONF_MESH_NAME, DEFAULT_FACTORY_MESH_NAME)
+            mesh_pass = user_input.get(CONF_MESH_PASSWORD, DEFAULT_FACTORY_MESH_PASSWORD)  # pragma: allowlist secret
 
-            # Enable max debug logging for pairing
-            import logging as _logging
-
-            for _log_name in (
-                "tuya_ble_mesh",
-                "tuya_ble_mesh.provisioner",
-                "tuya_ble_mesh.connection",
-                "tuya_ble_mesh.device",
-                "tuya_ble_mesh.protocol",
-                "tuya_ble_mesh.crypto",
-                "bleak",
-                "bleak.backends",
-                "custom_components.tuya_ble_mesh",
-            ):
-                _logging.getLogger(_log_name).setLevel(_logging.DEBUG)
-            _LOGGER.setLevel(_logging.DEBUG)
-
-            _LOGGER.warning(
-                "[PAIR] ===== PAIRING START for %s (v0.25.20) =====", mac
+            _LOGGER.info(
+                "Confirm flow: creating entry for %s as %s (zero-knowledge)",
+                mac, device_type,
             )
-            _LOGGER.warning(
-                "[PAIR] auto_type=%s, type_label=%s, short_mac=%s",
-                auto_type,
-                type_label,
-                short_mac,
+            return self.async_create_entry(
+                title=f"BLE Mesh {type_label} {short_mac}",
+                data={
+                    CONF_MAC_ADDRESS: mac,
+                    CONF_MESH_NAME: mesh_name,
+                    CONF_MESH_PASSWORD: mesh_pass,
+                    CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
+                    CONF_DEVICE_TYPE: device_type,
+                    CONF_MESH_ADDRESS: DEFAULT_MESH_ADDRESS,
+                },
             )
-
-            try:
-                _LOGGER.warning("[PAIR] Step 1: Importing REAL bleak (bypassing habluetooth)...")
-                # CRITICAL: HA's habluetooth monkey-patches bleak.BleakClient with
-                # HaBleakClientWrapper which intercepts connect() and routes through
-                # ESPHome proxy. We must import the REAL BlueZ backend directly
-                # for the BleakClient — habluetooth only patches the client, not the scanner.
-                from bleak import BleakScanner as _RawBleakScanner
-                from bleak.backends.bluezdbus.client import BleakClientBlueZDBus as _RawBleakClient
-
-                _LOGGER.warning("[PAIR] Step 2: Importing provisioner...")
-                from tuya_ble_mesh.provisioner import provision
-
-                vid_hex = DEFAULT_VENDOR_ID.replace("0x", "").replace("0X", "")
-                _LOGGER.warning(
-                    "[PAIR] Step 3: vid_hex=%s, mesh_name=%s",
-                    vid_hex,
-                    DEFAULT_FACTORY_MESH_NAME,
-                )
-
-                # Step 1a: Scan for device on LOCAL adapter (hci0)
-                _LOGGER.warning(
-                    "[PAIR] Step 4: BleakScanner.find_device_by_address(%s, timeout=%s, adapter=hci0)...",
-                    mac,
-                    _BLE_SCAN_TIMEOUT,
-                )
-                ble_device = await asyncio.wait_for(
-                    _RawBleakScanner.find_device_by_address(
-                        mac, timeout=_BLE_SCAN_TIMEOUT, adapter="hci0"
-                    ),
-                    timeout=_BLE_SCAN_WAIT_TIMEOUT,
-                )
-
-                if ble_device is None:
-                    _LOGGER.warning("[PAIR] Step 4 FAILED: Device %s not found on hci0 scan", mac)
-                    raise TimeoutError(f"Device {mac} not found on local BLE adapter")
-
-                _LOGGER.warning(
-                    "[PAIR] Step 4 OK: Found %s (name=%s, rssi=%s, details=%s)",
-                    mac,
-                    ble_device.name,
-                    getattr(ble_device, "rssi", "?"),
-                    type(ble_device).__name__,
-                )
-
-                # Step 4b: Remove stale BlueZ device entry to avoid connect conflicts
-                _LOGGER.warning("[PAIR] Step 4b: Removing stale BlueZ device %s...", mac)
-                try:
-                    proc = await asyncio.create_subprocess_exec(
-                        "bluetoothctl", "remove", mac,
-                        stdout=asyncio.subprocess.DEVNULL,
-                        stderr=asyncio.subprocess.DEVNULL,
-                    )
-                    await asyncio.wait_for(proc.wait(), timeout=_BLUETOOTHCTL_TIMEOUT)
-                    _LOGGER.warning("[PAIR] Step 4b: BlueZ device removed (or didn't exist)")
-                    await asyncio.sleep(_BLUEZ_SETTLE_DELAY)  # Let BlueZ settle
-                except asyncio.CancelledError:
-                    raise
-                except Exception as rm_exc:
-                    _LOGGER.warning("[PAIR] Step 4b: Could not remove BlueZ device: %s", rm_exc)
-
-                # Step 4c: Re-scan for fresh BLEDevice after removal
-                _LOGGER.warning("[PAIR] Step 4c: Re-scanning for %s...", mac)
-                ble_device = await asyncio.wait_for(
-                    _RawBleakScanner.find_device_by_address(
-                        mac, timeout=_BLE_SCAN_TIMEOUT, adapter="hci0"
-                    ),
-                    timeout=_BLE_SCAN_WAIT_TIMEOUT,
-                )
-                if ble_device is None:
-                    _LOGGER.warning("[PAIR] Step 4c FAILED: Device %s not found after re-scan", mac)
-                    raise TimeoutError(f"Device {mac} not found after BlueZ cleanup")
-                _LOGGER.warning("[PAIR] Step 4c OK: Fresh device found")
-
-                # Step 5: Connect via REAL BlueZ backend (bypass habluetooth wrapper)
-                _LOGGER.warning(
-                    "[PAIR] Step 5: BleakClientBlueZDBus(%s, adapter=hci0, timeout=%s)...",
-                    mac,
-                    _BLE_CLIENT_TIMEOUT,
-                )
-                client = _RawBleakClient(ble_device, adapter="hci0", timeout=_BLE_CLIENT_TIMEOUT)
-                _LOGGER.warning("[PAIR] Step 5a: client.connect() starting (raw BlueZ, no habluetooth)...")
-                try:
-                    await asyncio.wait_for(client.connect(pair=False), timeout=_BLE_CONNECT_TIMEOUT)
-                except TypeError:
-                    _LOGGER.warning("[PAIR] Step 5a: pair= not supported, retrying without")
-                    await asyncio.wait_for(client.connect(), timeout=_BLE_CONNECT_TIMEOUT)
-                except asyncio.TimeoutError:
-                    _LOGGER.warning("[PAIR] Step 5a: connect(pair=False) timed out, retrying with pair=True")
-                    try:
-                        await client.disconnect()
-                    except Exception:  # noqa: BLE001 — best-effort cleanup before retry
-                        pass
-                    # Re-remove + re-scan before retry
-                    try:
-                        proc = await asyncio.create_subprocess_exec(
-                            "bluetoothctl", "remove", mac,
-                            stdout=asyncio.subprocess.DEVNULL,
-                            stderr=asyncio.subprocess.DEVNULL,
-                        )
-                        await asyncio.wait_for(proc.wait(), timeout=_BLUETOOTHCTL_TIMEOUT)
-                        await asyncio.sleep(_PAIRING_RETRY_DELAY)
-                    except asyncio.CancelledError:
-                        raise
-                    except Exception:  # noqa: BLE001 — bluetoothctl cleanup is best-effort
-                        pass
-                    ble_device = await asyncio.wait_for(
-                        _RawBleakScanner.find_device_by_address(mac, timeout=_BLE_SCAN_TIMEOUT, adapter="hci0"),
-                        timeout=_BLE_SCAN_WAIT_TIMEOUT,
-                    )
-                    if ble_device is None:
-                        raise TimeoutError(f"Device {mac} not found after second cleanup")
-                    client = _RawBleakClient(ble_device, adapter="hci0", timeout=_BLE_CLIENT_TIMEOUT)
-                    await asyncio.wait_for(client.connect(pair=True), timeout=_BLE_CONNECT_PAIR_TIMEOUT)
-                _LOGGER.warning(
-                    "[PAIR] Step 5 OK: GATT connected (is_connected=%s, mtu=%s)",
-                    client.is_connected,
-                    getattr(client, "mtu_size", "?"),
-                )
-
-                # Log discovered services
-                try:
-                    services = client.services
-                    if services:
-                        for svc in services:
-                            _LOGGER.warning(
-                                "[PAIR] Service: %s (%s)",
-                                svc.uuid,
-                                svc.description if hasattr(svc, "description") else "",
-                            )
-                except Exception as svc_exc:
-                    _LOGGER.warning("[PAIR] Could not list services: %s", svc_exc)
-
-                # Step 1c: Provision (Telink mesh session key exchange)
-                _LOGGER.warning(
-                    "[PAIR] Step 6: provision(client, mesh_name, mesh_password)..."
-                )
-                session_key = await asyncio.wait_for(
-                    provision(
-                        client,
-                        DEFAULT_FACTORY_MESH_NAME.encode("utf-8"),
-                        DEFAULT_FACTORY_MESH_PASSWORD.encode("utf-8"),  # pragma: allowlist secret
-                    ),
-                    timeout=15.0,
-                )
-                _LOGGER.warning(
-                    "[PAIR] Step 6 OK: Provisioning succeeded (key length: %d)",
-                    len(session_key),
-                )
-
-                # Disconnect — the coordinator will reconnect later
-                _LOGGER.warning("[PAIR] Step 7: Disconnecting...")
-                await client.disconnect()
-                _LOGGER.warning("[PAIR] Step 7 OK: Disconnected — pairing complete")
-                direct_ok = True
-
-            except asyncio.TimeoutError as te:
-                _LOGGER.warning(
-                    "[PAIR] TIMEOUT during pairing of %s: %s", mac, te, exc_info=True
-                )
-            except ImportError as ie:
-                _LOGGER.warning(
-                    "[PAIR] IMPORT ERROR during pairing: %s", ie, exc_info=True
-                )
-            except Exception as exc:
-                _LOGGER.warning(
-                    "[PAIR] EXCEPTION during pairing of %s: %s (%s)",
-                    mac,
-                    exc,
-                    type(exc).__name__,
-                    exc_info=True,
-                )
-
-            if direct_ok:
-                return self.async_create_entry(
-                    title=f"BLE {type_label} {short_mac}",
-                    data={
-                        CONF_MAC_ADDRESS: mac,
-                        CONF_MESH_NAME: DEFAULT_FACTORY_MESH_NAME,
-                        CONF_MESH_PASSWORD: DEFAULT_FACTORY_MESH_PASSWORD,  # pragma: allowlist secret
-                        CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
-                        CONF_DEVICE_TYPE: auto_type,
-                        CONF_MESH_ADDRESS: DEFAULT_MESH_ADDRESS,
-                    },
-                )
-
-            # Step 2: Auto-test bridge at known address
-            bridge_host = "192.168.1.124"
-            bridge_port = DEFAULT_BRIDGE_PORT
-            bridge_ok = await _test_bridge_with_session(self.hass, bridge_host, bridge_port)
-
-            if bridge_ok:
-                _LOGGER.info("Bridge at %s:%d reachable — creating bridge entry for %s", bridge_host, bridge_port, mac)
-                return self.async_create_entry(
-                    title=f"BLE {type_label} {short_mac}",
-                    data={
-                        CONF_MAC_ADDRESS: mac,
-                        CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
-                        CONF_BRIDGE_HOST: bridge_host,
-                        CONF_BRIDGE_PORT: bridge_port,
-                    },
-                )
-
-            # Neither direct BLE nor bridge worked
-            _LOGGER.warning("Neither direct BLE nor bridge pairing succeeded for %s", mac)
-            errors["base"] = "pairing_failed"
 
         return self.async_show_form(
             step_id="confirm",
-            data_schema=vol.Schema({}),
+            data_schema=vol.Schema({
+                vol.Optional(CONF_DEVICE_TYPE, default=disc.get("auto_device_type", DEVICE_TYPE_LIGHT)): vol.In(
+                    {
+                        DEVICE_TYPE_LIGHT: "Light",
+                        DEVICE_TYPE_PLUG: "Plug",
+                    }
+                ),
+            }),
             description_placeholders={
                 "name": disc.get("display_name", disc.get("name", "Unknown")),
                 "mac": disc.get("address", ""),
                 "rssi": str(disc.get("rssi", "?")),
                 "category": disc.get("device_category", ""),
             },
-            errors=errors,
         )
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:
@@ -1156,10 +969,20 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 "Device %s stopped advertising, aborting SIG provisioning flow",
                 disc["address"],
             )
-            return self.async_abort(reason="device_not_available")
+            # PLAT-408: Use device_not_found (consistent with lib DeviceNotFoundError)
+            return self.async_abort(reason="device_not_found")
 
         if user_input is not None and self._discovery_info is not None:
             mac = self._discovery_info["address"]
+
+            # PLAT-408: Guard BEFORE provisioning — if this device is already
+            # configured we must abort now.  Provisioning resets the device's
+            # network keys; re-provisioning an already-configured device would
+            # leave HA with stale keys and the device unreachable (bricked state).
+            # For the bluetooth discovery path async_set_unique_id was already
+            # called in async_step_bluetooth, so this is idempotent.
+            await self.async_set_unique_id(mac)
+            self._abort_if_unique_id_configured(updates={})
 
             # Device visibility is confirmed by discovery — no need to re-check
             # via HA BLE registry (which may route through ESPHome proxy).
@@ -1173,7 +996,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 # Map specific exceptions to error keys
                 error_key = "provisioning_failed"
                 try:
-                    from tuya_ble_mesh.exceptions import (                        DeviceNotFoundError,
+                    from tuya_ble_mesh.exceptions import (
+                        DeviceNotFoundError,
                         ProvisioningError,
                     )
                     from tuya_ble_mesh.exceptions import TimeoutError as MeshTimeoutError
@@ -1194,8 +1018,6 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 )
                 errors["base"] = error_key
             else:
-                await self.async_set_unique_id(mac)
-                self._abort_if_unique_id_configured()
                 return self.async_create_entry(
                     title=f"BLE Plug {mac[-8:]}",
                     data={
@@ -1262,13 +1084,50 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
         # Phase 1: PB-GATT provisioning — direct bleak, not via HA BLE manager/proxy
         # Provisioning requires full GATT connection that only the local adapter can do.
-        # PLAT-408: Increased timeout and retries for more reliable provisioning
+        # PLAT-408: Increased timeout and retries for more reliable provisioning.
+        # Pass HA bluetooth callbacks so the provisioner can use HA's BLE stack
+        # to locate the device (connectable lookup first, fallback to any advertisement).
+        _hass = getattr(self, "hass", None)
+
+        def _ble_device_callback(address: str) -> Any:
+            """Return BLE device via HA bluetooth stack, or None for raw scan fallback."""
+            if _hass is None:
+                return None
+            try:
+                from homeassistant.components.bluetooth import async_ble_device_from_address
+                device = async_ble_device_from_address(_hass, address, connectable=True)
+                if device is None:
+                    device = async_ble_device_from_address(_hass, address, connectable=False)
+                return device
+            except Exception:  # noqa: BLE001 — best-effort HA stack lookup
+                return None
+
+        async def _ble_connect_callback(ble_device: Any) -> Any:
+            """Connect to BLE device via bleak-retry-connector (PB-GATT provisioning).
+
+            The provisioner calls this when it has a BLEDevice and needs a connected
+            BleakClient. Using bleak_retry_connector.establish_connection ensures
+            reliable reconnection without HA's habluetooth proxy wrapper, which
+            routes GATT through ESPHome proxies — unsuitable for PB-GATT provisioning
+            that requires a full local BLE connection.
+            """
+            import bleak_retry_connector
+            from bleak.backends.bluezdbus.client import BleakClientBlueZDBus
+            return await bleak_retry_connector.establish_connection(
+                BleakClientBlueZDBus,
+                ble_device,
+                ble_device.address,
+                max_attempts=3,
+            )
+
         provisioner = SIGMeshProvisioner(
             net_key=net_key,
             app_key=app_key,
             unicast_addr=_UNICAST_DEVICE_DEFAULT,
             iv_index=DEFAULT_IV_INDEX,
             adapter="hci0",  # Force local adapter, bypass ESPHome proxy
+            ble_device_callback=_ble_device_callback,
+            ble_connect_callback=_ble_connect_callback,
         )
         result = await provisioner.provision(
             mac,
@@ -1361,10 +1220,10 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     attempt + 1, mac,
                     exc_info=True,
                 )
-                try:
-                    await device.disconnect()
-                except Exception:  # noqa: BLE001 — best-effort disconnect between retries
-                    pass
+                # Do NOT disconnect here — the final disconnect below handles cleanup.
+                # Disconnecting between retries caused multiple disconnect calls that
+                # confused test assertions and could destabilize the BLE connection
+                # before the provisioner has fully given up. (PLAT-408 bugfix)
 
         if not post_prov_ok:
             _LOGGER.warning(

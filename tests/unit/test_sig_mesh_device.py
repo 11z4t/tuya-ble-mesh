@@ -18,10 +18,12 @@ from tuya_ble_mesh.exceptions import (  # noqa: E402
     SIGMeshKeyError,
 )
 from tuya_ble_mesh.sig_mesh_device import (  # noqa: E402
-    _INITIAL_SEQ,
     _REASSEMBLY_TIMEOUT,
     SIGMeshDevice,
 )
+
+# _INITIAL_SEQ was removed in PLAT-402 (seq now starts at 0, not 2000)
+_INITIAL_SEQ = 0
 
 
 def make_mock_secrets() -> MagicMock:
@@ -95,6 +97,7 @@ class TestSIGMeshDeviceConnect:
         mock_client = MagicMock()
         mock_client.connect = AsyncMock()
         mock_client.start_notify = AsyncMock()
+        mock_client.write_gatt_char = AsyncMock()
         mock_client.is_connected = True
         mock_client.set_disconnected_callback = MagicMock()
 
@@ -142,6 +145,7 @@ class TestSIGMeshDeviceDisconnect:
         mock_client.disconnect = AsyncMock()
         mock_client.start_notify = AsyncMock()
         mock_client.stop_notify = AsyncMock()
+        mock_client.write_gatt_char = AsyncMock()
         mock_client.is_connected = True
         mock_client.set_disconnected_callback = MagicMock()
 
@@ -237,7 +241,7 @@ class TestSIGMeshDeviceSequence:
 
     def test_initial_seq(self) -> None:
         dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
-        assert dev._seq == _INITIAL_SEQ
+        assert dev.get_seq() == _INITIAL_SEQ
 
     @pytest.mark.asyncio
     async def test_next_seq_increments(self) -> None:
@@ -312,8 +316,8 @@ class TestSegmentReassembly:
 
         dev._handle_segment(0x00AA, 0x0001, pdu)
 
-        assert (0x00AA, 100) in dev._segment_buffers
-        buf = dev._segment_buffers[(0x00AA, 100)]
+        assert (0x00AA, 0x0001, 100, 0) in dev._segment_buffers
+        buf = dev._segment_buffers[(0x00AA, 0x0001, 100, 0)]
         assert 0 in buf.segments
         assert buf.seg_n == 1
 
@@ -356,7 +360,7 @@ class TestSegmentReassembly:
         dev._handle_segment(0x00AA, 0x0001, pdu)
 
         # Make the buffer look stale
-        buf = dev._segment_buffers[(0x00AA, 200)]
+        buf = dev._segment_buffers[(0x00AA, 0x0001, 200, 0)]
         buf.created_at = time.monotonic() - _REASSEMBLY_TIMEOUT - 1.0
 
         # Trigger cleanup with another segment
@@ -365,7 +369,7 @@ class TestSegmentReassembly:
         dev._handle_segment(0x00BB, 0x0001, pdu2)
 
         # Stale buffer should be gone
-        assert (0x00AA, 200) not in dev._segment_buffers
+        assert (0x00AA, 0x0001, 200, 0) not in dev._segment_buffers
 
     def test_dispatch_access_payload_onoff(self) -> None:
         """_dispatch_access_payload should invoke onoff callbacks."""

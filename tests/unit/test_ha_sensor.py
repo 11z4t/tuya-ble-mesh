@@ -62,8 +62,8 @@ class TestSensorDescriptions:
     """Test SENSOR_DESCRIPTIONS configuration."""
 
     def test_sensor_descriptions_count(self) -> None:
-        """Verify we have exactly 4 sensor descriptions."""
-        assert len(SENSOR_DESCRIPTIONS) == 4
+        """Verify we have exactly 6 sensor descriptions."""
+        assert len(SENSOR_DESCRIPTIONS) == 6
 
     def test_rssi_description(self) -> None:
         """Test RSSI sensor description."""
@@ -351,7 +351,7 @@ class TestSensorPlatformSetup:
 
     @pytest.mark.asyncio
     async def test_setup_entry_creates_two_sensors_for_light(self) -> None:
-        """Light devices get RSSI + Firmware = 2 sensors (no power/energy)."""
+        """Light devices get RSSI + Firmware + connection_quality + last_seen = 4 sensors (no power/energy)."""
         coord = make_mock_coordinator()
         hass = MagicMock()
         entry = MagicMock()
@@ -365,7 +365,7 @@ class TestSensorPlatformSetup:
 
         add_entities.assert_called_once()
         entities = add_entities.call_args[0][0]
-        assert len(entities) == 2
+        assert len(entities) == 4
         keys = {e.entity_description.key for e in entities}
         assert "rssi" in keys
         assert "firmware" in keys
@@ -374,7 +374,7 @@ class TestSensorPlatformSetup:
 
     @pytest.mark.asyncio
     async def test_setup_entry_creates_four_sensors_for_plug(self) -> None:
-        """Plug devices with power monitoring get RSSI + Firmware + Power + Energy = 4."""
+        """Plug devices with power monitoring get RSSI + Firmware + Power + Energy + connection_quality + last_seen = 6."""
         coord = make_mock_coordinator()
         coord.device.supports_power_monitoring = True
         coord.capabilities.has_power_monitoring = True
@@ -389,7 +389,7 @@ class TestSensorPlatformSetup:
         await async_setup_entry(hass, entry, add_entities)
 
         entities = add_entities.call_args[0][0]
-        assert len(entities) == 4
+        assert len(entities) == 6
         keys = {e.entity_description.key for e in entities}
         assert "rssi" in keys
         assert "firmware" in keys

@@ -1258,13 +1258,17 @@ class TestRunProvision:
             result = ble_device_cb("AA:BB:CC:DD:EE:FF")
             assert result is mock_ble_device_non_connectable
 
-        # Test ble_connect_cb - verify it's callable and calls establish_connection
+        # Test ble_connect_cb - verify it's callable and uses establish_connection
         assert callable(ble_connect_cb)
-        # Call the callback to cover line 602 - uses mock_client from the outer patch
         mock_ble_device = MagicMock()
         mock_ble_device.address = "AA:BB:CC:DD:EE:FF"
-        result = await ble_connect_cb(mock_ble_device)
-        assert result is not None
+        with patch(
+            "bleak_retry_connector.establish_connection",
+            new_callable=AsyncMock,
+            return_value=mock_client,
+        ):
+            result = await ble_connect_cb(mock_ble_device)
+            assert result is mock_client
 
     @pytest.mark.asyncio
     async def test_run_provision_ble_device_not_found(self) -> None:
