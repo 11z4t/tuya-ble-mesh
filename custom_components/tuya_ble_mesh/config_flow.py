@@ -1571,8 +1571,23 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     errors["base"] = cred_error
 
             if not errors:
-                new_data = {**entry.data, **user_input}
-                self.hass.config_entries.async_update_entry(entry, data=new_data)
+                # Split user_input: identity/credentials → data, tunables → options
+                identity_keys = {
+                    CONF_MAC_ADDRESS, CONF_DEVICE_TYPE, CONF_UNICAST_TARGET,
+                    CONF_UNICAST_OUR, CONF_NET_KEY, CONF_DEV_KEY, CONF_APP_KEY,
+                    CONF_MESH_NAME, CONF_MESH_PASSWORD, CONF_VENDOR_ID,
+                    CONF_IV_INDEX, CONF_MESH_ADDRESS,
+                }
+                data_updates = {k: v for k, v in user_input.items() if k in identity_keys}
+                options_updates = {k: v for k, v in user_input.items() if k not in identity_keys}
+
+                if data_updates:
+                    new_data = {**entry.data, **data_updates}
+                    self.hass.config_entries.async_update_entry(entry, data=new_data)
+                if options_updates:
+                    new_options = {**(entry.options or {}), **options_updates}
+                    self.hass.config_entries.async_update_entry(entry, options=new_options)
+
                 await self.hass.config_entries.async_reload(entry.entry_id)
                 return self.async_abort(reason="reauth_successful")
 
