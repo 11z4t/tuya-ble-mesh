@@ -43,7 +43,9 @@ from tuya_ble_mesh.const import (
 from tuya_ble_mesh.exceptions import (
     CommandQueueFullError,
     ConnectionError,
+    CryptoError,
     DisconnectedError,
+    MalformedPacketError,
     ProtocolError,
 )
 from tuya_ble_mesh.protocol import (
@@ -222,7 +224,7 @@ class _CommandDispatcher:
                 # Send the command
                 try:
                     await self._device._send_now(cmd.opcode, cmd.params, cmd.dest_id)
-                except Exception:
+                except (ConnectionError, DisconnectedError):
                     _LOGGER.warning(
                         "Command 0x%02X send failed, dropping",
                         cmd.opcode,
@@ -234,7 +236,7 @@ class _CommandDispatcher:
             except asyncio.CancelledError:
                 _LOGGER.debug("Command dispatcher worker cancelled")
                 raise
-            except Exception:
+            except BaseException:  # noqa: S110
                 _LOGGER.error("Command dispatcher worker error", exc_info=True)
 
         _LOGGER.debug("Command dispatcher worker stopped")
@@ -363,7 +365,7 @@ class MeshDevice:
         try:
             decrypted = decrypt_notification(key, self._mac_bytes, bytes(data))
             status = decode_status(decrypted)
-        except Exception:
+        except (CryptoError, MalformedPacketError, ValueError):
             _LOGGER.warning("Failed to decode notification (%d bytes)", len(data), exc_info=True)
             return
 
@@ -377,7 +379,7 @@ class MeshDevice:
         for callback in list(self._status_callbacks):
             try:
                 callback(status)
-            except Exception:
+            except BaseException:  # noqa: S110
                 _LOGGER.warning("Status callback error", exc_info=True)
 
     def _on_disconnect(self) -> None:
@@ -387,7 +389,7 @@ class MeshDevice:
         for callback in list(self._disconnect_callbacks):
             try:
                 callback()
-            except Exception:
+            except BaseException:  # noqa: S110
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
 
     async def connect(
@@ -491,7 +493,7 @@ class MeshDevice:
                 return
             except DisconnectedError:
                 raise
-            except Exception as exc:
+            except (ConnectionError, OSError) as exc:
                 last_error = exc
                 if attempt >= max_retries:
                     break

@@ -324,7 +324,7 @@ class SIGMeshProvisioner:
             await asyncio.sleep(_BLUEZ_CACHE_SETTLE_DELAY)
         except FileNotFoundError:
             _LOGGER.debug("bluetoothctl not found, skipping cleanup")
-        except Exception as exc:
+        except (OSError, asyncio.TimeoutError) as exc:
             _LOGGER.debug(
                 "Failed to clean up stale connection for %s: %s",
                 address,
@@ -467,13 +467,13 @@ class SIGMeshProvisioner:
                 )
                 # PLAT-506: Ensure client is disconnected before retry
                 if client is not None:
-                    with contextlib.suppress(Exception):
+                    with contextlib.suppress(OSError, asyncio.TimeoutError):
                         await client.disconnect()
                     client = None
                 # PLAT-506: Longer backoff to allow connection slot release
                 backoff = min(3.0 * (1.5 ** (attempt - 1)), 15.0)
                 await asyncio.sleep(backoff)
-            except Exception as exc:
+            except (OSError, asyncio.TimeoutError, ValueError) as exc:
                 last_exc = exc
                 connect_failures += 1
 
@@ -487,7 +487,7 @@ class SIGMeshProvisioner:
 
                 # PLAT-506: Ensure client is disconnected before retry
                 if client is not None:
-                    with contextlib.suppress(Exception):
+                    with contextlib.suppress(OSError, asyncio.TimeoutError):
                         await client.disconnect()
                     client = None
 
@@ -632,7 +632,7 @@ class SIGMeshProvisioner:
             if hasattr(client, "pair"):
                 _LOGGER.info("Provisioning: pairing (BlueZ bond) before GATT subscribe")
                 await asyncio.wait_for(client.pair(), timeout=10.0)
-        except Exception as pair_exc:
+        except (OSError, asyncio.TimeoutError) as pair_exc:
             _LOGGER.warning(
                 "BlueZ pair() failed (%s: %s) — trying start_notify anyway",
                 type(pair_exc).__name__,
@@ -693,9 +693,6 @@ class SIGMeshProvisioner:
                 f"Invalid device public key: point not on curve. "
                 f"Device sent malformed ECDH public key: {exc}"
             )
-            raise ProvisioningError(msg) from exc
-        except Exception as exc:
-            msg = f"ECDH key exchange failed: {type(exc).__name__}: {exc}"
             raise ProvisioningError(msg) from exc
 
         _LOGGER.info("Provisioning: ECDH shared secret (%d bytes) [REDACTED]", len(shared_secret))

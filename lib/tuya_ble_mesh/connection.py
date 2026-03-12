@@ -26,7 +26,7 @@ from tuya_ble_mesh.const import (
     TELINK_CMD_STATUS_QUERY,
     TELINK_VENDOR_ID,
 )
-from tuya_ble_mesh.exceptions import DisconnectedError, MeshConnectionError
+from tuya_ble_mesh.exceptions import DisconnectedError, MeshConnectionError, ProvisioningError
 from tuya_ble_mesh.protocol import encode_command_packet
 from tuya_ble_mesh.provisioner import provision
 from tuya_ble_mesh.scanner import mac_to_bytes
@@ -196,7 +196,7 @@ class BLEConnection:
                 "GATT notification subscription active for %s (push mode)",
                 self._address,
             )
-        except Exception as exc:
+        except OSError as exc:
             self._notify_active = False
             _LOGGER.warning(
                 "start_notify failed for %s (%s) — running in poll-only mode. "
@@ -230,7 +230,7 @@ class BLEConnection:
 
         try:
             await self._connect_with_retry(timeout, max_retries)
-        except Exception:
+        except (OSError, asyncio.TimeoutError):
             self._state = ConnectionState.DISCONNECTED
             raise
 
@@ -248,7 +248,7 @@ class BLEConnection:
                 self._mesh_password,
             )
             self._session_key = bytearray(key)
-        except Exception as exc:
+        except (ProvisioningError, OSError, asyncio.TimeoutError) as exc:
             await self._cleanup()
             msg = f"Provisioning failed for {self._address}"
             raise MeshConnectionError(msg) from exc
@@ -332,7 +332,7 @@ class BLEConnection:
             raw = await self._client.read_gatt_char(DIS_FIRMWARE_REVISION)
             self._firmware_version = raw.decode("utf-8", errors="replace").strip()
             _LOGGER.debug("Firmware version: %s", self._firmware_version)
-        except Exception:
+        except OSError:
             _LOGGER.debug("Could not read firmware version (ignored)", exc_info=True)
 
     async def _clear_bluez_device(self) -> None:
@@ -346,7 +346,7 @@ class BLEConnection:
                 stderr=asyncio.subprocess.DEVNULL,
             )
             await asyncio.wait_for(proc.wait(), timeout=5.0)
-        except Exception:
+        except (OSError, asyncio.TimeoutError):
             _LOGGER.debug("bluetoothctl remove failed (ignored)", exc_info=True)
 
     async def disconnect(self) -> None:
@@ -373,7 +373,7 @@ class BLEConnection:
         if self._client is not None:
             try:
                 await self._client.disconnect()
-            except Exception:
+            except OSError:
                 _LOGGER.debug("Disconnect error (ignored)", exc_info=True)
             self._client = None
 
@@ -395,7 +395,7 @@ class BLEConnection:
 
         try:
             await self._client.write_gatt_char(TELINK_CHAR_COMMAND, packet, response=False)
-        except Exception as exc:
+        except OSError as exc:
             _LOGGER.warning("Write failed, triggering disconnect: %s", type(exc).__name__)
             await self._handle_disconnect()
             msg = f"Write failed to {self._address}"
@@ -415,7 +415,7 @@ class BLEConnection:
         for callback in self._disconnect_callbacks:
             try:
                 callback()
-            except Exception:
+            except BaseException:  # noqa: S110
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
 
     # --- Keep-alive ---
@@ -469,7 +469,7 @@ class BLEConnection:
             )
             await self._client.write_gatt_char(TELINK_CHAR_COMMAND, packet, response=False)
             _LOGGER.debug("Keep-alive sent (seq=%d)", seq)
-        except Exception:
+        except OSError:
             _LOGGER.warning("Keep-alive failed, triggering disconnect")
             await self._handle_disconnect()
 
