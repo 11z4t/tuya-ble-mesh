@@ -47,7 +47,7 @@
         }
       },
       "sig_plug": {
-        "title": "SIG Mesh Plug \u2014 Auto Provisioning",
+        "title": "SIG Mesh Plug — Auto Provisioning",
         "description": "The device **{name}** will be provisioned automatically.\n\nA random NetKey and AppKey are generated. The DevKey is derived from the ECDH provisioning exchange. All keys are saved securely in the Home Assistant config database.\n\n**Before clicking Submit:**\n- Ensure the device is in factory-reset state (LED flashing)\n- Ensure it is within BLE range of a local adapter or ESPHome BLE proxy\n- Provisioning takes approximately 10 seconds",
         "data": {}
       },
@@ -58,7 +58,7 @@
       },
       "reauth_confirm": {
         "title": "Re-enter Credentials",
-        "description": "Connection failed \u2014 credentials may have changed. Re-enter to reconnect.",
+        "description": "Connection failed — credentials may have changed. Re-enter to reconnect.",
         "data": {
           "mesh_name": "Mesh Name",
           "mesh_password": "Mesh Password",
@@ -83,7 +83,7 @@
       "invalid_key": "Invalid key format (expected 32 hex characters).",
       "invalid_bridge_host": "Invalid bridge host. Enter a hostname or IP address (not a URL). Loopback and link-local addresses are not allowed.",
       "invalid_credential_length": "Mesh name and password must each be 16 bytes or fewer.",
-      "invalid_vendor_id": "Invalid Vendor ID. Expected 1\u20134 hex digits with optional 0x prefix (e.g. 0x1001).",
+      "invalid_vendor_id": "Invalid Vendor ID. Expected 1–4 hex digits with optional 0x prefix (e.g. 0x1001).",
       "bridge_unreachable": "Cannot reach bridge daemon at the given host/port. Check that the daemon is running and that Home Assistant can access it on your network.",
       "auth_or_mesh_mismatch": "Bridge reached but device rejected the mesh credentials. Verify mesh name and password.",
       "unsupported_vendor": "Vendor ID not recognized. Check BLE snoop logs for the correct vendor bytes.",
@@ -132,7 +132,7 @@
         },
         "data_description": {
           "debug_level": "Controls verbosity of BLE mesh logs. Warning is recommended for normal use.",
-          "command_timeout": "How long to wait for a device response before retrying (3\u201360 seconds).",
+          "command_timeout": "How long to wait for a device response before retrying (3–60 seconds).",
           "max_reconnects": "Limit total reconnect attempts. 0 = keep trying indefinitely.",
           "reconnect_storm_threshold": "Create a repair issue if this many reconnects happen within 5 minutes."
         }
@@ -142,7 +142,7 @@
       "invalid_bridge_host": "Invalid bridge host. Enter a hostname or IP address (not a URL).",
       "bridge_unreachable": "Cannot reach bridge daemon. Verify host/port and that the daemon is running.",
       "invalid_credential_length": "Mesh name and password must each be 16 bytes or fewer.",
-      "invalid_vendor_id": "Invalid Vendor ID. Expected 1\u20134 hex digits (e.g. 0x1001)."
+      "invalid_vendor_id": "Invalid Vendor ID. Expected 1–4 hex digits (e.g. 0x1001)."
     }
   },
   "entity": {
@@ -168,11 +168,30 @@
       },
       "energy": {
         "name": "Energy"
+      },
+      "connection_quality": {
+        "name": "Connection quality"
+      },
+      "last_seen": {
+        "name": "Last seen"
       }
     },
     "update": {
       "firmware_update": {
         "name": "Firmware"
+      }
+    },
+    "binary_sensor": {
+      "connectivity": {
+        "name": "Connectivity"
+      }
+    },
+    "button": {
+      "identify": {
+        "name": "Identify"
+      },
+      "reconnect": {
+        "name": "Reconnect"
       }
     }
   },
@@ -250,7 +269,7 @@
         "step": {
           "reauth_hint": {
             "title": "Fix: Update mesh credentials",
-            "description": "The device **{device}** is rejecting the stored mesh credentials.\n\n**To fix:**\n1. Go to **Settings \u2192 Integrations \u2192 {device} \u2192 Configure**\n2. Update mesh name and password to match the device\n3. Factory defaults: name=`out_of_mesh`, password=`123456`\n\nIf the device was factory-reset, delete and re-add the integration."
+            "description": "The device **{device}** is rejecting the stored mesh credentials.\n\n**To fix:**\n1. Go to **Settings → Integrations → {device} → Configure**\n2. Update mesh name and password to match the device\n3. Factory defaults: name=`out_of_mesh`, password=`123456`\n\nIf the device was factory-reset, delete and re-add the integration."
           },
           "credentials": {
             "title": "Enter new credentials",
@@ -271,13 +290,13 @@
         "step": {
           "confirm": {
             "title": "Fix: Update vendor ID",
-            "description": "The vendor ID **{vendor_id}** for **{device}** is not recognized.\n\n**To find the correct ID:**\n1. Use a BLE sniffer to capture advertisements from the device\n2. Look at manufacturer-specific data \u2014 vendor bytes are at payload offset `[3:5]`\n3. Known IDs: Malmbergs=`0x1001`, AwoX=`0x0160`, Dimond=`0x0211`\n\n**To fix:** Go to **Settings \u2192 Integrations \u2192 {device} \u2192 Configure** and update the Vendor ID."
+            "description": "The vendor ID **{vendor_id}** for **{device}** is not recognized.\n\n**To find the correct ID:**\n1. Use a BLE sniffer to capture advertisements from the device\n2. Look at manufacturer-specific data — vendor bytes are at payload offset `[3:5]`\n3. Known IDs: Malmbergs=`0x1001`, AwoX=`0x0160`, Dimond=`0x0211`\n\n**To fix:** Go to **Settings → Integrations → {device} → Configure** and update the Vendor ID."
           }
         }
       }
     },
     "device_not_found": {
-      "title": "Device not visible: {device} (\u2026{mac})"
+      "title": "Device not visible: {device} (…{mac})"
     },
     "timeout": {
       "title": "Repeated timeouts: {device} ({operation})"
@@ -288,7 +307,7 @@
         "step": {
           "storm_confirm": {
             "title": "Acknowledge reconnect storm",
-            "description": "**{device}** reconnected **{count}** times in {window} minutes.\n\n**Checks:**\n1. Is the device stable (not rebooting repeatedly)?\n2. Is BLE signal adequate (RSSI > \u221280 dBm)?\n3. Check bridge logs for error patterns.\n\nAcknowledging this issue will not stop reconnects \u2014 it just clears the notification. Address the underlying cause first."
+            "description": "**{device}** reconnected **{count}** times in {window} minutes.\n\n**Checks:**\n1. Is the device stable (not rebooting repeatedly)?\n2. Is BLE signal adequate (RSSI > −80 dBm)?\n3. Check bridge logs for error patterns.\n\nAcknowledging this issue will not stop reconnects — it just clears the notification. Address the underlying cause first."
           }
         }
       }
@@ -302,7 +321,7 @@
         "step": {
           "confirm": {
             "title": "Fix provisioning failure",
-            "description": "SIG Mesh provisioning failed for **{device}**.\n\n**To fix:**\n1. Delete this integration entry\n2. Factory-reset the device: 5\u00d7 rapid power cycle (LED flashes rapidly when ready)\n3. Re-add the integration while the LED is flashing\n\nEnsure the device is within BLE range of a local adapter or ESPHome BLE proxy during provisioning."
+            "description": "SIG Mesh provisioning failed for **{device}**.\n\n**To fix:**\n1. Delete this integration entry\n2. Factory-reset the device: 5× rapid power cycle (LED flashes rapidly when ready)\n3. Re-add the integration while the LED is flashing\n\nEnsure the device is within BLE range of a local adapter or ESPHome BLE proxy during provisioning."
           }
         }
       }

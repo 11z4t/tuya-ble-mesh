@@ -168,11 +168,30 @@
       },
       "energy": {
         "name": "Energi"
+      },
+      "connection_quality": {
+        "name": "Tilkoblingskvalitet"
+      },
+      "last_seen": {
+        "name": "Sist sett"
       }
     },
     "update": {
       "firmware_update": {
         "name": "Fastvare"
+      }
+    },
+    "binary_sensor": {
+      "connectivity": {
+        "name": "Tilkobling"
+      }
+    },
+    "button": {
+      "identify": {
+        "name": "Identifiser"
+      },
+      "reconnect": {
+        "name": "Koble til på nytt"
       }
     }
   },

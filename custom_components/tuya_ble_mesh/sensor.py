@@ -8,7 +8,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -66,6 +67,28 @@ class TuyaBLEMeshSensorEntityDescription(SensorEntityDescription):
     available_fn: Callable[[TuyaBLEMeshDeviceState], bool] | None = None
 
 
+_RSSI_GOOD = -60
+_RSSI_MARGINAL = -80
+
+
+def _connection_quality(state: TuyaBLEMeshDeviceState) -> str | None:
+    """Map RSSI to human-readable connection quality."""
+    if state.rssi is None:
+        return None
+    if state.rssi >= _RSSI_GOOD:
+        return "good"
+    if state.rssi >= _RSSI_MARGINAL:
+        return "marginal"
+    return "poor"
+
+
+def _last_seen_datetime(state: TuyaBLEMeshDeviceState) -> datetime | None:
+    """Convert Unix timestamp to timezone-aware datetime for HA."""
+    if state.last_seen is None:
+        return None
+    return datetime.fromtimestamp(state.last_seen, tz=UTC)
+
+
 SENSOR_DESCRIPTIONS: tuple[TuyaBLEMeshSensorEntityDescription, ...] = (
     TuyaBLEMeshSensorEntityDescription(
         key="rssi",
@@ -102,6 +125,20 @@ SENSOR_DESCRIPTIONS: tuple[TuyaBLEMeshSensorEntityDescription, ...] = (
         value_fn=lambda state: state.energy_kwh,
         available_fn=lambda state: state.energy_kwh is not None,
     ),
+    TuyaBLEMeshSensorEntityDescription(
+        key="connection_quality",
+        translation_key="connection_quality",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:signal",
+        value_fn=_connection_quality,
+    ),
+    TuyaBLEMeshSensorEntityDescription(
+        key="last_seen",
+        translation_key="last_seen",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=_last_seen_datetime,
+    ),
 )
 
 
@@ -129,7 +166,10 @@ async def async_setup_entry(
     entities: list[SensorEntity] = []
     for description in SENSOR_DESCRIPTIONS:
         # Power/energy sensors require device support
-        if description.key in ("power", "energy") and not coordinator.capabilities.has_power_monitoring:
+        if (
+            description.key in ("power", "energy")
+            and not coordinator.capabilities.has_power_monitoring
+        ):
             continue
 
         entities.append(

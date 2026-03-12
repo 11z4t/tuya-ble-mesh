@@ -143,6 +143,7 @@ class TuyaBLEMeshDeviceState:
     energy_kwh: float | None = None
     available: bool = False
     scene_id: int = 0  # Active scene/effect index (0 = none)
+    last_seen: float | None = None  # Unix timestamp of last successful communication
 
 
 @dataclass
@@ -380,7 +381,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         """
         was_available = self._state.available
         changed = self._state.is_on != on
-        self._state = replace(self._state, is_on=on, available=True)
+        self._state = replace(self._state, is_on=on, available=True, last_seen=time.time())
         self._backoff = _INITIAL_BACKOFF
 
         # Adaptive polling: track state changes
@@ -636,7 +637,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             response_time = time.monotonic() - start_time
             self._stats.response_times.append(response_time)
             self._stats.connect_time = time.time()
-            self._state = replace(self._state, available=True, firmware_version=self._device.firmware_version)
+            self._state = replace(self._state, available=True, firmware_version=self._device.firmware_version, last_seen=time.time())
             self._backoff = _INITIAL_BACKOFF
             self._start_rssi_polling()
             _LOGGER.info("Coordinator started for %s (%.2fs)", self._device.address, response_time)
