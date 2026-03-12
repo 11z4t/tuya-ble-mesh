@@ -8,11 +8,11 @@ from typing import TYPE_CHECKING, Any
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
 from homeassistant.helpers.device_registry import DeviceInfo
 
-from custom_components.tuya_ble_mesh.entity import TuyaBLEMeshEntity
 from custom_components.tuya_ble_mesh.const import (
     CONF_DEVICE_TYPE,
     PLUG_DEVICE_TYPES,
 )
+from custom_components.tuya_ble_mesh.entity import TuyaBLEMeshEntity
 
 if TYPE_CHECKING:
     from collections.abc import Callable

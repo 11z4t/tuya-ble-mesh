@@ -18,7 +18,6 @@ import asyncio
 import contextlib
 import logging
 import time
-from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
@@ -414,7 +413,7 @@ class SIGMeshDevice:
                 # Request Composition Data (non-critical)
                 try:
                     await self.request_composition_data()
-                except (asyncio.TimeoutError, SIGMeshError, BleakError):
+                except (TimeoutError, SIGMeshError, BleakError):
                     _LOGGER.debug(
                         "Composition Data request failed (non-critical)",
                         exc_info=True,
