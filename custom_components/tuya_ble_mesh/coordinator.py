@@ -117,12 +117,10 @@ class ErrorClass(StrEnum):
     TRANSIENT = "transient"
     UNKNOWN = "unknown"
 
-
 # Sequence number persistence
 _SEQ_PERSIST_INTERVAL = 10  # Save seq every N commands
 _SEQ_SAFETY_MARGIN = 100  # Add margin on restore to avoid replay
 _SEQ_STORE_VERSION = 1
-
 
 @dataclass(frozen=True, slots=True)
 class TuyaBLEMeshDeviceState:
@@ -772,27 +770,28 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             # Generic connection failure — could be bridge-down or BLE drop.
             # Use message heuristics to distinguish the two.
             err_msg = str(err).lower()
-            if "connection refused" in err_msg or "unreachable" in err_msg or "no route" in err_msg:
+            if (
+                "connection refused" in err_msg
+                or "unreachable" in err_msg
+                or "no route" in err_msg
+            ):
                 return ErrorClass.BRIDGE_DOWN
             return ErrorClass.TRANSIENT
 
         # --- Fallback: generic OS / asyncio / aiohttp errors ---
         err_msg = str(err).lower()
+        if "unsupported device" in err_msg or "unsupported" in err_msg or "unknown vendor" in err_msg:
+            return ErrorClass.PERMANENT
         if "timeout" in err_msg or isinstance(err, (asyncio.TimeoutError, TimeoutError)):
             return ErrorClass.TRANSIENT
         if "auth" in err_msg or "password" in err_msg or "credential" in err_msg:
             return ErrorClass.MESH_AUTH
-        # Check protocol before unsupported: "Unsupported protocol version" → PROTOCOL
         if "protocol" in err_msg or "version" in err_msg:
             return ErrorClass.PROTOCOL
         if "connection refused" in err_msg or "unreachable" in err_msg or "no route" in err_msg:
             return ErrorClass.BRIDGE_DOWN
         if "not found" in err_msg:
             return ErrorClass.DEVICE_OFFLINE
-        if "unsupported" in err_msg:
-            return ErrorClass.PERMANENT
-        if "unknown" in err_msg and "vendor" in err_msg:
-            return ErrorClass.PERMANENT
         return ErrorClass.UNKNOWN
 
     def _maybe_create_repair_issue(self, error_class: ErrorClass) -> None:
@@ -865,7 +864,6 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             ISSUE_TIMEOUT,
             async_delete_issue,
         )
-
         for base_id in (
             ISSUE_BRIDGE_UNREACHABLE,
             ISSUE_AUTH_OR_MESH_MISMATCH,
@@ -992,7 +990,6 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                     from custom_components.tuya_ble_mesh.repairs import (
                         async_create_issue_reconnect_storm,
                     )
-
                     storm_task = asyncio.create_task(
                         async_create_issue_reconnect_storm(
                             self._hass,
