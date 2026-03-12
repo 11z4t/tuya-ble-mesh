@@ -3,106 +3,106 @@
     "flow_title": "{name}",
     "step": {
       "user": {
-        "title": "Appareil Tuya BLE Mesh",
-        "description": "Entrez l'adresse MAC BLE et le type d'appareil. Les identifiants mesh par défaut (out_of_mesh/123456) sont les paramètres d'usine Tuya.",
+        "title": "Ajouter votre appareil",
+        "description": "Connectons votre appareil Tuya BLE Mesh à Home Assistant.\n\n**Ce dont vous aurez besoin :**\n- L'adresse MAC de l'appareil (indiquée sur l'étiquette de l'appareil ou dans le manuel)\n- Le type d'appareil (luminaire, prise, etc.)\n- Les identifiants du réseau mesh (si vous ne les avez pas modifiés, utilisez les valeurs d'usine ci-dessous)\n\n**Prochaine étape :** Nous allons configurer la méthode de connexion.",
         "data": {
           "mac_address": "Adresse MAC",
-          "mesh_name": "Nom du Mesh",
-          "mesh_password": "Mot de passe du Mesh",
-          "vendor_id": "ID Fournisseur (hex, par exemple 0x1001)",
+          "mesh_name": "Nom du réseau Mesh",
+          "mesh_password": "Mot de passe du réseau Mesh",
+          "vendor_id": "ID fabricant (hexadécimal, ex. 0x1001)",
           "device_type": "Type d'appareil",
-          "mesh_address": "Adresse Mesh (0 = auto)"
+          "mesh_address": "Adresse Mesh (0 = automatique)"
         },
         "data_description": {
-          "mac_address": "Format: XX:XX:XX:XX:XX:XX",
+          "mac_address": "Format : XX:XX:XX:XX:XX:XX",
           "vendor_id": "Malmbergs=0x1001, AwoX=0x0160, Dimond=0x0211",
-          "mesh_name": "Paramètre d'usine: out_of_mesh (max 16 octets)",
-          "mesh_password": "Paramètre d'usine: 123456 (max 16 octets)"
+          "mesh_name": "Valeur d'usine : out_of_mesh (max 16 octets)",
+          "mesh_password": "Valeur d'usine : 123456 (max 16 octets)"
         }
       },
       "sig_bridge": {
-        "title": "Configuration du Pont SIG Mesh",
-        "description": "Configurez le démon du pont BLE pour **{name}**.\n\nLe démon du pont doit être en cours d'exécution et accessible depuis Home Assistant. La connexion sera testée avant de continuer.",
+        "title": "Connexion à votre pont",
+        "description": "Connectons maintenant **{name}** via votre pont.\n\n**Qu'est-ce qu'un pont ?** C'est un Raspberry Pi (ou appareil similaire) qui relaie les commandes entre Home Assistant et vos appareils BLE.\n\n**Avant de continuer :**\n- Assurez-vous que votre pont est sous tension\n- Vérifiez qu'il est connecté au même réseau que Home Assistant\n\n**Prochaine étape :** Nous allons tester la connexion et finaliser la configuration.",
         "data": {
-          "bridge_host": "Hôte du Pont (adresse IP ou nom d'hôte)",
-          "bridge_port": "Port du Pont",
-          "unicast_target": "Adresse Unicast Cible (hex)"
+          "bridge_host": "Hôte du pont (adresse IP ou nom d'hôte)",
+          "bridge_port": "Port du pont",
+          "unicast_target": "Adresse unicast cible (hexadécimal)"
         },
         "data_description": {
           "bridge_host": "Adresse IP ou nom d'hôte du Raspberry Pi exécutant le démon du pont",
-          "bridge_port": "Par défaut: 8099",
-          "unicast_target": "Par défaut: 00B0"
+          "bridge_port": "Par défaut : 8099",
+          "unicast_target": "Par défaut : 00B0"
         }
       },
       "telink_bridge": {
-        "title": "Configuration du Pont Telink Light",
-        "description": "Configurez le démon du pont BLE pour **{name}**.\n\nLe démon du pont doit être en cours d'exécution et accessible depuis Home Assistant. La connexion sera testée avant de continuer.",
+        "title": "Connexion à votre pont",
+        "description": "Connectons maintenant **{name}** via votre pont.\n\n**Qu'est-ce qu'un pont ?** C'est un Raspberry Pi (ou appareil similaire) qui relaie les commandes entre Home Assistant et vos appareils BLE.\n\n**Avant de continuer :**\n- Assurez-vous que votre pont est sous tension\n- Vérifiez qu'il est connecté au même réseau que Home Assistant\n\n**Prochaine étape :** Nous allons tester la connexion et finaliser la configuration.",
         "data": {
-          "bridge_host": "Hôte du Pont (adresse IP ou nom d'hôte)",
-          "bridge_port": "Port du Pont"
+          "bridge_host": "Hôte du pont (adresse IP ou nom d'hôte)",
+          "bridge_port": "Port du pont"
         },
         "data_description": {
           "bridge_host": "Adresse IP ou nom d'hôte du Raspberry Pi exécutant le démon du pont",
-          "bridge_port": "Par défaut: 8099"
+          "bridge_port": "Par défaut : 8099"
         }
       },
       "sig_plug": {
-        "title": "Prise SIG Mesh — Approvisionnement Automatique",
-        "description": "L'appareil **{name}** sera approvisionné automatiquement.\n\nUne clé NetKey et une clé AppKey aléatoires sont générées. La DevKey est dérivée de l'échange d'approvisionnement ECDH. Toutes les clés sont sauvegardées de manière sécurisée dans la base de données de configuration de Home Assistant.\n\n**Avant de cliquer sur Soumettre:**\n- Assurez-vous que l'appareil est à l'état de réinitialisation d'usine (LED clignotant)\n- Assurez-vous qu'il se trouve à portée BLE d'un adaptateur local ou d'un proxy BLE ESPHome\n- L'approvisionnement prend environ 10 secondes",
+        "title": "Prêt pour l'appairage",
+        "description": "Nous y sommes presque ! Nous sommes prêts à appairer **{name}**.\n\n**Ce qui va se passer lorsque vous cliquerez sur Soumettre :**\n1. Home Assistant générera des clés de chiffrement sécurisées\n2. L'appareil sera appairé automatiquement (prend environ 10 secondes)\n3. Tous les paramètres seront enregistrés de manière sécurisée\n\n**Avant de cliquer sur Soumettre, assurez-vous que :**\n- Le LED de l'appareil clignote (sinon, réinitialisez-le aux paramètres d'usine en le débranchant et rebranchant 5 fois rapidement)\n- L'appareil est à portée Bluetooth de Home Assistant ou de votre proxy BLE\n\n**Prochaine étape :** Cliquez sur Soumettre et patientez environ 10 secondes.",
         "data": {}
       },
       "confirm": {
-        "title": "{name}",
-        "description": "Appareil **{category}** découvert\n\n- **Nom:** {name}\n- **MAC:** {mac}\n- **Signal:** {rssi} dBm\n\nCliquez sur Soumettre pour appairer et ajouter cet appareil.",
+        "title": "Presque terminé !",
+        "description": "Parfait ! Nous avons trouvé **{name}**.\n\n**Détails de l'appareil :**\n- Adresse MAC : {mac}\n- Puissance du signal : {rssi} dBm\n\n**Prochaine étape :**\nLorsque vous cliquerez sur Soumettre, Home Assistant s'appairera avec cet appareil et l'ajoutera à votre système. Vous pourrez le contrôler immédiatement.\n\nPrêt ? Cliquez sur Soumettre pour finaliser !",
         "data": {}
       },
       "reauth_confirm": {
-        "title": "Réentrez les Identifiants",
-        "description": "Connexion échouée — les identifiants ont peut-être changé. Réentrez-les pour vous reconnecter.",
+        "title": "Saisir à nouveau les identifiants",
+        "description": "La connexion a échoué — les identifiants ont peut-être été modifiés. Saisissez-les à nouveau pour vous reconnecter.",
         "data": {
-          "mesh_name": "Nom du Mesh",
-          "mesh_password": "Mot de passe du Mesh",
-          "bridge_host": "Hôte du Pont",
-          "bridge_port": "Port du Pont"
+          "mesh_name": "Nom du réseau Mesh",
+          "mesh_password": "Mot de passe du réseau Mesh",
+          "bridge_host": "Hôte du pont",
+          "bridge_port": "Port du pont"
         }
       },
       "reconfigure": {
-        "title": "Reconfigurer la Connexion",
-        "description": "Mettez à jour les paramètres de connexion de cet appareil. L'adresse MAC et le type d'appareil ne peuvent pas être modifiés ici.",
+        "title": "Reconfigurer la connexion",
+        "description": "Mettez à jour les paramètres de connexion pour cet appareil. L'adresse MAC et le type d'appareil ne peuvent pas être modifiés ici.",
         "data": {
-          "mesh_name": "Nom du Mesh",
-          "mesh_password": "Mot de passe du Mesh",
-          "vendor_id": "ID Fournisseur (hex)",
-          "bridge_host": "Hôte du Pont",
-          "bridge_port": "Port du Pont"
+          "mesh_name": "Nom du réseau Mesh",
+          "mesh_password": "Mot de passe du réseau Mesh",
+          "vendor_id": "ID fabricant (hexadécimal)",
+          "bridge_host": "Hôte du pont",
+          "bridge_port": "Port du pont"
         }
       }
     },
     "error": {
-      "invalid_mac": "Format d'adresse MAC invalide. Attendu XX:XX:XX:XX:XX:XX (hex séparé par des deux-points).",
-      "invalid_key": "Format de clé invalide (32 caractères hex attendus).",
-      "invalid_bridge_host": "Hôte du pont invalide. Entrez un nom d'hôte ou une adresse IP (pas une URL). Les adresses de loopback et link-local ne sont pas autorisées.",
-      "invalid_credential_length": "Le nom du mesh et le mot de passe doivent chacun contenir 16 octets ou moins.",
-      "invalid_vendor_id": "ID Fournisseur invalide. Attendu 1–4 chiffres hex avec préfixe 0x optionnel (par exemple 0x1001).",
-      "bridge_unreachable": "Impossible d'atteindre le démon du pont à l'hôte/port donné. Vérifiez que le démon est en cours d'exécution et que Home Assistant peut y accéder sur votre réseau.",
-      "auth_or_mesh_mismatch": "Pont atteint mais l'appareil a rejeté les identifiants mesh. Vérifiez le nom et le mot de passe du mesh.",
-      "unsupported_vendor": "ID Fournisseur non reconnu. Vérifiez les journaux de reniflage BLE pour les octets de fournisseur corrects.",
-      "device_not_found": "MAC de l'appareil non visible depuis le pont. Assurez-vous que l'appareil est alimenté et à portée BLE.",
-      "timeout": "Opération expirée. Le pont ou l'appareil n'a pas répondu à temps.",
-      "unknown_protocol": "La négociation du protocole a échoué. Cela peut indiquer une incompatibilité du firmware du pont.",
-      "cannot_connect": "Impossible de se connecter à l'appareil. Assurez-vous qu'il est allumé, à portée BLE et en mode d'appairage.",
-      "pairing_failed": "L'appairage a échoué. L'appareil n'a pas répondu ou a rejeté la connexion. Assurez-vous qu'il est à l'état de réinitialisation d'usine et à portée BLE.",
-      "provisioning_failed": "L'approvisionnement a échoué. Assurez-vous que l'appareil est à l'état de réinitialisation d'usine (LED clignotant), à portée BLE, et réessayez. Vérifiez les journaux de l'AH pour plus de détails.",
-      "provisioning_appkey_failed": "L'approvisionnement a échoué lors de la liaison AppKey. Cela signifie généralement que l'appareil n'est pas à l'état de réinitialisation d'usine. Essayez de réinitialiser l'appareil aux paramètres d'usine (débrancher et rebrancher 3-5 fois rapidement) et réessayez.",
-      "provisioning_proxy_failed": "L'approvisionnement a échoué lors de la configuration du Proxy Service. L'appareil ne prend pas en charge ou a désactivé le Proxy Service. Vérifiez la documentation de l'appareil ou essayez un autre appareil.",
-      "provisioning_pbgatt_failed": "L'approvisionnement a échoué lors de la connexion PB-GATT. L'appareil est hors de portée BLE ou ne répond pas. Rapprochez l'appareil de l'adaptateur BLE ou du proxy ESPHome et réessayez."
+      "invalid_mac": "Format d'adresse MAC invalide. Format attendu : XX:XX:XX:XX:XX:XX (hexadécimal séparé par des deux-points).",
+      "invalid_key": "Format de clé invalide (32 caractères hexadécimaux attendus).",
+      "invalid_bridge_host": "Hôte du pont invalide. Saisissez un nom d'hôte ou une adresse IP (pas une URL). Les adresses de bouclage et link-local ne sont pas autorisées.",
+      "invalid_credential_length": "Le nom et le mot de passe du réseau Mesh doivent chacun contenir 16 octets ou moins.",
+      "invalid_vendor_id": "ID fabricant invalide. Format attendu : 1 à 4 chiffres hexadécimaux avec préfixe 0x facultatif (ex. 0x1001).",
+      "bridge_unreachable": "Nous ne parvenons pas à nous connecter à votre pont.\n\n**Points à vérifier :**\n1. Votre pont (Raspberry Pi) est-il sous tension et connecté à votre réseau ?\n2. Est-il sur le même réseau que Home Assistant ?\n3. Essayez de pinguer le pont depuis un autre appareil pour vérifier la connectivité réseau\n\n**Comment corriger :**\n- Vérifiez l'alimentation et les câbles réseau du pont\n- Vérifiez que l'adresse IP est correcte\n- Si vous avez récemment modifié votre réseau, vous devrez peut-être mettre à jour les paramètres réseau du pont",
+      "auth_or_mesh_mismatch": "Votre mot de passe ne correspond pas.\n\n**Signification :**\nL'appareil répond, mais il rejette le nom ou le mot de passe du réseau Mesh que vous avez saisi.\n\n**Comment corriger :**\n1. Vérifiez à nouveau le nom et le mot de passe du réseau Mesh que vous avez saisis\n2. Si vous ne les avez pas modifiés, essayez les valeurs d'usine : nom = `out_of_mesh`, mot de passe = `123456`\n3. Si vous avez récemment réinitialisé l'appareil aux paramètres d'usine, il utilise les valeurs d'usine\n\n**Toujours pas de résultat ?** Supprimez cette intégration et ajoutez-la à nouveau depuis le début.",
+      "unsupported_vendor": "ID fabricant non reconnu. Vérifiez les journaux BLE snoop pour les octets de fabricant corrects.",
+      "device_not_found": "Nous ne voyons pas votre appareil.\n\n**Signification :**\nLe pont fonctionne, mais il ne détecte pas le signal Bluetooth de votre appareil.\n\n**Comment corriger :**\n1. Assurez-vous que l'appareil est branché et sous tension\n2. Rapprochez l'appareil de votre pont (à moins de 10 mètres)\n3. Vérifiez si le LED de l'appareil est allumé - sinon, essayez une autre prise électrique\n4. Attendez 30 secondes et réessayez (les appareils peuvent mettre un moment à commencer à émettre)\n\n**Vérification :** L'adresse MAC est-elle correcte ? Consultez l'étiquette de l'appareil ou le manuel.",
+      "timeout": "L'opération a expiré. Le pont ou l'appareil n'a pas répondu à temps.",
+      "unknown_protocol": "La négociation de protocole a échoué. Cela peut indiquer une incompatibilité du firmware du pont.",
+      "cannot_connect": "Impossible de se connecter à l'appareil. Assurez-vous qu'il est sous tension, à portée BLE et en mode d'appairage.",
+      "pairing_failed": "L'appairage a échoué. L'appareil n'a pas répondu ou a rejeté la connexion. Assurez-vous qu'il est en état de réinitialisation d'usine et à portée BLE.",
+      "provisioning_failed": "L'appairage a échoué.\n\n**Ce qui s'est passé :**\nL'appareil n'a pas répondu pendant le processus d'appairage.\n\n**Comment corriger :**\n1. **Réinitialisez votre appareil aux paramètres d'usine :** Débranchez-le, puis rebranchez-le 5 fois rapidement (intervalles d'une seconde). Le LED devrait clignoter rapidement lorsqu'il est prêt.\n2. **Rapprochez-le :** Assurez-vous que l'appareil est à moins de 5 mètres de Home Assistant ou de votre proxy BLE\n3. **Attendez le LED :** Ne cliquez sur Soumettre que lorsque le LED clignote\n4. **Réessayez :** Supprimez cette entrée échouée et recommencez\n\n**Toujours des difficultés ?** Consultez les journaux de Home Assistant pour plus de détails (Paramètres → Système → Journaux).",
+      "provisioning_appkey_failed": "L'appareil n'a pas accepté la clé de chiffrement.\n\n**Signification :**\nVotre appareil n'est pas en mode de réinitialisation d'usine, il a donc déjà des anciens paramètres enregistrés.\n\n**Comment corriger :**\n1. **Réinitialisez l'appareil aux paramètres d'usine :** Débranchez-le, puis rebranchez-le 5 fois rapidement (environ une seconde entre chaque branchement)\n2. **Surveillez le LED :** Il devrait clignoter rapidement lorsque la réinitialisation est terminée\n3. **Réessayez l'appairage :** Supprimez cette entrée et ajoutez à nouveau l'appareil pendant que le LED clignote\n\n**Pourquoi cela se produit :** Si vous avez déjà appairé cet appareil auparavant, il se souvient des anciens paramètres et n'acceptera pas les nouveaux tant que vous ne l'aurez pas réinitialisé.",
+      "provisioning_proxy_failed": "L'appairage a échoué pendant la configuration du service Proxy. L'appareil ne prend pas en charge ou a désactivé le service Proxy. Consultez la documentation de l'appareil ou essayez un autre appareil.",
+      "provisioning_pbgatt_failed": "Impossible de se connecter à l'appareil - il est trop éloigné ou ne répond pas.\n\n**Signification :**\nHome Assistant a essayé de se connecter via Bluetooth mais n'a pas pu atteindre l'appareil.\n\n**Comment corriger :**\n1. **Rapprochez l'appareil :** Placez-le à moins de 5 mètres de Home Assistant\n2. **Vérifiez votre configuration BLE :**\n   - Avez-vous un adaptateur Bluetooth sur votre appareil Home Assistant ?\n   - Ou avez-vous configuré un proxy BLE ESPHome ?\n3. **Assurez-vous que l'appareil est allumé :** Vérifiez que la prise électrique fonctionne et que le LED est allumé\n4. **Attendez et réessayez :** Parfois, les appareils ont besoin d'un moment pour se réveiller - attendez 30 secondes et réessayez\n\n**Astuce :** Plus l'appareil est proche lors de l'appairage initial, plus la connexion sera fiable."
     },
     "abort": {
       "already_configured": "Cet appareil est déjà configuré",
-      "reauth_successful": "Réauthentification réussie",
+      "reauth_successful": "Ré-authentification réussie",
       "reconfigure_successful": "Reconfiguration réussie",
       "entry_not_found": "Entrée de configuration non trouvée",
-      "device_not_available": "L'appareil ne fait plus de publicité. Il se peut qu'il soit hors de portée, éteint ou déjà configuré.",
+      "device_not_available": "L'appareil n'émet plus de signal. Il est peut-être hors de portée, hors tension ou déjà configuré.",
       "device_not_found": "Appareil non trouvé dans le registre BLE."
     }
   },
@@ -110,48 +110,59 @@
     "step": {
       "init": {
         "title": "Options Tuya BLE Mesh",
-        "description": "Mettez à jour la connexion du pont ou les identifiants mesh. Activez **Afficher les paramètres avancés** pour les options de délai d'expiration et de reconnexion.",
+        "description": "Mettez à jour la connexion au pont ou les identifiants du réseau mesh. Activez **Afficher les paramètres avancés** pour les options de délai d'attente et de reconnexion.",
         "data": {
-          "mesh_name": "Nom du Mesh",
-          "mesh_password": "Mot de passe du Mesh",
-          "vendor_id": "ID Fournisseur (hex)",
-          "mesh_address": "Adresse Mesh (0 = auto)",
-          "bridge_host": "Hôte du Pont",
-          "bridge_port": "Port du Pont",
-          "unicast_target": "Adresse Unicast Cible (hex)",
+          "mesh_name": "Nom du réseau Mesh",
+          "mesh_password": "Mot de passe du réseau Mesh",
+          "vendor_id": "ID fabricant (hexadécimal)",
+          "mesh_address": "Adresse Mesh (0 = automatique)",
+          "bridge_host": "Hôte du pont",
+          "bridge_port": "Port du pont",
+          "unicast_target": "Adresse unicast cible (hexadécimal)",
           "iv_index": "Index IV",
-          "validate_bridge": "Tester la connexion du pont avant de sauvegarder",
+          "validate_bridge": "Tester la connexion au pont avant d'enregistrer",
           "show_advanced": "Afficher les paramètres avancés"
+        },
+        "data_description": {
+          "mesh_name": "Le nom de réseau pour vos appareils Tuya BLE Mesh (max 16 caractères). Valeur d'usine : out_of_mesh",
+          "mesh_password": "Le mot de passe de réseau pour vos appareils Tuya BLE Mesh (max 16 caractères). Valeur d'usine : 123456",
+          "vendor_id": "Identifiant du fabricant. Valeurs courantes : Malmbergs=0x1001, AwoX=0x0160, Dimond=0x0211",
+          "mesh_address": "Adresse de l'appareil sur le réseau mesh. Utilisez 0 pour l'attribution automatique (recommandé).",
+          "bridge_host": "Adresse IP ou nom d'hôte de votre Raspberry Pi exécutant le démon du pont. Exemple : 192.168.1.100",
+          "bridge_port": "Port réseau pour la communication avec le pont (par défaut : 8099). Ne modifiez que si vous avez personnalisé votre configuration de pont.",
+          "unicast_target": "Adresse unicast SIG Mesh en hexadécimal (par défaut : 00B0). Utilisateurs avancés uniquement.",
+          "iv_index": "Index du vecteur d'initialisation du réseau mesh. Utilisateurs avancés uniquement - une valeur incorrecte empêchera la communication.",
+          "validate_bridge": "Tester la connexion à votre pont avant d'enregistrer. Recommandé pour détecter les erreurs de configuration rapidement."
         }
       },
       "advanced": {
-        "title": "Paramètres Avancés",
-        "description": "Ajustez la verbosité du débogage, les délais d'expiration des commandes et la protection contre les tempêtes de reconnexion.",
+        "title": "Paramètres avancés",
+        "description": "Ajustez le niveau de verbosité du débogage, les délais d'attente des commandes et la protection contre la tempête de reconnexions.",
         "data": {
           "debug_level": "Niveau de journalisation pour BLE mesh",
-          "command_timeout": "Délai d'expiration de la commande (secondes)",
-          "max_reconnects": "Tentatives de reconnexion maximales (0 = illimité)",
-          "reconnect_storm_threshold": "Seuil de tempête de reconnexion (par 5 minutes)"
+          "command_timeout": "Délai d'attente des commandes (secondes)",
+          "max_reconnects": "Nombre maximum de tentatives de reconnexion (0 = illimité)",
+          "reconnect_storm_threshold": "Seuil de tempête de reconnexions (par 5 minutes)"
         },
         "data_description": {
-          "debug_level": "Contrôle la verbosité des journaux BLE mesh. L'avertissement est recommandé pour un usage normal.",
-          "command_timeout": "Durée d'attente d'une réponse de l'appareil avant nouvelle tentative (3–60 secondes).",
-          "max_reconnects": "Limitez le nombre total de tentatives de reconnexion. 0 = continuer indéfiniment.",
-          "reconnect_storm_threshold": "Créez un problème de réparation si ce nombre de reconnexions se produisent dans 5 minutes."
+          "debug_level": "Contrôle la verbosité des journaux BLE mesh. Warning est recommandé pour une utilisation normale.",
+          "command_timeout": "Temps d'attente d'une réponse de l'appareil avant de réessayer (3 à 60 secondes).",
+          "max_reconnects": "Limite le nombre total de tentatives de reconnexion. 0 = continuer indéfiniment.",
+          "reconnect_storm_threshold": "Créer un problème de réparation si ce nombre de reconnexions se produit en 5 minutes."
         }
       }
     },
     "error": {
-      "invalid_bridge_host": "Hôte du pont invalide. Entrez un nom d'hôte ou une adresse IP (pas une URL).",
+      "invalid_bridge_host": "Hôte du pont invalide. Saisissez un nom d'hôte ou une adresse IP (pas une URL).",
       "bridge_unreachable": "Impossible d'atteindre le démon du pont. Vérifiez l'hôte/port et que le démon est en cours d'exécution.",
-      "invalid_credential_length": "Le nom du mesh et le mot de passe doivent chacun contenir 16 octets ou moins.",
-      "invalid_vendor_id": "ID Fournisseur invalide. Attendu 1–4 chiffres hex (par exemple 0x1001)."
+      "invalid_credential_length": "Le nom et le mot de passe du réseau Mesh doivent chacun contenir 16 octets ou moins.",
+      "invalid_vendor_id": "ID fabricant invalide. Format attendu : 1 à 4 chiffres hexadécimaux (ex. 0x1001)."
     }
   },
   "entity": {
     "light": {
       "mesh_light": {
-        "name": "Lumière"
+        "name": "Luminaire"
       }
     },
     "switch": {
@@ -161,13 +172,13 @@
     },
     "sensor": {
       "rssi": {
-        "name": "Force du signal"
+        "name": "Puissance du signal"
       },
       "firmware": {
         "name": "Version du firmware"
       },
       "power": {
-        "name": "Alimentation"
+        "name": "Puissance"
       },
       "energy": {
         "name": "Énergie"
@@ -205,13 +216,13 @@
   },
   "exceptions": {
     "connection_failed": {
-      "message": "Impossible de se connecter à {device}: {error}"
+      "message": "Échec de connexion à {device} : {error}"
     },
     "command_timeout": {
-      "message": "Délai d'expiration de la commande pour {device}"
+      "message": "La commande a expiré pour {device}"
     },
     "provisioning_failed": {
-      "message": "L'approvisionnement a échoué pour {device}: {error}"
+      "message": "Échec de l'appairage pour {device} : {error}"
     },
     "invalid_key": {
       "message": "Format de clé mesh invalide"
@@ -220,27 +231,27 @@
   "services": {
     "identify": {
       "name": "Identifier l'appareil",
-      "description": "Faites clignoter la LED de l'appareil pour le localiser facilement.",
+      "description": "Faire clignoter le LED de l'appareil pour le localiser facilement.",
       "fields": {
         "device_id": {
           "name": "Appareil",
-          "description": "L'appareil à identifier (LED clignotant)."
+          "description": "L'appareil à identifier (faire clignoter le LED)."
         }
       }
     },
     "set_log_level": {
       "name": "Définir le niveau de journalisation",
-      "description": "Modifiez la verbosité de la journalisation BLE mesh sans redémarrer Home Assistant.",
+      "description": "Modifier la verbosité de la journalisation BLE mesh sans redémarrer Home Assistant.",
       "fields": {
         "level": {
           "name": "Niveau",
-          "description": "Niveau de journalisation: debug, info, warning ou error."
+          "description": "Niveau de journalisation : debug, info, warning ou error."
         }
       }
     },
     "get_diagnostics": {
       "name": "Obtenir les diagnostics",
-      "description": "Récupérer l'état de la connexion, la force du signal et l'historique des erreurs. Renvoie des données structurées pour les automatisations.",
+      "description": "Enregistrer les informations de diagnostic d'un appareil dans le journal HA.",
       "fields": {
         "device_id": {
           "name": "Appareil",
@@ -261,81 +272,81 @@
   },
   "issues": {
     "bridge_unreachable": {
-      "title": "Démon du pont inaccessible: {host}:{port}",
+      "title": "Démon du pont inaccessible : {host}:{port}",
       "fix_flow": {
         "step": {
           "confirm": {
-            "title": "Pont inaccessible: {host}:{port}",
-            "description": "Le démon du pont BLE à **{host}:{port}** ne répond pas.\n\n**Vérifications:**\n1. L'hôte du pont est-il alimenté?\n2. Le démon est-il en cours d'exécution? Exécutez: `systemctl status tuya-ble-bridge`\n3. Le port {port} est-il accessible depuis Home Assistant?\n4. Test: `curl http://{host}:{port}/health`\n\nCe problème s'efface automatiquement quand le démon revient en ligne."
+            "title": "Pont inaccessible : {host}:{port}",
+            "description": "Le démon du pont BLE à **{host}:{port}** ne répond pas.\n\n**Vérifications :**\n1. L'hôte du pont est-il sous tension ?\n2. Le démon est-il en cours d'exécution ? Exécutez : `systemctl status tuya-ble-bridge`\n3. Le port {port} est-il accessible depuis Home Assistant ?\n4. Test : `curl http://{host}:{port}/health`\n\nCe problème se résout automatiquement lorsque le démon revient en ligne."
           }
         }
       }
     },
     "auth_or_mesh_mismatch": {
-      "title": "Incompatibilité des identifiants mesh: {device}",
+      "title": "Identifiants mesh incompatibles : {device}",
       "fix_flow": {
         "step": {
           "reauth_hint": {
-            "title": "Correction: Mettez à jour les identifiants mesh",
-            "description": "L'appareil **{device}** rejette les identifiants mesh stockés.\n\n**Pour corriger:**\n1. Allez à **Paramètres → Intégrations → {device} → Configurer**\n2. Mettez à jour le nom du mesh et le mot de passe pour correspondre à l'appareil\n3. Paramètres d'usine: nom=`out_of_mesh`, mot de passe=`123456`\n\nSi l'appareil a été réinitialisé, supprimez et réajoutez l'intégration."
+            "title": "Correction : Mettre à jour les identifiants mesh",
+            "description": "L'appareil **{device}** rejette les identifiants mesh enregistrés.\n\n**Pour corriger :**\n1. Allez dans **Paramètres → Intégrations → {device} → Configurer**\n2. Mettez à jour le nom et le mot de passe mesh pour qu'ils correspondent à l'appareil\n3. Valeurs d'usine : nom=`out_of_mesh`, mot de passe=`123456`\n\nSi l'appareil a été réinitialisé aux paramètres d'usine, supprimez et réajoutez l'intégration."
           },
           "credentials": {
-            "title": "Entrez de nouveaux identifiants",
-            "description": "L'appareil a rejeté les identifiants stockés. Entrez des identifiants mesh mis à jour ou des paramètres de connexion du pont ci-dessous.",
+            "title": "Saisir de nouveaux identifiants",
+            "description": "L'appareil a rejeté les identifiants enregistrés. Saisissez ci-dessous les identifiants mesh mis à jour ou les paramètres de connexion au pont.",
             "data": {
-              "mesh_name": "Nom du Mesh",
-              "mesh_password": "Mot de passe du Mesh",
-              "bridge_host": "Hôte du Pont",
-              "bridge_port": "Port du Pont"
+              "mesh_name": "Nom du réseau Mesh",
+              "mesh_password": "Mot de passe du réseau Mesh",
+              "bridge_host": "Hôte du pont",
+              "bridge_port": "Port du pont"
             }
           }
         }
       }
     },
     "unsupported_vendor": {
-      "title": "ID Fournisseur non supporté: {device} ({vendor_id})",
+      "title": "ID fabricant non pris en charge : {device} ({vendor_id})",
       "fix_flow": {
         "step": {
           "confirm": {
-            "title": "Correction: Mettez à jour l'ID Fournisseur",
-            "description": "L'ID Fournisseur **{vendor_id}** pour **{device}** n'est pas reconnu.\n\n**Pour trouver l'ID correct:**\n1. Utilisez un renifleur BLE pour capturer les annonces de l'appareil\n2. Regardez les données spécifiques au fabricant — les octets du fournisseur se trouvent à l'offset de charge utile `[3:5]`\n3. IDs connus: Malmbergs=`0x1001`, AwoX=`0x0160`, Dimond=`0x0211`\n\n**Pour corriger:** Allez à **Paramètres → Intégrations → {device} → Configurer** et mettez à jour l'ID Fournisseur."
+            "title": "Correction : Mettre à jour l'ID fabricant",
+            "description": "L'ID fabricant **{vendor_id}** pour **{device}** n'est pas reconnu.\n\n**Pour trouver l'ID correct :**\n1. Utilisez un analyseur BLE pour capturer les publicités de l'appareil\n2. Examinez les données spécifiques au fabricant — les octets de fabricant se trouvent au décalage de charge utile `[3:5]`\n3. ID connus : Malmbergs=`0x1001`, AwoX=`0x0160`, Dimond=`0x0211`\n\n**Pour corriger :** Allez dans **Paramètres → Intégrations → {device} → Configurer** et mettez à jour l'ID fabricant."
           }
         }
       }
     },
     "device_not_found": {
-      "title": "Appareil non visible: {device} (…{mac})"
+      "title": "Appareil non visible : {device} (…{mac})"
     },
     "timeout": {
-      "title": "Délais d'expiration répétés: {device} ({operation})"
+      "title": "Délais d'attente répétés : {device} ({operation})"
     },
     "reconnect_storm": {
-      "title": "Boucle de reconnexion: {device}",
+      "title": "La connexion se déconnecte en permanence : {device}",
       "fix_flow": {
         "step": {
           "storm_confirm": {
-            "title": "Acceptez la tempête de reconnexion",
-            "description": "**{device}** s'est reconnecté **{count}** fois en {window} minutes.\n\n**Vérifications:**\n1. L'appareil est-il stable (ne redémarre pas à plusieurs reprises)?\n2. Le signal BLE est-il adéquat (RSSI > −80 dBm)?\n3. Vérifiez les journaux du pont pour les modèles d'erreur.\n\nAccepter ce problème n'arrêtera pas les reconnexions — cela efface simplement la notification. Adressez d'abord la cause sous-jacente."
+            "title": "Votre appareil se déconnecte en permanence",
+            "description": "**{device}** s'est reconnecté **{count}** fois au cours des **{window}** dernières minutes. Cela indique généralement un problème.\n\n**Points à vérifier :**\n1. **Puissance du signal :** L'appareil est-il trop éloigné de votre pont ou adaptateur BLE ? Essayez de le rapprocher.\n2. **Problèmes d'alimentation :** L'appareil reçoit-il une alimentation stable ? Essayez une autre prise ou un autre adaptateur.\n3. **État de l'appareil :** L'appareil fonctionne-t-il normalement par ailleurs ? Il pourrait nécessiter un redémarrage ou une réinitialisation d'usine.\n4. **Interférences :** Y a-t-il des objets métalliques ou d'autres appareils électroniques entre l'appareil et le pont ?\n\n**Ce que fait ce bouton :**\nCliquer sur OK effacera cette notification, mais ne résoudra pas le problème. Les déconnexions continueront jusqu'à ce que vous traitiez la cause profonde ci-dessus.\n\n**Besoin d'aide ?** Consultez les journaux du pont dans Paramètres → Système → Journaux pour plus de détails."
           }
         }
       }
     },
     "protocol_mismatch": {
-      "title": "Incompatibilité de protocole: {device}"
+      "title": "Incompatibilité de protocole : {device}"
     },
     "provisioning_failed": {
-      "title": "L'approvisionnement a échoué: {device}",
+      "title": "Échec de l'appairage : {device}",
       "fix_flow": {
         "step": {
           "confirm": {
-            "title": "Correction de l'échec de l'approvisionnement",
-            "description": "L'approvisionnement SIG Mesh a échoué pour **{device}**.\n\n**Pour corriger:**\n1. Supprimez cette entrée d'intégration\n2. Réinitialisez l'appareil à l'état d'usine: 5× cycle d'alimentation rapide (la LED clignote rapidement lorsqu'elle est prête)\n3. Réajoutez l'intégration pendant que la LED clignote\n\nAssurez-vous que l'appareil se trouve à portée BLE d'un adaptateur local ou d'un proxy BLE ESPHome pendant l'approvisionnement."
+            "title": "Corriger l'échec d'appairage",
+            "description": "L'appairage SIG Mesh a échoué pour **{device}**.\n\n**Pour corriger :**\n1. Supprimez cette entrée d'intégration\n2. Réinitialisez l'appareil aux paramètres d'usine : 5× cycles d'alimentation rapides (le LED clignote rapidement lorsqu'il est prêt)\n3. Réajoutez l'intégration pendant que le LED clignote\n\nAssurez-vous que l'appareil est à portée BLE d'un adaptateur local ou d'un proxy BLE ESPHome pendant l'appairage."
           }
         }
       }
     },
     "key_mismatch": {
-      "title": "Incompatibilité de clé: {device}"
+      "title": "Clé incompatible : {device}"
     }
   }
 }

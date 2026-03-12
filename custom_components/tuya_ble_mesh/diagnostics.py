@@ -176,6 +176,10 @@ async def async_get_config_entry_diagnostics(
         "vendor_name": _get_vendor_name(vendor_id),
     }
 
+    # Initialize health_summary early so it's always present
+    health_summary = "Unknown"
+    health_details = []
+
     # Add coordinator state if available via runtime_data (modern pattern)
     runtime = getattr(entry, "runtime_data", None)
     if runtime is not None:
@@ -316,5 +320,32 @@ async def async_get_config_entry_diagnostics(
             "consecutive_failures": coordinator.consecutive_failures,
             "storm_threshold": coordinator.storm_threshold,
         }
+
+        # Generate health summary based on all collected metrics
+        if not state.available:
+            health_summary = "Offline"
+            health_details.append("Device is not responding")
+        elif stats.storm_detected:
+            health_summary = "Degraded (connection unstable)"
+            health_details.append(f"Device reconnected {len(stats.reconnect_times)} times recently")
+        elif current_rssi is not None and current_rssi < -85:
+            health_summary = "Degraded (signal weak)"
+            health_details.append(f"Signal strength {current_rssi} dBm is below recommended minimum")
+        elif stats.total_errors > 10 and stats.total_errors > stats.total_reconnects * 2:
+            health_summary = "Degraded (high error rate)"
+            health_details.append(f"{stats.total_errors} errors, command error rate {diag['protocol_health']['command_error_rate']}")
+        else:
+            health_summary = "Healthy"
+            if uptime_seconds and uptime_seconds > 3600:
+                health_details.append(f"Stable connection for {uptime_seconds // 3600}h {(uptime_seconds % 3600) // 60}m")
+            if current_rssi and current_rssi >= -70:
+                health_details.append(f"Excellent signal strength ({current_rssi} dBm)")
+
+    # Add health summary at the top level for easy access
+    diag["health_summary"] = {
+        "status": health_summary,
+        "details": health_details,
+        "_info": "Overall device health: Healthy (working normally), Degraded (issues detected), or Offline (not responding)",
+    }
 
     return diag
