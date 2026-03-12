@@ -213,11 +213,21 @@
     },
     "get_diagnostics": {
       "name": "Get diagnostics",
-      "description": "Log diagnostic information for a device to the HA log.",
+      "description": "Retrieve connection health, signal strength, and error history. Returns structured data for automations.",
       "fields": {
         "device_id": {
           "name": "Device",
-          "description": "The device to get diagnostics for."
+          "description": "The device to retrieve diagnostics for."
+        }
+      }
+    },
+    "reconnect": {
+      "name": "Reconnect device",
+      "description": "Force disconnect and reconnect a device without reloading the integration.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The device to reconnect."
         }
       }
     }

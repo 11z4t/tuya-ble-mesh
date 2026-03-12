@@ -213,11 +213,21 @@
     },
     "get_diagnostics": {
       "name": "Diagnostische gegevens ophalen",
-      "description": "Registreer diagnostische informatie voor een apparaat in het HA-logboek.",
+      "description": "Retrieve connection health, signal strength, and error history. Returns structured data for automations.",
       "fields": {
         "device_id": {
           "name": "Apparaat",
           "description": "Het apparaat waarvoor diagnostische gegevens moeten worden opgehaald."
+        }
+      }
+    },
+    "reconnect": {
+      "name": "Reconnect device",
+      "description": "Force disconnect and reconnect a device without reloading the integration.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The device to reconnect."
         }
       }
     }
