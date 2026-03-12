@@ -13,7 +13,7 @@ _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
 sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
-from tuya_ble_mesh.exceptions import (
+from tuya_ble_mesh.exceptions import (  # noqa: E402
     MeshConnectionError,
     SIGMeshError,
 )

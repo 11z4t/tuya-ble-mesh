@@ -780,6 +780,8 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
         # --- Fallback: generic OS / asyncio / aiohttp errors ---
         err_msg = str(err).lower()
+        if "unsupported device" in err_msg or "unsupported" in err_msg:
+            return ErrorClass.PERMANENT
         if "timeout" in err_msg or isinstance(err, (asyncio.TimeoutError, TimeoutError)):
             return ErrorClass.TRANSIENT
         if "auth" in err_msg or "password" in err_msg or "credential" in err_msg:

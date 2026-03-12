@@ -1722,14 +1722,14 @@ class TestBrokenListenerRemoval:
         bad_callback = MagicMock(side_effect=RuntimeError("broken"))
         coord.add_listener(bad_callback)
 
-        assert len(coord._listeners) == 1
+        assert len(coord._standalone_listeners) == 1
 
         # Call _notify_listeners enough times to trigger removal
         for _ in range(_MAX_CALLBACK_ERRORS):
             coord._notify_listeners()
 
         # Callback should be removed after max consecutive errors
-        assert bad_callback not in coord._listeners
+        assert bad_callback not in coord._standalone_listeners
 
     def test_callback_error_count_resets_on_success(self) -> None:
         """Error count resets to 0 after callback succeeds."""
@@ -1749,11 +1749,11 @@ class TestBrokenListenerRemoval:
 
         # First call fails, increments error count
         coord._notify_listeners()
-        assert len(coord._listeners) == 1
+        assert len(coord._standalone_listeners) == 1
 
         # Second call succeeds, resets error count
         coord._notify_listeners()
-        assert len(coord._listeners) == 1
+        assert len(coord._standalone_listeners) == 1
 
         # Error count should be cleared after success
         cb_id = id(flaky_callback)
@@ -1772,9 +1772,9 @@ class TestBrokenListenerRemoval:
         coord._notify_listeners()
 
         # Good callback should still be there
-        assert good_callback in coord._listeners
+        assert good_callback in coord._standalone_listeners
         # Bad callback may still be there after 1 error (not yet at max)
-        assert bad_callback in coord._listeners
+        assert bad_callback in coord._standalone_listeners
         assert coord._listener_error_counts.get(id(bad_callback), 0) == 1
 
     def test_removed_callback_error_count_cleaned_up(self) -> None:
@@ -1790,7 +1790,7 @@ class TestBrokenListenerRemoval:
             coord._notify_listeners()
 
         cb_id = id(bad_callback)
-        assert bad_callback not in coord._listeners
+        assert bad_callback not in coord._standalone_listeners
         assert cb_id not in coord._listener_error_counts
 
 
@@ -2110,11 +2110,11 @@ class TestFrozenState:
         assert isinstance(coord._command_semaphore, asyncio.Semaphore)
 
     def test_listeners_initialized_in_init(self) -> None:
-        """_listeners and _listener_error_counts must be initialized in __init__, not lazily."""
+        """_standalone_listeners and _listener_error_counts must be initialized in __init__, not lazily."""
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
 
         # Access without calling add_listener first
-        assert isinstance(coord._listeners, list)
+        assert isinstance(coord._standalone_listeners, list)
         assert isinstance(coord._listener_error_counts, dict)
-        assert len(coord._listeners) == 0
+        assert len(coord._standalone_listeners) == 0
