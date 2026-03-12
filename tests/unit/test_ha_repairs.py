@@ -322,7 +322,7 @@ class TestRepairFlowRoutingWithScopedIds:
             return {"type": "form", "step_id": "reauth_hint"}
 
         flow.async_step_reauth_hint = mock_reauth  # type: ignore[method-assign]
-        result = await flow.async_step_init(None)
+        await flow.async_step_init(None)
         assert "reauth_hint" in called_step
 
     @pytest.mark.asyncio
@@ -403,7 +403,10 @@ class TestReconnectTimeline:
         coord._max_reconnect_failures = 1  # Stop after 1 failure
         coord._backoff = 0.001
 
-        with patch("custom_components.tuya_ble_mesh.coordinator.asyncio.sleep", new_callable=AsyncMock):
+        with patch(
+            "custom_components.tuya_ble_mesh.coordinator.asyncio.sleep",
+            new_callable=AsyncMock,
+        ):
             await coord._reconnect_loop()
 
         assert len(coord._stats.reconnect_timeline) == 1
@@ -431,7 +434,10 @@ class TestReconnectTimeline:
         coord._max_reconnect_failures = _RECONNECT_TIMELINE_MAX + 5
         coord._backoff = 0.001
 
-        with patch("custom_components.tuya_ble_mesh.coordinator.asyncio.sleep", new_callable=AsyncMock):
+        with patch(
+            "custom_components.tuya_ble_mesh.coordinator.asyncio.sleep",
+            new_callable=AsyncMock,
+        ):
             await coord._reconnect_loop()
 
         assert len(coord._stats.reconnect_timeline) <= _RECONNECT_TIMELINE_MAX

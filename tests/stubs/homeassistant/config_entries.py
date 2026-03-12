@@ -9,12 +9,12 @@ _DataT = TypeVar("_DataT")
 
 
 class ConfigEntry(Generic[_DataT]):
-    entry_id: str = ""
-    title: str = ""
-    data: dict[str, Any] = {}
-    options: dict[str, Any] = {}
-    unique_id: str | None = None
-    runtime_data: Any = None
+    entry_id: str
+    title: str
+    data: dict[str, Any]
+    options: dict[str, Any]
+    unique_id: str | None
+    runtime_data: Any
 
     def __init__(
         self,

@@ -2246,12 +2246,15 @@ class TestSigPlugErrorHandling:
                 new=AsyncMock(side_effect=RuntimeError("fail")),
             ),
             patch(
-                "custom_components.tuya_ble_mesh.config_flow.__builtins__",
-                {},
+                "custom_components.tuya_ble_mesh.config_flow.__builtins__", {}
             ),
         ):
             # Simulate ImportError by patching import inside the except block
-            original_import = __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
+            original_import = (
+                __builtins__.__import__
+                if hasattr(__builtins__, "__import__")
+                else __import__
+            )
 
             def mock_import(name: str, *args: Any, **kwargs: Any) -> Any:
                 if name == "tuya_ble_mesh.exceptions":

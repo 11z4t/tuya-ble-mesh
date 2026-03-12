@@ -118,9 +118,8 @@ class TestSendCommandRetry:
         with patch(
             "custom_components.tuya_ble_mesh.coordinator.asyncio.sleep",
             new_callable=AsyncMock,
-        ):
-            with pytest.raises(TimeoutError, match="stuck"):
-                await c.send_command_with_retry(always_fails, max_retries=2, base_delay=0.001)
+        ), pytest.raises(TimeoutError, match="stuck"):
+            await c.send_command_with_retry(always_fails, max_retries=2, base_delay=0.001)
 
     @pytest.mark.asyncio
     async def test_command_errors_incremented_on_failure(self) -> None:
@@ -133,9 +132,8 @@ class TestSendCommandRetry:
         with patch(
             "custom_components.tuya_ble_mesh.coordinator.asyncio.sleep",
             new_callable=AsyncMock,
-        ):
-            with pytest.raises(OSError):
-                await c.send_command_with_retry(always_fails, max_retries=2, base_delay=0.001)
+        ), pytest.raises(OSError):
+            await c.send_command_with_retry(always_fails, max_retries=2, base_delay=0.001)
 
         assert c._stats.command_errors == 2
         assert c._stats.total_errors == 2

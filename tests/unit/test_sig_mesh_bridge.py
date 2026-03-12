@@ -160,7 +160,9 @@ class TestSIGBridgeSendPower:
         dev._connected = True
         _patch_http_methods(
             dev,
-            get_responses=[{"action": "on", "success": False, "error": "BLE timeout", "timestamp": 1}],
+            get_responses=[
+                {"action": "on", "success": False, "error": "BLE timeout", "timestamp": 1}
+            ],
             post_responses=[{"ok": True}],
         )
 

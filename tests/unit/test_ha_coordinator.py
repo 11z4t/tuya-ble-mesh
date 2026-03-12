@@ -1703,7 +1703,10 @@ class TestLogConnectMetrics:
 
         callback.assert_called_once()
         # Log should mention listener count
-        assert any("1" in record.message and "listener" in record.message for record in caplog.records)
+        assert any(
+            "1" in record.message and "listener" in record.message
+            for record in caplog.records
+        )
 
 
 @pytest.mark.requires_ha
