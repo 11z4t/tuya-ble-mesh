@@ -18,11 +18,11 @@ from homeassistant.components.update import UpdateDeviceClass, UpdateEntity
 from custom_components.tuya_ble_mesh.entity import TuyaBLEMeshEntity
 
 if TYPE_CHECKING:
-    from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.device_registry import DeviceInfo
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
+    from custom_components.tuya_ble_mesh import TuyaBLEMeshConfigEntry
     from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(
     hass: HomeAssistant,
-    entry: ConfigEntry,
+    entry: TuyaBLEMeshConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up update entities for a Tuya BLE Mesh config entry."""

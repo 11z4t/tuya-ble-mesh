@@ -98,6 +98,23 @@ class TuyaBLEMeshRuntimeData:
 TuyaBLEMeshConfigEntry: TypeAlias = ConfigEntry[TuyaBLEMeshRuntimeData]
 
 
+async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
+    """Set up the Tuya BLE Mesh integration.
+
+    Called once when the integration is first loaded. Registers services
+    early so they are available even before any config entry is set up.
+
+    Args:
+        hass: Home Assistant instance.
+        config: Integration configuration from YAML (unused — config entry only).
+
+    Returns:
+        True always.
+    """
+    await _async_register_services(hass)
+    return True
+
+
 async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Migrate config entry to latest version."""
     if entry.version > 1:
@@ -148,7 +165,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         )
 
         # unicast_target is identity — stays in data; bridge settings are configurable
-        target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
+        try:
+            target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
+        except ValueError as exc:
+            raise HomeAssistantError(f"Invalid unicast_target in config entry: {exc}") from exc
         bridge_host: str = _get_entry_option(entry, CONF_BRIDGE_HOST, "")
         bridge_port: int = _get_entry_option(entry, CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
 
@@ -176,8 +196,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
 
         # Unicast addresses and keys are identity — always from data
-        target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
-        our_addr = int(entry.data.get(CONF_UNICAST_OUR, "0001"), 16)
+        try:
+            target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
+            our_addr = int(entry.data.get(CONF_UNICAST_OUR, "0001"), 16)
+        except ValueError as exc:
+            raise HomeAssistantError(f"Invalid unicast address in config entry: {exc}") from exc
         # iv_index may need updating when BLE network is reset — configurable
         iv_index: int = _get_entry_option(entry, CONF_IV_INDEX, DEFAULT_IV_INDEX)
 
@@ -260,9 +283,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
     # entities will show as "unavailable" until connection succeeds.
     # HA's async_forward_entry_setups handles parallel platform import natively.
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
-
-    # Register services
-    await _async_register_services(hass)
 
     # Reload entry when options are changed
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
