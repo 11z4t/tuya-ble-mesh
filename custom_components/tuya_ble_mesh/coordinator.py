@@ -591,7 +591,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
         data = await self._seq_store.async_load()
         if data is not None and "seq" in data:
-            restored_seq = data["seq"] + _SEQ_SAFETY_MARGIN
+            restored_seq = (data["seq"] + _SEQ_SAFETY_MARGIN) & 0xFFFFFF  # Wrap within 24-bit range
             self._device.set_seq(restored_seq)
             _LOGGER.info(
                 "Restored seq=%d (stored=%d + margin=%d)",

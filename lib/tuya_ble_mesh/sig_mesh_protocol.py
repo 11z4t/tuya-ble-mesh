@@ -450,12 +450,15 @@ def reassemble_and_decrypt_segments(
     Returns:
         Decrypted access payload, or None if decryption fails.
     """
+    # Snapshot segments to prevent TOCTOU race with BLE notification callbacks
+    segments_snapshot = dict(segments)
+
     # Concatenate in order
     upper_transport = b""
     for i in range(seg_n + 1):
-        if i not in segments:
+        if i not in segments_snapshot:
             return None
-        upper_transport += segments[i]
+        upper_transport += segments_snapshot[i]
 
     key = keys.app_key if akf else keys.dev_key
     if key is None:
