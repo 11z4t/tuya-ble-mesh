@@ -408,7 +408,7 @@ class BLEConnection:
             MeshConnectionError: If write fails (triggers disconnect detection).
         """
         if self._state != ConnectionState.READY or self._client is None:
-            msg = "Not connected"
+            msg = f"Not connected for {self._address}"
             raise DisconnectedError(msg)
 
         try:
