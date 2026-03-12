@@ -232,7 +232,7 @@
     },
     "get_diagnostics": {
       "name": "Få diagnostik",
-      "description": "Retrieve connection health, signal strength, and error history. Returns structured data for automations.",
+      "description": "Hent forbindelseshelbred, signalstyrke og fejlhistorik. Returnerer strukturerede data til automationer.",
       "fields": {
         "device_id": {
           "name": "Enhed",
@@ -241,12 +241,12 @@
       }
     },
     "reconnect": {
-      "name": "Reconnect device",
-      "description": "Force disconnect and reconnect a device without reloading the integration.",
+      "name": "Genopret forbindelse til enhed",
+      "description": "Tving afbrydelse og genopret forbindelse til en enhed uden at genindlæse integrationen.",
       "fields": {
         "device_id": {
-          "name": "Device",
-          "description": "The device to reconnect."
+          "name": "Enhed",
+          "description": "Enheden som skal genforbindes."
         }
       }
     }
