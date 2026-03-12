@@ -205,7 +205,7 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
                         self._bridge_port,
                     )
                     return
-            except Exception as exc:
+            except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as exc:
                 _LOGGER.warning(
                     "Bridge connection attempt %d/%d failed: %s",
                     attempt,
@@ -270,7 +270,7 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
                     for callback in list(self._onoff_callbacks):
                         try:
                             callback(on_state)
-                        except Exception:
+                        except BaseException:  # noqa: S110
                             _LOGGER.warning("OnOff callback error", exc_info=True)
                     return
 
@@ -318,7 +318,7 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
                 # Check if this is a fresh result (timestamp after we submitted)
                 if result.get("action") == action and result.get("timestamp"):
                     return result
-            except Exception:
+            except (aiohttp.ClientError, asyncio.TimeoutError, OSError):
                 # Bridge might be down (WiFi off during BLE operation)
                 _LOGGER.debug(
                     "Poll attempt %d — bridge unreachable",
@@ -330,7 +330,7 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
         for callback in list(self._disconnect_callbacks):
             try:
                 callback()
-            except Exception:
+            except BaseException:  # noqa: S110
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
         return {"success": False, "error": "Timed out waiting for bridge result"}
 
@@ -469,7 +469,7 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
                         self._bridge_port,
                     )
                     return
-            except Exception as exc:
+            except (aiohttp.ClientError, asyncio.TimeoutError, OSError) as exc:
                 _LOGGER.warning(
                     "Bridge attempt %d/%d failed: %s",
                     attempt,
@@ -492,7 +492,7 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
         for callback in list(self._disconnect_callbacks):
             try:
                 callback()
-            except Exception:
+            except BaseException:  # noqa: S110
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
 
     def _fire_status(self) -> None:
@@ -512,7 +512,7 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
         for callback in list(self._status_callbacks):
             try:
                 callback(status)
-            except Exception:
+            except BaseException:  # noqa: S110
                 _LOGGER.warning("Status callback error", exc_info=True)
 
     async def send_power(self, on: bool) -> None:
@@ -688,7 +688,7 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
                         raise SIGMeshError(msg)
                 except SIGMeshError:
                     raise
-                except Exception:
+                except (aiohttp.ClientError, asyncio.TimeoutError, OSError):
                     _LOGGER.debug("Poll — bridge unreachable (WiFi likely down)")
                     continue
 

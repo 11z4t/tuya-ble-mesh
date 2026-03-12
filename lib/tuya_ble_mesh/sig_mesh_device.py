@@ -28,8 +28,8 @@ from bleak.exc import BleakError
 
 from tuya_ble_mesh.exceptions import (
     ConnectionError as MeshConnectionError,
-)
-from tuya_ble_mesh.exceptions import (
+    MalformedPacketError,
+    SecretAccessError,
     SIGMeshError,
     SIGMeshKeyError,
 )
@@ -455,7 +455,7 @@ class SIGMeshDevice:
                     # Overwrite mutable bytearray if possible
                     if isinstance(val, bytearray) and len(val) > 0:
                         val[:] = b"\x00" * len(val)
-            except Exception:
+            except (AttributeError, TypeError):
                 pass  # Frozen dataclass, best effort only
             self._keys = None
 
@@ -484,7 +484,7 @@ class SIGMeshDevice:
                     self._address,
                     exc_info=exc,
                 )
-        except Exception:
+        except asyncio.CancelledError:
             pass
 
     async def send_power(self, on: bool, *, max_retries: int = 3) -> None:
@@ -939,7 +939,7 @@ class SIGMeshDevice:
                 f"{prefix}-app-key",
                 "password",  # pragma: allowlist secret
             )
-        except Exception as exc:
+        except (SecretAccessError, OSError, ValueError) as exc:
             msg = f"Failed to load SIG Mesh keys for prefix '{prefix}'"
             raise SIGMeshKeyError(msg) from exc
 
@@ -991,7 +991,7 @@ class SIGMeshDevice:
 
         try:
             proxy = parse_proxy_pdu(data)
-        except Exception:
+        except (MalformedPacketError, ValueError):
             _LOGGER.debug("Failed to parse proxy PDU (%d bytes)", len(data), exc_info=True)
             return
 
@@ -1037,7 +1037,7 @@ class SIGMeshDevice:
         """
         try:
             seg_hdr = parse_segment_header(transport_pdu)
-        except Exception:
+        except (MalformedPacketError, ValueError):
             _LOGGER.debug("Failed to parse segment header", exc_info=True)
             return
 
@@ -1136,7 +1136,7 @@ class SIGMeshDevice:
         """
         try:
             opcode, params = parse_access_opcode(access_payload)
-        except Exception:
+        except (MalformedPacketError, ValueError):
             _LOGGER.debug("Failed to parse access opcode", exc_info=True)
             return
 
@@ -1163,7 +1163,7 @@ class SIGMeshDevice:
             for callback in list(self._onoff_callbacks):
                 try:
                     callback(on_state)
-                except Exception:
+                except BaseException:  # noqa: S110
                     _LOGGER.warning("OnOff callback error", exc_info=True)
         elif opcode == _OPCODE_COMPOSITION_STATUS:
             self._handle_composition_data(params)
@@ -1178,7 +1178,7 @@ class SIGMeshDevice:
             for vcb in list(self._vendor_callbacks):
                 try:
                     vcb(opcode, params)
-                except Exception:
+                except BaseException:  # noqa: S110
                     _LOGGER.warning("Vendor callback error", exc_info=True)
         else:
             _LOGGER.debug(
@@ -1199,7 +1199,7 @@ class SIGMeshDevice:
         """
         try:
             comp = parse_composition_data(params)
-        except Exception:
+        except (MalformedPacketError, ValueError):
             _LOGGER.debug("Failed to parse Composition Data", exc_info=True)
             return
 
@@ -1216,7 +1216,7 @@ class SIGMeshDevice:
         for callback in list(self._composition_callbacks):
             try:
                 callback(comp)
-            except Exception:
+            except BaseException:  # noqa: S110
                 _LOGGER.warning("Composition callback error", exc_info=True)
 
     def _on_ble_disconnect(self, _client: BleakClient) -> None:
@@ -1230,7 +1230,7 @@ class SIGMeshDevice:
         for callback in list(self._disconnect_callbacks):
             try:
                 callback()
-            except Exception:
+            except BaseException:  # noqa: S110
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
 
     async def _bluetoothctl_remove(self) -> None:
@@ -1244,5 +1244,5 @@ class SIGMeshDevice:
                 stderr=asyncio.subprocess.DEVNULL,
             )
             await asyncio.wait_for(process.wait(), timeout=5)
-        except Exception:
+        except (OSError, asyncio.TimeoutError):
             _LOGGER.debug("bluetoothctl remove failed (ignored)", exc_info=True)

@@ -267,6 +267,6 @@ def mesh_aes_ccm_decrypt(
     aesccm = AESCCM(key, tag_length=mic_len)
     try:
         return aesccm.decrypt(nonce, ct_and_mic, b"")
-    except Exception as exc:
+    except ValueError as exc:
         msg = "AES-CCM authentication failed"
         raise CryptoError(msg) from exc
