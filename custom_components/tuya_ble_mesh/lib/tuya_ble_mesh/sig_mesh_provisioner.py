@@ -279,23 +279,32 @@ class SIGMeshProvisioner:
         """
         address = address.upper()
         try:
-            import subprocess
-
             _LOGGER.debug("Removing stale BlueZ device entry for %s", address)
-            result = subprocess.run(
-                ["bluetoothctl", "remove", address],
-                capture_output=True,
-                text=True,
-                timeout=5,
+            # Use async subprocess to avoid blocking the event loop
+            process = await asyncio.create_subprocess_exec(
+                "bluetoothctl",
+                "remove",
+                address,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
             )
-            if result.returncode == 0:
-                _LOGGER.debug("Removed stale device %s from BlueZ", address)
-            else:
-                _LOGGER.debug(
-                    "Device %s not in BlueZ cache (or remove failed): %s",
-                    address,
-                    result.stderr.strip() if result.stderr else "no error",
+            try:
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(), timeout=5.0
                 )
+                if process.returncode == 0:
+                    _LOGGER.debug("Removed stale device %s from BlueZ", address)
+                else:
+                    stderr_text = stderr.decode().strip() if stderr else "no error"
+                    _LOGGER.debug(
+                        "Device %s not in BlueZ cache (or remove failed): %s",
+                        address,
+                        stderr_text,
+                    )
+            except asyncio.TimeoutError:
+                _LOGGER.debug("bluetoothctl remove timed out for %s", address)
+                process.kill()
+                await process.wait()
             # Give BlueZ time to process the removal
             await asyncio.sleep(0.5)
         except FileNotFoundError:
