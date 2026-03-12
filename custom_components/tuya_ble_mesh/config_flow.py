@@ -865,14 +865,16 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 # Step 4b: Remove stale BlueZ device entry to avoid connect conflicts
                 _LOGGER.warning("[PAIR] Step 4b: Removing stale BlueZ device %s...", mac)
                 try:
-                    import subprocess
-                    mac_underscored = mac.replace(":", "_")
-                    subprocess.run(
-                        ["bluetoothctl", "remove", mac],
-                        capture_output=True, timeout=5,
+                    proc = await asyncio.create_subprocess_exec(
+                        "bluetoothctl", "remove", mac,
+                        stdout=asyncio.subprocess.DEVNULL,
+                        stderr=asyncio.subprocess.DEVNULL,
                     )
+                    await asyncio.wait_for(proc.wait(), timeout=5.0)
                     _LOGGER.warning("[PAIR] Step 4b: BlueZ device removed (or didn't exist)")
                     await asyncio.sleep(1.0)  # Let BlueZ settle
+                except asyncio.CancelledError:
+                    raise
                 except Exception as rm_exc:
                     _LOGGER.warning("[PAIR] Step 4b: Could not remove BlueZ device: %s", rm_exc)
 
@@ -909,8 +911,15 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                         pass
                     # Re-remove + re-scan before retry
                     try:
-                        subprocess.run(["bluetoothctl", "remove", mac], capture_output=True, timeout=5)
+                        proc = await asyncio.create_subprocess_exec(
+                            "bluetoothctl", "remove", mac,
+                            stdout=asyncio.subprocess.DEVNULL,
+                            stderr=asyncio.subprocess.DEVNULL,
+                        )
+                        await asyncio.wait_for(proc.wait(), timeout=5.0)
                         await asyncio.sleep(2.0)
+                    except asyncio.CancelledError:
+                        raise
                     except Exception:
                         pass
                     ble_device = await asyncio.wait_for(
