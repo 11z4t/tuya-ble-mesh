@@ -34,6 +34,7 @@ from tuya_ble_mesh.exceptions import (
     SIGMeshKeyError,
 )
 from tuya_ble_mesh.logging_context import MeshLogAdapter, mesh_operation
+from tuya_ble_mesh.secrets import SecretsManager
 from tuya_ble_mesh.sig_mesh_protocol import (
     _OPCODE_COMPOSITION_STATUS,
     SEG_DATA_SIZE,
@@ -69,10 +70,10 @@ _OPCODE_APPKEY_STATUS = 0x8003
 _OPCODE_MODEL_APP_STATUS = 0x803E
 
 # Callback types
-OnOffCallback = Callable[[bool], Any]
-VendorCallback = Callable[[int, bytes], Any]
-CompositionCallback = Callable[[CompositionData], Any]
-DisconnectCallback = Callable[[], Any]
+OnOffCallback = Callable[[bool], None]
+VendorCallback = Callable[[int, bytes], None]
+CompositionCallback = Callable[[CompositionData], None]
+DisconnectCallback = Callable[[], None]
 
 # Initial sequence number (in-memory, not persisted)
 _INITIAL_SEQ = 2000
@@ -117,7 +118,7 @@ class SIGMeshDevice:
         address: str,
         target_addr: int,
         our_addr: int,
-        secrets: Any,
+        secrets: SecretsManager,
         *,
         op_item_prefix: str = "s17",
         iv_index: int = 0,
