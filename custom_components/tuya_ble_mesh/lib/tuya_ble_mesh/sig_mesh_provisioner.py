@@ -77,6 +77,9 @@ _NO_OOB_AUTH: bytes = b"\x00" * 16
 # Attention duration for Invite PDU (seconds)
 _ATTENTION_DURATION = 5
 
+# Provisioning poll interval (seconds)
+_PROVISIONING_POLL_INTERVAL = 0.05
+
 # Error code → name mapping for PROV_FAILED
 _PROV_ERROR_NAMES: dict[int, str] = {
     0x00: "Prohibited",
@@ -568,7 +571,7 @@ class SIGMeshProvisioner:
             for seg in segments:
                 await client.write_gatt_char(PROV_DATA_IN, seg, response=False)
                 if len(segments) > 1:
-                    await asyncio.sleep(0.05)
+                    await asyncio.sleep(_PROVISIONING_POLL_INTERVAL)
 
         async def recv_prov(recv_timeout: float = 10.0, step_name: str = "PDU") -> bytes:
             """Receive provisioning PDU with timeout and context."""
