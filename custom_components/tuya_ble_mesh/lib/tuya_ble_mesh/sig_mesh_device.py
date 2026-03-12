@@ -384,7 +384,11 @@ class SIGMeshDevice:
         raise MeshConnectionError(msg) from last_error
 
     async def disconnect(self) -> None:
-        """Disconnect from the device and zero key material."""
+        """Disconnect from the device and zero key material.
+
+        Stops BLE notifications, disconnects the client, and securely zeroes
+        encryption keys in memory before clearing references.
+        """
         if self._client is not None:
             with contextlib.suppress(Exception):
                 await self._client.stop_notify(SIG_MESH_PROXY_DATA_OUT)
