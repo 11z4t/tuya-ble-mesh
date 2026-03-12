@@ -351,7 +351,7 @@ class TestSensorPlatformSetup:
 
     @pytest.mark.asyncio
     async def test_setup_entry_creates_two_sensors_for_light(self) -> None:
-        """Light devices get RSSI + Firmware + connection_quality + last_seen = 4 sensors (no power/energy)."""
+        """Lights: RSSI + Firmware + connection_quality + last_seen = 4 sensors."""
         coord = make_mock_coordinator()
         hass = MagicMock()
         entry = MagicMock()
@@ -374,7 +374,7 @@ class TestSensorPlatformSetup:
 
     @pytest.mark.asyncio
     async def test_setup_entry_creates_four_sensors_for_plug(self) -> None:
-        """Plug devices with power monitoring get RSSI + Firmware + Power + Energy + connection_quality + last_seen = 6."""
+        """Plugs with power: RSSI + FW + Power + Energy + quality + seen = 6."""
         coord = make_mock_coordinator()
         coord.device.supports_power_monitoring = True
         coord.capabilities.has_power_monitoring = True
