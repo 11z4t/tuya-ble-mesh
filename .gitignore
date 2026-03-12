@@ -61,3 +61,4 @@ RELEASE_NOTES_v*.md
 tuya_icon_*.png
 tuya_ble_mesh_icon*.png
 invoice_reconciliation.py
+bandit-report.json

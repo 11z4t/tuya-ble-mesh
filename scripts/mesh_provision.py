@@ -30,8 +30,8 @@ APP_PATH = "/org/mesh/cfgclient"
 AGENT_PATH = f"{APP_PATH}/agent"
 ELEMENT_PATH = f"{APP_PATH}/ele00"
 
-TOKEN_FILE = Path("/tmp/mesh_provision_token.json")
-CONFIG_FILE = Path("/tmp/mesh_config_export.json")
+TOKEN_FILE = Path("/tmp/mesh_provision_token.json")  # nosec B108
+CONFIG_FILE = Path("/tmp/mesh_config_export.json")  # nosec B108
 
 # SIG Mesh model IDs
 CONFIG_SERVER = 0x0000

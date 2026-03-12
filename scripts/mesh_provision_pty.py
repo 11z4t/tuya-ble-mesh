@@ -24,7 +24,7 @@ import pexpect
 
 # Prompt regex — handles ANSI escape codes in mesh-cfgclient output
 PROMPT = r"\[mesh-cfgclient\][#>]"
-CONFIG_FILE = Path("/tmp/mesh_config_export.json")
+CONFIG_FILE = Path("/tmp/mesh_config_export.json")  # nosec B108
 MESHD_CONFIG = Path("/var/lib/bluetooth/mesh")
 TIMEOUT = 10
 

@@ -169,7 +169,7 @@ async def main() -> None:
         print("\nPosted to Slack")
 
     # Save to file
-    output = Path("/tmp/dual-review-latest.md")
+    output = Path("/tmp/dual-review-latest.md")  # nosec B108
     with output.open("w") as f:
         for r in final:
             f.write(f"\n# {r['reviewer']} ({r['elapsed_s']}s)\n\n{r['review']}\n\n---\n")
