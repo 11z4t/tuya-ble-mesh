@@ -308,8 +308,10 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
         self._pending_command_task: asyncio.Task[None] | None = None
 
     @property
-    def is_on(self) -> bool:
-        """Return True if the light is on."""
+    def is_on(self) -> bool | None:
+        """Return True if the light is on, None if unavailable."""
+        if not self.coordinator.state.available:
+            return None
         return self.coordinator.state.is_on
 
     @property
@@ -321,7 +323,7 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
         Both paths return values on the HA scale — the difference is the underlying
         device scale, handled by the conversion helpers.
         """
-        if not self.coordinator.state.is_on:
+        if not self.coordinator.state.available or not self.coordinator.state.is_on:
             return None
         if self.coordinator.state.mode == 1:
             return color_brightness_to_ha(self.coordinator.state.color_brightness)
@@ -330,7 +332,7 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
     @property
     def color_temp_kelvin(self) -> int | None:
         """Return the current color temperature in kelvin."""
-        if not self.coordinator.state.is_on:
+        if not self.coordinator.state.available or not self.coordinator.state.is_on:
             return None
         if self.coordinator.state.color_temp == 0:
             return None
@@ -345,7 +347,7 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
     @property
     def rgb_color(self) -> tuple[int, int, int] | None:
         """Return the current RGB color."""
-        if not self.coordinator.state.is_on:
+        if not self.coordinator.state.available or not self.coordinator.state.is_on:
             return None
         if self.coordinator.state.mode != 1:
             return None

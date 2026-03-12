@@ -288,7 +288,8 @@ async def _async_register_services(hass: HomeAssistant) -> None:
                     await device.send_power(True)
                     await asyncio.sleep(0.5)
         except Exception as exc:
-            raise HomeAssistantError(f"Failed to identify device: {exc}") from exc
+            _LOGGER.debug("Identify device failed: %s", exc, exc_info=True)
+            raise HomeAssistantError("Failed to identify device — check logs for details") from exc
 
     async def handle_set_log_level(call: ServiceCall) -> None:
         """Change BLE mesh logging verbosity without HA restart.
