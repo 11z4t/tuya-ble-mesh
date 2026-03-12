@@ -157,8 +157,9 @@ class SIGMeshDevice:
         self._composition: CompositionData | None = None
         self._firmware_version: str | None = None
 
-        # Segmented message reassembly buffers: (src, seq_zero) -> buffer
-        self._segment_buffers: dict[tuple[int, int], _ReassemblyBuffer] = {}
+        # Segmented message reassembly buffers: (src, dst, seq_zero, aid) -> buffer
+        # Per BT Mesh spec, must include dst and aid to avoid collision
+        self._segment_buffers: dict[tuple[int, int, int, int], _ReassemblyBuffer] = {}
 
         # Pending response futures: (opcode, correlation_id) -> Future(params)
         # Correlation ID prevents concurrent requests with same opcode from colliding
@@ -946,7 +947,8 @@ class SIGMeshDevice:
             _LOGGER.debug("Failed to parse segment header", exc_info=True)
             return
 
-        buf_key = (src, seg_hdr.seq_zero)
+        # Per BT Mesh spec: buffer key must include src, dst, seq_zero, and aid
+        buf_key = (src, dst, seg_hdr.seq_zero, seg_hdr.aid)
 
         # Get or create reassembly buffer
         buf = self._segment_buffers.get(buf_key)
@@ -979,11 +981,11 @@ class SIGMeshDevice:
         # Clean stale buffers
         self._clean_stale_buffers()
 
-    def _complete_reassembly(self, buf_key: tuple[int, int]) -> None:
+    def _complete_reassembly(self, buf_key: tuple[int, int, int, int]) -> None:
         """Decrypt a fully reassembled segmented message and dispatch.
 
         Args:
-            buf_key: (src, seq_zero) key into _segment_buffers.
+            buf_key: (src, dst, seq_zero, aid) key into _segment_buffers.
         """
         buf = self._segment_buffers.pop(buf_key, None)
         if buf is None or self._keys is None:
