@@ -38,9 +38,7 @@ async def async_setup_entry(
     coordinator: TuyaBLEMeshCoordinator = runtime_data.coordinator
     device_info = runtime_data.device_info
 
-    async_add_entities(
-        [TuyaBLEMeshFirmwareUpdateEntity(coordinator, entry.entry_id, device_info)]
-    )
+    async_add_entities([TuyaBLEMeshFirmwareUpdateEntity(coordinator, entry.entry_id, device_info)])
 
 
 class TuyaBLEMeshFirmwareUpdateEntity(TuyaBLEMeshEntity, UpdateEntity):
@@ -62,7 +60,7 @@ class TuyaBLEMeshFirmwareUpdateEntity(TuyaBLEMeshEntity, UpdateEntity):
     ) -> None:
         """Initialise the firmware update entity."""
         super().__init__(coordinator, entry_id, device_info)  # type: ignore[arg-type]
-        self._attr_unique_id = f"{coordinator.device.address}_firmware"
+        self._attr_unique_id = f"{entry_id}_firmware"
 
     @property
     def installed_version(self) -> str | None:
