@@ -77,6 +77,21 @@ _NO_OOB_AUTH: bytes = b"\x00" * 16
 # Attention duration for Invite PDU (seconds)
 _ATTENTION_DURATION = 5
 
+# Timeout for bluetoothctl subprocess operations (seconds)
+_BLUETOOTHCTL_TIMEOUT = 5.0
+
+# Provisioning poll interval (seconds)
+_PROVISIONING_POLL_INTERVAL = 0.05
+
+# BLE adapter slot release delay after disconnect (seconds)
+_BLE_SLOT_RELEASE_DELAY = 1.0  # Increased from 0.5s — see PLAT-506
+
+# BlueZ device cache processing delay after bluetoothctl remove (seconds)
+_BLUEZ_CACHE_SETTLE_DELAY = 0.5
+
+# Delay after Start PDU to let device initialize provisioning state (seconds)
+_POST_START_PDU_DELAY = 0.5
+
 # Error code → name mapping for PROV_FAILED
 _PROV_ERROR_NAMES: dict[int, str] = {
     0x00: "Prohibited",
@@ -248,6 +263,9 @@ class SIGMeshProvisioner:
             ProvisioningError: If provisioning fails at any step.
         """
         async with mesh_operation(address.upper(), "provision"):
+            # PLAT-506: Force cleanup of any stale BLE connections before provisioning
+            await self._cleanup_stale_connections(address)
+
             client = await self._connect(address, timeout, max_retries)
             try:
                 return await self._run_exchange(client)
@@ -258,11 +276,60 @@ class SIGMeshProvisioner:
                     await client.disconnect()
                 _LOGGER.info("Provisioning session disconnected from %s", address.upper())
                 # PLAT-506: Give BLE adapter time to release connection slot
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(_BLE_SLOT_RELEASE_DELAY)
 
     # ------------------------------------------------------------------ #
     # Private helpers                                                      #
     # ------------------------------------------------------------------ #
+
+    async def _cleanup_stale_connections(self, address: str) -> None:
+        """Clean up any stale BLE connections for this device.
+
+        Uses bluetoothctl to remove the device from BlueZ cache, forcing
+        a fresh connection. This prevents BleakOutOfConnectionSlotsError
+        when old connections weren't properly released.
+
+        Args:
+            address: BLE MAC address to clean up.
+        """
+        address = address.upper()
+        try:
+            _LOGGER.debug("Removing stale BlueZ device entry for %s", address)
+            # Use async subprocess to avoid blocking the event loop
+            process = await asyncio.create_subprocess_exec(
+                "bluetoothctl",
+                "remove",
+                address,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
+            try:
+                _stdout, stderr = await asyncio.wait_for(
+                    process.communicate(), timeout=_BLUETOOTHCTL_TIMEOUT
+                )
+                if process.returncode == 0:
+                    _LOGGER.debug("Removed stale device %s from BlueZ", address)
+                else:
+                    stderr_text = stderr.decode().strip() if stderr else "no error"
+                    _LOGGER.debug(
+                        "Device %s not in BlueZ cache (or remove failed): %s",
+                        address,
+                        stderr_text,
+                    )
+            except TimeoutError:
+                _LOGGER.debug("bluetoothctl remove timed out for %s", address)
+                process.kill()
+                await process.wait()
+            # Give BlueZ time to process the removal
+            await asyncio.sleep(_BLUEZ_CACHE_SETTLE_DELAY)
+        except FileNotFoundError:
+            _LOGGER.debug("bluetoothctl not found, skipping cleanup")
+        except Exception as exc:
+            _LOGGER.debug(
+                "Failed to clean up stale connection for %s: %s",
+                address,
+                exc,
+            )
 
     async def _connect(
         self,
@@ -288,6 +355,7 @@ class SIGMeshProvisioner:
         scan_failures = 0
         connect_failures = 0
         out_of_slots_failures = 0
+        client: BleakClient | None = None
 
         for attempt in range(1, max_retries + 1):
             try:
@@ -393,6 +461,11 @@ class SIGMeshProvisioner:
                     max_retries,
                     timeout,
                 )
+                # PLAT-506: Ensure client is disconnected before retry
+                if client is not None:
+                    with contextlib.suppress(Exception):
+                        await client.disconnect()
+                    client = None
                 # PLAT-506: Longer backoff to allow connection slot release
                 backoff = min(3.0 * (1.5 ** (attempt - 1)), 15.0)
                 await asyncio.sleep(backoff)
@@ -408,14 +481,22 @@ class SIGMeshProvisioner:
                     or "no backend with an available connection slot" in exc_str
                 )
 
+                # PLAT-506: Ensure client is disconnected before retry
+                if client is not None:
+                    with contextlib.suppress(Exception):
+                        await client.disconnect()
+                    client = None
+
                 if is_slot_error:
                     out_of_slots_failures += 1
                     _LOGGER.warning(
                         "Connect attempt %d/%d failed: BLE adapter out of connection slots. "
-                        "Waiting for slots to be released...",
+                        "Cleaning up and waiting for slots to be released...",
                         attempt,
                         max_retries,
                     )
+                    # PLAT-506: Force cleanup to free connection slot
+                    await self._cleanup_stale_connections(address)
                     # Longer backoff when slots are exhausted
                     backoff = min(5.0 * (1.5 ** (attempt - 1)), 20.0)
                     await asyncio.sleep(backoff)
@@ -502,7 +583,7 @@ class SIGMeshProvisioner:
             for seg in segments:
                 await client.write_gatt_char(PROV_DATA_IN, seg, response=False)
                 if len(segments) > 1:
-                    await asyncio.sleep(0.05)
+                    await asyncio.sleep(_PROVISIONING_POLL_INTERVAL)
 
         async def recv_prov(recv_timeout: float = 10.0, step_name: str = "PDU") -> bytes:
             """Receive provisioning PDU with timeout and context."""
@@ -580,7 +661,7 @@ class SIGMeshProvisioner:
             ]
         )
         await send_prov(bytes([_PROV_START]) + start_params)
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(_POST_START_PDU_DELAY)
 
         # ---- Step 4: Public Key exchange ----
         _LOGGER.info("Provisioning: PublicKey exchange (%d bytes)", len(self._our_pub_key_bytes))

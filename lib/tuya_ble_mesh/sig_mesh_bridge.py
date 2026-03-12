@@ -38,6 +38,9 @@ _DEFAULT_MAX_RETRIES = 3
 _RETRY_INITIAL_BACKOFF = 1.0
 _RETRY_BACKOFF_MULTIPLIER = 2.0
 
+# Delay between bridge connection retries (seconds)
+_BRIDGE_CONNECT_RETRY_DELAY = 2.0
+
 
 class BridgeHTTPMixin:
     """Shared HTTP session management for bridge device classes.
@@ -210,7 +213,7 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
                     exc,
                 )
                 if attempt < max_retries:
-                    await asyncio.sleep(2.0)
+                    await asyncio.sleep(_BRIDGE_CONNECT_RETRY_DELAY)
 
         msg = f"Bridge daemon not reachable at {self._bridge_url}"
         raise MeshConnectionError(msg)
@@ -474,7 +477,7 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
                     exc,
                 )
                 if attempt < max_retries:
-                    await asyncio.sleep(2.0)
+                    await asyncio.sleep(_BRIDGE_CONNECT_RETRY_DELAY)
 
         msg = f"Bridge daemon not reachable at {self._bridge_host}:{self._bridge_port}"
         raise MeshConnectionError(msg)
