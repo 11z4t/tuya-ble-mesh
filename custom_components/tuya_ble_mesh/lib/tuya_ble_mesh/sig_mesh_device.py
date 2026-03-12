@@ -454,12 +454,12 @@ class SIGMeshDevice:
             MeshConnectionError: If BLE write fails after all retries.
         """
         if self._client is None or self._keys is None:
-            msg = "Not connected"
+            msg = f"Not connected for {self._address} (target=0x{self._target_addr:04X})"
             raise SIGMeshError(msg)
 
         app_key = self._keys.app_key
         if app_key is None:
-            msg = "No application key loaded"
+            msg = f"No application key loaded for {self._address} (prefix={self._op_item_prefix})"
             raise SIGMeshKeyError(msg)
 
         last_error: Exception | None = None
@@ -539,7 +539,7 @@ class SIGMeshDevice:
             SIGMeshError: If not connected or keys not loaded.
         """
         if self._client is None or self._keys is None:
-            msg = "Not connected"
+            msg = f"Not connected for {self._address} (target=0x{self._target_addr:04X})"
             raise SIGMeshError(msg)
 
         access_payload = config_composition_get(page=0)
@@ -590,7 +590,7 @@ class SIGMeshDevice:
         """
         async with self._seq_lock:
             if self._seq > 0xFFFFFF:
-                msg = "Sequence number exhausted — reconnect required"
+                msg = f"Sequence number exhausted ({self._seq} > 0xFFFFFF) — reconnect required for {self._address}"
                 raise SIGMeshError(msg)
             seq = self._seq
             self._seq += 1
@@ -613,7 +613,7 @@ class SIGMeshDevice:
         """
         async with self._seq_lock:
             if self._seq > 0xFFFFFF or (self._seq + n) > 0xFFFFFF:
-                msg = "Sequence number exhausted — reconnect required"
+                msg = f"Sequence number exhausted ({self._seq} + {n} > 0xFFFFFF) — reconnect required for {self._address}"
                 raise SIGMeshError(msg)
             seq = self._seq
             self._seq += n
@@ -646,7 +646,7 @@ class SIGMeshDevice:
             TimeoutError: If no response within response_timeout.
         """
         if self._client is None or self._keys is None:
-            msg = "Not connected"
+            msg = f"Not connected for {self._address} (target=0x{self._target_addr:04X}) — cannot send AppKey Add"
             raise SIGMeshError(msg)
 
         access_payload = config_appkey_add(net_idx, app_idx, app_key)
@@ -701,7 +701,7 @@ class SIGMeshDevice:
 
             params = await asyncio.wait_for(asyncio.shield(future), timeout=response_timeout)
         except TimeoutError:
-            msg = "Timeout waiting for AppKey Status response"
+            msg = f"Timeout waiting for AppKey Status response from 0x{self._target_addr:04X} ({response_timeout}s) on {self._address}"
             raise SIGMeshError(msg) from None
         finally:
             self._pending_responses.pop(_OPCODE_APPKEY_STATUS, None)
@@ -742,7 +742,7 @@ class SIGMeshDevice:
             TimeoutError: If no response within response_timeout.
         """
         if self._client is None or self._keys is None:
-            msg = "Not connected"
+            msg = f"Not connected for {self._address} (target=0x{self._target_addr:04X}) — cannot send Model App Bind"
             raise SIGMeshError(msg)
 
         access_payload = config_model_app_bind(element_addr, app_idx, model_id)
@@ -791,7 +791,7 @@ class SIGMeshDevice:
                 asyncio.shield(future_bind), timeout=response_timeout
             )
         except TimeoutError:
-            msg = "Timeout waiting for Model App Status response"
+            msg = f"Timeout waiting for Model App Status response from 0x{self._target_addr:04X} ({response_timeout}s) on {self._address}"
             raise SIGMeshError(msg) from None
         finally:
             self._pending_responses.pop(_OPCODE_MODEL_APP_STATUS, None)

@@ -330,7 +330,7 @@ class MeshDevice:
         for attempt in range(1, max_retries + 1):
             key = self._conn.session_key
             if key is None:
-                msg = "Not connected"
+                msg = f"Not connected for {self._address} (opcode=0x{opcode:02X}, dest=0x{dest_id:04X})"
                 raise DisconnectedError(msg)
 
             seq = await self._conn.next_sequence()
@@ -377,7 +377,7 @@ class MeshDevice:
 
         if last_error is not None:
             raise last_error
-        msg = f"Command 0x{opcode:02X} failed after {max_retries} attempts"
+        msg = f"Command 0x{opcode:02X} to 0x{dest_id:04X} failed after {max_retries} attempts for {self._address}"
         raise ConnectionError(msg)
 
     async def _enqueue(self, opcode: int, params: bytes, dest_id: int) -> None:
