@@ -85,6 +85,10 @@ _HEX_KEY_PATTERN = re.compile(r"^[0-9A-Fa-f]{32}$")
 _VENDOR_ID_PATTERN = re.compile(r"^(?:0[xX])?[0-9A-Fa-f]{1,4}$")
 _BRIDGE_TEST_TIMEOUT = 5
 
+# Maximum age (seconds) of a BLE advertisement before we consider the device gone.
+# Prevents stale discovery notifications for devices that stopped advertising.
+_STALE_ADVERTISEMENT_SECONDS = 180  # 3 minutes
+
 # Hostname-only pattern — IPs are validated via ipaddress.ip_address() below
 _HOSTNAME_PATTERN = re.compile(
     r"^[a-zA-Z0-9](?:[a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?"
@@ -101,9 +105,6 @@ _MODEL_GENERIC_ONOFF_SERVER = 0x1000
 # Seconds to wait for device to reboot as Proxy Service after provisioning
 # 15s: some SIG Mesh devices need >10s to boot + start Proxy advertising
 _POST_PROV_REBOOT_DELAY = 15.0
-
-# Discovery flow TTL — flows expire after this duration if device stops advertising
-_DISCOVERY_FLOW_TTL = 300  # 5 minutes
 
 # Re-export from const (single source of truth)
 _KNOWN_VENDOR_IDS = KNOWN_VENDOR_IDS
@@ -634,6 +635,51 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         self._prov_dev_key: str = ""
         self._prov_app_key: str = ""
 
+    def _is_device_stale(self, address: str) -> bool:
+        """Check if a BLE device has stopped advertising (stale).
+
+        Uses HA's bluetooth API to verify the device has a recent
+        advertisement. Returns True if the device should be considered
+        gone (no recent advertisements within _STALE_ADVERTISEMENT_SECONDS).
+
+        Args:
+            address: BLE MAC address to check.
+
+        Returns:
+            True if the device is stale / not advertising, False if active.
+        """
+        try:
+            from homeassistant.components.bluetooth import async_last_service_info
+
+            service_info = async_last_service_info(self.hass, address, connectable=False)
+            if service_info is None:
+                _LOGGER.debug("No service info for %s — device is stale", address)
+                return True
+
+            # BluetoothServiceInfoBleak.time is monotonic clock
+            import time as _time
+
+            age = _time.monotonic() - service_info.time
+            if age > _STALE_ADVERTISEMENT_SECONDS:
+                _LOGGER.debug(
+                    "Device %s last seen %.0fs ago (limit %ds) — stale",
+                    address,
+                    age,
+                    _STALE_ADVERTISEMENT_SECONDS,
+                )
+                return True
+            return False
+        except (ImportError, AttributeError):
+            # async_last_service_info not available (old HA or tests) — fall back
+            try:
+                from homeassistant.components.bluetooth import (
+                    async_ble_device_from_address,
+                )
+
+                return async_ble_device_from_address(self.hass, address, connectable=False) is None
+            except Exception:
+                return False  # Can't determine — assume not stale
+
     async def async_step_bluetooth(
         self,
         discovery_info: BluetoothServiceInfoBleak,
@@ -681,16 +727,12 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         await self.async_set_unique_id(address)
         self._abort_if_unique_id_configured(updates={})
 
-        # Check device is still reachable (stale discovery protection)
-        try:
-            from homeassistant.components.bluetooth import async_ble_device_from_address
-
-            ble_device = async_ble_device_from_address(self.hass, address, connectable=False)
-            if ble_device is None:
-                _LOGGER.warning("Device %s not found in BLE registry, aborting stale flow", address)
-                return self.async_abort(reason="device_not_available")
-        except Exception:
-            pass  # BLE manager not initialized (e.g., during testing), proceed normally
+        # Check device is still actively advertising (stale discovery protection)
+        if self._is_device_stale(address):
+            _LOGGER.warning(
+                "Device %s not actively advertising, aborting stale discovery", address
+            )
+            return self.async_abort(reason="device_not_available")
 
         self._discovery_info = {
             "address": address,
@@ -727,6 +769,14 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         """
         errors: dict[str, str] = {}
         disc = self._discovery_info or {}
+
+        # Re-check that device is still advertising before showing form
+        if disc.get("address") and self._is_device_stale(disc["address"]):
+            _LOGGER.warning(
+                "Device %s stopped advertising, aborting confirm flow",
+                disc["address"],
+            )
+            return self.async_abort(reason="device_not_available")
 
         if user_input is not None and self._discovery_info is not None:
             mac = self._discovery_info["address"]
@@ -1073,6 +1123,15 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         the Proxy Service (UUID 0x1828).
         """
         errors: dict[str, str] = {}
+
+        # Re-check that device is still advertising before showing form
+        disc = self._discovery_info or {}
+        if disc.get("address") and self._is_device_stale(disc["address"]):
+            _LOGGER.warning(
+                "Device %s stopped advertising, aborting SIG provisioning flow",
+                disc["address"],
+            )
+            return self.async_abort(reason="device_not_available")
 
         if user_input is not None and self._discovery_info is not None:
             mac = self._discovery_info["address"]
