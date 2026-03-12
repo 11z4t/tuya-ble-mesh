@@ -486,10 +486,15 @@ class MeshAuthRepairFlow(TuyaBLEMeshRepairFlow):
                 if host_error:
                     errors[CONF_BRIDGE_HOST] = host_error
                 else:
-                    port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
-                    bridge_ok = await _test_bridge_with_session(hass, host, int(port))
-                    if not bridge_ok:
-                        errors["base"] = "cannot_connect"
+                    try:
+                        port = int(user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT))
+                    except (ValueError, TypeError):
+                        errors[CONF_BRIDGE_PORT] = "invalid_port"
+                        port = None
+                    if port is not None:
+                        bridge_ok = await _test_bridge_with_session(hass, host, port)
+                        if not bridge_ok:
+                            errors["base"] = "cannot_connect"
             else:
                 name = user_input.get(CONF_MESH_NAME, "")
                 pwd = user_input.get(CONF_MESH_PASSWORD, "")
