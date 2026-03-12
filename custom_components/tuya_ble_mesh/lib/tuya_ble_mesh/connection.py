@@ -52,7 +52,7 @@ _DEFAULT_MAX_RETRIES = 5
 _MAX_SEQUENCE = 0xFFFFFF
 
 # Disconnect callback type
-DisconnectCallback = Callable[[], Any]
+DisconnectCallback = Callable[[], None]
 
 
 class ConnectionState(enum.Enum):
