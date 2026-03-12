@@ -170,7 +170,12 @@
         "name": "Energi"
       },
       "connection_quality": {
-        "name": "Anslutningskvalitet"
+        "name": "Anslutningskvalitet",
+        "state": {
+          "good": "Bra",
+          "marginal": "Medel",
+          "poor": "Svag"
+        }
       },
       "last_seen": {
         "name": "Senast sedd"

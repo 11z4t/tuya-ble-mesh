@@ -170,7 +170,12 @@
         "name": "Energie"
       },
       "connection_quality": {
-        "name": "Verbindungsqualität"
+        "name": "Verbindungsqualität",
+        "state": {
+          "good": "Gut",
+          "marginal": "Mäßig",
+          "poor": "Schlecht"
+        }
       },
       "last_seen": {
         "name": "Zuletzt gesehen"

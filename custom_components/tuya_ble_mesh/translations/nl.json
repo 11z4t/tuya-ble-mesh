@@ -170,7 +170,12 @@
         "name": "Energieverbruik"
       },
       "connection_quality": {
-        "name": "Verbindingskwaliteit"
+        "name": "Verbindingskwaliteit",
+        "state": {
+          "good": "Goed",
+          "marginal": "Matig",
+          "poor": "Slecht"
+        }
       },
       "last_seen": {
         "name": "Laatst gezien"

@@ -170,7 +170,12 @@
         "name": "Energia"
       },
       "connection_quality": {
-        "name": "Yhteyslaatu"
+        "name": "Yhteyslaatu",
+        "state": {
+          "good": "Hyvä",
+          "marginal": "Kohtalainen",
+          "poor": "Heikko"
+        }
       },
       "last_seen": {
         "name": "Viimeksi nähty"
