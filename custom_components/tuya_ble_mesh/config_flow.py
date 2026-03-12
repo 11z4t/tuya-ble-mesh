@@ -1237,6 +1237,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
         # Phase 1: PB-GATT provisioning — direct bleak, not via HA BLE manager/proxy
         # Provisioning requires full GATT connection that only the local adapter can do.
+        # PLAT-408: Increased timeout and retries for more reliable provisioning
         provisioner = SIGMeshProvisioner(
             net_key=net_key,
             app_key=app_key,
@@ -1244,7 +1245,11 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             iv_index=DEFAULT_IV_INDEX,
             adapter="hci0",  # Force local adapter, bypass ESPHome proxy
         )
-        result = await provisioner.provision(mac)
+        result = await provisioner.provision(
+            mac,
+            timeout=20.0,  # Increased from default 15.0
+            max_retries=8,  # Increased from default 5
+        )
 
         _LOGGER.info(
             "PB-GATT provisioning succeeded for %s (%d elements)",
@@ -1277,10 +1282,10 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             ble_device_callback=None,  # Force direct BLE, no HA proxy
             adapter="hci0",  # Force local adapter for post-prov config
         )
-        # Retry post-provisioning up to 3 times with increasing delay.
+        # PLAT-408: Retry post-provisioning up to 5 times with increasing delay.
         # The device may take varying time to start Proxy Service after reboot.
         post_prov_ok = False
-        for attempt in range(3):
+        for attempt in range(5):  # Increased from 3 to 5 attempts
             try:
                 if attempt > 0:
                     extra_delay = 5.0 * attempt
@@ -1290,7 +1295,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     )
                     await asyncio.sleep(extra_delay)
 
-                await device.connect(timeout=20.0, max_retries=3)
+                # PLAT-408: Increased timeout and retries for post-prov connect
+                await device.connect(timeout=25.0, max_retries=5)  # Increased from 20s/3 to 25s/5
 
                 appkey_ok = await device.send_config_appkey_add(app_key)
                 if not appkey_ok:
@@ -1337,7 +1343,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
         if not post_prov_ok:
             _LOGGER.warning(
-                "[SIG-PAIR] Post-provisioning FAILED after 3 attempts for %s "
+                "[SIG-PAIR] Post-provisioning FAILED after 5 attempts for %s "
                 "(device provisioned but AppKey not bound — device may need factory reset)",
                 mac,
             )
