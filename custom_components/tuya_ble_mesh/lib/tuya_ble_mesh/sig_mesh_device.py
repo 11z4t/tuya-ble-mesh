@@ -24,6 +24,7 @@ from typing import Any
 
 from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
+from bleak.exc import BleakError
 
 from tuya_ble_mesh.exceptions import (
     ConnectionError as MeshConnectionError,
@@ -352,14 +353,14 @@ class SIGMeshDevice:
                 # Request Composition Data (non-critical)
                 try:
                     await self.request_composition_data()
-                except Exception:
+                except (asyncio.TimeoutError, SIGMeshError, BleakError):
                     _LOGGER.debug(
                         "Composition Data request failed (non-critical)",
                         exc_info=True,
                     )
                 return
 
-            except Exception as exc:
+            except (BleakError, MeshConnectionError, OSError) as exc:
                 last_error = exc
                 _LOGGER.warning(
                     "Connection attempt %d failed for %s",
@@ -498,7 +499,7 @@ class SIGMeshDevice:
                 return
             except (SIGMeshError, SIGMeshKeyError):
                 raise
-            except Exception as exc:
+            except (BleakError, OSError) as exc:
                 last_error = exc
                 if attempt >= max_retries:
                     break
