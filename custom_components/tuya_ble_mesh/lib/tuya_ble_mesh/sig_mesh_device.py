@@ -146,7 +146,6 @@ class SIGMeshDevice:
         self._seq = _INITIAL_SEQ
         self._seq_lock = asyncio.Lock()
         self._tid = 0
-        self._event_loop: asyncio.AbstractEventLoop | None = None
 
         self._onoff_callbacks: list[OnOffCallback] = []
         self._vendor_callbacks: list[VendorCallback] = []
@@ -295,7 +294,6 @@ class SIGMeshDevice:
             ConnectionError: If BLE connection fails after all retries.
         """
         await self._load_keys()
-        self._event_loop = asyncio.get_running_loop()
 
         last_error: Exception | None = None
         for attempt in range(1, max_retries + 1):
@@ -843,11 +841,14 @@ class SIGMeshDevice:
         if self._keys is None:
             return
         data_copy = bytes(data)
-        if self._event_loop is not None and self._event_loop.is_running():
-            task = self._event_loop.create_task(self._process_notify(data_copy))
+        try:
+            loop = asyncio.get_running_loop()
+            task = loop.create_task(self._process_notify(data_copy))
             self._pending_notify_tasks.add(task)
             task.add_done_callback(self._pending_notify_tasks.discard)
             task.add_done_callback(self._log_notify_exception)
+        except RuntimeError:
+            _LOGGER.debug("No running event loop for notify callback")
 
     async def _process_notify(self, data: bytes) -> None:
         """Decrypt and dispatch a GATT Proxy notification.
