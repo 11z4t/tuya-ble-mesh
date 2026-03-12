@@ -106,6 +106,20 @@ _MODEL_GENERIC_ONOFF_SERVER = 0x1000
 # 15s: some SIG Mesh devices need >10s to boot + start Proxy advertising
 _POST_PROV_REBOOT_DELAY = 15.0
 
+# BLE operation timeouts (seconds)
+_BLE_SCAN_TIMEOUT = 10.0  # find_device_by_address timeout
+_BLE_SCAN_WAIT_TIMEOUT = 15.0  # wait_for wrapper around scan
+_BLE_CLIENT_TIMEOUT = 20.0  # BleakClient constructor timeout
+_BLE_CONNECT_TIMEOUT = 20.0  # client.connect() timeout (no pairing)
+_BLE_CONNECT_PAIR_TIMEOUT = 25.0  # client.connect(pair=True) timeout
+_BLUETOOTHCTL_TIMEOUT = 5.0  # bluetoothctl subprocess timeout
+_BLUEZ_SETTLE_DELAY = 1.0  # delay after bluetoothctl remove
+_PAIRING_RETRY_DELAY = 2.0  # delay before retry after pairing failure
+
+# SIG Mesh configuration delays (seconds)
+_POST_PROV_RETRY_DELAY_MULTIPLIER = 5.0  # extra delay per retry attempt
+_CONFIG_COMMAND_DELAY = 1.0  # delay between config commands (AppKey Add -> Model Bind)
+
 # Re-export from const (single source of truth)
 _KNOWN_VENDOR_IDS = KNOWN_VENDOR_IDS
 
@@ -840,14 +854,15 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
                 # Step 1a: Scan for device on LOCAL adapter (hci0)
                 _LOGGER.warning(
-                    "[PAIR] Step 4: BleakScanner.find_device_by_address(%s, timeout=10, adapter=hci0)...",
+                    "[PAIR] Step 4: BleakScanner.find_device_by_address(%s, timeout=%s, adapter=hci0)...",
                     mac,
+                    _BLE_SCAN_TIMEOUT,
                 )
                 ble_device = await asyncio.wait_for(
                     _RawBleakScanner.find_device_by_address(
-                        mac, timeout=10.0, adapter="hci0"
+                        mac, timeout=_BLE_SCAN_TIMEOUT, adapter="hci0"
                     ),
-                    timeout=15.0,
+                    timeout=_BLE_SCAN_WAIT_TIMEOUT,
                 )
 
                 if ble_device is None:
@@ -870,9 +885,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                         stdout=asyncio.subprocess.DEVNULL,
                         stderr=asyncio.subprocess.DEVNULL,
                     )
-                    await asyncio.wait_for(proc.wait(), timeout=5.0)
+                    await asyncio.wait_for(proc.wait(), timeout=_BLUETOOTHCTL_TIMEOUT)
                     _LOGGER.warning("[PAIR] Step 4b: BlueZ device removed (or didn't exist)")
-                    await asyncio.sleep(1.0)  # Let BlueZ settle
+                    await asyncio.sleep(_BLUEZ_SETTLE_DELAY)  # Let BlueZ settle
                 except asyncio.CancelledError:
                     raise
                 except Exception as rm_exc:
@@ -882,9 +897,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 _LOGGER.warning("[PAIR] Step 4c: Re-scanning for %s...", mac)
                 ble_device = await asyncio.wait_for(
                     _RawBleakScanner.find_device_by_address(
-                        mac, timeout=10.0, adapter="hci0"
+                        mac, timeout=_BLE_SCAN_TIMEOUT, adapter="hci0"
                     ),
-                    timeout=15.0,
+                    timeout=_BLE_SCAN_WAIT_TIMEOUT,
                 )
                 if ble_device is None:
                     _LOGGER.warning("[PAIR] Step 4c FAILED: Device %s not found after re-scan", mac)
@@ -893,16 +908,17 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
                 # Step 5: Connect via REAL BlueZ backend (bypass habluetooth wrapper)
                 _LOGGER.warning(
-                    "[PAIR] Step 5: BleakClientBlueZDBus(%s, adapter=hci0, timeout=20)...",
+                    "[PAIR] Step 5: BleakClientBlueZDBus(%s, adapter=hci0, timeout=%s)...",
                     mac,
+                    _BLE_CLIENT_TIMEOUT,
                 )
-                client = _RawBleakClient(ble_device, adapter="hci0", timeout=20.0)
+                client = _RawBleakClient(ble_device, adapter="hci0", timeout=_BLE_CLIENT_TIMEOUT)
                 _LOGGER.warning("[PAIR] Step 5a: client.connect() starting (raw BlueZ, no habluetooth)...")
                 try:
-                    await asyncio.wait_for(client.connect(pair=False), timeout=20.0)
+                    await asyncio.wait_for(client.connect(pair=False), timeout=_BLE_CONNECT_TIMEOUT)
                 except TypeError:
                     _LOGGER.warning("[PAIR] Step 5a: pair= not supported, retrying without")
-                    await asyncio.wait_for(client.connect(), timeout=20.0)
+                    await asyncio.wait_for(client.connect(), timeout=_BLE_CONNECT_TIMEOUT)
                 except asyncio.TimeoutError:
                     _LOGGER.warning("[PAIR] Step 5a: connect(pair=False) timed out, retrying with pair=True")
                     try:
@@ -916,20 +932,20 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                             stdout=asyncio.subprocess.DEVNULL,
                             stderr=asyncio.subprocess.DEVNULL,
                         )
-                        await asyncio.wait_for(proc.wait(), timeout=5.0)
-                        await asyncio.sleep(2.0)
+                        await asyncio.wait_for(proc.wait(), timeout=_BLUETOOTHCTL_TIMEOUT)
+                        await asyncio.sleep(_PAIRING_RETRY_DELAY)
                     except asyncio.CancelledError:
                         raise
                     except Exception:
                         pass
                     ble_device = await asyncio.wait_for(
-                        _RawBleakScanner.find_device_by_address(mac, timeout=10.0, adapter="hci0"),
-                        timeout=15.0,
+                        _RawBleakScanner.find_device_by_address(mac, timeout=_BLE_SCAN_TIMEOUT, adapter="hci0"),
+                        timeout=_BLE_SCAN_WAIT_TIMEOUT,
                     )
                     if ble_device is None:
                         raise TimeoutError(f"Device {mac} not found after second cleanup")
-                    client = _RawBleakClient(ble_device, adapter="hci0", timeout=20.0)
-                    await asyncio.wait_for(client.connect(pair=True), timeout=25.0)
+                    client = _RawBleakClient(ble_device, adapter="hci0", timeout=_BLE_CLIENT_TIMEOUT)
+                    await asyncio.wait_for(client.connect(pair=True), timeout=_BLE_CONNECT_PAIR_TIMEOUT)
                 _LOGGER.warning(
                     "[PAIR] Step 5 OK: GATT connected (is_connected=%s, mtu=%s)",
                     client.is_connected,
@@ -1297,7 +1313,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         for attempt in range(5):  # Increased from 3 to 5 attempts
             try:
                 if attempt > 0:
-                    extra_delay = 5.0 * attempt
+                    extra_delay = _POST_PROV_RETRY_DELAY_MULTIPLIER * attempt
                     _LOGGER.warning(
                         "[SIG-PAIR] Post-prov retry %d, waiting %.0fs extra...",
                         attempt + 1, extra_delay,
@@ -1311,7 +1327,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 if not appkey_ok:
                     _LOGGER.warning("AppKey Add returned non-success for %s", mac)
 
-                await asyncio.sleep(1.0)
+                await asyncio.sleep(_CONFIG_COMMAND_DELAY)
 
                 bind_ok = await device.send_config_model_app_bind(
                     _UNICAST_DEVICE_DEFAULT, 0, _MODEL_GENERIC_ONOFF_SERVER
