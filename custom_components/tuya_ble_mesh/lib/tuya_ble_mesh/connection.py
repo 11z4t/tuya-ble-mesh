@@ -51,6 +51,9 @@ _DEFAULT_MAX_RETRIES = 5
 # Sequence counter wraps at 24 bits
 _MAX_SEQUENCE = 0xFFFFFF
 
+# Bluetoothctl command timeout (seconds)
+_BLUETOOTHCTL_TIMEOUT = 5.0
+
 # Disconnect callback type
 DisconnectCallback = Callable[[], None]
 
@@ -348,7 +351,7 @@ class BLEConnection:
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )
-            await asyncio.wait_for(proc.wait(), timeout=5.0)
+            await asyncio.wait_for(proc.wait(), timeout=_BLUETOOTHCTL_TIMEOUT)
         except Exception:
             _LOGGER.debug("bluetoothctl remove failed (ignored)", exc_info=True)
 

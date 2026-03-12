@@ -77,6 +77,9 @@ _NO_OOB_AUTH: bytes = b"\x00" * 16
 # Attention duration for Invite PDU (seconds)
 _ATTENTION_DURATION = 5
 
+# Timeout for bluetoothctl subprocess operations (seconds)
+_BLUETOOTHCTL_TIMEOUT = 5.0
+
 # Provisioning poll interval (seconds)
 _PROVISIONING_POLL_INTERVAL = 0.05
 
@@ -293,7 +296,7 @@ class SIGMeshProvisioner:
             )
             try:
                 _stdout, stderr = await asyncio.wait_for(
-                    process.communicate(), timeout=5.0
+                    process.communicate(), timeout=_BLUETOOTHCTL_TIMEOUT
                 )
                 if process.returncode == 0:
                     _LOGGER.debug("Removed stale device %s from BlueZ", address)
