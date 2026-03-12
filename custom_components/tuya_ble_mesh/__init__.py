@@ -304,8 +304,44 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         _logging.getLogger("tuya_ble_mesh").setLevel(level)
         _LOGGER.info("Log level set to %s", level_str)
 
-    async def handle_get_diagnostics(call: ServiceCall) -> None:
+    async def handle_get_diagnostics(call: ServiceCall) -> dict[str, Any]:
         """Get diagnostic information for a device.
+
+        Returns structured diagnostics data via SupportsResponse.
+
+        Args:
+            call: Service call with device_id field.
+
+        Returns:
+            Dict with connection stats, RSSI, firmware, and error history.
+        """
+        device_id: str = call.data.get("device_id", "")
+        coordinator = _get_coordinator_for_device(hass, device_id)
+        if coordinator is None:
+            raise HomeAssistantError(f"Device not found: {device_id}")
+
+        stats = coordinator.statistics
+        diagnostics: dict[str, Any] = {
+            "device_address": coordinator.device.address,
+            "available": coordinator.state.available,
+            "connection_uptime_seconds": round(stats.connection_uptime, 1),
+            "total_reconnects": stats.total_reconnects,
+            "total_errors": stats.total_errors,
+            "connection_errors": stats.connection_errors,
+            "command_errors": stats.command_errors,
+            "avg_response_time_seconds": (
+                round(stats.avg_response_time, 3) if stats.response_times else None
+            ),
+            "rssi_dbm": coordinator.state.rssi,
+            "firmware_version": coordinator.state.firmware_version,
+            "last_error": stats.last_error,
+            "last_disconnect_timestamp": stats.last_disconnect_time,
+        }
+        _LOGGER.info("Diagnostics for %s: %s", device_id, diagnostics)
+        return diagnostics
+
+    async def handle_reconnect(call: ServiceCall) -> None:
+        """Force reconnect a device without reloading the config entry.
 
         Args:
             call: Service call with device_id field.
@@ -314,25 +350,12 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         coordinator = _get_coordinator_for_device(hass, device_id)
         if coordinator is None:
             raise HomeAssistantError(f"Device not found: {device_id}")
-
-        stats = coordinator.statistics
-        diagnostics = {
-            "device_address": coordinator.device.address,
-            "available": coordinator.state.available,
-            "connection_uptime": f"{stats.connection_uptime:.1f}s",
-            "total_reconnects": stats.total_reconnects,
-            "total_errors": stats.total_errors,
-            "connection_errors": stats.connection_errors,
-            "command_errors": stats.command_errors,
-            "avg_response_time": (
-                f"{stats.avg_response_time:.3f}s" if stats.response_times else "N/A"
-            ),
-            "rssi": coordinator.state.rssi,
-            "firmware_version": coordinator.state.firmware_version,
-            "last_error": stats.last_error,
-            "last_disconnect": stats.last_disconnect_time,
-        }
-        _LOGGER.info("Diagnostics for %s: %s", device_id, diagnostics)
+        try:
+            await coordinator.device.disconnect()
+        except Exception:  # noqa: BLE001 — best-effort disconnect before reconnect
+            pass
+        coordinator._schedule_reconnect()  # noqa: SLF001 — internal API, same module
+        _LOGGER.info("Reconnect triggered for %s", device_id)
 
     hass.services.async_register(
         DOMAIN,
@@ -350,10 +373,19 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             }
         ),
     )
+    from homeassistant.core import SupportsResponse
+
     hass.services.async_register(
         DOMAIN,
         "get_diagnostics",
         handle_get_diagnostics,
+        schema=vol.Schema({vol.Required("device_id"): str}),
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "reconnect",
+        handle_reconnect,
         schema=vol.Schema({vol.Required("device_id"): str}),
     )
 
@@ -416,7 +448,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry)
     # Remove services if no more entries remain
     remaining = hass.config_entries.async_entries(DOMAIN)
     if not remaining or (len(remaining) == 1 and remaining[0].entry_id == entry.entry_id):
-        for service_name in ("identify", "set_log_level", "get_diagnostics"):
+        for service_name in ("identify", "set_log_level", "get_diagnostics", "reconnect"):
             if hass.services.has_service(DOMAIN, service_name):
                 hass.services.async_remove(DOMAIN, service_name)
 

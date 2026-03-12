@@ -213,11 +213,21 @@
     },
     "get_diagnostics": {
       "name": "Hent diagnostikk",
-      "description": "Logg diagnostikkinformasjon for en enhet til HA-loggen.",
+      "description": "Retrieve connection health, signal strength, and error history. Returns structured data for automations.",
       "fields": {
         "device_id": {
           "name": "Enhet",
           "description": "Enheten som skal få diagnostikk for."
+        }
+      }
+    },
+    "reconnect": {
+      "name": "Reconnect device",
+      "description": "Force disconnect and reconnect a device without reloading the integration.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The device to reconnect."
         }
       }
     }

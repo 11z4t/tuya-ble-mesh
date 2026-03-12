@@ -213,11 +213,21 @@
     },
     "get_diagnostics": {
       "name": "Hämta diagnostik",
-      "description": "Logga diagnostikinformation för en enhet till HA-loggen.",
+      "description": "Hämta anslutningshälsa, signalstyrka och felhistorik. Returnerar strukturerad data för automationer.",
       "fields": {
         "device_id": {
           "name": "Enhet",
           "description": "Enheten att hämta diagnostik för."
+        }
+      }
+    },
+    "reconnect": {
+      "name": "Återanslut enhet",
+      "description": "Tvinga frånkoppling och återanslutning utan att ladda om integrationen.",
+      "fields": {
+        "device_id": {
+          "name": "Enhet",
+          "description": "Enheten att återansluta."
         }
       }
     }
