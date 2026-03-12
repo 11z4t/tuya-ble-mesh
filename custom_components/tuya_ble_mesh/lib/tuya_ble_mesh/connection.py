@@ -308,8 +308,11 @@ class BLEConnection:
             except MeshConnectionError:
                 self._client = None
                 raise
-            except (Exception, asyncio.CancelledError) as exc:
-                last_exc = exc if isinstance(exc, Exception) else Exception(str(exc))
+            except asyncio.CancelledError:
+                self._client = None
+                raise  # Always propagate cancellation
+            except Exception as exc:
+                last_exc = exc
                 self._client = None
                 backoff = min(2.0 * attempt, 8.0)
                 _LOGGER.warning(
