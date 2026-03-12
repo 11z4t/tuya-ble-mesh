@@ -13,8 +13,10 @@ _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
 sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
-from tuya_ble_mesh.exceptions import MeshConnectionError  # noqa: E402
-from tuya_ble_mesh.exceptions import SIGMeshError  # noqa: E402
+from tuya_ble_mesh.exceptions import (
+    MeshConnectionError,
+    SIGMeshError,
+)
 from tuya_ble_mesh.sig_mesh_bridge import (  # noqa: E402
     SIGMeshBridgeDevice,
     TelinkBridgeDevice,

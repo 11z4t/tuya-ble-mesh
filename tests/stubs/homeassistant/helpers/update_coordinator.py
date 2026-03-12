@@ -1,7 +1,9 @@
 """Minimal stub for homeassistant.helpers.update_coordinator."""
 from __future__ import annotations
-from typing import Any, Callable, Generic, TypeVar
-from datetime import datetime, timedelta
+
+from collections.abc import Callable
+from datetime import timedelta
+from typing import Any, Generic, TypeVar
 
 from homeassistant.helpers.entity import Entity
 

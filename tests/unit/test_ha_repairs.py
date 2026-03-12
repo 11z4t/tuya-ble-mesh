@@ -456,7 +456,6 @@ class TestMeshAuthRepairFlow:
     @pytest.mark.asyncio
     async def test_auth_repair_flow_with_hass_shows_form(self) -> None:
         """With hass, credentials step shows mesh credential form."""
-        from unittest.mock import AsyncMock
 
         from custom_components.tuya_ble_mesh.const import DEVICE_TYPE_LIGHT
         from custom_components.tuya_ble_mesh.repairs import MeshAuthRepairFlow
@@ -482,7 +481,10 @@ class TestMeshAuthRepairFlow:
     @pytest.mark.asyncio
     async def test_async_create_fix_flow_routes_auth_to_interactive(self) -> None:
         """async_create_fix_flow returns MeshAuthRepairFlow for auth issues."""
-        from custom_components.tuya_ble_mesh.repairs import MeshAuthRepairFlow, async_create_fix_flow
+        from custom_components.tuya_ble_mesh.repairs import (
+            MeshAuthRepairFlow,
+            async_create_fix_flow,
+        )
 
         issue_id = "auth_or_mesh_mismatch--abc123"
         mock_hass = MagicMock()

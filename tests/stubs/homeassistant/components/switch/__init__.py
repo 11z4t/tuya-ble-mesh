@@ -1,5 +1,6 @@
 """Minimal stub for homeassistant.components.switch."""
 from __future__ import annotations
+
 from enum import StrEnum
 from typing import Any
 
