@@ -18,9 +18,10 @@ import asyncio
 import contextlib
 import logging
 import time
+from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 
 from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
@@ -73,9 +74,6 @@ VendorCallback = Callable[[int, bytes], Any]
 CompositionCallback = Callable[[CompositionData], Any]
 DisconnectCallback = Callable[[], Any]
 
-# Initial sequence number (in-memory, not persisted)
-_INITIAL_SEQ = 2000
-
 # Default TTL for mesh commands
 _DEFAULT_TTL = 5
 
@@ -98,6 +96,61 @@ class _ReassemblyBuffer:
     created_at: float = field(default_factory=time.monotonic)
 
 
+class SeqStore(Protocol):
+    """Protocol for sequence number persistence.
+
+    Implementations can persist seq to disk (HA coordinator) or keep in-memory (default).
+    """
+
+    def get_seq(self) -> int:
+        """Return the current sequence number.
+
+        Returns:
+            Current sequence number.
+        """
+        ...
+
+    def set_seq(self, seq: int) -> None:
+        """Set the sequence number.
+
+        Args:
+            seq: Sequence number to set.
+        """
+        ...
+
+
+class InMemorySeqStore:
+    """Default in-memory sequence number store.
+
+    Starts from 0 (not the legacy _INITIAL_SEQ=2000).
+    HA coordinator should provide a persistent store via the Store mechanism.
+    """
+
+    def __init__(self, initial_seq: int = 0) -> None:
+        """Initialize the in-memory seq store.
+
+        Args:
+            initial_seq: Initial sequence number (default 0).
+        """
+        self._seq = initial_seq
+
+    def get_seq(self) -> int:
+        """Return the current sequence number.
+
+        Returns:
+            Current sequence number.
+        """
+        return self._seq
+
+    def set_seq(self, seq: int) -> None:
+        """Set the sequence number.
+
+        Args:
+            seq: Sequence number to set.
+        """
+        self._seq = seq
+
+
 class SIGMeshDevice:
     """High-level interface to a SIG Mesh device via GATT Proxy.
 
@@ -114,6 +167,7 @@ class SIGMeshDevice:
         *,
         op_item_prefix: str = "s17",
         iv_index: int = 0,
+        seq_store: SeqStore | None = None,
         ble_device_callback: Any = None,
         adapter: str | None = None,
     ) -> None:
@@ -126,6 +180,8 @@ class SIGMeshDevice:
             secrets: SecretsManager instance for key loading.
             op_item_prefix: 1Password item name prefix for keys.
             iv_index: Mesh IV Index.
+            seq_store: Optional SeqStore for sequence number persistence.
+                If None, uses InMemorySeqStore starting from 0.
             ble_device_callback: Optional callback(address) → BLEDevice for
                 HA Bluetooth Proxy support. If None, uses BleakScanner.
             adapter: BLE adapter name (e.g. "hci0"). Forces scan and connect
@@ -142,7 +198,7 @@ class SIGMeshDevice:
 
         self._client: BleakClient | None = None
         self._keys: MeshKeys | None = None
-        self._seq = _INITIAL_SEQ
+        self._seq_store: SeqStore = seq_store if seq_store is not None else InMemorySeqStore()
         self._seq_lock = asyncio.Lock()
         self._tid = 0
         self._correlation_id = 0
@@ -183,18 +239,22 @@ class SIGMeshDevice:
     def set_seq(self, seq: int) -> None:
         """Override the current sequence number (for restore on startup).
 
+        Delegates to the configured seq_store.
+
         Args:
             seq: Sequence number to set.
         """
-        self._seq = seq
+        self._seq_store.set_seq(seq)
 
     def get_seq(self) -> int:
         """Return the current sequence number (for persistence).
 
+        Delegates to the configured seq_store.
+
         Returns:
             Current sequence number.
         """
-        return self._seq
+        return self._seq_store.get_seq()
 
     def register_onoff_callback(self, callback: OnOffCallback) -> None:
         """Register a callback for GenericOnOff Status notifications.
@@ -601,24 +661,24 @@ class SIGMeshDevice:
         """Return and increment the sequence number (24-bit wrap).
 
         Protected by asyncio.Lock to prevent nonce collision from
-        concurrent callers.
+        concurrent callers. Delegates to seq_store.
 
         Raises:
             SIGMeshError: If sequence number exhausted (> 0xFFFFFF).
         """
         async with self._seq_lock:
-            if self._seq > 0xFFFFFF:
+            seq = self._seq_store.get_seq()
+            if seq > 0xFFFFFF:
                 msg = "Sequence number exhausted — reconnect required"
                 raise SIGMeshError(msg)
-            seq = self._seq
-            self._seq += 1
+            self._seq_store.set_seq(seq + 1)
             return seq
 
     async def _next_seqs(self, n: int) -> int:
         """Reserve n consecutive sequence numbers and return the first.
 
         Used for segmented messages that need a contiguous seq range.
-        Wraps at 24-bit boundary per SIG Mesh spec.
+        Wraps at 24-bit boundary per SIG Mesh spec. Delegates to seq_store.
 
         Args:
             n: Number of sequence numbers to reserve.
@@ -630,11 +690,11 @@ class SIGMeshDevice:
             SIGMeshError: If sequence number exhausted (> 0xFFFFFF).
         """
         async with self._seq_lock:
-            if self._seq > 0xFFFFFF or (self._seq + n) > 0xFFFFFF:
+            seq = self._seq_store.get_seq()
+            if seq > 0xFFFFFF or (seq + n) > 0xFFFFFF:
                 msg = "Sequence number exhausted — reconnect required"
                 raise SIGMeshError(msg)
-            seq = self._seq
-            self._seq += n
+            self._seq_store.set_seq(seq + n)
             return seq
 
     async def send_config_appkey_add(
