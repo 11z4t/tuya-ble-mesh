@@ -20,6 +20,7 @@ from custom_components.tuya_ble_mesh.entity import TuyaBLEMeshEntity
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
+    from homeassistant.helpers.device_registry import DeviceInfo
     from homeassistant.helpers.entity_platform import AddEntitiesCallback
 
     from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
@@ -57,7 +58,7 @@ class TuyaBLEMeshFirmwareUpdateEntity(TuyaBLEMeshEntity, UpdateEntity):
         self,
         coordinator: TuyaBLEMeshCoordinator,
         entry_id: str,
-        device_info: object | None = None,
+        device_info: DeviceInfo | None = None,
     ) -> None:
         """Initialise the firmware update entity."""
         super().__init__(coordinator, entry_id, device_info)  # type: ignore[arg-type]

@@ -567,7 +567,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             self._backoff = _BRIDGE_INITIAL_BACKOFF
 
         self._dispatch_update()
-        self._schedule_reconnect()
+        self.schedule_reconnect()
 
     async def _load_seq(self) -> None:
         """Load persisted sequence number from HA Store.
@@ -656,7 +656,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                 exc_info=True,
             )
             self._state = replace(self._state, available=False)
-            self._schedule_reconnect()
+            self.schedule_reconnect()
 
         self._dispatch_update()
 
@@ -711,7 +711,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         self._state = replace(self._state, available=False)
         _LOGGER.info("Coordinator stopped for %s", self._device.address)
 
-    def _schedule_reconnect(self) -> None:
+    def schedule_reconnect(self) -> None:
         """Schedule a reconnection attempt with exponential backoff."""
         if not self._running:
             return

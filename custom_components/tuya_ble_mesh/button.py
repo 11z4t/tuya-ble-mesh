@@ -101,6 +101,6 @@ class TuyaBLEMeshReconnectButton(TuyaBLEMeshEntity, ButtonEntity):
 
     async def async_press(self) -> None:
         """Force disconnect and reconnect."""
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(OSError, ConnectionError):
             await self.coordinator.device.disconnect()
-        self.coordinator._schedule_reconnect()
+        self.coordinator.schedule_reconnect()

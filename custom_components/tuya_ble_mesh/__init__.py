@@ -80,7 +80,6 @@ def _get_entry_option(entry: ConfigEntry, key: str, default: Any = None) -> Any:
     return entry.data.get(key, default)
 
 
-
 @dataclass
 class TuyaBLEMeshRuntimeData:
     """Runtime data stored in config entry for Tuya BLE Mesh.
@@ -357,9 +356,9 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         coordinator = _get_coordinator_for_device(hass, device_id)
         if coordinator is None:
             raise HomeAssistantError(f"Device not found: {device_id}")
-        with contextlib.suppress(Exception):
+        with contextlib.suppress(OSError, ConnectionError):
             await coordinator.device.disconnect()
-        coordinator._schedule_reconnect()
+        coordinator.schedule_reconnect()
         _LOGGER.info("Reconnect triggered for %s", device_id)
 
     hass.services.async_register(
