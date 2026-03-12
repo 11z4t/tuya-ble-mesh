@@ -365,17 +365,6 @@ class TestProvisionerConnect:
         mock_services.services = {1: mock_service}
         mock_client.get_services = AsyncMock(return_value=mock_services)
 
-<<<<<<< HEAD
-        with patch(
-            "tuya_ble_mesh.sig_mesh_provisioner.BleakScanner.find_device_by_address",
-            return_value=mock_device,
-        ), patch(
-            "tuya_ble_mesh.sig_mesh_provisioner.BleakClient",
-            return_value=mock_client,
-        ), patch("asyncio.sleep", new_callable=AsyncMock):
-            with pytest.raises(ProvisioningError, match="does not expose Provisioning Service"):  # noqa: SIM117
-                await prov._connect("AA:BB:CC:DD:EE:FF", timeout=1.0, max_retries=1)
-=======
         with (
             patch(
                 "tuya_ble_mesh.sig_mesh_provisioner.BleakScanner.find_device_by_address",
@@ -389,7 +378,6 @@ class TestProvisionerConnect:
             pytest.raises(ProvisioningError, match="does not expose Provisioning Service"),
         ):
             await prov._connect("AA:BB:CC:DD:EE:FF", timeout=1.0, max_retries=1)
->>>>>>> f7460120 (PLAT-414: Fix failing tests)
 
     @pytest.mark.asyncio
     async def test_connect_get_services_timeout(self) -> None:
@@ -422,15 +410,6 @@ class TestProvisionerConnect:
         prov = SIGMeshProvisioner(b"\x00" * 16, b"\x01" * 16, 0x00B0)
         mock_device = Mock()
 
-<<<<<<< HEAD
-        with patch(
-            "tuya_ble_mesh.sig_mesh_provisioner.BleakScanner.find_device_by_address",
-            return_value=mock_device,
-        ), patch(
-            "tuya_ble_mesh.sig_mesh_provisioner.BleakClient",
-            side_effect=TimeoutError(),
-        ), patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
-=======
         with (
             patch(
                 "tuya_ble_mesh.sig_mesh_provisioner.BleakScanner.find_device_by_address",
@@ -442,7 +421,6 @@ class TestProvisionerConnect:
             ),
             patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
         ):
->>>>>>> f7460120 (PLAT-414: Fix failing tests)
             with pytest.raises(ProvisioningError, match="Failed to connect"):
                 await prov._connect("AA:BB:CC:DD:EE:FF", timeout=1.0, max_retries=2)
             # Verify backoff was called (exponential backoff: 3.0, 4.5, ...)
