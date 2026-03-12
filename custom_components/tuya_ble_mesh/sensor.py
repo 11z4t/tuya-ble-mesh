@@ -128,6 +128,8 @@ SENSOR_DESCRIPTIONS: tuple[TuyaBLEMeshSensorEntityDescription, ...] = (
     TuyaBLEMeshSensorEntityDescription(
         key="connection_quality",
         translation_key="connection_quality",
+        device_class=SensorDeviceClass.ENUM,
+        options=["good", "marginal", "poor"],
         entity_category=EntityCategory.DIAGNOSTIC,
         icon="mdi:signal",
         value_fn=_connection_quality,

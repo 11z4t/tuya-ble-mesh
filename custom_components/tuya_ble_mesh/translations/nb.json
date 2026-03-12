@@ -170,7 +170,12 @@
         "name": "Energi"
       },
       "connection_quality": {
-        "name": "Tilkoblingskvalitet"
+        "name": "Tilkoblingskvalitet",
+        "state": {
+          "good": "God",
+          "marginal": "Middels",
+          "poor": "Svak"
+        }
       },
       "last_seen": {
         "name": "Sist sett"
