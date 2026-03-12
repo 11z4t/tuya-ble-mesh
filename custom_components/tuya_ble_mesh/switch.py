@@ -6,6 +6,7 @@ import logging
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.switch import SwitchDeviceClass, SwitchEntity
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from custom_components.tuya_ble_mesh.const import (
@@ -78,10 +79,13 @@ class TuyaBLEMeshSwitch(TuyaBLEMeshEntity, SwitchEntity):
         Args:
             **kwargs: Additional arguments (unused).
         """
-        await self.coordinator.send_command_with_retry(
-            lambda: self.coordinator.device.send_power(True),  # type: ignore[arg-type]
-            description="send_power(True)",
-        )
+        try:
+            await self.coordinator.send_command_with_retry(
+                lambda: self.coordinator.device.send_power(True),  # type: ignore[arg-type]
+                description="send_power(True)",
+            )
+        except (OSError, ConnectionError, TimeoutError) as exc:
+            raise HomeAssistantError("Failed to turn on switch") from exc
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off.
@@ -89,7 +93,10 @@ class TuyaBLEMeshSwitch(TuyaBLEMeshEntity, SwitchEntity):
         Args:
             **kwargs: Additional arguments (unused).
         """
-        await self.coordinator.send_command_with_retry(
-            lambda: self.coordinator.device.send_power(False),  # type: ignore[arg-type]
-            description="send_power(False)",
-        )
+        try:
+            await self.coordinator.send_command_with_retry(
+                lambda: self.coordinator.device.send_power(False),  # type: ignore[arg-type]
+                description="send_power(False)",
+            )
+        except (OSError, ConnectionError, TimeoutError) as exc:
+            raise HomeAssistantError("Failed to turn off switch") from exc

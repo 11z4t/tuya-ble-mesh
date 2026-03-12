@@ -30,6 +30,7 @@ from homeassistant.components.light import (  # type: ignore[attr-defined]
     LightEntity,
     LightEntityFeature,
 )
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from custom_components.tuya_ble_mesh.const import (
@@ -417,10 +418,13 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
         if effect is not None:
             scene_id = next((sid for sid, name in MESH_SCENES.items() if name == effect), None)
             if scene_id is not None:
-                await self.coordinator.send_command_with_retry(
-                    lambda: self.coordinator.device.send_scene(scene_id),  # type: ignore[arg-type]
-                    description=f"send_scene({scene_id})",
-                )
+                try:
+                    await self.coordinator.send_command_with_retry(
+                        lambda: self.coordinator.device.send_scene(scene_id),  # type: ignore[arg-type]
+                        description=f"send_scene({scene_id})",
+                    )
+                except (OSError, ConnectionError, TimeoutError) as exc:
+                    raise HomeAssistantError(f"Failed to activate scene {effect}") from exc
                 self.coordinator.set_scene_id(scene_id)
             return
 
@@ -436,12 +440,15 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
                 brightness, color_temp, rgb_color, has_target, self.coordinator.state.mode
             )
             self._transition_task = asyncio.create_task(
-                self._run_transition(
-                    cmd.brightness,
-                    cmd.color_temp,
-                    transition,
-                    target_rgb=cmd.rgb,
-                    use_color_brightness=cmd.use_color_brightness,
+                asyncio.wait_for(
+                    self._run_transition(
+                        cmd.brightness,
+                        cmd.color_temp,
+                        transition,
+                        target_rgb=cmd.rgb,
+                        use_color_brightness=cmd.use_color_brightness,
+                    ),
+                    timeout=600,
                 )
             )
             self._transition_task.add_done_callback(_log_task_exception)
@@ -556,21 +563,27 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
                 target_b = DEVICE_BRIGHTNESS_MIN  # 1
                 use_color_b = False
             self._transition_task = asyncio.create_task(
-                self._run_transition(
-                    target_brightness=target_b,
-                    target_color_temp=None,
-                    duration=transition,
-                    power_off_after=True,
-                    use_color_brightness=use_color_b,
+                asyncio.wait_for(
+                    self._run_transition(
+                        target_brightness=target_b,
+                        target_color_temp=None,
+                        duration=transition,
+                        power_off_after=True,
+                        use_color_brightness=use_color_b,
+                    ),
+                    timeout=600,
                 )
             )
             self._transition_task.add_done_callback(_log_task_exception)
             return
 
-        await self.coordinator.send_command_with_retry(
-            lambda: self.coordinator.device.send_power(False),  # type: ignore[arg-type]
-            description="send_power(False)",
-        )
+        try:
+            await self.coordinator.send_command_with_retry(
+                lambda: self.coordinator.device.send_power(False),  # type: ignore[arg-type]
+                description="send_power(False)",
+            )
+        except (OSError, ConnectionError, TimeoutError) as exc:
+            raise HomeAssistantError("Failed to turn off light") from exc
 
     def _cancel_transition(self) -> None:
         """Cancel any in-progress transition task."""
@@ -624,40 +637,43 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
         if target_rgb is not None:
             start_rgb = (state.red, state.green, state.blue)
 
-        for i in range(1, steps + 1):
-            fraction = i / steps
+        try:
+            for i in range(1, steps + 1):
+                fraction = i / steps
 
-            if target_brightness is not None and start_bright is not None:
-                val = round(start_bright + (target_brightness - start_bright) * fraction)
-                val = max(bright_min, min(val, bright_max))
-                if use_color_brightness:
-                    await device.send_color_brightness(val)
-                else:
-                    await device.send_brightness(val)
+                if target_brightness is not None and start_bright is not None:
+                    val = round(start_bright + (target_brightness - start_bright) * fraction)
+                    val = max(bright_min, min(val, bright_max))
+                    if use_color_brightness:
+                        await device.send_color_brightness(val)
+                    else:
+                        await device.send_brightness(val)
 
-            if target_color_temp is not None and start_temp is not None:
-                val = round(start_temp + (target_color_temp - start_temp) * fraction)
-                val = max(DEVICE_COLOR_TEMP_MIN, min(val, DEVICE_COLOR_TEMP_MAX))
-                await device.send_color_temp(val)
+                if target_color_temp is not None and start_temp is not None:
+                    val = round(start_temp + (target_color_temp - start_temp) * fraction)
+                    val = max(DEVICE_COLOR_TEMP_MIN, min(val, DEVICE_COLOR_TEMP_MAX))
+                    await device.send_color_temp(val)
 
-            if target_rgb is not None and start_rgb is not None:
-                r = round(start_rgb[0] + (target_rgb[0] - start_rgb[0]) * fraction)
-                g = round(start_rgb[1] + (target_rgb[1] - start_rgb[1]) * fraction)
-                b = round(start_rgb[2] + (target_rgb[2] - start_rgb[2]) * fraction)
-                await device.send_color(
-                    max(0, min(r, 255)),
-                    max(0, min(g, 255)),
-                    max(0, min(b, 255)),
+                if target_rgb is not None and start_rgb is not None:
+                    r = round(start_rgb[0] + (target_rgb[0] - start_rgb[0]) * fraction)
+                    g = round(start_rgb[1] + (target_rgb[1] - start_rgb[1]) * fraction)
+                    b = round(start_rgb[2] + (target_rgb[2] - start_rgb[2]) * fraction)
+                    await device.send_color(
+                        max(0, min(r, 255)),
+                        max(0, min(g, 255)),
+                        max(0, min(b, 255)),
+                    )
+
+                if i < steps:
+                    await asyncio.sleep(interval)
+
+            if power_off_after:
+                await self.coordinator.send_command_with_retry(
+                    lambda: device.send_power(False),  # type: ignore[arg-type]
+                    description="send_power(False) post-transition",
                 )
-
-            if i < steps:
-                await asyncio.sleep(interval)
-
-        if power_off_after:
-            await self.coordinator.send_command_with_retry(
-                lambda: device.send_power(False),  # type: ignore[arg-type]
-                description="send_power(False) post-transition",
-            )
+        except (OSError, ConnectionError, TimeoutError) as exc:
+            raise HomeAssistantError("Transition command failed") from exc
 
     async def async_will_remove_from_hass(self) -> None:
         """Clean up transition and pending command tasks."""

@@ -79,8 +79,7 @@ class TestUserStep:
             CONF_DEVICE_TYPE: DEVICE_TYPE_LIGHT,
         }
 
-        with patch("custom_components.tuya_ble_mesh.config_flow.MeshDevice"):
-            result = await flow.async_step_user(user_input)
+        result = await flow.async_step_user(user_input)
 
         # Should create entry (or show form on first call)
         assert result is not None
@@ -101,10 +100,10 @@ class TestUserStep:
 
         result = await flow.async_step_user(user_input)
 
-        # Should show form with error
+        # Should show form with field-level error on mac_address
         assert result["type"] == "form"
         assert "errors" in result
-        assert result["errors"].get("base") == "invalid_mac"
+        assert result["errors"].get(CONF_MAC_ADDRESS) == "invalid_mac"
 
     @pytest.mark.asyncio
     async def test_user_step_invalid_vendor_id_shows_error(self) -> None:
@@ -122,10 +121,10 @@ class TestUserStep:
 
         result = await flow.async_step_user(user_input)
 
-        # Should show form with error
+        # Should show form with field-level error on vendor_id
         assert result["type"] == "form"
         assert "errors" in result
-        assert result["errors"].get("base") == "invalid_vendor_id"
+        assert result["errors"].get(CONF_VENDOR_ID) == "invalid_vendor_id"
 
 
 class TestSIGBridgeStep:
