@@ -1,4 +1,5 @@
 """Minimal stub for homeassistant.const."""
+
 from enum import StrEnum
 
 
@@ -35,6 +36,11 @@ class UnitOfElectricPotential(StrEnum):
 class UnitOfElectricCurrent(StrEnum):
     AMPERE = "A"
     MILLIAMPERE = "mA"
+
+
+class EntityCategory(StrEnum):
+    CONFIG = "config"
+    DIAGNOSTIC = "diagnostic"
 
 
 ATTR_FRIENDLY_NAME = "friendly_name"

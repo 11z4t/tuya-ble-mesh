@@ -26,7 +26,6 @@ from tuya_ble_mesh.device import (
     MeshDevice,
 )
 from tuya_ble_mesh.exceptions import (
-    CommandExpiredError,
     CommandQueueFullError,
     ConnectionError,
     ProtocolError,
@@ -641,7 +640,6 @@ class TestCommandQueue:
     @pytest.mark.asyncio
     async def test_queue_full_raises(self) -> None:
         """Exceeding the queue capacity raises CommandQueueFullError."""
-        import asyncio
 
         from tuya_ble_mesh.device import _QueuedCommand
 
@@ -681,7 +679,7 @@ class TestCommandQueue:
 
     @pytest.mark.asyncio
     async def test_drain_empty_queue_is_noop(self) -> None:
-        device, client = _make_connected_device()
+        _device, client = _make_connected_device()
         await asyncio.sleep(0.05)
         client.write_gatt_char.assert_not_called()
 

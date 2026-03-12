@@ -1,4 +1,5 @@
 """Minimal stub for homeassistant.helpers.entity."""
+
 from __future__ import annotations
 
 from enum import StrEnum
@@ -54,6 +55,10 @@ class Entity:
         if desc is not None and getattr(desc, "entity_category", None) is not None:
             return desc.entity_category
         return self._attr_entity_category
+
+    @property
+    def device_info(self) -> Any:
+        return self._attr_device_info
 
     async def async_update(self) -> None:
         pass

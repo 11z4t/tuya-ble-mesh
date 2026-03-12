@@ -1845,9 +1845,9 @@ class TestSkipUnchangedNotifications:
         listener = MagicMock()
         coord.add_listener(listener)
 
-        coord._on_onoff_update(True)   # fires: availability changed
+        coord._on_onoff_update(True)  # fires: availability changed
         listener.reset_mock()
-        coord._on_onoff_update(True)   # same value, no fire
+        coord._on_onoff_update(True)  # same value, no fire
 
         listener.assert_not_called()
 
@@ -1858,7 +1858,7 @@ class TestSkipUnchangedNotifications:
         listener = MagicMock()
         coord.add_listener(listener)
 
-        coord._on_onoff_update(True)   # fires
+        coord._on_onoff_update(True)  # fires
         listener.reset_mock()
         coord._on_onoff_update(False)  # changed: fires
 
@@ -1884,6 +1884,7 @@ class TestCommandDebouncing:
     async def test_rapid_turn_on_coalesces_to_last_command(self) -> None:
         """Rapid turn_on calls should coalesce — only last command fires."""
         import sys
+
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
         import asyncio
@@ -1905,6 +1906,7 @@ class TestCommandDebouncing:
 
         async def _pass_through(coro_func, **_kw):  # type: ignore[no-untyped-def]
             await coro_func()
+
         coord.send_command_with_retry = _pass_through
 
         light = TuyaBLEMeshLight(coord, "entry_id")
@@ -1927,6 +1929,7 @@ class TestCommandDebouncing:
     async def test_turn_off_cancels_pending_command(self) -> None:
         """async_turn_off should cancel a pending debounced turn_on."""
         import sys
+
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
         import asyncio
@@ -1948,6 +1951,7 @@ class TestCommandDebouncing:
 
         async def _pass_through(coro_func, **_kw):  # type: ignore[no-untyped-def]
             await coro_func()
+
         coord.send_command_with_retry = _pass_through
 
         light = TuyaBLEMeshLight(coord, "entry_id")
@@ -1968,32 +1972,36 @@ class TestDeviceCapabilities:
 
     def _make_tuya_ble_device(self) -> MagicMock:
         """Mock for MeshDevice / TelinkBridgeDevice (Tuya BLE protocol)."""
-        device = MagicMock(spec=[
-            "address",
-            "register_status_callback",
-            "unregister_status_callback",
-            "register_disconnect_callback",
-            "unregister_disconnect_callback",
-            "send_brightness",
-        ])
+        device = MagicMock(
+            spec=[
+                "address",
+                "register_status_callback",
+                "unregister_status_callback",
+                "register_disconnect_callback",
+                "unregister_disconnect_callback",
+                "send_brightness",
+            ]
+        )
         device.address = "AA:BB:CC:DD:EE:FF"
         return device
 
     def _make_sig_mesh_device(self) -> MagicMock:
         """Mock for SIGMeshDevice (SIG Mesh protocol, direct BLE)."""
-        device = MagicMock(spec=[
-            "address",
-            "register_onoff_callback",
-            "unregister_onoff_callback",
-            "register_vendor_callback",
-            "unregister_vendor_callback",
-            "register_composition_callback",
-            "unregister_composition_callback",
-            "register_disconnect_callback",
-            "unregister_disconnect_callback",
-            "set_seq",
-            "get_seq",
-        ])
+        device = MagicMock(
+            spec=[
+                "address",
+                "register_onoff_callback",
+                "unregister_onoff_callback",
+                "register_vendor_callback",
+                "unregister_vendor_callback",
+                "register_composition_callback",
+                "unregister_composition_callback",
+                "register_disconnect_callback",
+                "unregister_disconnect_callback",
+                "set_seq",
+                "get_seq",
+            ]
+        )
         device.address = "BB:CC:DD:EE:FF:00"
         return device
 
