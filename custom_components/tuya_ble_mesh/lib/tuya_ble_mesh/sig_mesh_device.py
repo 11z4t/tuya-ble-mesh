@@ -162,6 +162,9 @@ class SIGMeshDevice:
         # Pending response futures: opcode -> Future(params)
         self._pending_responses: dict[int, asyncio.Future[bytes]] = {}
 
+        # Pending notify processing tasks
+        self._pending_notify_tasks: set[asyncio.Task] = set()
+
     @property
     def address(self) -> str:
         """Return the device BLE MAC address."""
@@ -394,7 +397,35 @@ class SIGMeshDevice:
             except Exception:
                 pass  # Frozen dataclass, best effort only
             self._keys = None
+
+        # Cancel all pending notify tasks
+        for task in self._pending_notify_tasks:
+            task.cancel()
+        if self._pending_notify_tasks:
+            await asyncio.gather(*self._pending_notify_tasks, return_exceptions=True)
+        self._pending_notify_tasks.clear()
+
         _LOGGER.info("Disconnected from %s", self._address)
+
+    def _log_notify_exception(self, task: asyncio.Task) -> None:
+        """Log exceptions from notify processing tasks.
+
+        Args:
+            task: The completed task to check for exceptions.
+        """
+        if task.cancelled():
+            return
+        try:
+            exc = task.exception()
+            if exc is not None:
+                _LOGGER.error(
+                    "Notify processing task failed for %s",
+                    self._address,
+                    exc_info=exc,
+                )
+        except Exception:
+            # Task is not done or other edge cases
+            pass
 
     async def send_power(self, on: bool, *, max_retries: int = 3) -> None:
         """Send GenericOnOff Set command with retry.
@@ -812,7 +843,10 @@ class SIGMeshDevice:
             return
         data_copy = bytes(data)
         if self._event_loop is not None and self._event_loop.is_running():
-            self._event_loop.create_task(self._process_notify(data_copy))
+            task = self._event_loop.create_task(self._process_notify(data_copy))
+            self._pending_notify_tasks.add(task)
+            task.add_done_callback(self._pending_notify_tasks.discard)
+            task.add_done_callback(self._log_notify_exception)
 
     async def _process_notify(self, data: bytes) -> None:
         """Decrypt and dispatch a GATT Proxy notification.
