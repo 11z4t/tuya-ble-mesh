@@ -248,6 +248,9 @@ class SIGMeshProvisioner:
             ProvisioningError: If provisioning fails at any step.
         """
         async with mesh_operation(address.upper(), "provision"):
+            # PLAT-506: Force cleanup of any stale BLE connections before provisioning
+            await self._cleanup_stale_connections(address)
+
             client = await self._connect(address, timeout, max_retries)
             try:
                 return await self._run_exchange(client)
@@ -258,11 +261,51 @@ class SIGMeshProvisioner:
                     await client.disconnect()
                 _LOGGER.info("Provisioning session disconnected from %s", address.upper())
                 # PLAT-506: Give BLE adapter time to release connection slot
-                await asyncio.sleep(0.5)
+                await asyncio.sleep(1.0)  # Increased from 0.5s to 1.0s
 
     # ------------------------------------------------------------------ #
     # Private helpers                                                      #
     # ------------------------------------------------------------------ #
+
+    async def _cleanup_stale_connections(self, address: str) -> None:
+        """Clean up any stale BLE connections for this device.
+
+        Uses bluetoothctl to remove the device from BlueZ cache, forcing
+        a fresh connection. This prevents BleakOutOfConnectionSlotsError
+        when old connections weren't properly released.
+
+        Args:
+            address: BLE MAC address to clean up.
+        """
+        address = address.upper()
+        try:
+            import subprocess
+
+            _LOGGER.debug("Removing stale BlueZ device entry for %s", address)
+            result = subprocess.run(
+                ["bluetoothctl", "remove", address],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+            if result.returncode == 0:
+                _LOGGER.debug("Removed stale device %s from BlueZ", address)
+            else:
+                _LOGGER.debug(
+                    "Device %s not in BlueZ cache (or remove failed): %s",
+                    address,
+                    result.stderr.strip() if result.stderr else "no error",
+                )
+            # Give BlueZ time to process the removal
+            await asyncio.sleep(0.5)
+        except FileNotFoundError:
+            _LOGGER.debug("bluetoothctl not found, skipping cleanup")
+        except Exception as exc:
+            _LOGGER.debug(
+                "Failed to clean up stale connection for %s: %s",
+                address,
+                exc,
+            )
 
     async def _connect(
         self,
@@ -288,6 +331,7 @@ class SIGMeshProvisioner:
         scan_failures = 0
         connect_failures = 0
         out_of_slots_failures = 0
+        client: BleakClient | None = None
 
         for attempt in range(1, max_retries + 1):
             try:
@@ -393,6 +437,11 @@ class SIGMeshProvisioner:
                     max_retries,
                     timeout,
                 )
+                # PLAT-506: Ensure client is disconnected before retry
+                if client is not None:
+                    with contextlib.suppress(Exception):
+                        await client.disconnect()
+                    client = None
                 # PLAT-506: Longer backoff to allow connection slot release
                 backoff = min(3.0 * (1.5 ** (attempt - 1)), 15.0)
                 await asyncio.sleep(backoff)
@@ -408,14 +457,22 @@ class SIGMeshProvisioner:
                     or "no backend with an available connection slot" in exc_str
                 )
 
+                # PLAT-506: Ensure client is disconnected before retry
+                if client is not None:
+                    with contextlib.suppress(Exception):
+                        await client.disconnect()
+                    client = None
+
                 if is_slot_error:
                     out_of_slots_failures += 1
                     _LOGGER.warning(
                         "Connect attempt %d/%d failed: BLE adapter out of connection slots. "
-                        "Waiting for slots to be released...",
+                        "Cleaning up and waiting for slots to be released...",
                         attempt,
                         max_retries,
                     )
+                    # PLAT-506: Force cleanup to free connection slot
+                    await self._cleanup_stale_connections(address)
                     # Longer backoff when slots are exhausted
                     backoff = min(5.0 * (1.5 ** (attempt - 1)), 20.0)
                     await asyncio.sleep(backoff)
