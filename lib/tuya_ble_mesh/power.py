@@ -93,7 +93,6 @@ class ShellyPowerController:
             return result.get("ison") is False
         else:
             await self._request("/rpc/Switch.Set?id=0&on=false")
-            # Readback: verify relay is actually off
             status = await self._request("/rpc/Switch.GetStatus?id=0")
             return status.get("output") is False
 
@@ -105,7 +104,6 @@ class ShellyPowerController:
             return result.get("ison") is True
         else:
             await self._request("/rpc/Switch.Set?id=0&on=true")
-            # Readback: verify relay is actually on
             status = await self._request("/rpc/Switch.GetStatus?id=0")
             return status.get("output") is True
 

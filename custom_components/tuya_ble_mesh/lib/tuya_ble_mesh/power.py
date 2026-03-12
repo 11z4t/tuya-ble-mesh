@@ -86,24 +86,26 @@ class ShellyPowerController:
         return self._generation
 
     async def power_off(self) -> bool:
-        """Turn off relay. Returns True if successful."""
+        """Turn off relay. Returns True if relay is confirmed off."""
         gen = await self.detect_generation()
         if gen == 1:
             result = await self._request("/relay/0?turn=off")
             return result.get("ison") is False
         else:
-            result = await self._request("/rpc/Switch.Set?id=0&on=false")
-            return result.get("was_on", True) or True
+            await self._request("/rpc/Switch.Set?id=0&on=false")
+            status = await self._request("/rpc/Switch.GetStatus?id=0")
+            return status.get("output") is False
 
     async def power_on(self) -> bool:
-        """Turn on relay. Returns True if successful."""
+        """Turn on relay. Returns True if relay is confirmed on."""
         gen = await self.detect_generation()
         if gen == 1:
             result = await self._request("/relay/0?turn=on")
             return result.get("ison") is True
         else:
-            result = await self._request("/rpc/Switch.Set?id=0&on=true")
-            return True
+            await self._request("/rpc/Switch.Set?id=0&on=true")
+            status = await self._request("/rpc/Switch.GetStatus?id=0")
+            return status.get("output") is True
 
     async def get_status(self) -> dict[str, Any]:
         """Get current relay status."""
