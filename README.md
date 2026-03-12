@@ -2,11 +2,9 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?logo=homeassistantcommunitystore)](https://github.com/hacs/integration)
 [![CI](https://github.com/kvista-se/tuya-ble-mesh/actions/workflows/ci.yml/badge.svg)](https://github.com/kvista-se/tuya-ble-mesh/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.20.6-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.25.21-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![HA 2024.1+](https://img.shields.io/badge/HA-2024.1%2B-blue.svg)](https://www.home-assistant.io)
-[![Tests](https://img.shields.io/badge/tests-passing-brightgreen.svg)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-100%25-brightgreen.svg)](docs/COVERAGE_REPORT.md)
 
 A fully local Home Assistant integration for controlling Tuya BLE Mesh devices — including **Malmbergs BT Smart** lighting products. No cloud. No Tuya account required for daily use.
 
@@ -67,17 +65,17 @@ Devices using the Tuya BLE Mesh / Telink stack with service UUID `fe07`:
 - **ESPHome BLE proxy** — use any ESPHome device as a BLE bridge (SIG Mesh)
 - **Auto-reconnect** — exponential backoff (5s → 5min) on connection loss
 - **Keep-alive** — maintains BLE connections proactively to minimize latency
-- **Command queue** — reliable delivery with TTL even under rapid HA automations
+- **Command queue** — delivery with TTL and retry under rapid HA automations
 
 ### Status & Monitoring
-- **Push-based updates** — BLE notifications drive state changes (no polling)
+- **Push-based updates** — BLE notifications drive state changes when supported; automatic fallback to poll-only mode when `start_notify()` fails (e.g. older BlueZ)
 - **RSSI sensor** — signal strength monitoring with adaptive polling
 - **Firmware version** — sensor for device firmware tracking
 - **Connection statistics** — visible in HA diagnostics
 
 ### Protocol Support
 - **Tuya proprietary BLE Mesh** (Telink TLK8232 / TLK8258) — all light and plug features
-- **SIG Mesh (Bluetooth Mesh)** — provisioning, proxy, segmentation/reassembly
+- **SIG Mesh (Bluetooth Mesh)** — provisioning, proxy, basic segmentation/reassembly (experimental — tested with 1-2 devices only)
 - **Dual-stack** — both protocols work simultaneously on the same HA instance
 
 ## Installation
@@ -225,15 +223,32 @@ python -m pytest tests/unit/ -q
 
 ### Check pipeline
 
-All checks must pass: **ruff** (lint + format), **mypy --strict**, **bandit**, **safety**, **detect-secrets**, **pytest**.
+CI runs: **ruff** (lint + format), **mypy** (strict for lib, relaxed for HA layer), **pytest**, **HACS validation**.
+Local-only (not in CI): **bandit**, **safety**, **detect-secrets**.
+
+## Verification Status
+
+| Area | CI Verified | Hardware Tested | Notes |
+|------|-------------|-----------------|-------|
+| Telink mesh protocol | Unit tests | 1 device (Malmbergs LED Driver) | on/off, brightness confirmed |
+| SIG Mesh provisioning | Unit tests | 1 device (Malmbergs BLE Plug) | on/off confirmed, limited testing |
+| SIG Mesh segmentation | Unit tests | Limited | Proxy SAR fragmentation NOT implemented — only complete PDUs |
+| HA integration layer | Unit tests | 2 devices | Config flow, coordinator, entities |
+| Command queue | Unit tests | Indirect | Future-based blocking model, not a full async dispatcher |
+| BLE reconnection | Unit tests | Observed | Exponential backoff works in practice |
+
+**Overall status: HACS beta-ready / stable for limited use.** Tested with 2 Malmbergs devices only. SIG Mesh layer has known simplifications (see below). Not broadly validated across vendors.
 
 ## Known Limitations
 
-- **Bridge required** — HA cannot talk BLE mesh directly; the RPi bridge daemon must be running
-- **Single LED driver tested** — color temperature DP ID not confirmed for all devices
+- **Bridge required** — HA cannot talk BLE mesh directly; the RPi bridge daemon must be running (for Telink devices)
+- **Limited device testing** — only 2 Malmbergs devices confirmed; other brands are protocol-compatible but untested
 - **Factory reset** — some devices need 5x rapid power cycling to enter provisioning mode; not all respond reliably
 - **BlueZ quirks** — on older BlueZ versions, `bluetoothctl remove` may be needed between reconnects (handled automatically)
 - **No OTA** — firmware updates are out of scope
+- **SIG Mesh pending responses** — keyed by opcode only; concurrent requests for the same opcode type may collide
+- **SIG Mesh Proxy SAR** — only COMPLETE PDUs supported; FIRST/CONTINUE/LAST fragmentation not implemented
+- **Telink command queue** — blocking Future model, not a true async dispatcher; under high load, callers block until queue drains
 
 ## Contributing
 
