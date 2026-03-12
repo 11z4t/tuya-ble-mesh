@@ -145,6 +145,7 @@ class SIGMeshDevice:
         self._seq = _INITIAL_SEQ
         self._seq_lock = asyncio.Lock()
         self._tid = 0
+        self._correlation_id = 0
         self._event_loop: asyncio.AbstractEventLoop | None = None
 
         self._onoff_callbacks: list[OnOffCallback] = []
@@ -159,8 +160,9 @@ class SIGMeshDevice:
         # Segmented message reassembly buffers: (src, seq_zero) -> buffer
         self._segment_buffers: dict[tuple[int, int], _ReassemblyBuffer] = {}
 
-        # Pending response futures: opcode -> Future(params)
-        self._pending_responses: dict[int, asyncio.Future[bytes]] = {}
+        # Pending response futures: (opcode, correlation_id) -> Future(params)
+        # Correlation ID prevents concurrent requests with same opcode from colliding
+        self._pending_responses: dict[tuple[int, int], asyncio.Future[bytes]] = {}
 
     @property
     def address(self) -> str:
@@ -685,7 +687,10 @@ class SIGMeshDevice:
         # Register response future BEFORE sending
         loop = asyncio.get_running_loop()
         future: asyncio.Future[bytes] = loop.create_future()
-        self._pending_responses[_OPCODE_APPKEY_STATUS] = future
+        corr_id = self._correlation_id
+        self._correlation_id += 1
+        resp_key = (_OPCODE_APPKEY_STATUS, corr_id)
+        self._pending_responses[resp_key] = future
 
         try:
             for seg_seq, transport_pdu in segments:
@@ -708,10 +713,11 @@ class SIGMeshDevice:
                 await asyncio.sleep(0.1)
 
             _LOGGER.info(
-                "AppKey Add sent to 0x%04X (%d segments, seq_start=%d)",
+                "AppKey Add sent to 0x%04X (%d segments, seq_start=%d, corr_id=%d)",
                 self._target_addr,
                 len(segments),
                 seq_start,
+                corr_id,
             )
 
             params = await asyncio.wait_for(asyncio.shield(future), timeout=response_timeout)
@@ -719,7 +725,7 @@ class SIGMeshDevice:
             msg = "Timeout waiting for AppKey Status response"
             raise SIGMeshError(msg) from None
         finally:
-            self._pending_responses.pop(_OPCODE_APPKEY_STATUS, None)
+            self._pending_responses.pop(resp_key, None)
 
         status = params[0] if params else 0xFF
         _LOGGER.info(
@@ -790,16 +796,20 @@ class SIGMeshDevice:
         # Register response future BEFORE sending
         loop = asyncio.get_running_loop()
         future_bind: asyncio.Future[bytes] = loop.create_future()
-        self._pending_responses[_OPCODE_MODEL_APP_STATUS] = future_bind
+        corr_id = self._correlation_id
+        self._correlation_id += 1
+        resp_key = (_OPCODE_MODEL_APP_STATUS, corr_id)
+        self._pending_responses[resp_key] = future_bind
 
         try:
             await self._client.write_gatt_char(SIG_MESH_PROXY_DATA_IN, proxy_pdu, response=False)
             _LOGGER.info(
-                "Model App Bind sent: element=0x%04X app_idx=%d model=0x%04X (seq=%d)",
+                "Model App Bind sent: element=0x%04X app_idx=%d model=0x%04X (seq=%d, corr_id=%d)",
                 element_addr,
                 app_idx,
                 model_id,
                 seq,
+                corr_id,
             )
 
             params_bind = await asyncio.wait_for(
@@ -809,7 +819,7 @@ class SIGMeshDevice:
             msg = "Timeout waiting for Model App Status response"
             raise SIGMeshError(msg) from None
         finally:
-            self._pending_responses.pop(_OPCODE_MODEL_APP_STATUS, None)
+            self._pending_responses.pop(resp_key, None)
 
         status_bind = params_bind[0] if params_bind else 0xFF
         _LOGGER.info(
@@ -1035,8 +1045,14 @@ class SIGMeshDevice:
             return
 
         # Resolve pending config response futures (AppKey Status, Model App Status)
-        if opcode in self._pending_responses:
-            future = self._pending_responses.pop(opcode)
+        # Match first pending response with matching opcode (FIFO order by correlation_id)
+        matched_key = None
+        for key in self._pending_responses:
+            if key[0] == opcode:
+                matched_key = key
+                break
+        if matched_key is not None:
+            future = self._pending_responses.pop(matched_key)
             if not future.done():
                 future.set_result(params)
             return
