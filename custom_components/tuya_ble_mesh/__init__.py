@@ -51,6 +51,7 @@ from custom_components.tuya_ble_mesh.const import (  # noqa: E402
     DEVICE_TYPE_SIG_PLUG,
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
     DOMAIN,
+    KNOWN_VENDOR_IDS,
     PLATFORMS,
 )
 
@@ -229,11 +230,18 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
 
     from homeassistant.helpers.device_registry import DeviceInfo
 
+    # Determine manufacturer name from vendor_id
+    vendor_id = _get_entry_option(entry, CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
+    # Normalize vendor_id format: handle both "0x1001" and "1001" formats
+    if isinstance(vendor_id, str) and not vendor_id.startswith("0x"):
+        vendor_id = f"0x{vendor_id}"
+    manufacturer = KNOWN_VENDOR_IDS.get(vendor_id, "Tuya / Telink")
+
     # Create device_info (firmware version will be updated by coordinator after connection)
     device_info = DeviceInfo(
         identifiers={(DOMAIN, mac_address)},
         name=entry.title,
-        manufacturer="Malmbergs / Tuya",
+        manufacturer=manufacturer,
         model=device_type or "BLE Mesh",
         sw_version=None,  # Will be populated by coordinator after connection
         connections={("mac", mac_address)},

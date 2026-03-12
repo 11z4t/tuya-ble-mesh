@@ -92,7 +92,10 @@
       "unknown_protocol": "Protokollförhandling misslyckades. Detta kan indikera en bridge firmware-mismatch.",
       "cannot_connect": "Kunde inte ansluta till enheten. Kontrollera att den är påslagen, inom BLE-räckvidd och i parningsläge.",
       "pairing_failed": "Parning misslyckades. Enheten svarade inte eller avvisade anslutningen. Kontrollera att den är i fabriksåterställt läge och inom BLE-räckvidd.",
-      "provisioning_failed": "Provisionering misslyckades. Kontrollera att enheten är i fabriksåterställt läge (LED blinkar), inom BLE-räckvidd, och försök igen. Kontrollera HA-loggar för detaljer."
+      "provisioning_failed": "Provisionering misslyckades. Kontrollera att enheten är i fabriksåterställt läge (LED blinkar), inom BLE-räckvidd, och försök igen. Kontrollera HA-loggar för detaljer.",
+      "provisioning_appkey_failed": "Provisionering misslyckades under AppKey-bindning. Detta betyder vanligtvis att enheten inte är i fabriksåterställt läge. Prova att fabriksåterställa enheten (koppla ur och i 3-5 gånger snabbt) och försök igen.",
+      "provisioning_proxy_failed": "Provisionering misslyckades under Proxy Service-konfiguration. Enheten stöder inte eller har inaktiverat Proxy Service. Kontrollera enhetsdokumentation eller prova en annan enhet.",
+      "provisioning_pbgatt_failed": "Provisionering misslyckades under PB-GATT-anslutning. Enheten är utanför BLE-räckvidd eller svarar inte. Flytta enheten närmare BLE-adaptern eller ESPHome-proxy och försök igen."
     },
     "abort": {
       "already_configured": "Enheten är redan konfigurerad",
@@ -172,9 +175,9 @@
       "connection_quality": {
         "name": "Anslutningskvalitet",
         "state": {
-          "good": "Bra",
-          "marginal": "Medel",
-          "poor": "Svag"
+          "good": "Bra (≥-60 dBm)",
+          "marginal": "Medel (-60 till -80 dBm)",
+          "poor": "Svag (<-80 dBm)"
         }
       },
       "last_seen": {

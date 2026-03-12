@@ -531,8 +531,11 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
             if host_error:
                 errors[CONF_BRIDGE_HOST] = host_error
             elif validate:
+                # Show progress feedback during bridge validation
                 port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+                self.context["validation_status"] = f"Testing connection to {host}:{port}..."
                 bridge_ok = await _test_bridge_with_session(self.hass, host, port)
+                self.context.pop("validation_status", None)
                 if not bridge_ok:
                     errors["base"] = "cannot_connect"
 
@@ -548,9 +551,15 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
                 return await self.async_step_advanced()
             return self._save_and_finish()
 
+        # Show validation status if set in context
+        description_placeholders = None
+        if validation_status := self.context.get("validation_status"):
+            description_placeholders = {"status": validation_status}
+
         return self.async_show_form(
             step_id="bridge_config",
             data_schema=self._build_bridge_schema(),
+            description_placeholders=description_placeholders,
         )
 
     def _build_bridge_schema(self) -> vol.Schema:
@@ -1003,7 +1012,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 _LOGGER.warning("Provisioning timed out for %s", mac)
                 errors["base"] = "timeout"
             except Exception as exc:
-                # Map specific exceptions to error keys
+                # Map specific exceptions to error keys with phase-specific messages
                 error_key = "provisioning_failed"
                 try:
                     from tuya_ble_mesh.exceptions import (
@@ -1016,7 +1025,16 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     elif isinstance(exc, MeshTimeoutError):
                         error_key = "timeout"
                     elif isinstance(exc, ProvisioningError):
-                        error_key = "provisioning_failed"
+                        # Extract phase information from error message for actionable feedback
+                        exc_msg = str(exc).lower()
+                        if "appkey" in exc_msg or "app key" in exc_msg:
+                            error_key = "provisioning_appkey_failed"
+                        elif "proxy" in exc_msg:
+                            error_key = "provisioning_proxy_failed"
+                        elif "pb-gatt" in exc_msg or "pbgatt" in exc_msg or "gatt" in exc_msg:
+                            error_key = "provisioning_pbgatt_failed"
+                        else:
+                            error_key = "provisioning_failed"
                 except ImportError:
                     pass
                 _LOGGER.warning(
