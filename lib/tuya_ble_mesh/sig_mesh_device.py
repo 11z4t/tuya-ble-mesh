@@ -25,6 +25,7 @@ from typing import Any, Protocol
 
 from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
+from bleak.exc import BleakError
 
 from tuya_ble_mesh.exceptions import (
     ConnectionError as MeshConnectionError,
@@ -202,7 +203,6 @@ class SIGMeshDevice:
         self._seq_lock = asyncio.Lock()
         self._tid = 0
         self._correlation_id = 0
-        self._event_loop: asyncio.AbstractEventLoop | None = None
 
         self._onoff_callbacks: list[OnOffCallback] = []
         self._vendor_callbacks: list[VendorCallback] = []
@@ -220,6 +220,9 @@ class SIGMeshDevice:
         # Pending response futures: (opcode, correlation_id) -> Future(params)
         # Correlation ID prevents concurrent requests with same opcode from colliding
         self._pending_responses: dict[tuple[int, int], asyncio.Future[bytes]] = {}
+
+        # Pending notify processing tasks (for lifecycle management)
+        self._pending_notify_tasks: set[asyncio.Task] = set()
 
     @property
     def address(self) -> str:
@@ -354,7 +357,6 @@ class SIGMeshDevice:
             ConnectionError: If BLE connection fails after all retries.
         """
         await self._load_keys()
-        self._event_loop = asyncio.get_running_loop()
 
         last_error: Exception | None = None
         for attempt in range(1, max_retries + 1):
@@ -412,14 +414,14 @@ class SIGMeshDevice:
                 # Request Composition Data (non-critical)
                 try:
                     await self.request_composition_data()
-                except Exception:
+                except (asyncio.TimeoutError, SIGMeshError, BleakError):
                     _LOGGER.debug(
                         "Composition Data request failed (non-critical)",
                         exc_info=True,
                     )
                 return
 
-            except Exception as exc:
+            except (BleakError, MeshConnectionError, OSError) as exc:
                 last_error = exc
                 _LOGGER.warning(
                     "Connection attempt %d failed for %s",
@@ -457,7 +459,34 @@ class SIGMeshDevice:
             except Exception:
                 pass  # Frozen dataclass, best effort only
             self._keys = None
+
+        # Cancel all pending notify tasks
+        for task in self._pending_notify_tasks:
+            task.cancel()
+        if self._pending_notify_tasks:
+            await asyncio.gather(*self._pending_notify_tasks, return_exceptions=True)
+        self._pending_notify_tasks.clear()
+
         _LOGGER.info("Disconnected from %s", self._address)
+
+    def _log_notify_exception(self, task: asyncio.Task) -> None:
+        """Log exceptions from notify processing tasks.
+
+        Args:
+            task: The completed task to check for exceptions.
+        """
+        if task.cancelled():
+            return
+        try:
+            exc = task.exception()
+            if exc is not None:
+                _LOGGER.error(
+                    "Notify processing task failed for %s",
+                    self._address,
+                    exc_info=exc,
+                )
+        except Exception:
+            pass
 
     async def send_power(self, on: bool, *, max_retries: int = 3) -> None:
         """Send GenericOnOff Set command with retry.
@@ -530,7 +559,7 @@ class SIGMeshDevice:
                 return
             except (SIGMeshError, SIGMeshKeyError):
                 raise
-            except Exception as exc:
+            except (BleakError, OSError) as exc:
                 last_error = exc
                 if attempt >= max_retries:
                     break
@@ -941,8 +970,14 @@ class SIGMeshDevice:
         if self._keys is None:
             return
         data_copy = bytes(data)
-        if self._event_loop is not None and self._event_loop.is_running():
-            self._event_loop.create_task(self._process_notify(data_copy))
+        try:
+            loop = asyncio.get_running_loop()
+            task = loop.create_task(self._process_notify(data_copy))
+            self._pending_notify_tasks.add(task)
+            task.add_done_callback(self._pending_notify_tasks.discard)
+            task.add_done_callback(self._log_notify_exception)
+        except RuntimeError:
+            _LOGGER.debug("No running event loop for notify callback")
 
     async def _process_notify(self, data: bytes) -> None:
         """Decrypt and dispatch a GATT Proxy notification.
