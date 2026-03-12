@@ -124,7 +124,20 @@ class _CommandDispatcher:
             return
         self._running = True
         self._worker_task = asyncio.create_task(self._worker())
+        self._worker_task.add_done_callback(self._log_worker_exception)
         _LOGGER.debug("Command dispatcher started")
+
+    @staticmethod
+    def _log_worker_exception(task: asyncio.Task[None]) -> None:
+        """Log unhandled exceptions from the worker task."""
+        if task.cancelled():
+            return
+        try:
+            exc = task.exception()
+            if exc is not None:
+                _LOGGER.error("Command dispatcher worker crashed: %s", exc, exc_info=exc)
+        except asyncio.CancelledError:
+            pass
 
     async def stop(self) -> None:
         """Stop the dispatcher worker task and cancel pending commands."""

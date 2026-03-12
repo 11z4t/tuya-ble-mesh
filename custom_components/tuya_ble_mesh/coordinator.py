@@ -845,7 +845,8 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             elif error_class == ErrorClass.TRANSIENT:
                 await async_create_issue_timeout(hass, name, entry_id)
 
-        asyncio.create_task(_create())
+        task = asyncio.create_task(_create())
+        task.add_done_callback(self._log_task_exception)
 
     def _clear_repair_issues_on_recovery(self) -> None:
         """Clear all connection repair issues after successful reconnect."""
@@ -986,7 +987,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                     from custom_components.tuya_ble_mesh.repairs import (
                         async_create_issue_reconnect_storm,
                     )
-                    asyncio.create_task(
+                    storm_task = asyncio.create_task(
                         async_create_issue_reconnect_storm(
                             self._hass,
                             self.entry_name or self._device.address,
@@ -995,6 +996,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                             _STORM_WINDOW_SECONDS // 60,
                         )
                     )
+                    storm_task.add_done_callback(self._log_task_exception)
 
                 # Record reconnect event for timeline diagnostics.
                 # deque(maxlen=_RECONNECT_TIMELINE_MAX) evicts oldest automatically.
@@ -1058,6 +1060,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         self._stop_rssi_polling()
         try:
             self._rssi_task = asyncio.create_task(self._rssi_loop())
+            self._rssi_task.add_done_callback(self._log_task_exception)
         except RuntimeError:
             pass  # No event loop in standalone/test context
 

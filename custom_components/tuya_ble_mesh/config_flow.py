@@ -923,7 +923,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     _LOGGER.warning("[PAIR] Step 5a: connect(pair=False) timed out, retrying with pair=True")
                     try:
                         await client.disconnect()
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — best-effort cleanup before retry
                         pass
                     # Re-remove + re-scan before retry
                     try:
@@ -936,7 +936,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                         await asyncio.sleep(_PAIRING_RETRY_DELAY)
                     except asyncio.CancelledError:
                         raise
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — bluetoothctl cleanup is best-effort
                         pass
                     ble_device = await asyncio.wait_for(
                         _RawBleakScanner.find_device_by_address(mac, timeout=_BLE_SCAN_TIMEOUT, adapter="hci0"),
@@ -1355,7 +1355,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 )
                 break
 
-            except Exception:
+            except Exception:  # noqa: BLE001 — post-prov config may fail for many reasons
                 _LOGGER.warning(
                     "[SIG-PAIR] Post-prov attempt %d failed for %s",
                     attempt + 1, mac,
@@ -1363,7 +1363,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 )
                 try:
                     await device.disconnect()
-                except Exception:
+                except Exception:  # noqa: BLE001 — best-effort disconnect between retries
                     pass
 
         if not post_prov_ok:
@@ -1375,7 +1375,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
         try:
             await device.disconnect()
-        except Exception:
+        except Exception:  # noqa: BLE001 — final cleanup, device may already be disconnected
             pass
 
         return net_key.hex(), result.dev_key.hex(), app_key.hex()

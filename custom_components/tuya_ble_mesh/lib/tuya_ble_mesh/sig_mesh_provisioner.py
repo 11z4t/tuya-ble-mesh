@@ -83,6 +83,15 @@ _BLUETOOTHCTL_TIMEOUT = 5.0
 # Provisioning poll interval (seconds)
 _PROVISIONING_POLL_INTERVAL = 0.05
 
+# BLE adapter slot release delay after disconnect (seconds)
+_BLE_SLOT_RELEASE_DELAY = 1.0  # Increased from 0.5s — see PLAT-506
+
+# BlueZ device cache processing delay after bluetoothctl remove (seconds)
+_BLUEZ_CACHE_SETTLE_DELAY = 0.5
+
+# Delay after Start PDU to let device initialize provisioning state (seconds)
+_POST_START_PDU_DELAY = 0.5
+
 # Error code → name mapping for PROV_FAILED
 _PROV_ERROR_NAMES: dict[int, str] = {
     0x00: "Prohibited",
@@ -267,7 +276,7 @@ class SIGMeshProvisioner:
                     await client.disconnect()
                 _LOGGER.info("Provisioning session disconnected from %s", address.upper())
                 # PLAT-506: Give BLE adapter time to release connection slot
-                await asyncio.sleep(1.0)  # Increased from 0.5s to 1.0s
+                await asyncio.sleep(_BLE_SLOT_RELEASE_DELAY)
 
     # ------------------------------------------------------------------ #
     # Private helpers                                                      #
@@ -312,7 +321,7 @@ class SIGMeshProvisioner:
                 process.kill()
                 await process.wait()
             # Give BlueZ time to process the removal
-            await asyncio.sleep(0.5)
+            await asyncio.sleep(_BLUEZ_CACHE_SETTLE_DELAY)
         except FileNotFoundError:
             _LOGGER.debug("bluetoothctl not found, skipping cleanup")
         except Exception as exc:
@@ -652,7 +661,7 @@ class SIGMeshProvisioner:
             ]
         )
         await send_prov(bytes([_PROV_START]) + start_params)
-        await asyncio.sleep(0.5)
+        await asyncio.sleep(_POST_START_PDU_DELAY)
 
         # ---- Step 4: Public Key exchange ----
         _LOGGER.info("Provisioning: PublicKey exchange (%d bytes)", len(self._our_pub_key_bytes))
