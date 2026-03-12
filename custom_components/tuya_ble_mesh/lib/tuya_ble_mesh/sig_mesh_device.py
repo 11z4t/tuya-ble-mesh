@@ -90,6 +90,9 @@ _CONNECT_RETRY_DELAY = 2.0
 # Delay between segment sends (seconds)
 _SEGMENT_SEND_INTERVAL = 0.1
 
+# Bluetoothctl command timeout (seconds)
+_BLUETOOTHCTL_TIMEOUT = 5.0
+
 
 @dataclass
 class _ReassemblyBuffer:
@@ -1115,6 +1118,6 @@ class SIGMeshDevice:
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )
-            await asyncio.wait_for(process.wait(), timeout=5)
+            await asyncio.wait_for(process.wait(), timeout=_BLUETOOTHCTL_TIMEOUT)
         except Exception:
             _LOGGER.debug("bluetoothctl remove failed (ignored)", exc_info=True)
