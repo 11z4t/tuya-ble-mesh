@@ -83,6 +83,12 @@ _DEFAULT_TTL = 5
 # Reassembly timeout for segmented messages (seconds)
 _REASSEMBLY_TIMEOUT = 10.0
 
+# Connection retry delay (seconds)
+_CONNECT_RETRY_DELAY = 2.0
+
+# Delay between segment sends (seconds)
+_SEGMENT_SEND_INTERVAL = 0.1
+
 
 @dataclass
 class _ReassemblyBuffer:
@@ -368,7 +374,7 @@ class SIGMeshDevice:
                 )
                 # Remove cached BLE device between retries
                 await self._bluetoothctl_remove()
-                await asyncio.sleep(2.0)
+                await asyncio.sleep(_CONNECT_RETRY_DELAY)
 
         msg = f"Failed to connect to {self._address} after {max_retries} attempts"
         raise MeshConnectionError(msg) from last_error
@@ -676,7 +682,7 @@ class SIGMeshDevice:
                 await self._client.write_gatt_char(
                     SIG_MESH_PROXY_DATA_IN, proxy_pdu, response=False
                 )
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(_SEGMENT_SEND_INTERVAL)
 
             _LOGGER.info(
                 "AppKey Add sent to 0x%04X (%d segments, seq_start=%d)",
