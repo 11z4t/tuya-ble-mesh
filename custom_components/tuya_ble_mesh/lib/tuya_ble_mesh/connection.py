@@ -164,15 +164,27 @@ class BLEConnection:
             return seq
 
     def register_disconnect_callback(self, callback: DisconnectCallback) -> None:
-        """Register a callback for disconnect events."""
+        """Register a callback for disconnect events.
+
+        Args:
+            callback: Callable invoked when BLE connection is lost.
+        """
         self._disconnect_callbacks.append(callback)
 
     def unregister_disconnect_callback(self, callback: DisconnectCallback) -> None:
-        """Remove a previously registered disconnect callback."""
+        """Remove a previously registered disconnect callback.
+
+        Args:
+            callback: Callback to remove from disconnect notification list.
+        """
         self._disconnect_callbacks.remove(callback)
 
     def set_notification_handler(self, handler: Callable[..., Any] | None) -> None:
-        """Set the handler for BLE notifications from char 1911."""
+        """Set the handler for BLE notifications from char 1911.
+
+        Args:
+            handler: Callable invoked with notification data, or None to clear.
+        """
         self._notification_handler = handler
 
     async def _start_notify_safe(self) -> bool:

@@ -183,19 +183,35 @@ class MeshDevice:
         return self._conn
 
     def register_status_callback(self, callback: StatusCallback) -> None:
-        """Register a callback for status notifications."""
+        """Register a callback for status notifications.
+
+        Args:
+            callback: Callable invoked when device status updates are received.
+        """
         self._status_callbacks.append(callback)
 
     def unregister_status_callback(self, callback: StatusCallback) -> None:
-        """Remove a previously registered status callback."""
+        """Remove a previously registered status callback.
+
+        Args:
+            callback: Callback to remove from status notification list.
+        """
         self._status_callbacks.remove(callback)
 
     def register_disconnect_callback(self, callback: DisconnectCallback) -> None:
-        """Register a callback for disconnect events."""
+        """Register a callback for disconnect events.
+
+        Args:
+            callback: Callable invoked when BLE connection is lost.
+        """
         self._disconnect_callbacks.append(callback)
 
     def unregister_disconnect_callback(self, callback: DisconnectCallback) -> None:
-        """Remove a previously registered disconnect callback."""
+        """Remove a previously registered disconnect callback.
+
+        Args:
+            callback: Callback to remove from disconnect notification list.
+        """
         self._disconnect_callbacks.remove(callback)
 
     def _handle_notification(self, _sender: BleakGATTCharacteristic, data: bytearray) -> None:
@@ -523,7 +539,11 @@ class MeshDevice:
         _LOGGER.info("Mesh address 0x%04X sent to %s", new_address, self._address)
 
     async def send_mesh_reset(self) -> None:
-        """Reset the device mesh settings (remove from network)."""
+        """Reset the device mesh settings (remove from network).
+
+        Raises:
+            DisconnectedError: If connection is lost during command.
+        """
         await self.send_command(TELINK_CMD_MESH_RESET, b"")
         _LOGGER.info("Mesh reset sent to %s", self._address)
 
@@ -560,7 +580,14 @@ class MeshDevice:
         return result[0]
 
     async def __aenter__(self) -> MeshDevice:
-        """Async context manager entry — connect to device."""
+        """Async context manager entry — connect to device.
+
+        Returns:
+            Self reference for use in `async with` statements.
+
+        Raises:
+            ConnectionError: If connection fails.
+        """
         await self.connect()
         return self
 
@@ -570,5 +597,11 @@ class MeshDevice:
         exc_val: BaseException | None,
         exc_tb: object,
     ) -> None:
-        """Async context manager exit — disconnect from device."""
+        """Async context manager exit — disconnect from device.
+
+        Args:
+            exc_type: Exception type if context exited with exception.
+            exc_val: Exception value if context exited with exception.
+            exc_tb: Exception traceback if context exited with exception.
+        """
         await self.disconnect()
