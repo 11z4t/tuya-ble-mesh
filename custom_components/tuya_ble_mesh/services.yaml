@@ -1,23 +1,25 @@
 identify:
   name: Identify device
-  description: Flash the device LED to make it easy to identify in a room.
+  description: Flash the device LED to make it easy to identify in a room. The light will blink several times to help you locate it.
   fields:
     device_id:
       name: Device
-      description: The Tuya BLE Mesh device to identify.
+      description: Select the Tuya BLE Mesh device you want to identify. Its LED will flash to help you find it.
       required: true
+      example: "Living Room Light"
       selector:
         device:
           integration: tuya_ble_mesh
 
 set_log_level:
   name: Set log level
-  description: Change BLE mesh logging verbosity without restarting Home Assistant.
+  description: Change BLE mesh logging verbosity without restarting Home Assistant. Use 'debug' when troubleshooting connection issues, 'warning' for normal operation.
   fields:
     level:
       name: Level
-      description: Logging level (debug, info, warning, error).
+      description: Choose the logging detail level. Debug shows all messages (verbose), warning shows only issues (recommended for normal use).
       required: true
+      example: "warning"
       selector:
         select:
           options:
@@ -28,12 +30,13 @@ set_log_level:
 
 get_diagnostics:
   name: Get diagnostics
-  description: Retrieve connection statistics and diagnostic information for a device.
+  description: Retrieve connection statistics and diagnostic information for a device. This logs detailed technical information to help troubleshoot connectivity or performance issues.
   fields:
     device_id:
       name: Device
-      description: The Tuya BLE Mesh device to get diagnostics for.
+      description: Select the Tuya BLE Mesh device to retrieve diagnostics for. Information will be written to the Home Assistant log.
       required: true
+      example: "Kitchen Light"
       selector:
         device:
           integration: tuya_ble_mesh
