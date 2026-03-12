@@ -168,11 +168,30 @@
       },
       "energy": {
         "name": "Energieverbruik"
+      },
+      "connection_quality": {
+        "name": "Verbindingskwaliteit"
+      },
+      "last_seen": {
+        "name": "Laatst gezien"
       }
     },
     "update": {
       "firmware_update": {
         "name": "Firmware"
+      }
+    },
+    "binary_sensor": {
+      "connectivity": {
+        "name": "Connectiviteit"
+      }
+    },
+    "button": {
+      "identify": {
+        "name": "Identificeren"
+      },
+      "reconnect": {
+        "name": "Opnieuw verbinden"
       }
     }
   },

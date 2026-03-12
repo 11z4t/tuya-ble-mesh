@@ -168,11 +168,30 @@
       },
       "energy": {
         "name": "Energi"
+      },
+      "connection_quality": {
+        "name": "Forbindelseskvalitet"
+      },
+      "last_seen": {
+        "name": "Sidst set"
       }
     },
     "update": {
       "firmware_update": {
         "name": "Firmware"
+      }
+    },
+    "binary_sensor": {
+      "connectivity": {
+        "name": "Forbindelse"
+      }
+    },
+    "button": {
+      "identify": {
+        "name": "Identificer"
+      },
+      "reconnect": {
+        "name": "Genopret forbindelse"
       }
     }
   },

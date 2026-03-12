@@ -6,7 +6,14 @@ from homeassistant.const import Platform
 
 DOMAIN = "tuya_ble_mesh"
 
-PLATFORMS: list[Platform] = [Platform.LIGHT, Platform.SENSOR, Platform.SWITCH, Platform.UPDATE]
+PLATFORMS: list[Platform] = [
+    Platform.BINARY_SENSOR,
+    Platform.BUTTON,
+    Platform.LIGHT,
+    Platform.SENSOR,
+    Platform.SWITCH,
+    Platform.UPDATE,
+]
 
 # Config entry data keys
 CONF_DEVICE_TYPE = "device_type"

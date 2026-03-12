@@ -168,11 +168,30 @@
       },
       "energy": {
         "name": "Énergie"
+      },
+      "connection_quality": {
+        "name": "Qualité de connexion"
+      },
+      "last_seen": {
+        "name": "Dernière communication"
       }
     },
     "update": {
       "firmware_update": {
         "name": "Firmware"
+      }
+    },
+    "binary_sensor": {
+      "connectivity": {
+        "name": "Connectivité"
+      }
+    },
+    "button": {
+      "identify": {
+        "name": "Identifier"
+      },
+      "reconnect": {
+        "name": "Reconnecter"
       }
     }
   },

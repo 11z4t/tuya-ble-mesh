@@ -168,11 +168,30 @@
       },
       "energy": {
         "name": "Energia"
+      },
+      "connection_quality": {
+        "name": "Yhteyslaatu"
+      },
+      "last_seen": {
+        "name": "Viimeksi nähty"
       }
     },
     "update": {
       "firmware_update": {
         "name": "Firmware"
+      }
+    },
+    "binary_sensor": {
+      "connectivity": {
+        "name": "Yhteys"
+      }
+    },
+    "button": {
+      "identify": {
+        "name": "Tunnista"
+      },
+      "reconnect": {
+        "name": "Yhdistä uudelleen"
       }
     }
   },
