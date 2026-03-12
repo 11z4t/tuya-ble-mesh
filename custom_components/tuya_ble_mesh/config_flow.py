@@ -821,14 +821,18 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             mac = self._discovery_info["address"]
             # Caller may pass CONF_DEVICE_TYPE explicitly (zero-knowledge form);
             # fall back to auto-detected type from discovery.
-            device_type = user_input.get(CONF_DEVICE_TYPE, disc.get("auto_device_type", DEVICE_TYPE_LIGHT))
+            device_type = user_input.get(
+                CONF_DEVICE_TYPE, disc.get("auto_device_type", DEVICE_TYPE_LIGHT)
+            )
             short_mac = mac[-8:]
             type_label = "Plug" if device_type == DEVICE_TYPE_PLUG else "Light"
 
             # Use user-provided credentials if given; otherwise use factory defaults.
             # This allows advanced users to override the factory mesh name/password.
             mesh_name = user_input.get(CONF_MESH_NAME, DEFAULT_FACTORY_MESH_NAME)
-            mesh_pass = user_input.get(CONF_MESH_PASSWORD, DEFAULT_FACTORY_MESH_PASSWORD)  # pragma: allowlist secret
+            mesh_pass = user_input.get(
+                CONF_MESH_PASSWORD, DEFAULT_FACTORY_MESH_PASSWORD
+            )  # pragma: allowlist secret
 
             _LOGGER.info(
                 "Confirm flow: creating entry for %s as %s (zero-knowledge)",
@@ -849,8 +853,10 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         return self.async_show_form(
             step_id="confirm",
             data_schema=vol.Schema({
-                vol.Optional(CONF_DEVICE_TYPE, default=disc.get("auto_device_type", DEVICE_TYPE_LIGHT)): vol.In(
-                    {
+                vol.Optional(
+                    CONF_DEVICE_TYPE,
+                    default=disc.get("auto_device_type", DEVICE_TYPE_LIGHT),
+                ): vol.In({
                         DEVICE_TYPE_LIGHT: "Light",
                         DEVICE_TYPE_PLUG: "Plug",
                     }
@@ -1103,7 +1109,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 if device is None:
                     device = async_ble_device_from_address(_hass, address, connectable=False)
                 return device
-            except Exception:  # noqa: BLE001 — best-effort HA stack lookup
+            except Exception:
                 return None
 
         async def _ble_connect_callback(ble_device: Any) -> Any:

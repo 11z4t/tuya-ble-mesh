@@ -1,10 +1,11 @@
 """Minimal stub for homeassistant.util.dt."""
 from __future__ import annotations
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 
 
 def utcnow() -> datetime:
-    return datetime.now(tz=timezone.utc)
+    return datetime.now(tz=UTC)
 
 
 def now() -> datetime:
@@ -12,4 +13,4 @@ def now() -> datetime:
 
 
 def as_utc(dt: datetime) -> datetime:
-    return dt.astimezone(timezone.utc)
+    return dt.astimezone(UTC)

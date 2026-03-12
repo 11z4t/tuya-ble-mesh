@@ -12,8 +12,7 @@ import asyncio
 import sys
 import threading
 from pathlib import Path
-from typing import Any
-from unittest.mock import AsyncMock, MagicMock, call, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 

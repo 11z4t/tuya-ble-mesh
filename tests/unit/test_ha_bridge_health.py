@@ -19,8 +19,8 @@ sys.path.insert(0, _ROOT)
 sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
 from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
-    TuyaBLEMeshCoordinator,
     _STORM_WINDOW_SECONDS,
+    TuyaBLEMeshCoordinator,
 )
 
 
@@ -99,7 +99,10 @@ class TestSendCommandRetry:
             if attempt_counts[0] < 3:
                 raise ConnectionError("transient")
 
-        with patch("custom_components.tuya_ble_mesh.coordinator.asyncio.sleep", new_callable=AsyncMock):
+        with patch(
+            "custom_components.tuya_ble_mesh.coordinator.asyncio.sleep",
+            new_callable=AsyncMock,
+        ):
             await c.send_command_with_retry(flaky_cmd, max_retries=3, base_delay=0.001)
 
         assert attempt_counts[0] == 3
@@ -112,7 +115,10 @@ class TestSendCommandRetry:
         async def always_fails() -> None:
             raise TimeoutError("stuck")
 
-        with patch("custom_components.tuya_ble_mesh.coordinator.asyncio.sleep", new_callable=AsyncMock):
+        with patch(
+            "custom_components.tuya_ble_mesh.coordinator.asyncio.sleep",
+            new_callable=AsyncMock,
+        ):
             with pytest.raises(TimeoutError, match="stuck"):
                 await c.send_command_with_retry(always_fails, max_retries=2, base_delay=0.001)
 
@@ -124,7 +130,10 @@ class TestSendCommandRetry:
         async def always_fails() -> None:
             raise OSError("boom")
 
-        with patch("custom_components.tuya_ble_mesh.coordinator.asyncio.sleep", new_callable=AsyncMock):
+        with patch(
+            "custom_components.tuya_ble_mesh.coordinator.asyncio.sleep",
+            new_callable=AsyncMock,
+        ):
             with pytest.raises(OSError):
                 await c.send_command_with_retry(always_fails, max_retries=2, base_delay=0.001)
 

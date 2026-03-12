@@ -1,5 +1,6 @@
 """Minimal stub for homeassistant.components.bluetooth."""
 from __future__ import annotations
+
 from dataclasses import dataclass, field
 from typing import Any
 from unittest.mock import MagicMock

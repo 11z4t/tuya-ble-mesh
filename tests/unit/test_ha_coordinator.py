@@ -1730,7 +1730,6 @@ class TestBrokenListenerRemoval:
 
     def test_callback_error_count_resets_on_success(self) -> None:
         """Error count resets to 0 after callback succeeds."""
-        from custom_components.tuya_ble_mesh.coordinator import _MAX_CALLBACK_ERRORS
 
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
@@ -1884,13 +1883,14 @@ class TestCommandDebouncing:
         import sys
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
-        from custom_components.tuya_ble_mesh.light import (
-            TuyaBLEMeshLight,
-            _COMMAND_DEBOUNCE_INTERVAL,
-        )
-        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshDeviceState
-        from unittest.mock import AsyncMock, MagicMock
         import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+
+        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshDeviceState
+        from custom_components.tuya_ble_mesh.light import (
+            _COMMAND_DEBOUNCE_INTERVAL,
+            TuyaBLEMeshLight,
+        )
 
         coord = MagicMock()
         coord.state = TuyaBLEMeshDeviceState(is_on=True, brightness=50, mode=0, available=True)
@@ -1926,13 +1926,14 @@ class TestCommandDebouncing:
         import sys
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
-        from custom_components.tuya_ble_mesh.light import (
-            TuyaBLEMeshLight,
-            _COMMAND_DEBOUNCE_INTERVAL,
-        )
-        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshDeviceState
-        from unittest.mock import AsyncMock, MagicMock
         import asyncio
+        from unittest.mock import AsyncMock, MagicMock
+
+        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshDeviceState
+        from custom_components.tuya_ble_mesh.light import (
+            _COMMAND_DEBOUNCE_INTERVAL,
+            TuyaBLEMeshLight,
+        )
 
         coord = MagicMock()
         coord.state = TuyaBLEMeshDeviceState(is_on=True, brightness=50, mode=0, available=True)

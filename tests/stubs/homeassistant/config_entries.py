@@ -1,7 +1,7 @@
 """Minimal stub for homeassistant.config_entries."""
 from __future__ import annotations
+
 from typing import Any, Generic, TypeVar
-from unittest.mock import MagicMock
 
 HANDLERS: dict[str, Any] = {}
 
@@ -81,7 +81,7 @@ class _ConfigFlowMeta(type):
         namespace: dict[str, Any],
         domain: str | None = None,
         **kwargs: Any,
-    ) -> "_ConfigFlowMeta":
+    ) -> _ConfigFlowMeta:
         cls = super().__new__(mcs, name, bases, namespace, **kwargs)
         if domain is not None:
             # Register the flow handler by domain (mirrors HANDLERS dict in real HA)

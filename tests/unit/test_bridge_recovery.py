@@ -11,7 +11,6 @@ Covers:
 
 from __future__ import annotations
 
-import asyncio
 import sys
 from dataclasses import replace
 from pathlib import Path
@@ -33,12 +32,9 @@ from tuya_ble_mesh.sig_mesh_bridge import (  # noqa: E402
 
 from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     _BRIDGE_INITIAL_BACKOFF,
-    _BRIDGE_MAX_BACKOFF,
-    _DEFAULT_MAX_RECONNECT_FAILURES,
     _INITIAL_BACKOFF,
     ErrorClass,
     TuyaBLEMeshCoordinator,
-    TuyaBLEMeshDeviceState,
 )
 
 _PATCH_SLEEP = "custom_components.tuya_ble_mesh.coordinator.asyncio.sleep"
