@@ -92,7 +92,10 @@
       "unknown_protocol": "Protokolforhandling mislykkedes. Dette kan indikere et bridge-firmware-mismatch.",
       "cannot_connect": "Kunne ikke forbinde til enheden. Sørg for, at den er tændt, inden for BLE-rækkevidde og i parring-tilstand.",
       "pairing_failed": "Parring mislykkedes. Enheden svarede ikke eller afviste forbindelsen. Sørg for, at den er i fabriksresettet tilstand og inden for BLE-rækkevidde.",
-      "provisioning_failed": "Provisionering mislykkedes. Sørg for, at enheden er i fabriksresettet tilstand (LED blinker), inden for BLE-rækkevidde, og prøv igen. Kontroller HA-logs for detaljer."
+      "provisioning_failed": "Provisionering mislykkedes. Sørg for, at enheden er i fabriksresettet tilstand (LED blinker), inden for BLE-rækkevidde, og prøv igen. Kontroller HA-logs for detaljer.",
+      "provisioning_appkey_failed": "Provisionering mislykkedes under AppKey-bindning. Dette betyder normalt, at enheden ikke er i fabriksresettet tilstand. Prøv at fabriksresette enheden (træk strømstikket ud og i 3-5 gange hurtigt) og prøv igen.",
+      "provisioning_proxy_failed": "Provisionering mislykkedes under Proxy Service-konfiguration. Enheden understøtter ikke eller har deaktiveret Proxy Service. Kontroller enhedsdokumentation eller prøv en anden enhed.",
+      "provisioning_pbgatt_failed": "Provisionering mislykkedes under PB-GATT-forbindelse. Enheden er uden for BLE-rækkevidde eller svarer ikke. Flyt enheden tættere på BLE-adapteren eller ESPHome-proxy og prøv igen."
     },
     "abort": {
       "already_configured": "Denne enhed er allerede konfigureret",
@@ -172,9 +175,9 @@
       "connection_quality": {
         "name": "Forbindelseskvalitet",
         "state": {
-          "good": "God",
-          "marginal": "Middelmådig",
-          "poor": "Dårlig"
+          "good": "God (≥-60 dBm)",
+          "marginal": "Middelmådig (-60 til -80 dBm)",
+          "poor": "Dårlig (<-80 dBm)"
         }
       },
       "last_seen": {

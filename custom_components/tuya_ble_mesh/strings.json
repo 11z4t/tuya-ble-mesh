@@ -92,7 +92,10 @@
       "unknown_protocol": "Protocol negotiation failed. This may indicate a bridge firmware mismatch.",
       "cannot_connect": "Could not connect to the device. Ensure it is powered on, within BLE range, and in pairing mode.",
       "pairing_failed": "Pairing failed. The device did not respond or rejected the connection. Ensure it is in factory-reset state and within BLE range.",
-      "provisioning_failed": "Provisioning failed. Ensure the device is in factory-reset state (LED flashing), within BLE range, and try again. Check HA logs for details."
+      "provisioning_failed": "Provisioning failed. Ensure the device is in factory-reset state (LED flashing), within BLE range, and try again. Check HA logs for details.",
+      "provisioning_appkey_failed": "Provisioning failed during AppKey binding. This usually means the device is not in factory-reset state. Try factory-resetting the device (unplug and replug 3-5 times quickly) and retry.",
+      "provisioning_proxy_failed": "Provisioning failed during Proxy Service setup. The device does not support or has disabled the Proxy Service. Check device documentation or try a different device.",
+      "provisioning_pbgatt_failed": "Provisioning failed during PB-GATT connection. The device is out of BLE range or not responding. Move the device closer to the BLE adapter or ESPHome proxy and retry."
     },
     "abort": {
       "already_configured": "This device is already configured",

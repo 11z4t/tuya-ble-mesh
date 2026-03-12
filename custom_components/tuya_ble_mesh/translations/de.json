@@ -92,7 +92,10 @@
       "unknown_protocol": "Protokollaushandlung fehlgeschlagen. Dies kann auf eine Bridge-Firmware-Inkompatibilität hinweisen.",
       "cannot_connect": "Verbindung zum Gerät nicht möglich. Stellen Sie sicher, dass es eingeschaltet, in BLE-Reichweite und im Kopplungsmodus ist.",
       "pairing_failed": "Kopplung fehlgeschlagen. Das Gerät hat nicht geantwortet oder die Verbindung abgelehnt. Stellen Sie sicher, dass es sich im Werkszustand befindet und in BLE-Reichweite ist.",
-      "provisioning_failed": "Bereitstellung fehlgeschlagen. Stellen Sie sicher, dass sich das Gerät im Werkszustand befindet (LED blinkt), in BLE-Reichweite ist, und versuchen Sie es erneut. Überprüfen Sie die HA-Protokolle für Details."
+      "provisioning_failed": "Bereitstellung fehlgeschlagen. Stellen Sie sicher, dass sich das Gerät im Werkszustand befindet (LED blinkt), in BLE-Reichweite ist, und versuchen Sie es erneut. Überprüfen Sie die HA-Protokolle für Details.",
+      "provisioning_appkey_failed": "Bereitstellung während der AppKey-Bindung fehlgeschlagen. Dies bedeutet normalerweise, dass sich das Gerät nicht im Werkszustand befindet. Versuchen Sie, das Gerät auf Werkseinstellungen zurückzusetzen (3-5 Mal schnell ein- und ausstecken) und versuchen Sie es erneut.",
+      "provisioning_proxy_failed": "Bereitstellung während der Proxy Service-Konfiguration fehlgeschlagen. Das Gerät unterstützt den Proxy Service nicht oder hat ihn deaktiviert. Überprüfen Sie die Gerätedokumentation oder versuchen Sie ein anderes Gerät.",
+      "provisioning_pbgatt_failed": "Bereitstellung während der PB-GATT-Verbindung fehlgeschlagen. Das Gerät ist außerhalb der BLE-Reichweite oder antwortet nicht. Bringen Sie das Gerät näher an den BLE-Adapter oder ESPHome-Proxy und versuchen Sie es erneut."
     },
     "abort": {
       "already_configured": "Dieses Gerät ist bereits konfiguriert",
@@ -172,9 +175,9 @@
       "connection_quality": {
         "name": "Verbindungsqualität",
         "state": {
-          "good": "Gut",
-          "marginal": "Mäßig",
-          "poor": "Schlecht"
+          "good": "Gut (≥-60 dBm)",
+          "marginal": "Mäßig (-60 bis -80 dBm)",
+          "poor": "Schlecht (<-80 dBm)"
         }
       },
       "last_seen": {

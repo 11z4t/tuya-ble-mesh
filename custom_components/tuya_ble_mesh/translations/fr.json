@@ -92,7 +92,10 @@
       "unknown_protocol": "La négociation du protocole a échoué. Cela peut indiquer une incompatibilité du firmware du pont.",
       "cannot_connect": "Impossible de se connecter à l'appareil. Assurez-vous qu'il est allumé, à portée BLE et en mode d'appairage.",
       "pairing_failed": "L'appairage a échoué. L'appareil n'a pas répondu ou a rejeté la connexion. Assurez-vous qu'il est à l'état de réinitialisation d'usine et à portée BLE.",
-      "provisioning_failed": "L'approvisionnement a échoué. Assurez-vous que l'appareil est à l'état de réinitialisation d'usine (LED clignotant), à portée BLE, et réessayez. Vérifiez les journaux de l'AH pour plus de détails."
+      "provisioning_failed": "L'approvisionnement a échoué. Assurez-vous que l'appareil est à l'état de réinitialisation d'usine (LED clignotant), à portée BLE, et réessayez. Vérifiez les journaux de l'AH pour plus de détails.",
+      "provisioning_appkey_failed": "L'approvisionnement a échoué lors de la liaison AppKey. Cela signifie généralement que l'appareil n'est pas à l'état de réinitialisation d'usine. Essayez de réinitialiser l'appareil aux paramètres d'usine (débrancher et rebrancher 3-5 fois rapidement) et réessayez.",
+      "provisioning_proxy_failed": "L'approvisionnement a échoué lors de la configuration du Proxy Service. L'appareil ne prend pas en charge ou a désactivé le Proxy Service. Vérifiez la documentation de l'appareil ou essayez un autre appareil.",
+      "provisioning_pbgatt_failed": "L'approvisionnement a échoué lors de la connexion PB-GATT. L'appareil est hors de portée BLE ou ne répond pas. Rapprochez l'appareil de l'adaptateur BLE ou du proxy ESPHome et réessayez."
     },
     "abort": {
       "already_configured": "Cet appareil est déjà configuré",
@@ -172,9 +175,9 @@
       "connection_quality": {
         "name": "Qualité de connexion",
         "state": {
-          "good": "Bonne",
-          "marginal": "Moyenne",
-          "poor": "Faible"
+          "good": "Bonne (≥-60 dBm)",
+          "marginal": "Moyenne (-60 à -80 dBm)",
+          "poor": "Faible (<-80 dBm)"
         }
       },
       "last_seen": {

@@ -92,7 +92,10 @@
       "unknown_protocol": "Protokollan neuvottelu epäonnistui. Tämä saattaa ilmaista sillan firmware-ristiriitaa.",
       "cannot_connect": "Laitteeseen ei voitu muodostaa yhteyttä. Varmista, että se on kytketty päälle, BLE-kantaman sisällä ja pariliitosta-tilassa.",
       "pairing_failed": "Pariliitos epäonnistui. Laite ei vastannut tai hylkäsi yhteyden. Varmista, että se on tehdasasetus-tilassa ja BLE-kantaman sisällä.",
-      "provisioning_failed": "Valmistelu epäonnistui. Varmista, että laite on tehdasasetus-tilassa (LED vilkkuu), BLE-kantaman sisällä ja yritä uudelleen. Tarkista HA-lokit yksityiskohdista."
+      "provisioning_failed": "Valmistelu epäonnistui. Varmista, että laite on tehdasasetus-tilassa (LED vilkkuu), BLE-kantaman sisällä ja yritä uudelleen. Tarkista HA-lokit yksityiskohdista.",
+      "provisioning_appkey_failed": "Valmistelu epäonnistui AppKey-sitomisen aikana. Tämä tarkoittaa yleensä, että laite ei ole tehdasasetus-tilassa. Yritä palauttaa laite tehdas asetuksiin (irrota ja kytke 3-5 kertaa nopeasti) ja yritä uudelleen.",
+      "provisioning_proxy_failed": "Valmistelu epäonnistui Proxy Service -konfiguroinnin aikana. Laite ei tue tai se on poistanut käytöstä Proxy Service -palvelun. Tarkista laitteen dokumentaatio tai yritä toista laitetta.",
+      "provisioning_pbgatt_failed": "Valmistelu epäonnistui PB-GATT-yhteyden aikana. Laite on BLE-kantaman ulkopuolella tai ei vastaa. Siirrä laite lähemmäs BLE-sovitinta tai ESPHome-proxyä ja yritä uudelleen."
     },
     "abort": {
       "already_configured": "Tämä laite on jo määritetty",
@@ -172,9 +175,9 @@
       "connection_quality": {
         "name": "Yhteyslaatu",
         "state": {
-          "good": "Hyvä",
-          "marginal": "Kohtalainen",
-          "poor": "Heikko"
+          "good": "Hyvä (≥-60 dBm)",
+          "marginal": "Kohtalainen (-60 - -80 dBm)",
+          "poor": "Heikko (<-80 dBm)"
         }
       },
       "last_seen": {

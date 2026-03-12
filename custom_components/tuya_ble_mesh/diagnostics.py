@@ -215,6 +215,7 @@ async def async_get_config_entry_diagnostics(
                 "p95_seconds": percentiles["p95"],
                 "p99_seconds": percentiles["p99"],
                 "sample_count": len(response_times),
+                "_info": "p50=median (50% of commands faster), p95=95th percentile (only 5% slower), p99=99th percentile (worst-case latency)",
             }
         else:
             diag["response_times"] = {

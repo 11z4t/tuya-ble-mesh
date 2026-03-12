@@ -92,7 +92,10 @@
       "unknown_protocol": "Protocolonderhandeling mislukt. Dit kan duiden op een bridge-firmware-verschil.",
       "cannot_connect": "Kan geen verbinding met het apparaat maken. Zorg ervoor dat het aanstaat, zich binnen BLE-bereik bevindt en zich in koppeelmodus bevindt.",
       "pairing_failed": "Koppelen mislukt. Het apparaat reageerde niet of weigerde de verbinding. Zorg ervoor dat het zich in fabriekresetstand bevindt en zich binnen BLE-bereik bevindt.",
-      "provisioning_failed": "Provisioning mislukt. Zorg ervoor dat het apparaat in fabriekresetstand staat (LED knippert), zich binnen BLE-bereik bevindt en probeer het opnieuw. Controleer HA-logboeken voor meer informatie."
+      "provisioning_failed": "Provisioning mislukt. Zorg ervoor dat het apparaat in fabriekresetstand staat (LED knippert), zich binnen BLE-bereik bevindt en probeer het opnieuw. Controleer HA-logboeken voor meer informatie.",
+      "provisioning_appkey_failed": "Provisioning mislukt tijdens AppKey-binding. Dit betekent meestal dat het apparaat zich niet in fabriekresetstand bevindt. Probeer het apparaat naar fabrieksinstellingen te resetten (3-5 keer snel uit- en aansluiten) en probeer het opnieuw.",
+      "provisioning_proxy_failed": "Provisioning mislukt tijdens Proxy Service-configuratie. Het apparaat ondersteunt de Proxy Service niet of heeft deze uitgeschakeld. Controleer de apparaatdocumentatie of probeer een ander apparaat.",
+      "provisioning_pbgatt_failed": "Provisioning mislukt tijdens PB-GATT-verbinding. Het apparaat bevindt zich buiten BLE-bereik of reageert niet. Plaats het apparaat dichter bij de BLE-adapter of ESPHome-proxy en probeer het opnieuw."
     },
     "abort": {
       "already_configured": "Dit apparaat is al geconfigureerd",
@@ -172,9 +175,9 @@
       "connection_quality": {
         "name": "Verbindingskwaliteit",
         "state": {
-          "good": "Goed",
-          "marginal": "Matig",
-          "poor": "Slecht"
+          "good": "Goed (≥-60 dBm)",
+          "marginal": "Matig (-60 tot -80 dBm)",
+          "poor": "Slecht (<-80 dBm)"
         }
       },
       "last_seen": {

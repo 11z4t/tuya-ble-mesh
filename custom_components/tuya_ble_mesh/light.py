@@ -376,6 +376,29 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
         """Return the currently active effect (scene) name, or None if none active."""
         return MESH_SCENES.get(self.coordinator.state.scene_id)
 
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Return additional state attributes for diagnostics and automation.
+
+        Exposes:
+        - brightness_mode: 'rgb' (mode=1) or 'white' (mode=0, COLOR_TEMP)
+        - device_brightness: Raw device brightness value (0-255 for RGB, 1-100 for white)
+        """
+        if not self.coordinator.state.available:
+            return None
+
+        brightness_mode = "rgb" if self.coordinator.state.mode == 1 else "white"
+        device_brightness = (
+            self.coordinator.state.color_brightness
+            if self.coordinator.state.mode == 1
+            else self.coordinator.state.brightness
+        )
+
+        return {
+            "brightness_mode": brightness_mode,
+            "device_brightness": device_brightness,
+        }
+
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the light.
 

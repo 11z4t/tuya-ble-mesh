@@ -83,7 +83,11 @@ def _connection_quality(state: TuyaBLEMeshDeviceState) -> str | None:
 
 
 def _last_seen_datetime(state: TuyaBLEMeshDeviceState) -> datetime | None:
-    """Convert Unix timestamp to timezone-aware datetime for HA."""
+    """Convert Unix timestamp to timezone-aware datetime for HA.
+
+    Returns UTC datetime. Home Assistant automatically converts this to the user's
+    configured timezone for display in the UI. No manual timezone conversion needed.
+    """
     if state.last_seen is None:
         return None
     return datetime.fromtimestamp(state.last_seen, tz=UTC)
@@ -96,7 +100,7 @@ SENSOR_DESCRIPTIONS: tuple[TuyaBLEMeshSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.SIGNAL_STRENGTH,
         native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda state: state.rssi,
+        value_fn=lambda state: state.rssi if state.rssi != 0 else None,
     ),
     TuyaBLEMeshSensorEntityDescription(
         key="firmware",
