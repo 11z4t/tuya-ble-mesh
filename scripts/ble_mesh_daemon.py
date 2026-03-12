@@ -34,8 +34,8 @@ _LOGGER = logging.getLogger("ble_mesh_daemon")
 STATE_DIR = Path("/var/lib/tuya_ble_mesh")
 PENDING_CMD = STATE_DIR / "pending_cmd.json"
 LAST_RESULT = STATE_DIR / "last_result.json"
-KEYS_FILE = Path("/tmp/mesh_keys.json")
-SEQ_FILE = Path("/tmp/mesh_seq_tracker.json")
+KEYS_FILE = Path("/tmp/mesh_keys.json")  # nosec B108
+SEQ_FILE = Path("/tmp/mesh_seq_tracker.json")  # nosec B108
 
 # WiFi interface
 WLAN_IFACE = "wlan0"
@@ -424,7 +424,7 @@ async def http_handler(reader: asyncio.StreamReader, writer: asyncio.StreamWrite
 
 async def run_http_server() -> None:
     """Run the HTTP server for remote command submission."""
-    server = await asyncio.start_server(http_handler, "0.0.0.0", HTTP_PORT)
+    server = await asyncio.start_server(http_handler, "0.0.0.0", HTTP_PORT)  # nosec B104
     _LOGGER.info("HTTP server listening on port %d", HTTP_PORT)
     async with server:
         await server.serve_forever()

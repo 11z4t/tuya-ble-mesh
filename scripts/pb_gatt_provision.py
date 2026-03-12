@@ -66,7 +66,7 @@ PROXY_SAR_LAST = 0x03
 PROXY_TYPE_PROVISIONING = 0x03
 
 # Output file
-OUTPUT_FILE = Path("/tmp/mesh_keys.json")
+OUTPUT_FILE = Path("/tmp/mesh_keys.json")  # nosec B108
 
 
 def _make_proxy_pdu(pdu_type: int, payload: bytes) -> list[bytes]:

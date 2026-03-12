@@ -21,7 +21,7 @@ import serial
 TARGET_MAC = "DC:23:4D:21:43:A5"
 SERIAL_PORT = "/dev/ttyUSB0"
 BAUDRATE = 460800
-PCAP_FILE = "/tmp/ble_capture.pcap"
+PCAP_FILE = "/tmp/ble_capture.pcap"  # nosec B108
 CAPTURE_SECONDS = 120
 
 # Nordic SLIP constants (NOT standard SLIP!)

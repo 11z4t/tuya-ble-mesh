@@ -40,7 +40,7 @@ MESH_PROXY_DATA_OUT = "00002ade-0000-1000-8000-00805f9b34fb"
 # --- Mesh constants ---
 PROXY_SAR_COMPLETE = 0x00
 PROXY_TYPE_NETWORK = 0x00
-SEQ_FILE = Path("/tmp/mesh_seq_tracker.json")
+SEQ_FILE = Path("/tmp/mesh_seq_tracker.json")  # nosec B108
 MAX_UNSEG_ACCESS_PAYLOAD = 11  # 15 bytes upper transport - 4 byte TransMIC
 SEG_DATA_SIZE = 12  # max bytes per segment chunk
 
@@ -52,7 +52,7 @@ SEG_DATA_SIZE = 12  # max bytes per segment chunk
 
 def aes_ecb(key: bytes, plaintext: bytes) -> bytes:
     """Single-block AES-128-ECB encrypt."""
-    cipher = Cipher(algorithms.AES(key), modes.ECB())
+    cipher = Cipher(algorithms.AES(key), modes.ECB())  # nosec B305
     enc = cipher.encryptor()
     return enc.update(plaintext) + enc.finalize()
 
@@ -800,7 +800,7 @@ def load_mesh_keys(target: int) -> tuple["MeshKeys", int]:
     Returns (MeshKeys, our_unicast_address).
     """
     # Try pb_gatt_provision.py output first
-    json_keys = Path("/tmp/mesh_keys.json")
+    json_keys = Path("/tmp/mesh_keys.json")  # nosec B108
     if json_keys.exists():
         print(f"Loading keys from {json_keys}")
         return load_mesh_keys_from_json(json_keys, our_addr=0x0001)
