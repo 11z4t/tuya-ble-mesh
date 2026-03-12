@@ -18,6 +18,8 @@ _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
 sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
+import contextlib
+
 from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     _BACKOFF_MULTIPLIER,
     _BRIDGE_INITIAL_BACKOFF,
@@ -299,10 +301,8 @@ class TestReconnectionScheduling:
         # Cancel it
         coord._reconnect_task.cancel()
 
-        try:
+        with contextlib.suppress(asyncio.CancelledError):
             await coord._reconnect_task
-        except asyncio.CancelledError:
-            pass
 
         assert coord._reconnect_task.cancelled()
 

@@ -1,6 +1,7 @@
 """Minimal stub for homeassistant.helpers.update_coordinator."""
 from __future__ import annotations
 
+import contextlib
 from collections.abc import Callable
 from datetime import timedelta
 from typing import Any, Generic, TypeVar
@@ -35,10 +36,8 @@ class DataUpdateCoordinator(Generic[_DataT]):
         self._listeners.append(update_callback)
 
         def remove() -> None:
-            try:
+            with contextlib.suppress(ValueError):
                 self._listeners.remove(update_callback)
-            except ValueError:
-                pass
 
         return remove
 
