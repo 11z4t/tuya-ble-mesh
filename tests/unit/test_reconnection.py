@@ -271,13 +271,13 @@ class TestReconnectionScheduling:
 
         assert coord._reconnect_task is None
 
-    def test_schedule_reconnect_when_not_running(self) -> None:
+    def testschedule_reconnect_when_not_running(self) -> None:
         """Test that schedule_reconnect is no-op when coordinator not running."""
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
 
         coord._running = False
-        coord._schedule_reconnect()
+        coord.schedule_reconnect()
 
         # Should still be None since not running
         assert coord._reconnect_task is None

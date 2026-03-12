@@ -927,20 +927,20 @@ class TestReconnectLoop:
 
 @pytest.mark.requires_ha
 class TestScheduleReconnect:
-    """Test _schedule_reconnect edge cases."""
+    """Test schedule_reconnect edge cases."""
 
-    def test_schedule_reconnect_noop_when_not_running(self) -> None:
+    def testschedule_reconnect_noop_when_not_running(self) -> None:
         """Should not create task when coordinator is not running."""
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = False
 
-        coord._schedule_reconnect()
+        coord.schedule_reconnect()
 
         assert coord._reconnect_task is None
 
     @pytest.mark.asyncio
-    async def test_schedule_reconnect_cancels_existing_task(self) -> None:
+    async def testschedule_reconnect_cancels_existing_task(self) -> None:
         """Should cancel previous reconnect task before starting new one."""
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
@@ -949,7 +949,7 @@ class TestScheduleReconnect:
         old_task = MagicMock()
         coord._reconnect_task = old_task
 
-        coord._schedule_reconnect()
+        coord.schedule_reconnect()
 
         old_task.cancel.assert_called_once()
         assert coord._reconnect_task is not None
