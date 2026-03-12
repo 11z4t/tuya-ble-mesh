@@ -1,5 +1,6 @@
 """Unit tests for the MeshDevice command interface."""
 
+import asyncio
 import sys
 import time
 from pathlib import Path
@@ -54,6 +55,13 @@ def _make_connected_device() -> tuple[MeshDevice, AsyncMock]:
     conn._client = AsyncMock()
     conn._client.write_gatt_char = AsyncMock()
     conn._client.disconnect = AsyncMock()
+    # Start dispatcher only when called from an async context (event loop running).
+    # Sync tests have no event loop — they don't need the worker anyway.
+    try:
+        asyncio.get_running_loop()
+        device._dispatcher.start()
+    except RuntimeError:
+        pass
     return device, conn._client
 
 
@@ -185,7 +193,7 @@ class TestConnect:
             patch("tuya_ble_mesh.connection.BleakClient", return_value=mock_client),
             pytest.raises(ConnectionError, match="Failed to connect"),
         ):
-            await device.connect()
+            await device.connect(max_retries=1)
 
         assert device.is_connected is False
 
@@ -267,6 +275,7 @@ class TestSendCommand:
     async def test_send_command(self) -> None:
         device, client = _make_connected_device()
         await device.send_command(0xD2, b"\x79\x02\x04\x00\x00\x00\x01")
+        await asyncio.sleep(0.05)  # yield to dispatcher worker
 
         client.write_gatt_char.assert_called_once()
 
@@ -275,12 +284,14 @@ class TestSendCommand:
         """When connected, commands are sent immediately."""
         device, client = _make_connected_device()
         await device.send_command(0xD2, b"\x01")
+        await asyncio.sleep(0.05)
         client.write_gatt_char.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_send_command_custom_dest(self) -> None:
         device, client = _make_connected_device()
         await device.send_command(0xD2, b"\x01", dest_id=42)
+        await asyncio.sleep(0.05)
         client.write_gatt_char.assert_called_once()
 
     @pytest.mark.asyncio
@@ -310,6 +321,7 @@ class TestSendPower:
     async def test_power_on(self) -> None:
         device, client = _make_connected_device()
         await device.send_power(True)
+        await asyncio.sleep(0.05)
         client.write_gatt_char.assert_called_once()
 
         # Verify the packet encodes 0xD2 with compact DP for power
@@ -321,6 +333,7 @@ class TestSendPower:
     async def test_power_off(self) -> None:
         device, client = _make_connected_device()
         await device.send_power(False)
+        await asyncio.sleep(0.05)
         client.write_gatt_char.assert_called_once()
 
     @pytest.mark.asyncio
@@ -354,6 +367,7 @@ class TestSendBrightness:
     async def test_valid_brightness(self) -> None:
         device, client = _make_connected_device()
         await device.send_brightness(100)
+        await asyncio.sleep(0.05)
         client.write_gatt_char.assert_called_once()
 
     @pytest.mark.asyncio
@@ -406,6 +420,7 @@ class TestSendColorTemp:
     async def test_valid_temp(self) -> None:
         device, client = _make_connected_device()
         await device.send_color_temp(64)
+        await asyncio.sleep(0.05)
         client.write_gatt_char.assert_called_once()
 
     @pytest.mark.asyncio
@@ -431,6 +446,7 @@ class TestSendColor:
     async def test_valid_color(self) -> None:
         device, client = _make_connected_device()
         await device.send_color(255, 128, 0)
+        await asyncio.sleep(0.05)
         client.write_gatt_char.assert_called_once()
 
     @pytest.mark.asyncio
@@ -462,6 +478,7 @@ class TestSendColorBrightness:
     async def test_valid(self) -> None:
         device, client = _make_connected_device()
         await device.send_color_brightness(50)
+        await asyncio.sleep(0.05)
         client.write_gatt_char.assert_called_once()
 
     @pytest.mark.asyncio
@@ -481,6 +498,7 @@ class TestSendLightMode:
     async def test_valid(self) -> None:
         device, client = _make_connected_device()
         await device.send_light_mode(0)
+        await asyncio.sleep(0.05)
         client.write_gatt_char.assert_called_once()
 
     @pytest.mark.asyncio
@@ -500,6 +518,7 @@ class TestSendMeshAddress:
     async def test_valid(self) -> None:
         device, client = _make_connected_device()
         await device.send_mesh_address(100)
+        await asyncio.sleep(0.05)
         client.write_gatt_char.assert_called_once()
 
     @pytest.mark.asyncio
@@ -525,6 +544,7 @@ class TestSendMeshReset:
     async def test_sends_reset(self) -> None:
         device, client = _make_connected_device()
         await device.send_mesh_reset()
+        await asyncio.sleep(0.05)
         client.write_gatt_char.assert_called_once()
 
 
@@ -542,7 +562,7 @@ class TestStatusCallbacks:
         device.unregister_status_callback(cb)
         assert cb not in device._status_callbacks
 
-    def test_notification_dispatches(self) -> None:
+    async def test_notification_dispatches(self) -> None:
         device, _ = _make_connected_device()
         received: list[StatusResponse] = []
         device.register_status_callback(lambda s: received.append(s))
@@ -569,7 +589,7 @@ class TestStatusCallbacks:
         device = _make_device()
         device._handle_notification(0, bytearray(20))
 
-    def test_callback_exception_isolated(self) -> None:
+    async def test_callback_exception_isolated(self) -> None:
         device, _ = _make_connected_device()
 
         def bad_callback(_status: StatusResponse) -> None:
@@ -620,62 +640,49 @@ class TestCommandQueue:
 
     @pytest.mark.asyncio
     async def test_queue_full_raises(self) -> None:
-        """When not connected, exceeding queue limit raises."""
-        device = _make_device()
-        # Fill the queue with dummy commands (manually to avoid awaiting futures)
+        """Exceeding the queue capacity raises CommandQueueFullError."""
         import asyncio
 
-        for _ in range(_QUEUE_MAX_SIZE):
-            future: asyncio.Future[None] = asyncio.get_event_loop().create_future()
-            from tuya_ble_mesh.device import _QueuedCommand
+        from tuya_ble_mesh.device import _QueuedCommand
 
-            cmd = _QueuedCommand(0xD2, b"\x01", 0, future)
-            device._queue.append(cmd)
+        device = _make_device()
+        # Fill the dispatcher queue to capacity using put_nowait
+        for _ in range(_QUEUE_MAX_SIZE):
+            cmd = _QueuedCommand(0xD2, b"\x01", 0)
+            device._dispatcher._queue.put_nowait(cmd)
 
         with pytest.raises(CommandQueueFullError, match="32"):
-            await device._enqueue(0xD2, b"\x01", 0)
+            await device._dispatcher.enqueue(0xD2, b"\x01", 0)
 
     @pytest.mark.asyncio
     async def test_drain_queue_sends_commands(self) -> None:
-        """Queued commands are sent on reconnect."""
+        """Dispatcher worker sends queued commands when connected."""
         device, client = _make_connected_device()
-        import asyncio
-
-        future: asyncio.Future[None] = asyncio.get_event_loop().create_future()
-        from tuya_ble_mesh.device import _QueuedCommand
-
-        cmd = _QueuedCommand(0xD2, b"\x01", 0, future)
-        device._queue.append(cmd)
-
-        await device._drain_queue()
-
-        assert future.done()
-        assert future.exception() is None
+        # Worker is already running via _make_connected_device()
+        await device.send_command(0xD2, b"\x01")
+        await asyncio.sleep(0.05)  # yield to worker
         client.write_gatt_char.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_drain_queue_expires_old_commands(self) -> None:
-        """Commands older than TTL are expired during drain."""
-        device, _ = _make_connected_device()
+        """Commands older than TTL are silently dropped by the dispatcher."""
         import asyncio
 
-        future: asyncio.Future[None] = asyncio.get_event_loop().create_future()
         from tuya_ble_mesh.device import _QueuedCommand
 
-        cmd = _QueuedCommand(0xD2, b"\x01", 0, future)
-        # Make command old
+        device, client = _make_connected_device()
+        # Enqueue a stale command directly into the dispatcher queue
+        cmd = _QueuedCommand(0xD2, b"\x01", 0)
         cmd.created_at = time.monotonic() - _COMMAND_TTL - 1
+        device._dispatcher._queue.put_nowait(cmd)
 
-        device._queue.append(cmd)
-        await device._drain_queue()
-
-        assert future.done()
-        assert isinstance(future.exception(), CommandExpiredError)
+        await asyncio.sleep(0.05)  # yield to worker (which will drop it)
+        client.write_gatt_char.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_drain_empty_queue_is_noop(self) -> None:
         device, client = _make_connected_device()
-        await device._drain_queue()
+        await asyncio.sleep(0.05)
         client.write_gatt_char.assert_not_called()
 
     def test_queue_constants(self) -> None:
@@ -707,7 +714,7 @@ class TestNotificationPathWiring:
         device._conn._notify_active = True
         assert device.notify_active is True
 
-    def test_notification_key_snapshot_used(self) -> None:
+    async def test_notification_key_snapshot_used(self) -> None:
         """_handle_notification reads a copy of the key — not the live bytearray."""
         device, _ = _make_connected_device()
         received: list[StatusResponse] = []

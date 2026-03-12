@@ -200,7 +200,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             DictSecretsManager(secrets_dict),
             op_item_prefix=op_prefix,
             iv_index=iv_index,
-            ble_device_callback=None,  # Direct BLE, bypass HA proxy
+            ble_device_callback=_ble_device_from_ha,
         )
     else:
         from tuya_ble_mesh.device import MeshDevice

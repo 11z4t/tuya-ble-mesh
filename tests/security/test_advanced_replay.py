@@ -233,8 +233,8 @@ class TestReplayWindowEdgeCases:
         device.firmware_version = None
 
         max_seq = 0xFFFFFF
-        # Implementation adds margin without masking - device handles wraparound
-        expected = max_seq + _SEQ_SAFETY_MARGIN
+        # Implementation adds margin then masks to 24-bit range (wrap-around)
+        expected = (max_seq + _SEQ_SAFETY_MARGIN) & 0xFFFFFF
         device.get_seq = MagicMock(return_value=expected)
 
         mock_store = MagicMock()

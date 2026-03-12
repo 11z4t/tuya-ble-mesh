@@ -129,8 +129,9 @@ class TestPowerOn:
         ctrl = ShellyPowerController("192.168.1.50")
         ctrl._generation = 2
 
-        mock_resp = make_mock_response(json_data={"was_on": False})
-        mock_session = make_mock_session([mock_resp])
+        mock_set_resp = make_mock_response(json_data={"was_on": False})
+        mock_status_resp = make_mock_response(json_data={"output": True})
+        mock_session = make_mock_session([mock_set_resp, mock_status_resp])
         ctrl._session = mock_session
 
         result = await ctrl.power_on()
@@ -171,8 +172,9 @@ class TestPowerOff:
         ctrl = ShellyPowerController("192.168.1.50")
         ctrl._generation = 2
 
-        mock_resp = make_mock_response(json_data={"was_on": True})
-        mock_session = make_mock_session([mock_resp])
+        mock_set_resp = make_mock_response(json_data={"was_on": True})
+        mock_status_resp = make_mock_response(json_data={"output": False})
+        mock_session = make_mock_session([mock_set_resp, mock_status_resp])
         ctrl._session = mock_session
 
         result = await ctrl.power_off()
