@@ -289,7 +289,7 @@ class SIGMeshProvisioner:
                 stderr=asyncio.subprocess.PIPE,
             )
             try:
-                stdout, stderr = await asyncio.wait_for(
+                _stdout, stderr = await asyncio.wait_for(
                     process.communicate(), timeout=5.0
                 )
                 if process.returncode == 0:
@@ -301,7 +301,7 @@ class SIGMeshProvisioner:
                         address,
                         stderr_text,
                     )
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 _LOGGER.debug("bluetoothctl remove timed out for %s", address)
                 process.kill()
                 await process.wait()

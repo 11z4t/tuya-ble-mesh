@@ -40,7 +40,6 @@ from tuya_ble_mesh.const import (
     TELINK_VENDOR_ID,
 )
 from tuya_ble_mesh.exceptions import (
-    CommandExpiredError,
     CommandQueueFullError,
     ConnectionError,
     DisconnectedError,
