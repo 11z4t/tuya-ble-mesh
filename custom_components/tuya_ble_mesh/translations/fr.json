@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Ajouter votre appareil",
-        "description": "Connectons votre appareil Tuya BLE Mesh à Home Assistant.\n\n**Ce dont vous aurez besoin :**\n- L'adresse MAC de l'appareil (indiquée sur l'étiquette de l'appareil ou dans le manuel)\n- Le type d'appareil (luminaire, prise, etc.)\n- Les identifiants du réseau mesh (si vous ne les avez pas modifiés, utilisez les valeurs d'usine ci-dessous)\n\n**Prochaine étape :** Nous allons configurer la méthode de connexion.",
+        "description": "**Étape 1 sur 3 :** Let's connect your Tuya BLE Mesh device to Home Assistant.\n\n**What you'll need:**\n- The device's MAC address (found on the device label or in the manual)\n- The device type (light, plug, etc.)\n- Mesh credentials (if you haven't changed them, use the factory defaults below)\n\n**Next step:** We'll configure how to connect (prend environ 2 minutes).",
         "data": {
           "mac_address": "Adresse MAC",
           "mesh_name": "Nom du réseau Mesh",
@@ -22,7 +22,7 @@
       },
       "sig_bridge": {
         "title": "Connexion à votre pont",
-        "description": "Connectons maintenant **{name}** via votre pont.\n\n**Qu'est-ce qu'un pont ?** C'est un Raspberry Pi (ou appareil similaire) qui relaie les commandes entre Home Assistant et vos appareils BLE.\n\n**Avant de continuer :**\n- Assurez-vous que votre pont est sous tension\n- Vérifiez qu'il est connecté au même réseau que Home Assistant\n\n**Prochaine étape :** Nous allons tester la connexion et finaliser la configuration.",
+        "description": "**Étape 2 sur 3 :** Now let's connect **{name}** through your bridge.\n\n**What's a bridge?** It's a Raspberry Pi (or similar device) that relays commands between Home Assistant and your BLE devices.\n\n**Before continuing:**\n- Make sure your bridge device is powered on\n- Verify it's connected to the same network as Home Assistant\n\n**Next step:** We'll test the connection and complete setup (prend 10 secondes).",
         "data": {
           "bridge_host": "Hôte du pont (adresse IP ou nom d'hôte)",
           "bridge_port": "Port du pont",
@@ -36,7 +36,7 @@
       },
       "telink_bridge": {
         "title": "Connexion à votre pont",
-        "description": "Connectons maintenant **{name}** via votre pont.\n\n**Qu'est-ce qu'un pont ?** C'est un Raspberry Pi (ou appareil similaire) qui relaie les commandes entre Home Assistant et vos appareils BLE.\n\n**Avant de continuer :**\n- Assurez-vous que votre pont est sous tension\n- Vérifiez qu'il est connecté au même réseau que Home Assistant\n\n**Prochaine étape :** Nous allons tester la connexion et finaliser la configuration.",
+        "description": "**Étape 2 sur 3 :** Now let's connect **{name}** through your bridge.\n\n**What's a bridge?** It's a Raspberry Pi (or similar device) that relays commands between Home Assistant and your BLE devices.\n\n**Before continuing:**\n- Make sure your bridge device is powered on\n- Verify it's connected to the same network as Home Assistant\n\n**Next step:** We'll test the connection and complete setup (prend 10 secondes).",
         "data": {
           "bridge_host": "Hôte du pont (adresse IP ou nom d'hôte)",
           "bridge_port": "Port du pont"
@@ -48,12 +48,12 @@
       },
       "sig_plug": {
         "title": "Prêt pour l'appairage",
-        "description": "Nous y sommes presque ! Nous sommes prêts à appairer **{name}**.\n\n**Ce qui va se passer lorsque vous cliquerez sur Soumettre :**\n1. Home Assistant générera des clés de chiffrement sécurisées\n2. L'appareil sera appairé automatiquement (prend environ 10 secondes)\n3. Tous les paramètres seront enregistrés de manière sécurisée\n\n**Avant de cliquer sur Soumettre, assurez-vous que :**\n- Le LED de l'appareil clignote (sinon, réinitialisez-le aux paramètres d'usine en le débranchant et rebranchant 5 fois rapidement)\n- L'appareil est à portée Bluetooth de Home Assistant ou de votre proxy BLE\n\n**Prochaine étape :** Cliquez sur Soumettre et patientez environ 10 secondes.",
+        "description": "**Dernière étape :** Almost there! We're ready to pair **{name}**.\n\n**What happens when you click Submit:**\n1. Home Assistant will generate secure encryption keys (instant)\n2. The device will be paired automatically (takes about 10 seconds)\n3. All settings are saved securely\n\n**Before clicking Submit, make sure:**\n- The device LED is flashing (if not, factory-reset it by unplugging and replugging 5 times quickly)\n- The device is within Bluetooth range of Home Assistant or your BLE proxy\n\n**Next step:** Click Submit and wait about 10 seconds. You'll see the device appear in Home Assistant!",
         "data": {}
       },
       "confirm": {
         "title": "Presque terminé !",
-        "description": "Parfait ! Nous avons trouvé **{name}**.\n\n**Détails de l'appareil :**\n- Adresse MAC : {mac}\n- Puissance du signal : {rssi} dBm\n\n**Prochaine étape :**\nLorsque vous cliquerez sur Soumettre, Home Assistant s'appairera avec cet appareil et l'ajoutera à votre système. Vous pourrez le contrôler immédiatement.\n\nPrêt ? Cliquez sur Soumettre pour finaliser !",
+        "description": "**Étape 3 sur 3 :** Great! We found **{name}**.\n\n**Device details:**\n- MAC address: {mac}\n- Signal strength: {rssi} dBm\n\n**What happens next:**\nWhen you click Submit, Home Assistant will pair with this device and add it to your system (prend environ 5 secondes). You'll be able to control it right away.\n\nReady? Click Submit to finish!",
         "data": {}
       },
       "reauth_confirm": {
@@ -109,8 +109,8 @@
   "options": {
     "step": {
       "init": {
-        "title": "Options Tuya BLE Mesh",
-        "description": "Mettez à jour la connexion au pont ou les identifiants du réseau mesh. Activez **Afficher les paramètres avancés** pour les options de délai d'attente et de reconnexion.",
+        "title": "Configurer votre connexion",
+        "description": "Update your bridge connection or mesh credentials below. Need more control? Enable **Show advanced settings** for timeout and reconnect options.",
         "data": {
           "mesh_name": "Nom du réseau Mesh",
           "mesh_password": "Mot de passe du réseau Mesh",
@@ -136,8 +136,8 @@
         }
       },
       "advanced": {
-        "title": "Paramètres avancés",
-        "description": "Ajustez le niveau de verbosité du débogage, les délais d'attente des commandes et la protection contre la tempête de reconnexions.",
+        "title": "Affiner votre appareil",
+        "description": "Adjust debug verbosity, command timeouts, and reconnect storm protection. La plupart des utilisateurs peuvent conserver les valeurs par défaut.",
         "data": {
           "debug_level": "Niveau de journalisation pour BLE mesh",
           "command_timeout": "Délai d'attente des commandes (secondes)",
@@ -231,7 +231,7 @@
   "services": {
     "identify": {
       "name": "Identifier l'appareil",
-      "description": "Faire clignoter le LED de l'appareil pour le localiser facilement.",
+      "description": "Flash the device LED to make it easy to find. **Utilisez ceci si :** You have multiple similar lights and want to confirm which one is which.",
       "fields": {
         "device_id": {
           "name": "Appareil",
@@ -241,7 +241,7 @@
     },
     "set_log_level": {
       "name": "Définir le niveau de journalisation",
-      "description": "Modifier la verbosité de la journalisation BLE mesh sans redémarrer Home Assistant.",
+      "description": "Change BLE mesh logging verbosity without restarting Home Assistant. **Utilisez ceci si :** You're troubleshooting connection issues and need more detailed logs.",
       "fields": {
         "level": {
           "name": "Niveau",
@@ -251,7 +251,7 @@
     },
     "get_diagnostics": {
       "name": "Obtenir les diagnostics",
-      "description": "Enregistrer les informations de diagnostic d'un appareil dans le journal HA.",
+      "description": "Log diagnostic information for a device to the HA log. **Utilisez ceci si :** The device isn't working as expected and you need to share technical details for support.",
       "fields": {
         "device_id": {
           "name": "Appareil",
