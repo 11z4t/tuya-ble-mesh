@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Gerät hinzufügen",
-        "description": "Verbinden Sie Ihr Tuya BLE Mesh Gerät mit Home Assistant.\n\n**Was Sie benötigen:**\n- Die MAC-Adresse des Geräts (auf dem Geräteetikett oder im Handbuch)\n- Den Gerätetyp (Lampe, Steckdose usw.)\n- Mesh-Zugangsdaten (falls Sie diese nicht geändert haben, verwenden Sie die unten aufgeführten Werkseinstellungen)\n\n**Nächster Schritt:** Wir konfigurieren die Verbindungsmethode.",
+        "description": "**Schritt 1 von 3:** Let's connect your Tuya BLE Mesh device to Home Assistant.\n\n**What you'll need:**\n- The device's MAC address (found on the device label or in the manual)\n- The device type (light, plug, etc.)\n- Mesh credentials (if you haven't changed them, use the factory defaults below)\n\n**Next step:** We'll configure how to connect (dauert etwa 2 Minuten).",
         "data": {
           "mac_address": "MAC-Adresse",
           "mesh_name": "Mesh-Name",
@@ -22,7 +22,7 @@
       },
       "sig_bridge": {
         "title": "Verbindung mit Ihrer Bridge herstellen",
-        "description": "Verbinden wir nun **{name}** über Ihre Bridge.\n\n**Was ist eine Bridge?** Ein Gerät wie ein Raspberry Pi, das Befehle zwischen Home Assistant und Ihren BLE-Geräten weiterleitet.\n\n**Bevor Sie fortfahren:**\n- Stellen Sie sicher, dass Ihre Bridge eingeschaltet ist\n- Prüfen Sie, ob sie mit demselben Netzwerk wie Home Assistant verbunden ist\n\n**Nächster Schritt:** Wir testen die Verbindung und schließen die Einrichtung ab.",
+        "description": "**Schritt 2 von 3:** Now let's connect **{name}** through your bridge.\n\n**What's a bridge?** It's a Raspberry Pi (or similar device) that relays commands between Home Assistant and your BLE devices.\n\n**Before continuing:**\n- Make sure your bridge device is powered on\n- Verify it's connected to the same network as Home Assistant\n\n**Next step:** We'll test the connection and complete setup (dauert 10 Sekunden).",
         "data": {
           "bridge_host": "Bridge-Host (IP-Adresse oder Hostname)",
           "bridge_port": "Bridge-Port",
@@ -36,7 +36,7 @@
       },
       "telink_bridge": {
         "title": "Verbindung mit Ihrer Bridge herstellen",
-        "description": "Verbinden wir nun **{name}** über Ihre Bridge.\n\n**Was ist eine Bridge?** Ein Gerät wie ein Raspberry Pi, das Befehle zwischen Home Assistant und Ihren BLE-Geräten weiterleitet.\n\n**Bevor Sie fortfahren:**\n- Stellen Sie sicher, dass Ihre Bridge eingeschaltet ist\n- Prüfen Sie, ob sie mit demselben Netzwerk wie Home Assistant verbunden ist\n\n**Nächster Schritt:** Wir testen die Verbindung und schließen die Einrichtung ab.",
+        "description": "**Schritt 2 von 3:** Now let's connect **{name}** through your bridge.\n\n**What's a bridge?** It's a Raspberry Pi (or similar device) that relays commands between Home Assistant and your BLE devices.\n\n**Before continuing:**\n- Make sure your bridge device is powered on\n- Verify it's connected to the same network as Home Assistant\n\n**Next step:** We'll test the connection and complete setup (dauert 10 Sekunden).",
         "data": {
           "bridge_host": "Bridge-Host (IP-Adresse oder Hostname)",
           "bridge_port": "Bridge-Port"
@@ -48,12 +48,12 @@
       },
       "sig_plug": {
         "title": "Bereit zum Koppeln",
-        "description": "Fast geschafft! Wir sind bereit, **{name}** zu koppeln.\n\n**Was passiert, wenn Sie auf \"Absenden\" klicken:**\n1. Home Assistant generiert sichere Verschlüsselungsschlüssel\n2. Das Gerät wird automatisch gekoppelt (dauert etwa 10 Sekunden)\n3. Alle Einstellungen werden sicher gespeichert\n\n**Bevor Sie auf \"Absenden\" klicken, stellen Sie sicher:**\n- Die Geräte-LED blinkt (falls nicht, setzen Sie das Gerät auf Werkseinstellungen zurück, indem Sie es 5-mal schnell ein- und ausstecken)\n- Das Gerät befindet sich in Bluetooth-Reichweite von Home Assistant oder Ihrem BLE-Proxy\n\n**Nächster Schritt:** Klicken Sie auf \"Absenden\" und warten Sie etwa 10 Sekunden.",
+        "description": "**Letzter Schritt:** Almost there! We're ready to pair **{name}**.\n\n**What happens when you click Submit:**\n1. Home Assistant will generate secure encryption keys (instant)\n2. The device will be paired automatically (takes about 10 seconds)\n3. All settings are saved securely\n\n**Before clicking Submit, make sure:**\n- The device LED is flashing (if not, factory-reset it by unplugging and replugging 5 times quickly)\n- The device is within Bluetooth range of Home Assistant or your BLE proxy\n\n**Next step:** Click Submit and wait about 10 seconds. You'll see the device appear in Home Assistant!",
         "data": {}
       },
       "confirm": {
         "title": "Fast fertig!",
-        "description": "Ausgezeichnet! Wir haben **{name}** gefunden.\n\n**Gerätedetails:**\n- MAC-Adresse: {mac}\n- Signalstärke: {rssi} dBm\n\n**Was als Nächstes passiert:**\nWenn Sie auf \"Absenden\" klicken, wird Home Assistant mit diesem Gerät koppeln und es zu Ihrem System hinzufügen. Sie können es sofort steuern.\n\nBereit? Klicken Sie auf \"Absenden\", um abzuschließen!",
+        "description": "**Schritt 3 von 3:** Great! We found **{name}**.\n\n**Device details:**\n- MAC address: {mac}\n- Signal strength: {rssi} dBm\n\n**What happens next:**\nWhen you click Submit, Home Assistant will pair with this device and add it to your system (dauert etwa 5 Sekunden). You'll be able to control it right away.\n\nReady? Click Submit to finish!",
         "data": {}
       },
       "reauth_confirm": {
@@ -109,8 +109,8 @@
   "options": {
     "step": {
       "init": {
-        "title": "Tuya BLE Mesh Optionen",
-        "description": "Aktualisieren Sie die Bridge-Verbindung oder Mesh-Zugangsdaten. Aktivieren Sie **Erweiterte Einstellungen anzeigen** für Timeout- und Wiederverbindungsoptionen.",
+        "title": "Verbindung konfigurieren",
+        "description": "Update your bridge connection or mesh credentials below. Need more control? Enable **Show advanced settings** for timeout and reconnect options.",
         "data": {
           "mesh_name": "Mesh-Name",
           "mesh_password": "Mesh-Passwort",
@@ -136,8 +136,8 @@
         }
       },
       "advanced": {
-        "title": "Erweiterte Einstellungen",
-        "description": "Passen Sie Debug-Ausführlichkeit, Befehls-Timeouts und Wiederverbindungs-Schutz an.",
+        "title": "Gerät feinabstimmen",
+        "description": "Adjust debug verbosity, command timeouts, and reconnect storm protection. Die meisten Benutzer können die Standardwerte beibehalten.",
         "data": {
           "debug_level": "Protokollstufe für BLE Mesh",
           "command_timeout": "Befehls-Timeout (Sekunden)",
@@ -231,7 +231,7 @@
   "services": {
     "identify": {
       "name": "Gerät identifizieren",
-      "description": "Lassen Sie die Geräte-LED blinken, um es leicht zu finden.",
+      "description": "Flash the device LED to make it easy to find. **Verwenden Sie dies, wenn:** You have multiple similar lights and want to confirm which one is which.",
       "fields": {
         "device_id": {
           "name": "Gerät",
@@ -241,7 +241,7 @@
     },
     "set_log_level": {
       "name": "Protokollstufe festlegen",
-      "description": "Ändern Sie die Ausführlichkeit der BLE Mesh Protokollierung ohne Home Assistant neu zu starten.",
+      "description": "Change BLE mesh logging verbosity without restarting Home Assistant. **Verwenden Sie dies, wenn:** You're troubleshooting connection issues and need more detailed logs.",
       "fields": {
         "level": {
           "name": "Stufe",
@@ -251,7 +251,7 @@
     },
     "get_diagnostics": {
       "name": "Diagnose abrufen",
-      "description": "Protokollieren Sie Diagnoseinformationen für ein Gerät im HA-Protokoll.",
+      "description": "Log diagnostic information for a device to the HA log. **Verwenden Sie dies, wenn:** The device isn't working as expected and you need to share technical details for support.",
       "fields": {
         "device_id": {
           "name": "Gerät",

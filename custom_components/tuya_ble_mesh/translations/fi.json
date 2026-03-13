@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Lisää laitteesi",
-        "description": "Yhdistetään Tuya BLE Mesh -laitteesi Home Assistantiin.\n\n**Mitä tarvitset:**\n- Laitteen MAC-osoite (löytyy laitteen tarralapusta tai käyttöohjeesta)\n- Laitetyyppi (lamppu, pistorasia jne.)\n- Mesh-kirjautumistiedot (jos et ole muuttanut niitä, käytä alla olevia oletusarvoja)\n\n**Seuraava vaihe:** Määrittelemme yhteyden asetukset.",
+        "description": "**Vaihe 1/3:** Let's connect your Tuya BLE Mesh device to Home Assistant.\n\n**What you'll need:**\n- The device's MAC address (found on the device label or in the manual)\n- The device type (light, plug, etc.)\n- Mesh credentials (if you haven't changed them, use the factory defaults below)\n\n**Next step:** We'll configure how to connect (kestää noin 2 minuuttia).",
         "data": {
           "mac_address": "MAC-osoite",
           "mesh_name": "Mesh-nimi",
@@ -22,7 +22,7 @@
       },
       "sig_bridge": {
         "title": "Yhdistä siltalaitteeseen",
-        "description": "Yhdistetään nyt **{name}** siltalaitteesi kautta.\n\n**Mikä on siltalaite?** Se on Raspberry Pi (tai vastaava laite), joka välittää komennot Home Assistantin ja Bluetooth-laitteidesi välillä.\n\n**Ennen jatkamista:**\n- Varmista, että siltalaite on päällä\n- Tarkista, että se on samassa verkossa kuin Home Assistant\n\n**Seuraava vaihe:** Testaamme yhteyden ja viimeistelemme asennuksen.",
+        "description": "**Vaihe 2/3:** Now let's connect **{name}** through your bridge.\n\n**What's a bridge?** It's a Raspberry Pi (or similar device) that relays commands between Home Assistant and your BLE devices.\n\n**Before continuing:**\n- Make sure your bridge device is powered on\n- Verify it's connected to the same network as Home Assistant\n\n**Next step:** We'll test the connection and complete setup (kestää 10 sekuntia).",
         "data": {
           "bridge_host": "Siltalaitteen osoite (IP-osoite tai hostname)",
           "bridge_port": "Siltalaitteen portti",
@@ -36,7 +36,7 @@
       },
       "telink_bridge": {
         "title": "Yhdistä siltalaitteeseen",
-        "description": "Yhdistetään nyt **{name}** siltalaitteesi kautta.\n\n**Mikä on siltalaite?** Se on Raspberry Pi (tai vastaava laite), joka välittää komennot Home Assistantin ja Bluetooth-laitteidesi välillä.\n\n**Ennen jatkamista:**\n- Varmista, että siltalaite on päällä\n- Tarkista, että se on samassa verkossa kuin Home Assistant\n\n**Seuraava vaihe:** Testaamme yhteyden ja viimeistelemme asennuksen.",
+        "description": "**Vaihe 2/3:** Now let's connect **{name}** through your bridge.\n\n**What's a bridge?** It's a Raspberry Pi (or similar device) that relays commands between Home Assistant and your BLE devices.\n\n**Before continuing:**\n- Make sure your bridge device is powered on\n- Verify it's connected to the same network as Home Assistant\n\n**Next step:** We'll test the connection and complete setup (kestää 10 sekuntia).",
         "data": {
           "bridge_host": "Siltalaitteen osoite (IP-osoite tai hostname)",
           "bridge_port": "Siltalaitteen portti"
@@ -48,12 +48,12 @@
       },
       "sig_plug": {
         "title": "Valmis parittamiseen",
-        "description": "Melkein valmista! Ollaan valmiina parittamaan **{name}**.\n\n**Mitä tapahtuu, kun painat Lähetä:**\n1. Home Assistant luo turvalliset salausavaimet\n2. Laite paritetaan automaattisesti (kestää noin 10 sekuntia)\n3. Kaikki asetukset tallennetaan turvallisesti\n\n**Ennen kuin painat Lähetä, varmista:**\n- Laitteen LED vilkkuu (jos ei, palauta tehdasasetukset irrottamalla pistoke ja kytkemällä se takaisin 5 kertaa nopeasti)\n- Laite on Bluetooth-kantaman sisällä Home Assistantista tai BLE-välittimestäsi\n\n**Seuraava vaihe:** Paina Lähetä ja odota noin 10 sekuntia.",
+        "description": "**Viimeinen vaihe:** Almost there! We're ready to pair **{name}**.\n\n**What happens when you click Submit:**\n1. Home Assistant will generate secure encryption keys (instant)\n2. The device will be paired automatically (takes about 10 seconds)\n3. All settings are saved securely\n\n**Before clicking Submit, make sure:**\n- The device LED is flashing (if not, factory-reset it by unplugging and replugging 5 times quickly)\n- The device is within Bluetooth range of Home Assistant or your BLE proxy\n\n**Next step:** Click Submit and wait about 10 seconds. You'll see the device appear in Home Assistant!",
         "data": {}
       },
       "confirm": {
         "title": "Melkein valmista!",
-        "description": "Hienoa! Löydettiin **{name}**.\n\n**Laitteen tiedot:**\n- MAC-osoite: {mac}\n- Signaalin voimakkuus: {rssi} dBm\n\n**Mitä seuraavaksi:**\nKun painat Lähetä, Home Assistant parittaa tämän laitteen ja lisää sen järjestelmään. Voit hallita sitä heti.\n\nValmiina? Paina Lähetä viimeistelläksesi!",
+        "description": "**Vaihe 3/3:** Great! We found **{name}**.\n\n**Device details:**\n- MAC address: {mac}\n- Signal strength: {rssi} dBm\n\n**What happens next:**\nWhen you click Submit, Home Assistant will pair with this device and add it to your system (kestää noin 5 sekuntia). You'll be able to control it right away.\n\nReady? Click Submit to finish!",
         "data": {}
       },
       "reauth_confirm": {
@@ -109,8 +109,8 @@
   "options": {
     "step": {
       "init": {
-        "title": "Tuya BLE Mesh -asetukset",
-        "description": "Päivitä siltalaitteen yhteyttä tai mesh-kirjautumistietoja. Ota **Näytä lisäasetukset** käyttöön aikakatkaisu- ja uudelleenyhdistämisvaihtoehtojen näyttämiseksi.",
+        "title": "Määritä yhteys",
+        "description": "Update your bridge connection or mesh credentials below. Need more control? Enable **Show advanced settings** for timeout and reconnect options.",
         "data": {
           "mesh_name": "Mesh-nimi",
           "mesh_password": "Mesh-salasana",
@@ -136,8 +136,8 @@
         }
       },
       "advanced": {
-        "title": "Lisäasetukset",
-        "description": "Säädä virheenjäljityksen yksityiskohtaisuutta, komento-aikakatkaisuja ja uudelleenyhdistämisen myrskynsuojausta.",
+        "title": "Hienosäädä laitetta",
+        "description": "Adjust debug verbosity, command timeouts, and reconnect storm protection. Useimmat käyttäjät voivat jättää nämä oletusarvoiksi.",
         "data": {
           "debug_level": "BLE mesh -lokitaso",
           "command_timeout": "Komennon aikakatkaisu (sekuntia)",
@@ -231,7 +231,7 @@
   "services": {
     "identify": {
       "name": "Tunnista laite",
-      "description": "Vilkuta laitteen LED:iä, jotta sen löytäminen on helppoa.",
+      "description": "Flash the device LED to make it easy to find. **Käytä tätä, jos:** You have multiple similar lights and want to confirm which one is which.",
       "fields": {
         "device_id": {
           "name": "Laite",
@@ -241,7 +241,7 @@
     },
     "set_log_level": {
       "name": "Aseta lokitaso",
-      "description": "Muuta BLE mesh -lokituksen yksityiskohtaisuutta käynnistämättä Home Assistantia uudelleen.",
+      "description": "Change BLE mesh logging verbosity without restarting Home Assistant. **Käytä tätä, jos:** You're troubleshooting connection issues and need more detailed logs.",
       "fields": {
         "level": {
           "name": "Taso",
@@ -251,7 +251,7 @@
     },
     "get_diagnostics": {
       "name": "Hae diagnostiikka",
-      "description": "Kirjaa laitteen diagnostiikkatiedot HA-lokiin.",
+      "description": "Log diagnostic information for a device to the HA log. **Käytä tätä, jos:** The device isn't working as expected and you need to share technical details for support.",
       "fields": {
         "device_id": {
           "name": "Laite",
