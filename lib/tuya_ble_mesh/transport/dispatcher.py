@@ -17,7 +17,7 @@ import random
 import time
 import uuid
 from collections import deque
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
 from tuya_ble_mesh.exceptions import TuyaBLEMeshError
@@ -48,7 +48,7 @@ class AsyncCommandDispatcher:
 
     def __init__(
         self,
-        send_callback: Callable[[CommandRequest, int], bytes],
+        send_callback: Callable[[CommandRequest, int], Awaitable[bytes]],
         next_sequence_callback: Callable[[], int],
         *,
         per_device_limit: int = 3,
