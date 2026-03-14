@@ -74,10 +74,10 @@
     },
     "error": {
       "invalid_mac": "Taamaasiornissaq Bluetooth-adressitut isumaqarsinnaanngilaq. Aaqqissuusseq tassaavoq: XX:XX:XX:XX:XX:XX.",
-      "invalid_key": "Isissutissaq oqimaanaq \u2014 hex-talut 32-t kissaatigineqassapput.",
+      "invalid_key": "Isissutissaq oqimaanaq — hex-talut 32-t kissaatigineqassapput.",
       "invalid_bridge_host": "Adresse oqimaanaq allaguk, soorlu 192.168.1.100 imaluunniit raspberrypi.local.",
       "invalid_credential_length": "Netværkip aqqa isissutissaalu naapertoqqussiissillutik 16-inik nakkutillutik.",
-      "invalid_vendor_id": "Nioqqutissiursortip kode-a oqimaanaq \u2014 1-4 hex-talut atorsinnaapput (soorlu 0x1001).",
+      "invalid_vendor_id": "Nioqqutissiursortip kode-a oqimaanaq — 1-4 hex-talut atorsinnaapput (soorlu 0x1001).",
       "cannot_connect": "Hub-imut attaveqarsinnaanngitsoorpoq. Hub iluarsitaasoq netværkimuullu attavissimasoq misissoruk.",
       "provisioning_failed": "Peqataatimut attaveqarsinnaanngitsoorpoq. Peqataatit iluarsitaasoq Bluetooth-adapterimullu qanittumik itillugu, utissalluaruk.",
       "timeout": "Attaveqarneq uninngasiurpoq. Peqataatit iluarsitaasoq qanittumillu itillugu, utissalluaruk.",
@@ -140,6 +140,24 @@
       },
       "energy": {
         "name": "Nukissamik atorneq"
+      }
+    },
+    "binary_sensor": {
+      "connectivity": {
+        "name": "Naaperissitaasoqarneq"
+      }
+    },
+    "button": {
+      "identify": {
+        "name": "Nalilersoruk"
+      },
+      "reconnect": {
+        "name": "Naaperissitaasoqarsinnaapaa"
+      }
+    },
+    "update": {
+      "firmware_update": {
+        "name": "Firmware"
       }
     }
   },

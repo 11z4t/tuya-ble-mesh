@@ -3,21 +3,21 @@
     "step": {
       "user": {
         "title": "Legg til Bluetooth-enhet",
-        "description": "Skriv inn Bluetooth-adressen til enheten og velg enhetstype.\n\nFabriksinnstillingene fungerer for de fleste nye enheter \u2014 vis **Avanserte alternativer** kun om n\u00f8dvendig.",
+        "description": "Skriv inn Bluetooth-adressen til enheten og velg enhetstype.\n\nFabriksinnstillingene fungerer for de fleste nye enheter — vis **Avanserte alternativer** kun om nødvendig.",
         "data": {
           "mac_address": "Bluetooth-adresse",
           "device_type": "Enhetstype",
           "mesh_name": "Nettverksnavn",
           "mesh_password": "Nettverkspassord",
-          "vendor_id": "Leverand\u00f8rkode",
+          "vendor_id": "Leverandørkode",
           "mesh_address": "Enhetsadresse"
         },
         "data_description": {
-          "mac_address": "Bluetooth-adressen som er trykket p\u00e5 enheten (format: XX:XX:XX:XX:XX:XX).",
-          "mesh_name": "La denne st\u00e5 p\u00e5 standard, med mindre du har f\u00e5tt andre instruksjoner.",
-          "mesh_password": "La denne st\u00e5 p\u00e5 standard, med mindre du har f\u00e5tt andre instruksjoner.",
-          "vendor_id": "Produsentidentifikator i hex. Endre bare hvis du har f\u00e5tt instruksjoner om det.",
-          "mesh_address": "La st\u00e5 som 0 med mindre du har f\u00e5tt andre instruksjoner."
+          "mac_address": "Bluetooth-adressen som er trykket på enheten (format: XX:XX:XX:XX:XX:XX).",
+          "mesh_name": "La denne stå på standard, med mindre du har fått andre instruksjoner.",
+          "mesh_password": "La denne stå på standard, med mindre du har fått andre instruksjoner.",
+          "vendor_id": "Produsentidentifikator i hex. Endre bare hvis du har fått instruksjoner om det.",
+          "mesh_address": "La stå som 0 med mindre du har fått andre instruksjoner."
         }
       },
       "sig_bridge": {
@@ -30,8 +30,8 @@
         },
         "data_description": {
           "bridge_host": "IP-adressen eller vertsnavnet til hubben din (f.eks. din Raspberry Pi).",
-          "bridge_port": "Porten hubben lytter p\u00e5. Standard er 8099.",
-          "unicast_target": "Endre bare hvis du har f\u00e5tt instruksjoner om det."
+          "bridge_port": "Porten hubben lytter på. Standard er 8099.",
+          "unicast_target": "Endre bare hvis du har fått instruksjoner om det."
         }
       },
       "telink_bridge": {
@@ -43,17 +43,17 @@
         },
         "data_description": {
           "bridge_host": "IP-adressen eller vertsnavnet til hubben din (f.eks. din Raspberry Pi).",
-          "bridge_port": "Porten hubben lytter p\u00e5. Standard er 8099."
+          "bridge_port": "Porten hubben lytter på. Standard er 8099."
         }
       },
       "sig_plug": {
         "title": "Konfigurerer {name}",
-        "description": "Den sikre Bluetooth-tilkoblingen til enheten din konfigureres automatisk.\n\nS\u00f8rg for at enheten er **sl\u00e5tt p\u00e5** og **n\u00e6r Bluetooth-adapteren din**, klikk deretter p\u00e5 **Send**.",
+        "description": "Den sikre Bluetooth-tilkoblingen til enheten din konfigureres automatisk.\n\nSørg for at enheten er **slått på** og **nær Bluetooth-adapteren din**, klikk deretter på **Send**.",
         "data": {}
       },
       "confirm": {
         "title": "Enhet funnet: {name}",
-        "description": "En ny **{category}** er oppdaget i n\u00e6rheten.\n\n**Signal:** {signal_quality}\n\nVelg enhetstype nedenfor for \u00e5 fullf\u00f8re konfigurasjonen.",
+        "description": "En ny **{category}** er oppdaget i nærheten.\n\n**Signal:** {signal_quality}\n\nVelg enhetstype nedenfor for å fullføre konfigurasjonen.",
         "data": {
           "device_type": "Enhetstype",
           "mesh_name": "Nettverksnavn",
@@ -63,7 +63,7 @@
       },
       "reauth_confirm": {
         "title": "Koble til enheten igjen",
-        "description": "Home Assistant mistet forbindelsen til enheten din. Oppdater innstillingene nedenfor for \u00e5 koble til igjen.",
+        "description": "Home Assistant mistet forbindelsen til enheten din. Oppdater innstillingene nedenfor for å koble til igjen.",
         "data": {
           "mesh_name": "Nettverksnavn",
           "mesh_password": "Nettverkspassord",
@@ -73,22 +73,22 @@
       }
     },
     "error": {
-      "invalid_mac": "Det ser ikke ut til \u00e5 v\u00e6re en gyldig Bluetooth-adresse. Forventet format: XX:XX:XX:XX:XX:XX.",
-      "invalid_key": "Ugyldig n\u00f8kkel \u2014 vi trenger n\u00f8yaktig 32 hex-tegn.",
+      "invalid_mac": "Det ser ikke ut til å være en gyldig Bluetooth-adresse. Forventet format: XX:XX:XX:XX:XX:XX.",
+      "invalid_key": "Ugyldig nøkkel — vi trenger nøyaktig 32 hex-tegn.",
       "invalid_bridge_host": "Skriv inn en gyldig adresse, f.eks. 192.168.1.100 eller raspberrypi.local.",
-      "invalid_credential_length": "Nettverksnavn og passord m\u00e5 ha h\u00f8yst 16 tegn hver.",
-      "invalid_vendor_id": "Ugyldig leverand\u00f8rkode \u2014 bruk 1 til 4 hex-sifre (f.eks. 0x1001).",
-      "cannot_connect": "Kunne ikke n\u00e5 hubben. Kontroller at den er sl\u00e5tt p\u00e5 og koblet til nettverket.",
-      "provisioning_failed": "Kunne ikke koble til enheten. Kontroller at den er sl\u00e5tt p\u00e5 og n\u00e6r Bluetooth-adapteren, og pr\u00f8v igjen.",
-      "timeout": "Tilkoblingen fikk tidsavbrudd. Kontroller at enheten er sl\u00e5tt p\u00e5 og i n\u00e6rheten, og pr\u00f8v igjen.",
-      "device_not_found": "Enheten er ikke tilgjengelig. Kontroller at den er sl\u00e5tt p\u00e5 og innenfor Bluetooth-rekkevidde, og pr\u00f8v igjen.",
-      "invalid_iv_index": "Skriv inn et tall mellom 0 og 4\u00a0294\u00a0967\u00a0295.",
+      "invalid_credential_length": "Nettverksnavn og passord må ha høyst 16 tegn hver.",
+      "invalid_vendor_id": "Ugyldig leverandørkode — bruk 1 til 4 hex-sifre (f.eks. 0x1001).",
+      "cannot_connect": "Kunne ikke nå hubben. Kontroller at den er slått på og koblet til nettverket.",
+      "provisioning_failed": "Kunne ikke koble til enheten. Kontroller at den er slått på og nær Bluetooth-adapteren, og prøv igjen.",
+      "timeout": "Tilkoblingen fikk tidsavbrudd. Kontroller at enheten er slått på og i nærheten, og prøv igjen.",
+      "device_not_found": "Enheten er ikke tilgjengelig. Kontroller at den er slått på og innenfor Bluetooth-rekkevidde, og prøv igjen.",
+      "invalid_iv_index": "Skriv inn et tall mellom 0 og 4 294 967 295.",
       "invalid_unicast_address": "Skriv inn en 4-tegns hex-adresse mellom 0001 og 7FFF (f.eks. 00B0)."
     },
     "abort": {
       "already_configured": "Denne enheten er allerede konfigurert i Home Assistant.",
-      "reauth_successful": "Innstillinger oppdatert. Kobler til enheten din p\u00e5 nytt.",
-      "device_not_available": "Enheten er ikke lenger i n\u00e6rheten. Pr\u00f8v \u00e5 legge den til igjen n\u00e5r den er innenfor rekkevidde."
+      "reauth_successful": "Innstillinger oppdatert. Kobler til enheten din på nytt.",
+      "device_not_available": "Enheten er ikke lenger i nærheten. Prøv å legge den til igjen når den er innenfor rekkevidde."
     }
   },
   "options": {
@@ -108,11 +108,11 @@
         "data_description": {
           "mesh_name": "Nettverksnavnet for enheten din.",
           "mesh_password": "Nettverkspassordet for enheten din.",
-          "mesh_address": "Intern adresse for denne enheten. Sett til 0 for \u00e5 bruke standarden.",
+          "mesh_address": "Intern adresse for denne enheten. Sett til 0 for å bruke standarden.",
           "bridge_host": "IP-adressen eller vertsnavnet til hubben din.",
-          "bridge_port": "Porten hubben lytter p\u00e5. Standard er 8099.",
-          "unicast_target": "Endre bare hvis du har f\u00e5tt instruksjoner om det.",
-          "iv_index": "Endre bare hvis du har f\u00e5tt instruksjoner om det."
+          "bridge_port": "Porten hubben lytter på. Standard er 8099.",
+          "unicast_target": "Endre bare hvis du har fått instruksjoner om det.",
+          "iv_index": "Endre bare hvis du har fått instruksjoner om det."
         }
       }
     }
@@ -141,26 +141,44 @@
       "energy": {
         "name": "Energi"
       }
+    },
+    "binary_sensor": {
+      "connectivity": {
+        "name": "Tilkobling"
+      }
+    },
+    "button": {
+      "identify": {
+        "name": "Identifiser"
+      },
+      "reconnect": {
+        "name": "Koble til på nytt"
+      }
+    },
+    "update": {
+      "firmware_update": {
+        "name": "Firmware"
+      }
     }
   },
   "exceptions": {
     "connection_failed": {
-      "message": "Kunne ikke koble til {device}. Kontroller at den er sl\u00e5tt p\u00e5 og innenfor rekkevidde."
+      "message": "Kunne ikke koble til {device}. Kontroller at den er slått på og innenfor rekkevidde."
     },
     "command_timeout": {
-      "message": "Ingen respons fra {device}. Den kan v\u00e6re utenfor rekkevidde."
+      "message": "Ingen respons fra {device}. Den kan være utenfor rekkevidde."
     },
     "provisioning_failed": {
-      "message": "Kunne ikke koble til {device}. Pr\u00f8v \u00e5 fjerne og legge den til igjen."
+      "message": "Kunne ikke koble til {device}. Prøv å fjerne og legge den til igjen."
     },
     "invalid_key": {
-      "message": "Ugyldig krypteringsn\u00f8kkelformat"
+      "message": "Ugyldig krypteringsnøkkelformat"
     }
   },
   "services": {
     "identify": {
-      "name": "Blink p\u00e5 enhet",
-      "description": "Blinker med enhetens indikatorlampe for \u00e5 hjelpe deg med \u00e5 identifisere den.",
+      "name": "Blink på enhet",
+      "description": "Blinker med enhetens indikatorlampe for å hjelpe deg med å identifisere den.",
       "fields": {
         "device_id": {
           "name": "Enhet",
@@ -173,8 +191,8 @@
       "description": "Endrer hvor mye diagnostisk informasjon som logges for denne integrasjonen. Ingen omstart kreves.",
       "fields": {
         "level": {
-          "name": "Niv\u00e5",
-          "description": "Detaljniv\u00e5: debug (mest), info, warning eller error (minst)."
+          "name": "Nivå",
+          "description": "Detaljnivå: debug (mest), info, warning eller error (minst)."
         }
       }
     },
@@ -192,11 +210,11 @@
   "issues": {
     "provisioning_failed": {
       "title": "Enhetskonfigurasjon mislyktes",
-      "description": "Kunne ikke konfigurere {device}. Sl\u00e5 av og p\u00e5 enheten, og legg den til i Home Assistant igjen."
+      "description": "Kunne ikke konfigurere {device}. Slå av og på enheten, og legg den til i Home Assistant igjen."
     },
     "bridge_unreachable": {
       "title": "Hubben svarer ikke",
-      "description": "Kan ikke n\u00e5 enhetens hub p\u00e5 {host}:{port}. Kontroller at den er sl\u00e5tt p\u00e5 og koblet til nettverket."
+      "description": "Kan ikke nå enhetens hub på {host}:{port}. Kontroller at den er slått på og koblet til nettverket."
     }
   }
 }

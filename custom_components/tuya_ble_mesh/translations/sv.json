@@ -74,15 +74,15 @@
     },
     "error": {
       "invalid_mac": "Det verkar inte vara en giltig Bluetooth-adress. Förväntat format: XX:XX:XX:XX:XX:XX.",
-      "invalid_key": "Ogiltig nyckel \u2014 vi behöver exakt 32 hex-tecken.",
+      "invalid_key": "Ogiltig nyckel — vi behöver exakt 32 hex-tecken.",
       "invalid_bridge_host": "Ange en giltig adress, t.ex. 192.168.1.100 eller raspberrypi.local.",
       "invalid_credential_length": "Nätverksnamn och lösenord får vara högst 16 tecken vardera.",
-      "invalid_vendor_id": "Ogiltig tillverkarkod \u2014 ange 1 till 4 hex-siffror (t.ex. 0x1001).",
+      "invalid_vendor_id": "Ogiltig tillverkarkod — ange 1 till 4 hex-siffror (t.ex. 0x1001).",
       "cannot_connect": "Kunde inte nå hubben. Kontrollera att den är påslagen och ansluten till nätverket.",
       "provisioning_failed": "Kunde inte ansluta till enheten. Kontrollera att den är påslagen och nära din Bluetooth-adapter, försök sedan igen.",
       "timeout": "Anslutningen tog för lång tid. Kontrollera att enheten är påslagen och i närheten, försök sedan igen.",
       "device_not_found": "Enheten hittades inte. Kontrollera att den är påslagen och inom Bluetooth-räckvidd, försök sedan igen.",
-      "invalid_iv_index": "Ange ett tal mellan 0 och 4\u00a0294\u00a0967\u00a0295.",
+      "invalid_iv_index": "Ange ett tal mellan 0 och 4 294 967 295.",
       "invalid_unicast_address": "Ange en 4-siffrig hex-adress mellan 0001 och 7FFF (t.ex. 00B0)."
     },
     "abort": {
@@ -140,6 +140,24 @@
       },
       "energy": {
         "name": "Energi"
+      }
+    },
+    "binary_sensor": {
+      "connectivity": {
+        "name": "Anslutning"
+      }
+    },
+    "button": {
+      "identify": {
+        "name": "Identifiera"
+      },
+      "reconnect": {
+        "name": "Återanslut"
+      }
+    },
+    "update": {
+      "firmware_update": {
+        "name": "Firmware"
       }
     }
   },

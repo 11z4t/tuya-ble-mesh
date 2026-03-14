@@ -3,7 +3,7 @@
     "step": {
       "user": {
         "title": "Bluetooth-apparaat toevoegen",
-        "description": "Voer het Bluetooth-adres van uw apparaat in en kies het type.\n\nFabrieksstandaard werkt voor de meeste nieuwe apparaten \u2014 open **Geavanceerde opties** alleen indien nodig.",
+        "description": "Voer het Bluetooth-adres van uw apparaat in en kies het type.\n\nFabrieksstandaard werkt voor de meeste nieuwe apparaten — open **Geavanceerde opties** alleen indien nodig.",
         "data": {
           "mac_address": "Bluetooth-adres",
           "device_type": "Apparaattype",
@@ -14,10 +14,10 @@
         },
         "data_description": {
           "mac_address": "Het Bluetooth-adres dat op uw apparaat staat (formaat: XX:XX:XX:XX:XX:XX).",
-          "mesh_name": "Laat op de standaardwaarde, tenzij anders ge\u00efnstrueerd.",
-          "mesh_password": "Laat op de standaardwaarde, tenzij anders ge\u00efnstrueerd.",
-          "vendor_id": "Fabrikantidentificatie in hex. Alleen wijzigen indien ge\u00efnstrueerd.",
-          "mesh_address": "Laat op 0 staan, tenzij anders ge\u00efnstrueerd."
+          "mesh_name": "Laat op de standaardwaarde, tenzij anders geïnstrueerd.",
+          "mesh_password": "Laat op de standaardwaarde, tenzij anders geïnstrueerd.",
+          "vendor_id": "Fabrikantidentificatie in hex. Alleen wijzigen indien geïnstrueerd.",
+          "mesh_address": "Laat op 0 staan, tenzij anders geïnstrueerd."
         }
       },
       "sig_bridge": {
@@ -31,7 +31,7 @@
         "data_description": {
           "bridge_host": "Het IP-adres of de hostnaam van uw hub (bijv. uw Raspberry Pi).",
           "bridge_port": "Poort waarop de hub luistert. Standaard is 8099.",
-          "unicast_target": "Alleen wijzigen indien ge\u00efnstrueerd."
+          "unicast_target": "Alleen wijzigen indien geïnstrueerd."
         }
       },
       "telink_bridge": {
@@ -74,10 +74,10 @@
     },
     "error": {
       "invalid_mac": "Dat ziet er niet uit als een geldig Bluetooth-adres. Verwacht formaat: XX:XX:XX:XX:XX:XX.",
-      "invalid_key": "Ongeldige sleutel \u2014 we hebben precies 32 hexadecimale tekens nodig.",
+      "invalid_key": "Ongeldige sleutel — we hebben precies 32 hexadecimale tekens nodig.",
       "invalid_bridge_host": "Voer een geldig adres in, zoals 192.168.1.100 of raspberrypi.local.",
       "invalid_credential_length": "Netwerknaam en wachtwoord mogen elk maximaal 16 tekens hebben.",
-      "invalid_vendor_id": "Ongeldige fabrikantcode \u2014 gebruik 1 tot 4 hexadecimale cijfers (bijv. 0x1001).",
+      "invalid_vendor_id": "Ongeldige fabrikantcode — gebruik 1 tot 4 hexadecimale cijfers (bijv. 0x1001).",
       "cannot_connect": "Kan de hub niet bereiken. Controleer of deze aan staat en verbonden is met uw netwerk.",
       "provisioning_failed": "Kan geen verbinding maken met het apparaat. Zorg dat het aan staat en dicht bij uw Bluetooth-adapter, en probeer opnieuw.",
       "timeout": "Verbinding verlopen. Zorg dat het apparaat aan staat en dichtbij is, en probeer opnieuw.",
@@ -111,8 +111,8 @@
           "mesh_address": "Intern adres van dit apparaat. Stel in op 0 om de standaard te gebruiken.",
           "bridge_host": "Het IP-adres of de hostnaam van uw hub.",
           "bridge_port": "Poort waarop de hub luistert. Standaard is 8099.",
-          "unicast_target": "Alleen wijzigen indien ge\u00efnstrueerd.",
-          "iv_index": "Alleen wijzigen indien ge\u00efnstrueerd."
+          "unicast_target": "Alleen wijzigen indien geïnstrueerd.",
+          "iv_index": "Alleen wijzigen indien geïnstrueerd."
         }
       }
     }
@@ -140,6 +140,24 @@
       },
       "energy": {
         "name": "Energie"
+      }
+    },
+    "binary_sensor": {
+      "connectivity": {
+        "name": "Verbinding"
+      }
+    },
+    "button": {
+      "identify": {
+        "name": "Identificeer"
+      },
+      "reconnect": {
+        "name": "Opnieuw verbinden"
+      }
+    },
+    "update": {
+      "firmware_update": {
+        "name": "Firmware"
       }
     }
   },

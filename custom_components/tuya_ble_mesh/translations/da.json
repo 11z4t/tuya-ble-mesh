@@ -74,10 +74,10 @@
     },
     "error": {
       "invalid_mac": "Det ser ikke ud til at være en gyldig Bluetooth-adresse. Forventet format: XX:XX:XX:XX:XX:XX.",
-      "invalid_key": "Ugyldig nøgle \u2014 vi har brug for præcis 32 hex-tegn.",
+      "invalid_key": "Ugyldig nøgle — vi har brug for præcis 32 hex-tegn.",
       "invalid_bridge_host": "Angiv en gyldig adresse, f.eks. 192.168.1.100 eller raspberrypi.local.",
       "invalid_credential_length": "Netværksnavn og adgangskode må have højst 16 tegn hver.",
-      "invalid_vendor_id": "Ugyldig leverandørkode \u2014 brug 1 til 4 hex-cifre (f.eks. 0x1001).",
+      "invalid_vendor_id": "Ugyldig leverandørkode — brug 1 til 4 hex-cifre (f.eks. 0x1001).",
       "cannot_connect": "Kunne ikke nå hubben. Tjek at den er tændt og tilsluttet dit netværk.",
       "provisioning_failed": "Kunne ikke oprette forbindelse til enheden. Sørg for at den er tændt og tæt på din Bluetooth-adapter, og prøv derefter igen.",
       "timeout": "Forbindelsen fik timeout. Sørg for at enheden er tændt og i nærheden, og prøv derefter igen.",
@@ -140,6 +140,24 @@
       },
       "energy": {
         "name": "Energi"
+      }
+    },
+    "binary_sensor": {
+      "connectivity": {
+        "name": "Forbindelse"
+      }
+    },
+    "button": {
+      "identify": {
+        "name": "Identificer"
+      },
+      "reconnect": {
+        "name": "Genopret forbindelsen"
+      }
+    },
+    "update": {
+      "firmware_update": {
+        "name": "Firmware"
       }
     }
   },
