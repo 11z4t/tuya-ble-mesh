@@ -17,7 +17,11 @@ from typing import Any
 
 import aiohttp
 
-from tuya_ble_mesh.exceptions import MeshConnectionError, SIGMeshError
+from tuya_ble_mesh.exceptions import (
+    InvalidRequestError,
+    MeshConnectionError,
+    SIGMeshError,
+)
 from tuya_ble_mesh.logging_context import MeshLogAdapter, mesh_operation
 
 _LOGGER = MeshLogAdapter(logging.getLogger(__name__), {})
@@ -121,12 +125,12 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
             bridge_port: HTTP port of the bridge daemon.
 
         Raises:
-            ValueError: If bridge_host contains CRLF characters (injection risk).
+            InvalidRequestError: If bridge_host contains CRLF characters (injection risk).
         """
         # SECURITY: Reject CRLF to prevent HTTP header injection
         if "\r" in bridge_host or "\n" in bridge_host:
             msg = "Invalid bridge_host: contains CRLF characters"
-            raise ValueError(msg)
+            raise InvalidRequestError(msg)
 
         self._address = address.upper()
         self._target_addr = target_addr
@@ -367,12 +371,12 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
             bridge_port: HTTP port of the bridge daemon.
 
         Raises:
-            ValueError: If bridge_host contains CRLF characters (injection risk).
+            InvalidRequestError: If bridge_host contains CRLF characters (injection risk).
         """
         # SECURITY: Reject CRLF to prevent HTTP header injection
         if "\r" in bridge_host or "\n" in bridge_host:
             msg = "Invalid bridge_host: contains CRLF characters"
-            raise ValueError(msg)
+            raise InvalidRequestError(msg)
 
         self._address = address.upper()
         self._bridge_host = bridge_host
