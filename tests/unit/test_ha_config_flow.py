@@ -1081,7 +1081,7 @@ class TestRunProvision:
         mock_device = MagicMock()
         mock_device.connect = AsyncMock()
         mock_device.disconnect = AsyncMock()
-        mock_device.send_config_appkey_add = AsyncMock(return_value=True)
+        mock_device.send_config_app_key_add = AsyncMock(return_value=True)
         mock_device.send_config_model_app_bind = AsyncMock(return_value=True)
 
         with (
@@ -1114,7 +1114,7 @@ class TestRunProvision:
         mock_device = MagicMock()
         mock_device.connect = AsyncMock()
         mock_device.disconnect = AsyncMock()
-        mock_device.send_config_appkey_add = AsyncMock(return_value=False)  # FAIL
+        mock_device.send_config_app_key_add = AsyncMock(return_value=False)  # FAIL
         mock_device.send_config_model_app_bind = AsyncMock(return_value=True)
 
         with (
@@ -1144,7 +1144,7 @@ class TestRunProvision:
         mock_device = MagicMock()
         mock_device.connect = AsyncMock()
         mock_device.disconnect = AsyncMock()
-        mock_device.send_config_appkey_add = AsyncMock(return_value=True)
+        mock_device.send_config_app_key_add = AsyncMock(return_value=True)
         mock_device.send_config_model_app_bind = AsyncMock(return_value=False)  # FAIL
 
         with (
@@ -1203,7 +1203,7 @@ class TestRunProvision:
         mock_device = MagicMock()
         mock_device.connect = AsyncMock()
         mock_device.disconnect = AsyncMock()
-        mock_device.send_config_appkey_add = AsyncMock(return_value=True)
+        mock_device.send_config_app_key_add = AsyncMock(return_value=True)
         mock_device.send_config_model_app_bind = AsyncMock(return_value=True)
 
         # Capture the callbacks passed to SIGMeshProvisioner
@@ -1278,7 +1278,7 @@ class TestRunProvision:
         mock_device = MagicMock()
         mock_device.connect = AsyncMock()
         mock_device.disconnect = AsyncMock()
-        mock_device.send_config_appkey_add = AsyncMock(return_value=True)
+        mock_device.send_config_app_key_add = AsyncMock(return_value=True)
         mock_device.send_config_model_app_bind = AsyncMock(return_value=True)
 
         # Capture the callbacks passed to SIGMeshProvisioner

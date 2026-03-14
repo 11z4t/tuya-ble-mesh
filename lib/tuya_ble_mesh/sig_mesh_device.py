@@ -517,7 +517,7 @@ class SIGMeshDevice:
             self._seq += n
             return seq
 
-    async def send_config_appkey_add(
+    async def send_config_app_key_add(
         self,
         app_key: bytes,
         *,
