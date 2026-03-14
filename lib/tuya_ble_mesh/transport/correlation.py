@@ -12,6 +12,8 @@ import uuid
 from collections import namedtuple
 from typing import TYPE_CHECKING
 
+from tuya_ble_mesh.exceptions import CorrelationConflictError
+
 if TYPE_CHECKING:
     from tuya_ble_mesh.transport.request import CommandRequest
 
@@ -48,11 +50,11 @@ class CorrelationEngine:
             Correlation key for this request.
 
         Raises:
-            ValueError: If request_id is already registered.
+            CorrelationConflictError: If request_id is already registered.
         """
         if request.request_id in self._by_request_id:
             msg = f"Request {request.request_id} already registered"
-            raise ValueError(msg)
+            raise CorrelationConflictError(msg)
 
         key = CorrelationKey(
             opcode=request.expected_response_opcode or request.opcode,
