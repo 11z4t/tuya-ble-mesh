@@ -58,7 +58,7 @@ DisconnectCallback = Callable[[], Any]
 class ConnectionState(enum.Enum):
     """BLE connection state machine states.
 
-    State transitions::
+    State transitions (PLAT-402 Phase 1 Task 1.3 extended)::
 
         DISCONNECTED ──connect()──→ CONNECTING
         CONNECTING ──BLE success──→ PAIRING
@@ -68,6 +68,12 @@ class ConnectionState(enum.Enum):
 
         CONNECTING ──all retries failed──→ DISCONNECTED
         PAIRING ──provision failed──→ DISCONNECTED
+
+        Task 1.3: Extended states for degraded connections:
+        READY ──X failed writes──→ DEGRADED
+        DEGRADED ──reconnect initiated──→ RECOVERING
+        RECOVERING ──reconnect success──→ READY
+        RECOVERING ──reconnect failed──→ DISCONNECTED
     """
 
     DISCONNECTED = "disconnected"
@@ -75,6 +81,9 @@ class ConnectionState(enum.Enum):
     PAIRING = "pairing"
     READY = "ready"
     DISCONNECTING = "disconnecting"
+    # PLAT-402 Task 1.3: Degraded connection states
+    DEGRADED = "degraded"  # Connection alive but unreliable (X failed writes)
+    RECOVERING = "recovering"  # Active reconnect in progress
 
 
 class BLEConnection:
@@ -230,7 +239,7 @@ class BLEConnection:
 
         try:
             await self._connect_with_retry(timeout, max_retries)
-        except (OSError, asyncio.TimeoutError):
+        except (TimeoutError, OSError):
             self._state = ConnectionState.DISCONNECTED
             raise
 
@@ -248,7 +257,7 @@ class BLEConnection:
                 self._mesh_password,
             )
             self._session_key = bytearray(key)
-        except (ProvisioningError, OSError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, ProvisioningError, OSError) as exc:
             await self._cleanup()
             msg = f"Provisioning failed for {self._address}"
             raise MeshConnectionError(msg) from exc
@@ -346,7 +355,7 @@ class BLEConnection:
                 stderr=asyncio.subprocess.DEVNULL,
             )
             await asyncio.wait_for(proc.wait(), timeout=5.0)
-        except (OSError, asyncio.TimeoutError):
+        except (TimeoutError, OSError):
             _LOGGER.debug("bluetoothctl remove failed (ignored)", exc_info=True)
 
     async def disconnect(self) -> None:
@@ -415,7 +424,7 @@ class BLEConnection:
         for callback in self._disconnect_callbacks:
             try:
                 callback()
-            except BaseException:  # noqa: S110
+            except BaseException:
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
 
     # --- Keep-alive ---

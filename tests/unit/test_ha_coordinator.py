@@ -2229,3 +2229,63 @@ class TestDesiredConfirmedState:
         assert coord.state.green == 128
         assert coord.state.blue == 64
         assert coord.state.mode == 2
+
+
+@pytest.mark.requires_ha
+class TestExtendedConnectionState:
+    """Test PLAT-402 Task 1.3: Extended Connection State Machine."""
+
+    def test_default_device_availability_unknown(self) -> None:
+        """Default device_availability is UNKNOWN."""
+        from custom_components.tuya_ble_mesh.coordinator import DeviceAvailabilityState
+
+        state = TuyaBLEMeshDeviceState()
+        assert state.device_availability == DeviceAvailabilityState.UNKNOWN.value
+        assert state.consecutive_write_failures == 0
+        assert state.degraded_reason is None
+
+    def test_notify_sets_available(self) -> None:
+        """Successful notify sets device_availability=AVAILABLE and resets failures."""
+        from custom_components.tuya_ble_mesh.coordinator import DeviceAvailabilityState
+
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        # Set pre-existing failures
+        coord._state = replace(coord._state, consecutive_write_failures=3)
+
+        coord._on_onoff_update(True)
+
+        assert coord.state.device_availability == DeviceAvailabilityState.AVAILABLE.value
+        assert coord.state.consecutive_write_failures == 0
+        assert coord.state.degraded_reason is None
+
+    def test_assume_state_sets_assumed_online(self) -> None:
+        """assume_state() sets device_availability=ASSUMED_ONLINE."""
+        from custom_components.tuya_ble_mesh.coordinator import DeviceAvailabilityState
+
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+
+        coord.assume_state({"is_on": True}, {"is_on": True})
+
+        assert coord.state.device_availability == DeviceAvailabilityState.ASSUMED_ONLINE.value
+
+    def test_connection_state_enum_has_degraded_recovering(self) -> None:
+        """ConnectionState enum includes DEGRADED and RECOVERING."""
+        from lib.tuya_ble_mesh.connection import ConnectionState
+
+        assert hasattr(ConnectionState, "DEGRADED")
+        assert hasattr(ConnectionState, "RECOVERING")
+        assert ConnectionState.DEGRADED.value == "degraded"
+        assert ConnectionState.RECOVERING.value == "recovering"
+
+    def test_device_availability_enum_values(self) -> None:
+        """DeviceAvailabilityState enum has all required states."""
+        from custom_components.tuya_ble_mesh.coordinator import DeviceAvailabilityState
+
+        assert DeviceAvailabilityState.UNKNOWN.value == "unknown"
+        assert DeviceAvailabilityState.AVAILABLE.value == "available"
+        assert DeviceAvailabilityState.STALE.value == "stale"
+        assert DeviceAvailabilityState.ASSUMED_ONLINE.value == "assumed_online"
+        assert DeviceAvailabilityState.UNREACHABLE.value == "unreachable"
+        assert DeviceAvailabilityState.REPROVISION_REQUIRED.value == "reprovision_required"
