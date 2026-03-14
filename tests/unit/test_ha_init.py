@@ -15,7 +15,11 @@ _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
 sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
-from custom_components.tuya_ble_mesh import async_setup, async_setup_entry, async_unload_entry  # noqa: E402
+from custom_components.tuya_ble_mesh import (  # noqa: E402
+    async_setup,
+    async_setup_entry,
+    async_unload_entry,
+)
 from custom_components.tuya_ble_mesh.const import PLATFORMS  # noqa: E402
 
 

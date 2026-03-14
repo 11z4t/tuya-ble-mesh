@@ -345,7 +345,7 @@ class TestProvisionerConnect:
             "tuya_ble_mesh.sig_mesh_provisioner.BleakClient",
             return_value=mock_client,
         ), patch("asyncio.sleep", new_callable=AsyncMock):
-            with pytest.raises(ProvisioningError, match="is_connected=False"):  # noqa: SIM117
+            with pytest.raises(ProvisioningError, match="is_connected=False"):
                 await prov._connect("AA:BB:CC:DD:EE:FF", timeout=1.0, max_retries=1)
 
     @pytest.mark.asyncio

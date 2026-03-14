@@ -59,12 +59,12 @@ from tuya_ble_mesh.transport.request import CommandRequest, RetryPolicy
 from tuya_ble_mesh.transport.result import CommandResult
 
 __all__ = [
+    "AsyncCommandDispatcher",
     "CommandRequest",
     "CommandResult",
-    "RetryPolicy",
-    "AsyncCommandDispatcher",
     "CorrelationEngine",
     "CorrelationKey",
-    "TransportMetrics",
     "OpcodeStats",
+    "RetryPolicy",
+    "TransportMetrics",
 ]

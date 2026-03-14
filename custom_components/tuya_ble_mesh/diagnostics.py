@@ -258,9 +258,7 @@ async def async_get_config_entry_diagnostics(
             "brightness": device_type in (DEVICE_TYPE_LIGHT, DEVICE_TYPE_TELINK_BRIDGE_LIGHT),
             "color_temp": device_type in (DEVICE_TYPE_LIGHT, DEVICE_TYPE_TELINK_BRIDGE_LIGHT),
             "rgb": device_type in (DEVICE_TYPE_LIGHT, DEVICE_TYPE_TELINK_BRIDGE_LIGHT),
-            "power_monitoring": device_type in (
-                DEVICE_TYPE_SIG_PLUG, DEVICE_TYPE_SIG_BRIDGE_PLUG
-            ),
+            "power_monitoring": device_type in (DEVICE_TYPE_SIG_PLUG, DEVICE_TYPE_SIG_BRIDGE_PLUG),
             "rssi": not is_bridge,
             "firmware_version": True,
         }
@@ -300,9 +298,12 @@ async def async_get_config_entry_diagnostics(
             "min_rssi": min(rssi_values) if rssi_values else None,
             "max_rssi": max(rssi_values) if rssi_values else None,
             "quality_hint": (
-                "good" if current_rssi is not None and current_rssi >= -70
-                else "marginal" if current_rssi is not None and current_rssi >= -85
-                else "poor" if current_rssi is not None
+                "good"
+                if current_rssi is not None and current_rssi >= -70
+                else "marginal"
+                if current_rssi is not None and current_rssi >= -85
+                else "poor"
+                if current_rssi is not None
                 else "unknown"
             ),
         }
@@ -330,14 +331,20 @@ async def async_get_config_entry_diagnostics(
             health_details.append(f"Device reconnected {len(stats.reconnect_times)} times recently")
         elif current_rssi is not None and current_rssi < -85:
             health_summary = "Degraded (signal weak)"
-            health_details.append(f"Signal strength {current_rssi} dBm is below recommended minimum")
+            health_details.append(
+                f"Signal strength {current_rssi} dBm is below recommended minimum"
+            )
         elif stats.total_errors > 10 and stats.total_errors > stats.total_reconnects * 2:
             health_summary = "Degraded (high error rate)"
-            health_details.append(f"{stats.total_errors} errors, command error rate {diag['protocol_health']['command_error_rate']}")
+            health_details.append(
+                f"{stats.total_errors} errors, command error rate {diag['protocol_health']['command_error_rate']}"
+            )
         else:
             health_summary = "Healthy"
             if uptime_seconds and uptime_seconds > 3600:
-                health_details.append(f"Stable connection for {uptime_seconds // 3600}h {(uptime_seconds % 3600) // 60}m")
+                health_details.append(
+                    f"Stable connection for {uptime_seconds // 3600}h {(uptime_seconds % 3600) // 60}m"
+                )
             if current_rssi and current_rssi >= -70:
                 health_details.append(f"Excellent signal strength ({current_rssi} dBm)")
 

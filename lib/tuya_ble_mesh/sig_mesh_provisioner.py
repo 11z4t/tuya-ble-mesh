@@ -324,7 +324,7 @@ class SIGMeshProvisioner:
             await asyncio.sleep(_BLUEZ_CACHE_SETTLE_DELAY)
         except FileNotFoundError:
             _LOGGER.debug("bluetoothctl not found, skipping cleanup")
-        except (OSError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, OSError) as exc:
             _LOGGER.debug(
                 "Failed to clean up stale connection for %s: %s",
                 address,
@@ -473,7 +473,7 @@ class SIGMeshProvisioner:
                 # PLAT-506: Longer backoff to allow connection slot release
                 backoff = min(3.0 * (1.5 ** (attempt - 1)), 15.0)
                 await asyncio.sleep(backoff)
-            except (OSError, asyncio.TimeoutError, ValueError) as exc:
+            except (TimeoutError, OSError, ValueError) as exc:
                 last_exc = exc
                 connect_failures += 1
 
@@ -632,7 +632,7 @@ class SIGMeshProvisioner:
             if hasattr(client, "pair"):
                 _LOGGER.info("Provisioning: pairing (BlueZ bond) before GATT subscribe")
                 await asyncio.wait_for(client.pair(), timeout=10.0)
-        except (OSError, asyncio.TimeoutError) as pair_exc:
+        except (TimeoutError, OSError) as pair_exc:
             _LOGGER.warning(
                 "BlueZ pair() failed (%s: %s) — trying start_notify anyway",
                 type(pair_exc).__name__,

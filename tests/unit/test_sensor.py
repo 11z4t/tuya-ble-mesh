@@ -6,7 +6,6 @@ import sys
 import time
 from datetime import UTC, datetime
 from pathlib import Path
-from unittest.mock import MagicMock
 
 import pytest
 
@@ -28,7 +27,6 @@ from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
 )
 from custom_components.tuya_ble_mesh.sensor import (  # noqa: E402
     SENSOR_DESCRIPTIONS,
-    TuyaBLEMeshSensor,
     _connection_quality,
     _last_seen_datetime,
 )

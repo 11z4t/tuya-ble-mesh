@@ -584,9 +584,7 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):  # type: ignore[misc]
 
     # --- Step 3: advanced settings ---
 
-    async def async_step_advanced(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_advanced(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Step 3 — advanced options: debug level, timeouts, reconnect thresholds."""
         if user_input is not None:
             self._pending_data.update(user_input)
@@ -722,10 +720,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         rssi = getattr(discovery_info, "rssi", None)
 
         # Check for Telink Mesh UUID prefix
-        is_telink = any(
-            str(uuid).lower().startswith(_TELINK_UUID_PREFIX)
-            for uuid in service_uuids
-        )
+        is_telink = any(str(uuid).lower().startswith(_TELINK_UUID_PREFIX) for uuid in service_uuids)
 
         # Auto-detect device label for discovery card
         if is_sig:
@@ -755,9 +750,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
         # Check device is still actively advertising (stale discovery protection)
         if self._is_device_stale(address):
-            _LOGGER.warning(
-                "Device %s not actively advertising, aborting stale discovery", address
-            )
+            _LOGGER.warning("Device %s not actively advertising, aborting stale discovery", address)
             return self.async_abort(reason="device_not_available")
 
         self._discovery_info = {
@@ -786,7 +779,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             type_label = "Plug" if detected_type == DEVICE_TYPE_PLUG else "Light"
             _LOGGER.info(
                 "Telink UUID device — zero-knowledge auto-create: %s as %s",
-                address, detected_type,
+                address,
+                detected_type,
             )
             return self.async_create_entry(
                 title=f"BLE {type_label} {short_mac}",
@@ -845,7 +839,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
             _LOGGER.info(
                 "Confirm flow: creating entry for %s as %s (zero-knowledge)",
-                mac, device_type,
+                mac,
+                device_type,
             )
             return self.async_create_entry(
                 title=f"BLE Mesh {type_label} {short_mac}",
@@ -861,16 +856,19 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
 
         return self.async_show_form(
             step_id="confirm",
-            data_schema=vol.Schema({
-                vol.Optional(
-                    CONF_DEVICE_TYPE,
-                    default=disc.get("auto_device_type", DEVICE_TYPE_LIGHT),
-                ): vol.In({
-                        DEVICE_TYPE_LIGHT: "Light",
-                        DEVICE_TYPE_PLUG: "Plug",
-                    }
-                ),
-            }),
+            data_schema=vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_DEVICE_TYPE,
+                        default=disc.get("auto_device_type", DEVICE_TYPE_LIGHT),
+                    ): vol.In(
+                        {
+                            DEVICE_TYPE_LIGHT: "Light",
+                            DEVICE_TYPE_PLUG: "Plug",
+                        }
+                    ),
+                }
+            ),
             description_placeholders={
                 "name": disc.get("display_name", disc.get("name", "Unknown")),
                 "mac": disc.get("address", ""),
@@ -959,9 +957,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     ),
                     vol.Optional(CONF_MESH_NAME, default=DEFAULT_FACTORY_MESH_NAME): str,
                     # pragma: allowlist secret
-                    vol.Optional(
-                        CONF_MESH_PASSWORD, default=DEFAULT_FACTORY_MESH_PASSWORD
-                    ): str,
+                    vol.Optional(CONF_MESH_PASSWORD, default=DEFAULT_FACTORY_MESH_PASSWORD): str,
                     vol.Optional(CONF_VENDOR_ID, default=DEFAULT_VENDOR_ID): str,
                     vol.Optional(CONF_MESH_ADDRESS, default=DEFAULT_MESH_ADDRESS): int,
                 }
@@ -1020,6 +1016,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                         ProvisioningError,
                     )
                     from tuya_ble_mesh.exceptions import TimeoutError as MeshTimeoutError
+
                     if isinstance(exc, DeviceNotFoundError):
                         error_key = "device_not_found"
                     elif isinstance(exc, MeshTimeoutError):
@@ -1101,9 +1098,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
         ):
             _logging.getLogger(_log_name).setLevel(_logging.DEBUG)
 
-        _LOGGER.warning(
-            "[SIG-PAIR] ===== SIG PROVISIONING START for %s (v0.25.20) =====", mac
-        )
+        _LOGGER.warning("[SIG-PAIR] ===== SIG PROVISIONING START for %s (v0.25.20) =====", mac)
         _LOGGER.warning(
             "[SIG-PAIR] unicast=0x%04X, iv_index=%d, adapter=hci0",
             _UNICAST_DEVICE_DEFAULT,
@@ -1123,6 +1118,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 return None
             try:
                 from homeassistant.components.bluetooth import async_ble_device_from_address
+
                 device = async_ble_device_from_address(_hass, address, connectable=True)
                 if device is None:
                     device = async_ble_device_from_address(_hass, address, connectable=False)
@@ -1141,6 +1137,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             """
             import bleak_retry_connector
             from bleak.backends.bluezdbus.client import BleakClientBlueZDBus
+
             return await bleak_retry_connector.establish_connection(
                 BleakClientBlueZDBus,
                 ble_device,
@@ -1203,7 +1200,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                     extra_delay = _POST_PROV_RETRY_DELAY_MULTIPLIER * attempt
                     _LOGGER.warning(
                         "[SIG-PAIR] Post-prov retry %d, waiting %.0fs extra...",
-                        attempt + 1, extra_delay,
+                        attempt + 1,
+                        extra_delay,
                     )
                     await asyncio.sleep(extra_delay)
 
@@ -1229,6 +1227,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 # Send timestamp sync to finalize Tuya vendor setup
                 try:
                     from tuya_ble_mesh.sig_mesh_protocol import tuya_vendor_timestamp_response
+
                     ts_payload = tuya_vendor_timestamp_response()
                     await device.send_vendor_command(ts_payload)
                     _LOGGER.warning("[SIG-PAIR] Timestamp sync sent to %s", mac)
@@ -1238,14 +1237,17 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
                 post_prov_ok = True
                 _LOGGER.warning(
                     "[SIG-PAIR] Post-provisioning config OK for %s (appkey=%s, bind=%s)",
-                    mac, appkey_ok, bind_ok,
+                    mac,
+                    appkey_ok,
+                    bind_ok,
                 )
                 break
 
             except Exception:
                 _LOGGER.warning(
                     "[SIG-PAIR] Post-prov attempt %d failed for %s",
-                    attempt + 1, mac,
+                    attempt + 1,
+                    mac,
                     exc_info=True,
                 )
                 # Do NOT disconnect here — the final disconnect below handles cleanup.
@@ -1359,9 +1361,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             errors=errors,
         )
 
-    async def async_step_reconfigure(
-        self, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
+    async def async_step_reconfigure(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Handle user-initiated reconfiguration of connection settings.
 
         Allows updating bridge host/port (bridge devices) or mesh name/
@@ -1489,10 +1489,18 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[misc, ca
             if not errors:
                 # Split user_input: identity/credentials → data, tunables → options
                 identity_keys = {
-                    CONF_MAC_ADDRESS, CONF_DEVICE_TYPE, CONF_UNICAST_TARGET,
-                    CONF_UNICAST_OUR, CONF_NET_KEY, CONF_DEV_KEY, CONF_APP_KEY,
-                    CONF_MESH_NAME, CONF_MESH_PASSWORD, CONF_VENDOR_ID,
-                    CONF_IV_INDEX, CONF_MESH_ADDRESS,
+                    CONF_MAC_ADDRESS,
+                    CONF_DEVICE_TYPE,
+                    CONF_UNICAST_TARGET,
+                    CONF_UNICAST_OUR,
+                    CONF_NET_KEY,
+                    CONF_DEV_KEY,
+                    CONF_APP_KEY,
+                    CONF_MESH_NAME,
+                    CONF_MESH_PASSWORD,
+                    CONF_VENDOR_ID,
+                    CONF_IV_INDEX,
+                    CONF_MESH_ADDRESS,
                 }
                 data_updates = {k: v for k, v in user_input.items() if k in identity_keys}
                 options_updates = {k: v for k, v in user_input.items() if k not in identity_keys}

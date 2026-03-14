@@ -28,6 +28,8 @@ from bleak.exc import BleakError
 
 from tuya_ble_mesh.exceptions import (
     ConnectionError as MeshConnectionError,
+)
+from tuya_ble_mesh.exceptions import (
     MalformedPacketError,
     SecretAccessError,
     SIGMeshError,
@@ -1163,7 +1165,7 @@ class SIGMeshDevice:
             for callback in list(self._onoff_callbacks):
                 try:
                     callback(on_state)
-                except BaseException:  # noqa: S110
+                except BaseException:
                     _LOGGER.warning("OnOff callback error", exc_info=True)
         elif opcode == _OPCODE_COMPOSITION_STATUS:
             self._handle_composition_data(params)
@@ -1178,7 +1180,7 @@ class SIGMeshDevice:
             for vcb in list(self._vendor_callbacks):
                 try:
                     vcb(opcode, params)
-                except BaseException:  # noqa: S110
+                except BaseException:
                     _LOGGER.warning("Vendor callback error", exc_info=True)
         else:
             _LOGGER.debug(
@@ -1216,7 +1218,7 @@ class SIGMeshDevice:
         for callback in list(self._composition_callbacks):
             try:
                 callback(comp)
-            except BaseException:  # noqa: S110
+            except BaseException:
                 _LOGGER.warning("Composition callback error", exc_info=True)
 
     def _on_ble_disconnect(self, _client: BleakClient) -> None:
@@ -1230,7 +1232,7 @@ class SIGMeshDevice:
         for callback in list(self._disconnect_callbacks):
             try:
                 callback()
-            except BaseException:  # noqa: S110
+            except BaseException:
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
 
     async def _bluetoothctl_remove(self) -> None:
@@ -1244,5 +1246,5 @@ class SIGMeshDevice:
                 stderr=asyncio.subprocess.DEVNULL,
             )
             await asyncio.wait_for(process.wait(), timeout=5)
-        except (OSError, asyncio.TimeoutError):
+        except (TimeoutError, OSError):
             _LOGGER.debug("bluetoothctl remove failed (ignored)", exc_info=True)
