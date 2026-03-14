@@ -1704,8 +1704,7 @@ class TestLogConnectMetrics:
         callback.assert_called_once()
         # Log should mention listener count
         assert any(
-            "1" in record.message and "listener" in record.message
-            for record in caplog.records
+            "1" in record.message and "listener" in record.message for record in caplog.records
         )
 
 
@@ -2118,7 +2117,7 @@ class TestFrozenState:
         assert isinstance(coord._command_semaphore, asyncio.Semaphore)
 
     def test_listeners_initialized_in_init(self) -> None:
-        """_standalone_listeners and _listener_error_counts must be initialized in __init__, not lazily."""
+        """_standalone_listeners and _listener_error_counts must be initialized."""
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
 
@@ -2126,3 +2125,107 @@ class TestFrozenState:
         assert isinstance(coord._standalone_listeners, list)
         assert isinstance(coord._listener_error_counts, dict)
         assert len(coord._standalone_listeners) == 0
+
+
+@pytest.mark.requires_ha
+class TestDesiredConfirmedState:
+    """Test PLAT-402 Task 1.2: Desired vs Confirmed State Model."""
+
+    def test_default_state_fields(self) -> None:
+        """Default state includes desired/confirmed state tracking fields."""
+        from custom_components.tuya_ble_mesh.coordinator import StateUpdateSource
+
+        state = TuyaBLEMeshDeviceState()
+        assert state.desired_state == {}
+        assert state.last_sent_state == {}
+        assert state.last_confirmed_state == {}
+        assert state.state_confidence == 0.0
+        assert state.last_update_source == StateUpdateSource.ASSUMED.value
+        assert state.last_update_time is None
+
+    def test_assume_state_sets_low_confidence(self) -> None:
+        """assume_state() sets confidence=0.3 and source=ASSUMED."""
+        from custom_components.tuya_ble_mesh.coordinator import StateUpdateSource
+
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+
+        desired = {"is_on": True, "brightness": 100}
+        sent = {"is_on": True, "brightness": 100}
+        coord.assume_state(desired, sent)
+
+        assert coord.state.desired_state == desired
+        assert coord.state.last_sent_state == sent
+        assert coord.state.state_confidence == 0.3
+        assert coord.state.last_update_source == StateUpdateSource.ASSUMED.value
+        assert coord.state.last_update_time is not None
+        assert coord.state.is_on is True
+        assert coord.state.brightness == 100
+
+    def test_on_status_update_sets_confirmed(self) -> None:
+        """_on_status_update() sets confidence=1.0 and source=NOTIFY."""
+        from custom_components.tuya_ble_mesh.coordinator import StateUpdateSource
+
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        status = make_mock_status(mode=1, white_brightness=200, white_temp=30)
+
+        coord._on_status_update(status)
+
+        assert coord.state.state_confidence == 1.0
+        assert coord.state.last_update_source == StateUpdateSource.NOTIFY.value
+        assert "brightness" in coord.state.last_confirmed_state
+        assert coord.state.last_confirmed_state["brightness"] == 200
+
+    def test_on_onoff_update_sets_confirmed(self) -> None:
+        """_on_onoff_update() sets confidence=1.0 and source=NOTIFY."""
+        from custom_components.tuya_ble_mesh.coordinator import StateUpdateSource
+
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+
+        coord._on_onoff_update(True)
+
+        assert coord.state.state_confidence == 1.0
+        assert coord.state.last_update_source == StateUpdateSource.NOTIFY.value
+        assert coord.state.last_confirmed_state == {"is_on": True}
+
+    def test_assumed_then_confirmed_increases_confidence(self) -> None:
+        """Assumed state (0.3) followed by notify (1.0) demonstrates confidence increase."""
+        from custom_components.tuya_ble_mesh.coordinator import StateUpdateSource
+
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+
+        # Step 1: Assume state
+        coord.assume_state({"is_on": True}, {"is_on": True})
+        assert coord.state.state_confidence == 0.3
+
+        # Step 2: Device confirms
+        coord._on_onoff_update(True)
+        assert coord.state.state_confidence == 1.0
+        assert coord.state.last_update_source == StateUpdateSource.NOTIFY.value
+
+    def test_assume_state_merges_fields(self) -> None:
+        """assume_state() merges sent fields into current state."""
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+
+        sent = {
+            "is_on": True,
+            "brightness": 150,
+            "color_temp": 40,
+            "red": 255,
+            "green": 128,
+            "blue": 64,
+            "mode": 2,
+        }
+        coord.assume_state({}, sent)
+
+        assert coord.state.is_on is True
+        assert coord.state.brightness == 150
+        assert coord.state.color_temp == 40
+        assert coord.state.red == 255
+        assert coord.state.green == 128
+        assert coord.state.blue == 64
+        assert coord.state.mode == 2
