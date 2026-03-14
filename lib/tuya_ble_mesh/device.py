@@ -68,6 +68,7 @@ MESH_ADDRESS_DEFAULT = 0
 # Command queue limits
 _QUEUE_MAX_SIZE = 32
 _COMMAND_TTL = 60.0  # seconds
+_QUEUE_POLL_INTERVAL = 1.0  # seconds between queue.get() polls (allows checking _running)
 
 # Command retry backoff parameters
 _COMMAND_RETRY_INITIAL_BACKOFF = 0.5
@@ -189,7 +190,7 @@ class _CommandDispatcher:
             try:
                 # Wait for a command with a short timeout to allow checking _running
                 try:
-                    cmd = await asyncio.wait_for(self._queue.get(), timeout=1.0)
+                    cmd = await asyncio.wait_for(self._queue.get(), timeout=_QUEUE_POLL_INTERVAL)
                 except TimeoutError:
                     continue
 
@@ -240,7 +241,7 @@ class _CommandDispatcher:
             except asyncio.CancelledError:
                 _LOGGER.debug("Command dispatcher worker cancelled")
                 raise
-            except BaseException:
+            except Exception:
                 _LOGGER.error("Command dispatcher worker error", exc_info=True)
 
         _LOGGER.debug("Command dispatcher worker stopped")
@@ -407,7 +408,7 @@ class MeshDevice:
         for callback in list(self._status_callbacks):
             try:
                 callback(status)
-            except BaseException:
+            except Exception:
                 _LOGGER.warning("Status callback error", exc_info=True)
 
     def _on_disconnect(self) -> None:
@@ -417,7 +418,7 @@ class MeshDevice:
         for callback in list(self._disconnect_callbacks):
             try:
                 callback()
-            except BaseException:
+            except Exception:
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
 
     async def connect(
