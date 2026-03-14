@@ -43,6 +43,48 @@ PROXY_TYPE_NETWORK = 0x00
 MAX_UNSEG_ACCESS_PAYLOAD = 11  # 15 byte upper transport - 4 byte TransMIC
 SEG_DATA_SIZE = 12  # max bytes per segment chunk
 
+# --- Network PDU field masks and lengths ---
+MESH_NID_MASK = 0x7F       # 7-bit Network ID (bits [6:0] of IVI/NID byte)
+MESH_IVI_SHIFT = 7         # IV Index bit position in IVI/NID byte
+MESH_TTL_MASK = 0x7F       # 7-bit TTL (bits [6:0] of CTL/TTL byte)
+MESH_CTL_SHIFT = 7         # CTL bit position in CTL/TTL byte
+MIC_LEN_ACCESS = 4         # 4-byte TransMIC for access messages
+MIC_LEN_CONTROL = 8        # 8-byte NetMIC for control messages
+
+# --- Lower transport header masks ---
+MESH_SEG_BIT = 0x80        # SEG flag (bit 7) in transport header byte
+MESH_AKF_SHIFT = 6         # AKF bit position in transport header byte
+MESH_AID_MASK = 0x3F       # 6-bit AID (bits [5:0] of transport header byte)
+
+# --- Segmented transport header bit positions (24-bit info field) ---
+MESH_SZMIC_SHIFT = 23      # SZMIC bit position
+MESH_SEQ_ZERO_SHIFT = 10   # SeqZero field start (13 bits)
+MESH_SEQ_ZERO_MASK = 0x1FFF  # 13-bit sequence zero mask
+MESH_SEG_O_SHIFT = 5       # SegO field start (5 bits)
+MESH_SEG_MASK = 0x1F       # 5-bit segment index mask (SegO and SegN)
+
+# --- Proxy PDU header masks ---
+PROXY_SAR_MASK = 0x03      # 2-bit SAR field (bits [7:6] after shift)
+PROXY_TYPE_MASK = 0x3F     # 6-bit PDU type field (bits [5:0])
+
+# --- Access layer opcode format bits (Mesh Profile 3.7.3) ---
+MESH_OPCODE_1BYTE_MASK = 0x80   # If bit 7 = 0, 1-byte opcode
+MESH_OPCODE_2BYTE_MASK = 0xC0   # If bits [7:6] = 10, 2-byte opcode
+MESH_OPCODE_2BYTE_VALUE = 0x80  # The 2-byte opcode discriminator value
+
+# --- Config model opcodes (SIG Mesh Profile 4.3) ---
+OP_CONFIG_COMPOSITION_GET = 0x8008    # Config Composition Data Get
+OP_CONFIG_COMPOSITION_STATUS = 0x02   # Config Composition Data Status
+OP_CONFIG_APPKEY_ADD = 0x0000         # Config AppKey Add (opcode 0x00)
+OP_CONFIG_APPKEY_STATUS = 0x8003      # Config AppKey Status
+OP_CONFIG_MODEL_APP_BIND = 0x803D     # Config Model App Bind
+OP_CONFIG_MODEL_APP_STATUS = 0x803E   # Config Model App Status
+
+# --- Generic OnOff model opcodes (Mesh Model 3.2) ---
+OP_GENERIC_ONOFF_GET = 0x8201         # Generic OnOff Get
+OP_GENERIC_ONOFF_SET = 0x8202         # Generic OnOff Set (acknowledged)
+OP_GENERIC_ONOFF_STATUS = 0x8204      # Generic OnOff Status
+
 
 # ============================================================
 # Mesh Keys
@@ -153,13 +195,13 @@ def encrypt_network_pdu(
         Complete network PDU with IVI/NID header, obfuscated fields,
         and encrypted payload.
     """
-    ctl_ttl = ((ctl & 1) << 7) | (ttl & 0x7F)
+    ctl_ttl = ((ctl & 1) << MESH_CTL_SHIFT) | (ttl & MESH_TTL_MASK)
     nonce = _make_network_nonce(ctl_ttl, seq, src, iv_index)
     plaintext = struct.pack(">H", dst) + transport_pdu
-    mic_len = 8 if ctl else 4
+    mic_len = MIC_LEN_CONTROL if ctl else MIC_LEN_ACCESS
     encrypted = mesh_aes_ccm_encrypt(enc_key, nonce, plaintext, mic_len)
 
-    ivi_nid = ((iv_index & 1) << 7) | (nid & 0x7F)
+    ivi_nid = ((iv_index & 1) << MESH_IVI_SHIFT) | (nid & MESH_NID_MASK)
     header = bytes([ivi_nid, ctl_ttl]) + struct.pack(">I", seq)[1:] + struct.pack(">H", src)
 
     # Privacy obfuscation (Mesh Profile 3.8.7.3)
@@ -205,7 +247,7 @@ def decrypt_network_pdu(
     if len(pdu) < 10:
         return None
 
-    if pdu[0] & 0x7F != nid:
+    if pdu[0] & MESH_NID_MASK != nid:
         return None
 
     encrypted_data = pdu[7:]
@@ -217,13 +259,13 @@ def decrypt_network_pdu(
     deobfuscated = bytes(a ^ b for a, b in zip(pdu[1:7], pecb[:6], strict=True))
 
     ctl_ttl = deobfuscated[0]
-    ctl = (ctl_ttl >> 7) & 1
-    ttl = ctl_ttl & 0x7F
+    ctl = (ctl_ttl >> MESH_CTL_SHIFT) & 1
+    ttl = ctl_ttl & MESH_TTL_MASK
     seq = (deobfuscated[1] << 16) | (deobfuscated[2] << 8) | deobfuscated[3]
     src = (deobfuscated[4] << 8) | deobfuscated[5]
 
     nonce = _make_network_nonce(ctl_ttl, seq, src, iv_index)
-    mic_len = 8 if ctl else 4
+    mic_len = MIC_LEN_CONTROL if ctl else MIC_LEN_ACCESS
 
     try:
         plaintext = mesh_aes_ccm_decrypt(enc_key, nonce, encrypted_data, mic_len)
@@ -308,8 +350,8 @@ def make_access_unsegmented(
         raise ProtocolError(msg)
 
     nonce = _make_app_nonce(akf, 0, seq, src, dst, iv_index)
-    encrypted = mesh_aes_ccm_encrypt(key, nonce, access_payload, 4)
-    hdr = (akf << 6) | (aid & 0x3F)  # SEG=0
+    encrypted = mesh_aes_ccm_encrypt(key, nonce, access_payload, MIC_LEN_ACCESS)
+    hdr = (akf << MESH_AKF_SHIFT) | (aid & MESH_AID_MASK)  # SEG=0
     return bytes([hdr]) + encrypted
 
 
@@ -344,19 +386,19 @@ def make_access_segmented(
         List of (sequence_number, transport_pdu) tuples, one per segment.
     """
     nonce = _make_app_nonce(akf, szmic, seq_start, src, dst, iv_index)
-    mic_len = 8 if szmic else 4
+    mic_len = MIC_LEN_CONTROL if szmic else MIC_LEN_ACCESS
     upper_transport = mesh_aes_ccm_encrypt(key, nonce, access_payload, mic_len)
 
     n_segs = (len(upper_transport) + SEG_DATA_SIZE - 1) // SEG_DATA_SIZE
     seg_n = n_segs - 1
-    seq_zero = seq_start & 0x1FFF
+    seq_zero = seq_start & MESH_SEQ_ZERO_MASK
 
     segments: list[tuple[int, bytes]] = []
     for seg_o in range(n_segs):
         chunk = upper_transport[seg_o * SEG_DATA_SIZE : (seg_o + 1) * SEG_DATA_SIZE]
-        hdr = 0x80 | (akf << 6) | (aid & 0x3F)  # SEG=1
+        hdr = MESH_SEG_BIT | (akf << MESH_AKF_SHIFT) | (aid & MESH_AID_MASK)  # SEG=1
         # SZMIC(1) | SeqZero(13) | SegO(5) | SegN(5) = 24 bits
-        info = (szmic << 23) | (seq_zero << 10) | (seg_o << 5) | seg_n
+        info = (szmic << MESH_SZMIC_SHIFT) | (seq_zero << MESH_SEQ_ZERO_SHIFT) | (seg_o << MESH_SEG_O_SHIFT) | seg_n
         transport_pdu = bytes([hdr]) + struct.pack(">I", info)[1:] + chunk
         segments.append((seq_start + seg_o, transport_pdu))
 
@@ -396,19 +438,19 @@ def parse_segment_header(transport_pdu: bytes) -> SegmentHeader:
         raise MalformedPacketError(msg)
 
     hdr = transport_pdu[0]
-    if not (hdr & 0x80):
+    if not (hdr & MESH_SEG_BIT):
         msg = "Not a segmented PDU (SEG bit not set)"
         raise MalformedPacketError(msg)
 
-    akf = (hdr >> 6) & 1
-    aid = hdr & 0x3F
+    akf = (hdr >> MESH_AKF_SHIFT) & 1
+    aid = hdr & MESH_AID_MASK
 
     # 3 bytes: SZMIC(1) | SeqZero(13) | SegO(5) | SegN(5) = 24 bits
     info = (transport_pdu[1] << 16) | (transport_pdu[2] << 8) | transport_pdu[3]
-    szmic = (info >> 23) & 1
-    seq_zero = (info >> 10) & 0x1FFF
-    seg_o = (info >> 5) & 0x1F
-    seg_n = info & 0x1F
+    szmic = (info >> MESH_SZMIC_SHIFT) & 1
+    seq_zero = (info >> MESH_SEQ_ZERO_SHIFT) & MESH_SEQ_ZERO_MASK
+    seg_o = (info >> MESH_SEG_O_SHIFT) & MESH_SEG_MASK
+    seg_n = info & MESH_SEG_MASK
 
     return SegmentHeader(
         akf=akf,
@@ -465,7 +507,7 @@ def reassemble_and_decrypt_segments(
         _LOGGER.debug("No %s key for segmented decryption", "app" if akf else "dev")
         return None
 
-    mic_len = 8 if szmic else 4
+    mic_len = MIC_LEN_CONTROL if szmic else MIC_LEN_ACCESS
     nonce = _make_app_nonce(akf, szmic, seq_zero, src, dst, keys.iv_index)
 
     try:
@@ -512,9 +554,9 @@ def decrypt_access_payload(
         return None
 
     hdr = transport_pdu[0]
-    seg = bool((hdr >> 7) & 1)
-    akf = (hdr >> 6) & 1
-    aid = hdr & 0x3F
+    seg = bool(hdr & MESH_SEG_BIT)
+    akf = (hdr >> MESH_AKF_SHIFT) & 1
+    aid = hdr & MESH_AID_MASK
 
     if seg:
         return AccessMessage(seg=True, akf=akf, aid=aid, access_payload=None, raw=transport_pdu)
@@ -527,7 +569,7 @@ def decrypt_access_payload(
 
     nonce = _make_app_nonce(akf, 0, seq, src, dst, keys.iv_index)
     try:
-        access_payload = mesh_aes_ccm_decrypt(key, nonce, encrypted_upper, 4)
+        access_payload = mesh_aes_ccm_decrypt(key, nonce, encrypted_upper, MIC_LEN_ACCESS)
     except CryptoError:
         _LOGGER.debug("Upper transport decryption failed (akf=%d)", akf)
         return None
@@ -579,8 +621,8 @@ def parse_proxy_pdu(data: bytes) -> ProxyPDU:
         msg = "Empty proxy PDU"
         raise MalformedPacketError(msg)
     return ProxyPDU(
-        sar=(data[0] >> 6) & 0x03,
-        pdu_type=data[0] & 0x3F,
+        sar=(data[0] >> 6) & PROXY_SAR_MASK,
+        pdu_type=data[0] & PROXY_TYPE_MASK,
         payload=data[1:],
     )
 
@@ -602,7 +644,7 @@ def config_composition_get(page: int = 0) -> bytes:
     if not 0 <= page <= 0xFF:
         msg = f"Page must be 0..255, got {page}"
         raise ProtocolError(msg)
-    return b"\x80\x08" + bytes([page])
+    return struct.pack(">H", OP_CONFIG_COMPOSITION_GET) + bytes([page])
 
 
 def config_appkey_add(
@@ -633,7 +675,7 @@ def config_appkey_add(
         raise ProtocolError(msg)
     # NetKeyIndex(12) + AppKeyIndex(12) packed into 3 bytes LE
     idx = (net_idx & 0xFFF) | ((app_idx & 0xFFF) << 12)
-    return b"\x00" + struct.pack("<I", idx)[:3] + app_key
+    return bytes([OP_CONFIG_APPKEY_ADD]) + struct.pack("<I", idx)[:3] + app_key
 
 
 def config_model_app_bind(
@@ -667,7 +709,7 @@ def config_model_app_bind(
     if not 0 <= model_id <= 0xFFFF:
         msg = f"model_id must be 0..0xFFFF, got {model_id}"
         raise ProtocolError(msg)
-    return b"\x80\x3d" + struct.pack("<HHH", element_addr, app_idx, model_id)
+    return struct.pack(">H", OP_CONFIG_MODEL_APP_BIND) + struct.pack("<HHH", element_addr, app_idx, model_id)
 
 
 # ============================================================
@@ -685,7 +727,7 @@ def generic_onoff_set(on: bool, tid: int = 0) -> bytes:
     Returns:
         Access layer payload.
     """
-    return b"\x82\x02" + bytes([0x01 if on else 0x00, tid & 0xFF])
+    return struct.pack(">H", OP_GENERIC_ONOFF_SET) + bytes([0x01 if on else 0x00, tid & 0xFF])
 
 
 def generic_onoff_get() -> bytes:
@@ -694,7 +736,7 @@ def generic_onoff_get() -> bytes:
     Returns:
         Access layer payload.
     """
-    return b"\x82\x01"
+    return struct.pack(">H", OP_GENERIC_ONOFF_GET)
 
 
 # ============================================================
@@ -723,10 +765,10 @@ def parse_access_opcode(data: bytes) -> tuple[int, bytes]:
         msg = "Empty access payload"
         raise MalformedPacketError(msg)
 
-    if data[0] & 0x80 == 0:
+    if data[0] & MESH_OPCODE_1BYTE_MASK == 0:
         # 1-byte opcode
         return data[0], data[1:]
-    elif data[0] & 0xC0 == 0x80:
+    elif data[0] & MESH_OPCODE_2BYTE_MASK == MESH_OPCODE_2BYTE_VALUE:
         # 2-byte opcode
         if len(data) < 2:
             msg = "2-byte opcode truncated"
@@ -846,9 +888,7 @@ def tuya_vendor_timestamp_response() -> bytes:
 
     # Signed timezone offset in hours from UTC
     tz_offset = time.timezone // -3600 if not time.daylight else time.altzone // -3600
-    tz_byte = (
-        tz_offset.to_bytes(1, "big", signed=True) if -12 <= tz_offset <= 14 else b"\x00"
-    )
+    tz_byte = tz_offset.to_bytes(1, "big", signed=True) if -12 <= tz_offset <= 14 else b"\x00"
     # Pad to 8 data bytes (observed in Tuya app traces)
     data = ts_bytes + tz_byte + b"\x00\x00\x00"
     frame = bytes([TUYA_CMD_TIMESTAMP_SYNC, len(data)]) + data
@@ -985,12 +1025,12 @@ def format_status_response(opcode: int, params: bytes) -> str:
     Returns:
         Human-readable status string.
     """
-    if opcode == 0x8003:  # Config AppKey Status
+    if opcode == OP_CONFIG_APPKEY_STATUS:  # Config AppKey Status
         status = params[0] if params else 0xFF
         name = _CONFIG_STATUS_NAMES.get(status, f"Unknown(0x{status:02X})")
         return f"AppKey Status: {name}"
 
-    if opcode == 0x803E:  # Config Model App Status
+    if opcode == OP_CONFIG_MODEL_APP_STATUS:  # Config Model App Status
         status = params[0] if params else 0xFF
         bind_status: dict[int, str] = {
             0x00: "Success",
@@ -1002,11 +1042,11 @@ def format_status_response(opcode: int, params: bytes) -> str:
         name = bind_status.get(status, f"Unknown(0x{status:02X})")
         return f"Model App Status: {name}"
 
-    if opcode == 0x02:  # Config Composition Data Status
+    if opcode == OP_CONFIG_COMPOSITION_STATUS:  # Config Composition Data Status
         page = params[0] if params else 0xFF
         return f"Composition Data: page={page} ({len(params) - 1} bytes)"
 
-    if opcode == 0x8204:  # Generic OnOff Status
+    if opcode == OP_GENERIC_ONOFF_STATUS:  # Generic OnOff Status
         state = params[0] if params else 0xFF
         msg = f"OnOff Status: {'ON' if state else 'OFF'}"
         if len(params) >= 3:

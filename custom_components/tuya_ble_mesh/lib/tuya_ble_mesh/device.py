@@ -18,6 +18,7 @@ Only operation names, lengths, and success/failure status are safe to log.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import time
 from collections.abc import Callable
@@ -42,7 +43,9 @@ from tuya_ble_mesh.const import (
 from tuya_ble_mesh.exceptions import (
     CommandQueueFullError,
     ConnectionError,
+    CryptoError,
     DisconnectedError,
+    MalformedPacketError,
     ProtocolError,
 )
 from tuya_ble_mesh.protocol import (
@@ -65,6 +68,7 @@ MESH_ADDRESS_DEFAULT = 0
 # Command queue limits
 _QUEUE_MAX_SIZE = 32
 _COMMAND_TTL = 60.0  # seconds
+_QUEUE_POLL_INTERVAL = 1.0  # seconds between queue.get() polls (allows checking _running)
 
 # Status callback type
 StatusCallback = Callable[[StatusResponse], Any]
@@ -146,10 +150,8 @@ class _CommandDispatcher:
         self._running = False
         if self._worker_task is not None:
             self._worker_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._worker_task
-            except asyncio.CancelledError:
-                pass
         # Drain any remaining items from the queue
         while not self._queue.empty():
             try:
@@ -184,7 +186,7 @@ class _CommandDispatcher:
             try:
                 # Wait for a command with a short timeout to allow checking _running
                 try:
-                    cmd = await asyncio.wait_for(self._queue.get(), timeout=1.0)
+                    cmd = await asyncio.wait_for(self._queue.get(), timeout=_QUEUE_POLL_INTERVAL)
                 except TimeoutError:
                     continue
 
@@ -223,7 +225,7 @@ class _CommandDispatcher:
                 # Send the command
                 try:
                     await self._device._send_now(cmd.opcode, cmd.params, cmd.dest_id)
-                except Exception:
+                except (ConnectionError, DisconnectedError):
                     _LOGGER.warning(
                         "Command 0x%02X send failed, dropping",
                         cmd.opcode,
@@ -364,7 +366,7 @@ class MeshDevice:
         try:
             decrypted = decrypt_notification(key, self._mac_bytes, bytes(data))
             status = decode_status(decrypted)
-        except Exception:
+        except (CryptoError, MalformedPacketError):
             _LOGGER.warning("Failed to decode notification (%d bytes)", len(data), exc_info=True)
             return
 
@@ -492,7 +494,7 @@ class MeshDevice:
                 return
             except DisconnectedError:
                 raise
-            except Exception as exc:
+            except (ConnectionError, OSError) as exc:
                 last_error = exc
                 if attempt >= max_retries:
                     break
@@ -511,7 +513,6 @@ class MeshDevice:
             raise last_error
         msg = f"Command 0x{opcode:02X} failed after {max_retries} attempts"
         raise ConnectionError(msg)
-
 
     # --- High-level commands (0xD2 compact DP format) ---
 
