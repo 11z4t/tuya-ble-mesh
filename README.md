@@ -2,7 +2,7 @@
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?logo=homeassistantcommunitystore)](https://github.com/hacs/integration)
 [![CI](https://github.com/kvista-se/tuya-ble-mesh/actions/workflows/ci.yml/badge.svg)](https://github.com/kvista-se/tuya-ble-mesh/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.25.21-blue.svg)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-0.26.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![HA 2024.1+](https://img.shields.io/badge/HA-2024.1%2B-blue.svg)](https://www.home-assistant.io)
 
@@ -133,7 +133,7 @@ Different brands embed different vendor IDs in the Telink mesh protocol:
 | AwoX | `0x0160` |
 | Dimond/retsimx | `0x0211` |
 
-If commands don't work with the default, check BLE snoop logs for vendor bytes at payload offset `[3:5]`.
+If commands don't work with the default, try `0x0160` (AwoX) or `0x0211` (Dimond). Contact the integration maintainers with your device's brand and model if none of these work.
 
 ## Entities
 
@@ -201,21 +201,18 @@ The core library can be used independently — for scripts, testing, or other pl
 ## Development
 
 ```bash
-# Activate virtual environment
-source ~/malmbergs-ble/bin/activate
-cd ~/malmbergs-bt
+# Clone and set up virtual environment
+git clone https://github.com/11z4t/tuya-ble-mesh.git
+cd tuya-ble-mesh
+python -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 
 # Run full check pipeline (must pass before committing)
 bash scripts/run-checks.sh
 
 # Scan for nearby BLE mesh devices
 python scripts/scan.py
-
-# Passive BLE sniffing (requires nRF51822 sniffer)
-python scripts/sniff.py
-
-# Power cycle device via Shelly plug
-python scripts/power_cycle.py
 
 # Run tests only
 python -m pytest tests/unit/ -q

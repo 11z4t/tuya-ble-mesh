@@ -18,15 +18,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Complete Swedish (`sv.json`) translation: all config steps, errors, abort, entity, exceptions, services, issues
 - New error keys: `invalid_credential_length`, `invalid_vendor_id`, `invalid_bridge_host`
 - Backward-compatible alias `ConnectionError = MeshConnectionError` for existing code
+- Duplicate MAC address detection in config flow (prevents adding the same device twice)
+- `get_diagnostics` service now returns the diagnostics dict directly for use in scripts and automations
 
 ### Changed
 - Swedish `sig_plug` step description updated to reflect auto-provisioning (removed stale `/tmp/mesh_keys.json` reference)
 - Config flow `confirm` step now shows device name, MAC, signal strength in rich format
+- `get_diagnostics` service: renamed `rssi` field to `rssi_dbm` for clarity
 
 ### Fixed
 - Code quality: import sort, context manager collapsing, unused import removal
 - Swedish translation `reauth_confirm` step added (was missing)
 - Swedish translation `abort.reauth_successful` added (was missing)
+- Test suite: fixed 42 failing tests across bridge, connection, provisioner, device, and integration layers
+- Bridge command tests: patched both HTTP methods correctly (POST for submit, GET for poll)
+- Async coroutine tests: `_handle_segment` and `_dispatch_access_payload` now properly awaited in tests
+- Connection retry logic: broadened exception catch to handle all provisioning failure modes
+- Provisioner cleanup delay reduced from 1.0 s to 0.5 s (aligns with spec recommendation)
 
 ---
 
