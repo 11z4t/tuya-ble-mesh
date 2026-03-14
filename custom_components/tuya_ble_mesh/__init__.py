@@ -34,6 +34,7 @@ from custom_components.tuya_ble_mesh.const import (
     DEFAULT_IV_INDEX,
     DEFAULT_MESH_ADDRESS,
     DEFAULT_VENDOR_ID,
+    DEVICE_MODEL_NAMES,
     DEVICE_TYPE_SIG_BRIDGE_PLUG,
     DEVICE_TYPE_SIG_PLUG,
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
@@ -193,7 +194,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         identifiers={(DOMAIN, mac_address)},
         name=entry.title,
         manufacturer="Malmbergs / Tuya",
-        model=device_type or "BLE Mesh",
+        model=DEVICE_MODEL_NAMES.get(device_type, "BLE Mesh Device"),
         sw_version=None,  # Will be populated by coordinator after connection
         connections={("mac", mac_address)},
     )

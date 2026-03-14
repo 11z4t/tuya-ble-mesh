@@ -44,6 +44,15 @@ DEVICE_TYPE_TELINK_BRIDGE_LIGHT = "telink_bridge_light"
 PLUG_DEVICE_TYPES = {DEVICE_TYPE_PLUG, DEVICE_TYPE_SIG_PLUG, DEVICE_TYPE_SIG_BRIDGE_PLUG}
 LIGHT_DEVICE_TYPES = {DEVICE_TYPE_LIGHT, DEVICE_TYPE_TELINK_BRIDGE_LIGHT}
 
+# Human-readable model names shown in the HA device registry
+DEVICE_MODEL_NAMES: dict[str, str] = {
+    DEVICE_TYPE_LIGHT: "LED Light",
+    DEVICE_TYPE_PLUG: "Smart Plug",
+    DEVICE_TYPE_SIG_PLUG: "Smart Plug",
+    DEVICE_TYPE_SIG_BRIDGE_PLUG: "Smart Plug (Bridge)",
+    DEVICE_TYPE_TELINK_BRIDGE_LIGHT: "LED Light (Bridge)",
+}
+
 # SIG Mesh service UUIDs (Bluetooth SIG assigned)
 SIG_MESH_PROV_UUID = "00001827-0000-1000-8000-00805f9b34fb"  # Provisioning Service
 SIG_MESH_PROXY_UUID = "00001828-0000-1000-8000-00805f9b34fb"  # Proxy Service
