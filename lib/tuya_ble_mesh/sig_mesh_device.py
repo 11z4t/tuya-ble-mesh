@@ -22,7 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from bleak import BleakClient, BleakScanner
+from bleak import BleakClient, BleakError, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak.exc import BleakError
 
@@ -400,7 +400,7 @@ class SIGMeshDevice:
                 # triggers EOFError on the D-Bus connection for mesh devices.
                 try:
                     await client.start_notify(SIG_MESH_PROXY_DATA_OUT, self._on_notify)
-                except (EOFError, Exception) as notify_exc:
+                except (EOFError, BleakError, OSError, RuntimeError) as notify_exc:
                     _LOGGER.warning(
                         "Notification subscription failed for %s: %s (%s) — "
                         "device will work but won't receive push status updates",
@@ -993,7 +993,7 @@ class SIGMeshDevice:
 
         try:
             proxy = parse_proxy_pdu(data)
-        except (MalformedPacketError, ValueError):
+        except MalformedPacketError:
             _LOGGER.debug("Failed to parse proxy PDU (%d bytes)", len(data), exc_info=True)
             return
 
@@ -1039,7 +1039,7 @@ class SIGMeshDevice:
         """
         try:
             seg_hdr = parse_segment_header(transport_pdu)
-        except (MalformedPacketError, ValueError):
+        except MalformedPacketError:
             _LOGGER.debug("Failed to parse segment header", exc_info=True)
             return
 
@@ -1138,7 +1138,7 @@ class SIGMeshDevice:
         """
         try:
             opcode, params = parse_access_opcode(access_payload)
-        except (MalformedPacketError, ValueError):
+        except MalformedPacketError:
             _LOGGER.debug("Failed to parse access opcode", exc_info=True)
             return
 
@@ -1201,7 +1201,7 @@ class SIGMeshDevice:
         """
         try:
             comp = parse_composition_data(params)
-        except (MalformedPacketError, ValueError):
+        except MalformedPacketError:
             _LOGGER.debug("Failed to parse Composition Data", exc_info=True)
             return
 

@@ -16,7 +16,7 @@ import random
 from collections.abc import Callable
 from typing import Any
 
-from bleak import BleakClient, BleakScanner
+from bleak import BleakClient, BleakError, BleakScanner
 from bleak_retry_connector import establish_connection
 
 from tuya_ble_mesh.const import (
@@ -317,7 +317,7 @@ class BLEConnection:
             except MeshConnectionError:
                 self._client = None
                 raise
-            except (Exception, asyncio.CancelledError) as exc:
+            except (OSError, TimeoutError, BleakError, asyncio.CancelledError) as exc:
                 last_exc = exc if isinstance(exc, Exception) else Exception(str(exc))
                 self._client = None
                 backoff = min(2.0 * attempt, 8.0)
