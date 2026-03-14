@@ -117,10 +117,21 @@ class ErrorClass(StrEnum):
     TRANSIENT = "transient"
     UNKNOWN = "unknown"
 
+
+class StateUpdateSource(StrEnum):
+    """Source of a device state update for confidence tracking."""
+
+    NOTIFY = "notify"  # BLE notification from device (confirmed, highest confidence)
+    POLL = "poll"  # Polled status response (confirmed, high confidence)
+    COMMAND_ECHO = "command_echo"  # Device echoed our command (confirmed, medium confidence)
+    ASSUMED = "assumed"  # Optimistic assumption after write (unconfirmed, low confidence)
+
+
 # Sequence number persistence
 _SEQ_PERSIST_INTERVAL = 10  # Save seq every N commands
 _SEQ_SAFETY_MARGIN = 100  # Add margin on restore to avoid replay
 _SEQ_STORE_VERSION = 1
+
 
 @dataclass(frozen=True, slots=True)
 class TuyaBLEMeshDeviceState:
@@ -128,6 +139,15 @@ class TuyaBLEMeshDeviceState:
 
     All updates must use dataclasses.replace() to produce a new snapshot.
     This guarantees atomic state transitions with no partially-updated views.
+
+    Task 1.2 (PLAT-402 Phase 1): Desired vs Confirmed State Model
+    --------------------------------------------------------------
+    desired_state: What the user/automation wants (last command sent)
+    last_sent_state: What we actually sent to the device (may differ due to clamping/rounding)
+    last_confirmed_state: Last state the device confirmed via notification/poll
+    state_confidence: 0.0-1.0 — how confident we are in current state
+    last_update_source: Where the current state came from (notify/poll/assumed)
+    last_update_time: When the current state was updated
     """
 
     is_on: bool = False
@@ -145,6 +165,14 @@ class TuyaBLEMeshDeviceState:
     available: bool = False
     scene_id: int = 0  # Active scene/effect index (0 = none)
     last_seen: float | None = None  # Unix timestamp of last successful communication
+
+    # --- PLAT-402 Phase 1 Task 1.2: Desired vs Confirmed State ---
+    desired_state: dict[str, Any] = field(default_factory=dict)
+    last_sent_state: dict[str, Any] = field(default_factory=dict)
+    last_confirmed_state: dict[str, Any] = field(default_factory=dict)
+    state_confidence: float = 0.0  # 0.0 = no confidence, 1.0 = fully confirmed
+    last_update_source: str = StateUpdateSource.ASSUMED.value
+    last_update_time: float | None = None  # Unix timestamp of last state update
 
 
 @dataclass
@@ -378,7 +406,20 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         """
         was_available = self._state.available
         changed = self._state.is_on != on
-        self._state = replace(self._state, is_on=on, available=True, last_seen=time.time())
+        now = time.time()
+
+        # PLAT-402 Task 1.2: Confirmed state from device notification
+        confirmed = {"is_on": on}
+        self._state = replace(
+            self._state,
+            is_on=on,
+            available=True,
+            last_seen=now,
+            last_confirmed_state=confirmed,
+            state_confidence=1.0,
+            last_update_source=StateUpdateSource.NOTIFY.value,
+            last_update_time=now,
+        )
         self._backoff = _INITIAL_BACKOFF
 
         # Adaptive polling: track state changes
@@ -397,7 +438,13 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             except RuntimeError:
                 pass  # No event loop in standalone/test context
 
-        _LOGGER.debug("OnOff update: on=%s (changed=%s)", on, changed)
+        _LOGGER.debug(
+            "OnOff update: on=%s (changed=%s, source=%s, confidence=%.2f)",
+            on,
+            changed,
+            StateUpdateSource.NOTIFY.value,
+            1.0,
+        )
         # Only notify if state changed or device just became available (avoids
         # spurious HA entity writes when repeated identical status messages arrive)
         if changed or not was_available:
@@ -410,6 +457,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             status: Decoded status from BLE notification.
         """
         was_available = self._state.available
+        now = time.time()
 
         # Detect changes for adaptive polling
         changed = (
@@ -422,6 +470,20 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             or self._state.color_brightness != status.color_brightness
         )
 
+        is_on = status.white_brightness > 0 or status.color_brightness > 0
+
+        # PLAT-402 Task 1.2: Confirmed state from device notification
+        confirmed = {
+            "is_on": is_on,
+            "mode": status.mode,
+            "brightness": status.white_brightness,
+            "color_temp": status.white_temp,
+            "red": status.red,
+            "green": status.green,
+            "blue": status.blue,
+            "color_brightness": status.color_brightness,
+        }
+
         self._state = replace(
             self._state,
             mode=status.mode,
@@ -431,8 +493,12 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             green=status.green,
             blue=status.blue,
             color_brightness=status.color_brightness,
-            is_on=status.white_brightness > 0 or status.color_brightness > 0,
+            is_on=is_on,
             available=True,
+            last_confirmed_state=confirmed,
+            state_confidence=1.0,
+            last_update_source=StateUpdateSource.NOTIFY.value,
+            last_update_time=now,
         )
         self._backoff = _INITIAL_BACKOFF
 
@@ -443,7 +509,8 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             self._adjust_polling_interval()
 
         _LOGGER.debug(
-            "Status update: on=%s mode=%d bright=%d temp=%d rgb=(%d,%d,%d) cbright=%d (changed=%s)",
+            "Status update: on=%s mode=%d bright=%d temp=%d rgb=(%d,%d,%d) "
+            "cbright=%d (changed=%s, source=%s, confidence=%.2f)",
             self._state.is_on,
             self._state.mode,
             self._state.brightness,
@@ -453,6 +520,8 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             self._state.blue,
             self._state.color_brightness,
             changed,
+            StateUpdateSource.NOTIFY.value,
+            1.0,
         )
 
         # Only notify if state changed or device just became available (avoids
@@ -506,8 +575,23 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                 _LOGGER.debug("Energy: %.2f kWh (raw=%d)", energy_kwh, raw)
 
         if updated:
+            now = time.time()
+            # PLAT-402 Task 1.2: Confirmed vendor data (power/energy)
+            confirmed = {**self._state.last_confirmed_state}
+            if power_w is not None:
+                confirmed["power_w"] = power_w
+            if energy_kwh is not None:
+                confirmed["energy_kwh"] = energy_kwh
+
             self._state = replace(
-                self._state, power_w=power_w, energy_kwh=energy_kwh, available=True
+                self._state,
+                power_w=power_w,
+                energy_kwh=energy_kwh,
+                available=True,
+                last_confirmed_state=confirmed,
+                state_confidence=1.0,
+                last_update_source=StateUpdateSource.NOTIFY.value,
+                last_update_time=now,
             )
             self._dispatch_update()
 
@@ -770,17 +854,17 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             # Generic connection failure — could be bridge-down or BLE drop.
             # Use message heuristics to distinguish the two.
             err_msg = str(err).lower()
-            if (
-                "connection refused" in err_msg
-                or "unreachable" in err_msg
-                or "no route" in err_msg
-            ):
+            if "connection refused" in err_msg or "unreachable" in err_msg or "no route" in err_msg:
                 return ErrorClass.BRIDGE_DOWN
             return ErrorClass.TRANSIENT
 
         # --- Fallback: generic OS / asyncio / aiohttp errors ---
         err_msg = str(err).lower()
-        if "unsupported device" in err_msg or "unsupported" in err_msg or "unknown vendor" in err_msg:
+        if (
+            "unsupported device" in err_msg
+            or "unsupported" in err_msg
+            or "unknown vendor" in err_msg
+        ):
             return ErrorClass.PERMANENT
         if "timeout" in err_msg or isinstance(err, (asyncio.TimeoutError, TimeoutError)):
             return ErrorClass.TRANSIENT
@@ -864,6 +948,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             ISSUE_TIMEOUT,
             async_delete_issue,
         )
+
         for base_id in (
             ISSUE_BRIDGE_UNREACHABLE,
             ISSUE_AUTH_OR_MESH_MISMATCH,
@@ -990,6 +1075,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                     from custom_components.tuya_ble_mesh.repairs import (
                         async_create_issue_reconnect_storm,
                     )
+
                     storm_task = asyncio.create_task(
                         async_create_issue_reconnect_storm(
                             self._hass,
@@ -1206,4 +1292,50 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             scene_id: Mesh scene slot number (1-based; 0 = no active scene).
         """
         self._state = replace(self._state, scene_id=scene_id)
+        self._dispatch_update()
+
+    def assume_state(self, desired: dict[str, Any], sent: dict[str, Any]) -> None:
+        """Optimistically update state after sending a command (PLAT-402 Task 1.2).
+
+        Called by entities after sending a command but before device confirmation.
+        Sets state_confidence to low (0.3) and marks source as ASSUMED.
+
+        Args:
+            desired: The state the user/automation requested.
+            sent: The actual state values sent to the device (after clamping/rounding).
+        """
+        now = time.time()
+        # Apply sent state to current fields (optimistic update)
+        updates = {
+            "desired_state": desired,
+            "last_sent_state": sent,
+            "state_confidence": 0.3,  # Low confidence — not yet confirmed
+            "last_update_source": StateUpdateSource.ASSUMED.value,
+            "last_update_time": now,
+        }
+        # Merge sent state into current state fields
+        if "is_on" in sent:
+            updates["is_on"] = sent["is_on"]
+        if "brightness" in sent:
+            updates["brightness"] = sent["brightness"]
+        if "color_temp" in sent:
+            updates["color_temp"] = sent["color_temp"]
+        if "red" in sent:
+            updates["red"] = sent["red"]
+        if "green" in sent:
+            updates["green"] = sent["green"]
+        if "blue" in sent:
+            updates["blue"] = sent["blue"]
+        if "color_brightness" in sent:
+            updates["color_brightness"] = sent["color_brightness"]
+        if "mode" in sent:
+            updates["mode"] = sent["mode"]
+
+        self._state = replace(self._state, **updates)
+        _LOGGER.debug(
+            "Assumed state: desired=%s sent=%s confidence=%.2f",
+            desired,
+            sent,
+            0.3,
+        )
         self._dispatch_update()
