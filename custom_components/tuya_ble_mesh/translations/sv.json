@@ -2,86 +2,112 @@
   "config": {
     "step": {
       "user": {
-        "title": "Tuya BLE Mesh-enhet",
-        "description": "Ange BLE MAC-adress och mesh-uppgifter.\n\nObs: Standarduppgifter (out_of_mesh/123456) är fabriksinställda. Mesh-uppgifter sparas i Home Assistants konfigurationsdatabas.",
+        "title": "Lägg till Bluetooth mesh-enhet",
+        "description": "Ange enhetens Bluetooth-adress och välj enhetstyp.\n\nFabriksinställningarna fungerar för de flesta nya enheter — expandera **Avancerade alternativ** endast vid behov.",
         "data": {
-          "mac_address": "MAC-adress",
-          "mesh_name": "Mesh-namn",
-          "mesh_password": "Mesh-lösenord",
-          "vendor_id": "Vendor ID (hex, t.ex. 0x1001)",
+          "mac_address": "Bluetooth-adress",
           "device_type": "Enhetstyp",
-          "mesh_address": "Mesh-adress (0 = auto)"
+          "mesh_name": "Nätverksnamn",
+          "mesh_password": "Nätverkslösenord",
+          "vendor_id": "Tillverkarkod",
+          "mesh_address": "Enhetsadress"
+        },
+        "data_description": {
+          "mac_address": "Bluetooth-adressen som är tryckt på enheten (format: XX:XX:XX:XX:XX:XX).",
+          "mesh_name": "Nätverkets namn. Lämna som standard om du är osäker.",
+          "mesh_password": "Nätverkets lösenord. Lämna som standard om du är osäker.",
+          "vendor_id": "Tillverkaridentifierare i hex. Ändra bara om du fått instruktioner om det.",
+          "mesh_address": "Intern nätverksadress. Sätt till 0 för automatisk tilldelning."
         }
       },
       "sig_bridge": {
-        "title": "SIG Mesh Bridge-konfiguration",
-        "description": "Konfigurera BLE bridge-daemon-anslutning för {name}.",
+        "title": "Anslut till Bluetooth-brygga",
+        "description": "Ange nätverksadressen för bryggan som ansluter till **{name}**.",
         "data": {
-          "bridge_host": "Bridge-värd (RPi IP-adress)",
-          "bridge_port": "Bridge-port",
-          "unicast_target": "Mål-unicast-adress (hex)"
+          "bridge_host": "Bryggadress",
+          "bridge_port": "Brygga-port",
+          "unicast_target": "Enhetens nätverksadress"
+        },
+        "data_description": {
+          "bridge_host": "IP-adressen eller värdnamnet för din Bluetooth-brygga (t.ex. din Raspberry Pi).",
+          "bridge_port": "Porten som bryggan lyssnar på. Standard är 8099.",
+          "unicast_target": "Enhetens interna mesh-adress. Ändra bara om du fått instruktioner om det."
         }
       },
       "telink_bridge": {
-        "title": "Telink Bridge-ljus",
-        "description": "Konfigurera BLE bridge-daemon-anslutning för {name}.",
+        "title": "Anslut till Bluetooth-brygga",
+        "description": "Ange nätverksadressen för bryggan som ansluter till **{name}**.",
         "data": {
-          "bridge_host": "Bridge-värd (RPi IP-adress)",
-          "bridge_port": "Bridge-port"
+          "bridge_host": "Bryggadress",
+          "bridge_port": "Brygga-port"
+        },
+        "data_description": {
+          "bridge_host": "IP-adressen eller värdnamnet för din Bluetooth-brygga (t.ex. din Raspberry Pi).",
+          "bridge_port": "Porten som bryggan lyssnar på. Standard är 8099."
         }
       },
       "sig_plug": {
-        "title": "SIG Mesh Plug — Automatisk provisionering",
-        "description": "Enheten **{name}** provisioneras automatiskt.\n\nEn slumpmässig NetKey och AppKey genereras. DevKey härleds från ECDH-provisioneringsutbytet. Alla nycklar sparas i Home Assistants konfigurationsdatabas.\n\nKontrollera att enheten är i fabriksåterställt läge (annonserar Provisioning Service 0x1827) och inom BLE-räckvidd för en lokal adapter eller ESPHome BLE-proxy, klicka sedan på Skicka.",
+        "title": "Konfigurerar {name}",
+        "description": "Vi konfigurerar automatiskt den säkra Bluetooth-anslutningen till din enhet.\n\nKontrollera att enheten är **påslagen** och **nära din Bluetooth-adapter**, klicka sedan på **Skicka**.",
         "data": {}
       },
       "confirm": {
-        "title": "{name} ({mac})",
-        "description": "**{category}**-enhet hittad\n\n- **Namn:** {name}\n- **MAC:** {mac}\n- **Signal:** {rssi} dBm\n\nVälj enhetstyp och mesh-uppgifter.",
+        "title": "Enhet hittad: {name}",
+        "description": "En **{category}**-enhet hittades i närheten.\n\n- **Namn:** {name}\n- **Adress:** {mac}\n- **Signal:** {rssi} dBm\n\nBekräfta enhetstypen nedan för att slutföra konfigurationen.",
         "data": {
           "device_type": "Enhetstyp",
-          "mesh_name": "Mesh-namn",
-          "mesh_password": "Mesh-lösenord",
-          "mesh_address": "Mesh-adress (0 = auto)"
+          "mesh_name": "Nätverksnamn",
+          "mesh_password": "Nätverkslösenord",
+          "mesh_address": "Enhetsadress"
         }
       },
       "reauth_confirm": {
-        "title": "Ange mesh-uppgifter igen",
-        "description": "Autentiseringen misslyckades. Ange mesh-uppgifterna på nytt för att återansluta.",
+        "title": "Uppdatera anslutningsuppgifter",
+        "description": "Din enhet slutade svara. Ange anslutningsuppgifterna på nytt för att återansluta.",
         "data": {
-          "mesh_name": "Mesh-namn",
-          "mesh_password": "Mesh-lösenord",
-          "bridge_host": "Bridge-värd",
-          "bridge_port": "Bridge-port"
+          "mesh_name": "Nätverksnamn",
+          "mesh_password": "Nätverkslösenord",
+          "bridge_host": "Bryggadress",
+          "bridge_port": "Brygga-port"
         }
       }
     },
     "error": {
-      "invalid_mac": "Ogiltigt MAC-adressformat (förväntat XX:XX:XX:XX:XX:XX)",
-      "invalid_key": "Ogiltigt nyckelformat (förväntat 32 hex-tecken)",
-      "invalid_bridge_host": "Ogiltig bridge-värd. Använd ett värdnamn eller IP-adress (inte en URL). Loopback- och länklocala adresser är inte tillåtna.",
-      "invalid_credential_length": "Mesh-namn och lösenord måste vara 16 byte eller kortare.",
-      "invalid_vendor_id": "Ogiltigt Vendor ID (förväntat 1–4 hex-siffror, t.ex. 0x1001).",
-      "cannot_connect": "Kan inte ansluta till bridge-daemon. Kontrollera värd/port och att daemon körs.",
-      "provisioning_failed": "Provisionering misslyckades. Kontrollera att enheten är i fabriksåterställt läge, inom BLE-räckvidd för en lokal adapter eller ESPHome BLE-proxy, och försök igen. Se Home Assistant-loggar för detaljer."
+      "invalid_mac": "Det verkar inte vara en giltig Bluetooth-adress. Förväntat format: XX:XX:XX:XX:XX:XX.",
+      "invalid_key": "Ogiltig nyckel \u2014 vi behöver exakt 32 hex-tecken.",
+      "invalid_bridge_host": "Ange ett värdnamn eller en IP-adress (inte en URL). Loopback-adresser är inte tillåtna.",
+      "invalid_credential_length": "Nätverksnamn och lösenord får vara högst 16 tecken vardera.",
+      "invalid_vendor_id": "Ogiltig tillverkarkod \u2014 ange 1 till 4 hex-siffror (t.ex. 0x1001).",
+      "cannot_connect": "Kunde inte nå bryggan. Kontrollera att den är påslagen och ansluten till nätverket.",
+      "provisioning_failed": "Konfigurationen misslyckades. Kontrollera att enheten är påslagen och nära din Bluetooth-adapter, försök sedan igen. Se Home Assistant-loggar för mer information."
     },
     "abort": {
-      "already_configured": "Enheten är redan konfigurerad",
-      "reauth_successful": "Omautentisering lyckades"
+      "already_configured": "Den här enheten är redan konfigurerad i Home Assistant.",
+      "reauth_successful": "Uppgifterna har uppdaterats. Återansluter enheten nu."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Tuya BLE Mesh-alternativ",
+        "title": "Enhetsinställningar",
+        "description": "Uppdatera anslutningsinställningar för den här enheten.",
         "data": {
-          "mesh_name": "Mesh-namn",
-          "mesh_password": "Mesh-lösenord",
-          "mesh_address": "Mesh-adress (0 = auto)",
-          "bridge_host": "Bridge-värd",
-          "bridge_port": "Bridge-port",
-          "unicast_target": "Mål-unicast-adress (hex)",
-          "iv_index": "IV-index"
+          "mesh_name": "Nätverksnamn",
+          "mesh_password": "Nätverkslösenord",
+          "mesh_address": "Enhetsadress",
+          "bridge_host": "Bryggadress",
+          "bridge_port": "Brygga-port",
+          "unicast_target": "Enhetens nätverksadress",
+          "iv_index": "Säkerhetsindex"
+        },
+        "data_description": {
+          "mesh_name": "Nätverkets namn.",
+          "mesh_password": "Nätverkets lösenord.",
+          "mesh_address": "Intern adress för den här enheten. Sätt till 0 för att använda standard.",
+          "bridge_host": "IP-adressen eller värdnamnet för din Bluetooth-brygga.",
+          "bridge_port": "Porten som bryggan lyssnar på. Standard är 8099.",
+          "unicast_target": "Intern mesh-adress för målenheten. Ändra bara om du fått instruktioner om det.",
+          "iv_index": "Mesh-säkerhetens IV-index. Ändra bara om du fått instruktioner om det."
         }
       }
     }
@@ -114,48 +140,58 @@
   },
   "exceptions": {
     "connection_failed": {
-      "message": "Misslyckades att ansluta till {device}: {error}"
+      "message": "Kunde inte ansluta till {device}: {error}"
     },
     "command_timeout": {
-      "message": "Kommando tog för lång tid för {device}"
+      "message": "Inget svar från {device}. Den kan vara utom räckhåll."
     },
     "provisioning_failed": {
-      "message": "Provisionering misslyckades för {device}: {error}"
+      "message": "Enhetskonfigurationen misslyckades för {device}: {error}"
     },
     "invalid_key": {
-      "message": "Ogiltigt mesh-nyckelformat"
+      "message": "Ogiltigt format på krypteringsnyckeln"
     }
   },
   "services": {
     "identify": {
-      "name": "Identifiera enhet",
-      "description": "Blinka enhetens LED för att hitta den enkelt.",
+      "name": "Blinka enhet",
+      "description": "Blinkar enhetens indikatorlampa så att du lättare kan identifiera den.",
       "fields": {
         "device_id": {
           "name": "Enhet",
-          "description": "Enheten att identifiera (blinka LED)."
+          "description": "Enheten som ska blinka."
         }
       }
     },
     "set_log_level": {
-      "name": "Ange loggnivå",
-      "description": "Ändra BLE mesh-loggningsdetaljnivå utan att starta om Home Assistant.",
+      "name": "Ange loggdetaljer",
+      "description": "Ändra hur mycket diagnostikinformation som loggas för Bluetooth mesh. Ingen omstart krävs.",
       "fields": {
         "level": {
           "name": "Nivå",
-          "description": "Loggnivå: debug, info, warning eller error."
+          "description": "Detaljnivå: debug (mest), info, warning eller error (minst)."
+        }
+      }
+    },
+    "get_diagnostics": {
+      "name": "Hämta enhetsinformation",
+      "description": "Hämtar anslutningsstatistik och hälsoinformation för en enhet.",
+      "fields": {
+        "device_id": {
+          "name": "Enhet",
+          "description": "Enheten att kontrollera."
         }
       }
     }
   },
   "issues": {
     "provisioning_failed": {
-      "title": "Enhetsprovisionering misslyckades",
-      "description": "Det gick inte att provisionera {device}. Kontrollera att den är i fabriksåterställt läge och inom BLE-räckvidd, konfigurera sedan om integrationen."
+      "title": "Enhetskonfigurationen misslyckades",
+      "description": "Kunde inte konfigurera {device}. Stäng av och slå på enheten igen och lägg sedan till den på nytt i Home Assistant."
     },
     "bridge_unreachable": {
-      "title": "Bridge onåbar",
-      "description": "Det går inte att nå BLE bridge på {host}:{port}. Kontrollera nätverksanslutningen och att bridge-daemon körs."
+      "title": "Bryggan svarar inte",
+      "description": "Kan inte nå Bluetooth-bryggan på {host}:{port}. Kontrollera att den är påslagen och ansluten till nätverket."
     }
   }
 }
