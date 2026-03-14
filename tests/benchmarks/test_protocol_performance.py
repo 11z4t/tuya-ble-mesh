@@ -14,6 +14,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
+pytest.importorskip("pytest_benchmark")
+
 from tuya_ble_mesh.protocol import (
     decode_command_packet,
     decode_dp_value,
