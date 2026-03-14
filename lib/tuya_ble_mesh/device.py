@@ -69,6 +69,10 @@ MESH_ADDRESS_DEFAULT = 0
 _QUEUE_MAX_SIZE = 32
 _COMMAND_TTL = 60.0  # seconds
 
+# Command retry backoff parameters
+_COMMAND_RETRY_INITIAL_BACKOFF = 0.5
+_COMMAND_RETRY_BACKOFF_MULTIPLIER = 2.0
+
 # Status callback type
 StatusCallback = Callable[[StatusResponse], Any]
 
@@ -297,12 +301,20 @@ class MeshDevice:
 
     @property
     def address(self) -> str:
-        """Return the device BLE MAC address."""
+        """Return the device BLE MAC address.
+
+        Returns:
+            str: Device BLE MAC address.
+        """
         return self._address
 
     @property
     def mesh_id(self) -> int:
-        """Return the target mesh address for commands."""
+        """Return the target mesh address for commands.
+
+        Returns:
+            int: Target mesh address for commands.
+        """
         return self._mesh_id
 
     @mesh_id.setter
@@ -315,22 +327,38 @@ class MeshDevice:
 
     @property
     def is_connected(self) -> bool:
-        """Return True if the device is connected and provisioned."""
+        """Return True if the device is connected and provisioned.
+
+        Returns:
+            bool: True if device is connected and provisioned.
+        """
         return self._conn.is_ready
 
     @property
     def firmware_version(self) -> str | None:
-        """Return the device firmware version, or None if not read."""
+        """Return the device firmware version, or None if not read.
+
+        Returns:
+            str | None: Device firmware version, or None if not read.
+        """
         return self._conn.firmware_version
 
     @property
     def notify_active(self) -> bool:
-        """Return True if GATT push notifications are active (not poll-only)."""
+        """Return True if GATT push notifications are active (not poll-only).
+
+        Returns:
+            bool: True if GATT push notifications are active.
+        """
         return self._conn.notify_active
 
     @property
     def connection(self) -> BLEConnection:
-        """Return the underlying BLE connection."""
+        """Return the underlying BLE connection.
+
+        Returns:
+            BLEConnection: Underlying BLE connection.
+        """
         return self._conn
 
     def register_status_callback(self, callback: StatusCallback) -> None:
@@ -458,7 +486,7 @@ class MeshDevice:
             ConnectionError: If BLE write fails after all retries.
         """
         last_error: Exception | None = None
-        backoff = 0.5
+        backoff = _COMMAND_RETRY_INITIAL_BACKOFF
 
         for attempt in range(1, max_retries + 1):
             key = self._conn.session_key
@@ -506,7 +534,7 @@ class MeshDevice:
                     backoff,
                 )
                 await asyncio.sleep(backoff)
-                backoff *= 2.0
+                backoff *= _COMMAND_RETRY_BACKOFF_MULTIPLIER
 
         if last_error is not None:
             raise last_error

@@ -186,6 +186,9 @@ def load_profile_by_model(
     Returns:
         The matching DeviceProfile, or None if not found.
     """
+    if not model:
+        return None
+
     search_dir = profiles_dir or _DEFAULT_PROFILES_DIR
     if not search_dir.is_dir():
         _LOGGER.warning("Profiles directory not found: %s", search_dir)

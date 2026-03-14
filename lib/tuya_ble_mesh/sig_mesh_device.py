@@ -82,6 +82,13 @@ _DEFAULT_TTL = 5
 # Reassembly timeout for segmented messages (seconds)
 _REASSEMBLY_TIMEOUT = 10.0
 
+# BLE write retry backoff parameters
+_BLE_WRITE_RETRY_INITIAL_BACKOFF = 1.0
+_BLE_WRITE_RETRY_BACKOFF_MULTIPLIER = 2.0
+
+# BlueZ D-Bus cache settle delay after device removal (seconds)
+_BLUEZ_CACHE_CLEAR_DELAY = 2.0
+
 
 @dataclass
 class _ReassemblyBuffer:
@@ -431,7 +438,7 @@ class SIGMeshDevice:
                 )
                 # Remove cached BLE device between retries
                 await self._bluetoothctl_remove()
-                await asyncio.sleep(2.0)
+                await asyncio.sleep(_BLUEZ_CACHE_CLEAR_DELAY)
 
         msg = f"Failed to connect to {self._address} after {max_retries} attempts"
         raise MeshConnectionError(msg) from last_error
@@ -512,7 +519,7 @@ class SIGMeshDevice:
             raise SIGMeshKeyError(msg)
 
         last_error: Exception | None = None
-        backoff = 1.0
+        backoff = _BLE_WRITE_RETRY_INITIAL_BACKOFF
 
         for attempt in range(1, max_retries + 1):
             try:
@@ -573,7 +580,7 @@ class SIGMeshDevice:
                     backoff,
                 )
                 await asyncio.sleep(backoff)
-                backoff *= 2.0
+                backoff *= _BLE_WRITE_RETRY_BACKOFF_MULTIPLIER
 
         msg = f"BLE write failed for {self._address} after {max_retries} attempts"
         raise MeshConnectionError(msg) from last_error
