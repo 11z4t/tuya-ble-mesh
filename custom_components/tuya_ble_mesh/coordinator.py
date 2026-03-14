@@ -183,9 +183,7 @@ class TuyaBLEMeshDeviceState:
     last_seen: float | None = None  # Unix timestamp of last successful communication
 
     # --- PLAT-402 Phase 1 Task 1.2: Desired vs Confirmed State ---
-    desired_state: MappingProxyType[str, Any] = field(
-        default_factory=lambda: MappingProxyType({})
-    )
+    desired_state: MappingProxyType[str, Any] = field(default_factory=lambda: MappingProxyType({}))
     last_sent_state: MappingProxyType[str, Any] = field(
         default_factory=lambda: MappingProxyType({})
     )
@@ -504,16 +502,18 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         is_on = status.white_brightness > 0 or status.color_brightness > 0
 
         # PLAT-402 Task 1.2: Confirmed state from device notification
-        confirmed = MappingProxyType({
-            "is_on": is_on,
-            "mode": status.mode,
-            "brightness": status.white_brightness,
-            "color_temp": status.white_temp,
-            "red": status.red,
-            "green": status.green,
-            "blue": status.blue,
-            "color_brightness": status.color_brightness,
-        })
+        confirmed = MappingProxyType(
+            {
+                "is_on": is_on,
+                "mode": status.mode,
+                "brightness": status.white_brightness,
+                "color_temp": status.white_temp,
+                "red": status.red,
+                "green": status.green,
+                "blue": status.blue,
+                "color_brightness": status.color_brightness,
+            }
+        )
 
         # PLAT-402 Task 1.3: Reset failure counters on successful notify
         self._state = replace(
