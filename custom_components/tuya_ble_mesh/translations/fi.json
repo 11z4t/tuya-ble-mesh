@@ -1,162 +1,120 @@
 {
   "config": {
-    "flow_title": "{name}",
     "step": {
       "user": {
-        "title": "Lisää laitteesi",
-        "description": "**Vaihe 1/3:** Let's connect your Tuya BLE Mesh device to Home Assistant.\n\n**What you'll need:**\n- The device's MAC address (found on the device label or in the manual)\n- The device type (light, plug, etc.)\n- Mesh credentials (if you haven't changed them, use the factory defaults below)\n\n**Next step:** We'll configure how to connect (kestää noin 2 minuuttia).",
+        "title": "Lis\u00e4\u00e4 Bluetooth-laite",
+        "description": "Sy\u00f6t\u00e4 laitteen Bluetooth-osoite ja valitse laitetyyppi.\n\nTehtaalta toimitetut oletusasetukset toimivat useimmissa uusissa laitteissa \u2014 avaa **Lis\u00e4asetukset** vain tarvittaessa.",
         "data": {
-          "mac_address": "MAC-osoite",
-          "mesh_name": "Mesh-nimi",
-          "mesh_password": "Mesh-salasana",
-          "vendor_id": "Valmistajan tunniste (hex, esim. 0x1001)",
+          "mac_address": "Bluetooth-osoite",
           "device_type": "Laitetyyppi",
-          "mesh_address": "Mesh-osoite (0 = automaattinen)"
+          "mesh_name": "Verkkonimi",
+          "mesh_password": "Verkkosalasana",
+          "vendor_id": "Valmistajan koodi",
+          "mesh_address": "Laitteen osoite"
         },
         "data_description": {
-          "mac_address": "Muoto: XX:XX:XX:XX:XX:XX",
-          "vendor_id": "Malmbergs=0x1001, AwoX=0x0160, Dimond=0x0211",
-          "mesh_name": "Tehdasasetus: out_of_mesh (max 16 tavua)",
-          "mesh_password": "Tehdasasetus: 123456 (max 16 tavua)"
+          "mac_address": "Laitteeseen painettu Bluetooth-osoite (muoto: XX:XX:XX:XX:XX:XX).",
+          "mesh_name": "J\u00e4t\u00e4 oletusasetukseen, ellei toisin ohjeisteta.",
+          "mesh_password": "J\u00e4t\u00e4 oletusasetukseen, ellei toisin ohjeisteta.",
+          "vendor_id": "Valmistajan tunniste heksadesimaalimuodossa. Muuta vain, jos sinulle on annettu ohjeet.",
+          "mesh_address": "J\u00e4t\u00e4 arvoon 0, ellei toisin ohjeisteta."
         }
       },
       "sig_bridge": {
-        "title": "Yhdistä siltalaitteeseen",
-        "description": "**Vaihe 2/3:** Now let's connect **{name}** through your bridge.\n\n**What's a bridge?** It's a Raspberry Pi (or similar device) that relays commands between Home Assistant and your BLE devices.\n\n**Before continuing:**\n- Make sure your bridge device is powered on\n- Verify it's connected to the same network as Home Assistant\n\n**Next step:** We'll test the connection and complete setup (kestää 10 sekuntia).",
+        "title": "Yhdist\u00e4 laitteen hubiin",
+        "description": "Sy\u00f6t\u00e4 hubin osoite, joka yhdist\u00e4\u00e4 laitteeseen **{name}**.",
         "data": {
-          "bridge_host": "Siltalaitteen osoite (IP-osoite tai hostname)",
-          "bridge_port": "Siltalaitteen portti",
-          "unicast_target": "Kohteen unicast-osoite (hex)"
+          "bridge_host": "Hubin osoite",
+          "bridge_port": "Hubin portti",
+          "unicast_target": "Laitteen tunnus"
         },
         "data_description": {
-          "bridge_host": "Raspberry Pi:n IP-osoite tai hostname, jossa siltapalvelu on käynnissä",
-          "bridge_port": "Oletus: 8099",
-          "unicast_target": "Oletus: 00B0"
+          "bridge_host": "Hubisi IP-osoite tai palvelinnimi (esim. Raspberry Pi).",
+          "bridge_port": "Portti, jolla hubi kuuntelee. Oletus on 8099.",
+          "unicast_target": "Muuta vain, jos sinulle on annettu ohjeet."
         }
       },
       "telink_bridge": {
-        "title": "Yhdistä siltalaitteeseen",
-        "description": "**Vaihe 2/3:** Now let's connect **{name}** through your bridge.\n\n**What's a bridge?** It's a Raspberry Pi (or similar device) that relays commands between Home Assistant and your BLE devices.\n\n**Before continuing:**\n- Make sure your bridge device is powered on\n- Verify it's connected to the same network as Home Assistant\n\n**Next step:** We'll test the connection and complete setup (kestää 10 sekuntia).",
+        "title": "Yhdist\u00e4 laitteen hubiin",
+        "description": "Sy\u00f6t\u00e4 hubin osoite, joka yhdist\u00e4\u00e4 laitteeseen **{name}**.",
         "data": {
-          "bridge_host": "Siltalaitteen osoite (IP-osoite tai hostname)",
-          "bridge_port": "Siltalaitteen portti"
+          "bridge_host": "Hubin osoite",
+          "bridge_port": "Hubin portti"
         },
         "data_description": {
-          "bridge_host": "Raspberry Pi:n IP-osoite tai hostname, jossa siltapalvelu on käynnissä",
-          "bridge_port": "Oletus: 8099"
+          "bridge_host": "Hubisi IP-osoite tai palvelinnimi (esim. Raspberry Pi).",
+          "bridge_port": "Portti, jolla hubi kuuntelee. Oletus on 8099."
         }
       },
       "sig_plug": {
-        "title": "Valmis parittamiseen",
-        "description": "**Viimeinen vaihe:** Almost there! We're ready to pair **{name}**.\n\n**What happens when you click Submit:**\n1. Home Assistant will generate secure encryption keys (instant)\n2. The device will be paired automatically (takes about 10 seconds)\n3. All settings are saved securely\n\n**Before clicking Submit, make sure:**\n- The device LED is flashing (if not, factory-reset it by unplugging and replugging 5 times quickly)\n- The device is within Bluetooth range of Home Assistant or your BLE proxy\n\n**Next step:** Click Submit and wait about 10 seconds. You'll see the device appear in Home Assistant!",
+        "title": "M\u00e4\u00e4ritet\u00e4\u00e4n {name}",
+        "description": "Suojattu Bluetooth-yhteys laitteeseesi m\u00e4\u00e4ritet\u00e4\u00e4n automaattisesti.\n\nVarmista, ett\u00e4 laite on **p\u00e4\u00e4ll\u00e4** ja **l\u00e4hell\u00e4 Bluetooth-sovitintasi**, ja paina sitten **L\u00e4het\u00e4**.",
         "data": {}
       },
       "confirm": {
-        "title": "Melkein valmista!",
-        "description": "**Vaihe 3/3:** Great! We found **{name}**.\n\n**Device details:**\n- MAC address: {mac}\n- Signal strength: {rssi} dBm\n\n**What happens next:**\nWhen you click Submit, Home Assistant will pair with this device and add it to your system (kestää noin 5 sekuntia). You'll be able to control it right away.\n\nReady? Click Submit to finish!",
-        "data": {}
-      },
-      "reauth_confirm": {
-        "title": "Syötä kirjautumistiedot uudelleen",
-        "description": "Yhteys epäonnistui — kirjautumistiedot ovat ehkä muuttuneet. Syötä ne uudelleen yhdistääksesi.",
+        "title": "Laite l\u00f6ydetty: {name}",
+        "description": "L\u00e4helt\u00e4 l\u00f6ytyi uusi **{category}**.\n\n**Signaali:** {signal_quality}\n\nValitse laitteen tyyppi alta viimeistell\u00e4ksesi m\u00e4\u00e4rityksen.",
         "data": {
-          "mesh_name": "Mesh-nimi",
-          "mesh_password": "Mesh-salasana",
-          "bridge_host": "Siltalaitteen osoite",
-          "bridge_port": "Siltalaitteen portti"
+          "device_type": "Laitetyyppi",
+          "mesh_name": "Verkkonimi",
+          "mesh_password": "Verkkosalasana",
+          "mesh_address": "Laitteen osoite"
         }
       },
-      "reconfigure": {
-        "title": "Määritä yhteys uudelleen",
-        "description": "Päivitä tämän laitteen yhteyden asetukset. MAC-osoitetta ja laitetyyppiä ei voi muuttaa täällä.",
+      "reauth_confirm": {
+        "title": "Yhdist\u00e4 laite uudelleen",
+        "description": "Home Assistant menetti yhteyden laitteeseesi. P\u00e4ivit\u00e4 alla olevat asetukset yhteyden muodostamiseksi uudelleen.",
         "data": {
-          "mesh_name": "Mesh-nimi",
-          "mesh_password": "Mesh-salasana",
-          "vendor_id": "Valmistajan tunniste (hex)",
-          "bridge_host": "Siltalaitteen osoite",
-          "bridge_port": "Siltalaitteen portti"
+          "mesh_name": "Verkkonimi",
+          "mesh_password": "Verkkosalasana",
+          "bridge_host": "Hubin osoite",
+          "bridge_port": "Hubin portti"
         }
       }
     },
     "error": {
-      "invalid_mac": "Virheellinen MAC-osoite. Odotettu muoto: XX:XX:XX:XX:XX:XX (kaksoispisteillä erotettu heksadesimaali).",
-      "invalid_key": "Virheellinen avainmuoto (odotettu 32 heksadesimaalimerkkiä).",
-      "invalid_bridge_host": "Virheellinen siltalaitteen osoite. Syötä hostname tai IP-osoite (ei URL). Loopback- ja link-local-osoitteet eivät ole sallittuja.",
-      "invalid_credential_length": "Mesh-nimen ja salasanan on oltava kummankin enintään 16 tavua.",
-      "invalid_vendor_id": "Virheellinen valmistajan tunniste. Odotettu 1–4 heksadesimaalimerkkiä valinnaisella 0x-etuliitteellä (esim. 0x1001).",
-      "bridge_unreachable": "Siltalaitteeseen ei saada yhteyttä.\n\n**Mitä tarkistaa:**\n1. Onko siltalaite (Raspberry Pi) päällä ja kytketty verkkoosi?\n2. Onko se samassa verkossa kuin Home Assistant?\n3. Kokeile pingata siltalaitetta toisesta laitteesta varmistaaksesi verkkoyhteyden\n\n**Miten korjata:**\n- Tarkista siltalaitteen virta- ja verkkokaapelit\n- Varmista, että IP-osoite on oikein\n- Jos olet äskettäin vaihtanut verkkoasi, sinun täytyy ehkä päivittää siltalaitteen verkkoasetukset",
-      "auth_or_mesh_mismatch": "Salasana ei täsmää.\n\n**Mitä tämä tarkoittaa:**\nLaite vastaa, mutta hylkää syöttämäsi mesh-nimen tai salasanan.\n\n**Miten korjata:**\n1. Tarkista kaksi kertaa syöttämäsi mesh-nimi ja salasana\n2. Jos et ole muuttanut niitä, kokeile oletusarvoja: nimi = `out_of_mesh`, salasana = `123456`\n3. Jos olet äskettäin palauttanut laitteen tehdasasetukset, se on taas oletusarvoissa\n\n**Ei vieläkään toimi?** Poista tämä integraatio ja lisää se uudelleen alusta.",
-      "unsupported_vendor": "Valmistajan tunnistetta ei tunnistettu. Tarkista BLE snoop -lokista oikeat valmistajatavut.",
-      "device_not_found": "Laitetta ei löydy.\n\n**Mitä tämä tarkoittaa:**\nSiltalaite toimii, mutta se ei havaitse laitteesi Bluetooth-signaalia.\n\n**Miten korjata:**\n1. Varmista, että laite on kytkettynä pistokkeeseen ja päällä\n2. Siirrä laite lähemmäksi siltalaitettasi (enintään 10 metrin / 30 jalan päähän)\n3. Tarkista, onko laitteen LED päällä - jos ei, kokeile toista pistorasiaa\n4. Odota 30 sekuntia ja yritä uudelleen (laitteiden käynnistyminen voi kestää hetken)\n\n**Tarkista vielä:** Onko MAC-osoite oikein? Tarkista laitteen tarrasta tai käyttöohjeesta.",
-      "timeout": "Aikakatkaisu. Siltalaite tai laite ei vastannut ajoissa.",
-      "unknown_protocol": "Protokollan neuvottelu epäonnistui. Tämä voi viitata siltalaitteen firmwaren epäyhteensopivuuteen.",
-      "cannot_connect": "Laitteeseen ei voitu yhdistää. Varmista, että se on päällä, BLE-kantaman sisällä ja paritustilassa.",
-      "pairing_failed": "Paritus epäonnistui. Laite ei vastannut tai hylkäsi yhteyden. Varmista, että se on tehdasasetusten tilassa ja BLE-kantaman sisällä.",
-      "provisioning_failed": "Paritus epäonnistui.\n\n**Mikä meni vikaan:**\nLaite ei vastannut paritusprosessin aikana.\n\n**Miten korjata:**\n1. **Palauta laite tehdasasetukset:** Irrota se pistorasiasta ja kytke takaisin 5 kertaa nopeasti (1 sekunnin välein). LED:n pitäisi vilkkua nopeasti, kun se on valmis.\n2. **Siirrä se lähemmäksi:** Varmista, että laite on enintään 5 metrin (15 jalan) päässä Home Assistantista tai BLE-välittimestäsi\n3. **Odota LED:iä:** Paina Lähetä vasta kun LED vilkkuu\n4. **Yritä uudelleen:** Poista tämä epäonnistunut merkintä ja aloita alusta\n\n**Vieläkö ongelmia?** Tarkista Home Assistantin lokeista lisätietoja (Asetukset → Järjestelmä → Lokit).",
-      "provisioning_appkey_failed": "Laite ei hyväksynyt salausavainta.\n\n**Mitä tämä tarkoittaa:**\nLaitteesi ei ole tehdasasetusten tilassa, joten siinä on vielä vanhoja asetuksia tallennettuna.\n\n**Miten korjata:**\n1. **Palauta laite tehdasasetukset:** Irrota se pistorasiasta ja kytke takaisin 5 kertaa nopeasti (noin 1 sekunnin välein)\n2. **Seuraa LED:iä:** Sen pitäisi vilkkua nopeasti, kun palautus on valmis\n3. **Yritä parittaa uudelleen:** Poista tämä merkintä ja lisää laite uudelleen LED:n vilkkuessa\n\n**Miksi näin käy:** Jos olet parittanut tämän laitteen aiemmin, se muistaa vanhat asetukset eikä hyväksy uusia ennen kuin nollaat sen.",
-      "provisioning_proxy_failed": "Paritus epäonnistui Proxy Service -asetuksen aikana. Laite ei tue tai on ottanut Proxy Servicen pois käytöstä. Tarkista laitteen dokumentaatio tai kokeile toista laitetta.",
-      "provisioning_pbgatt_failed": "Laitteeseen ei saada yhteyttä - se on liian kaukana tai ei vastaa.\n\n**Mitä tämä tarkoittaa:**\nHome Assistant yritti yhdistää Bluetoothin kautta, mutta ei päässyt laitteeseen.\n\n**Miten korjata:**\n1. **Siirrä laite lähemmäksi:** Vie se enintään 5 metrin (15 jalan) päähän Home Assistantista\n2. **Tarkista BLE-asetuksesi:**\n   - Onko Home Assistant -laitteessasi Bluetooth-sovitin?\n   - Vai onko sinulla ESPHome BLE -välitin asetettuna?\n3. **Varmista, että laite on päällä:** Tarkista, että pistorasia toimii ja LED palaa\n4. **Odota ja yritä uudelleen:** Joskus laitteiden herääminen vie hetken - odota 30 sekuntia ja yritä uudelleen\n\n**Vinkki:** Mitä lähempänä laite on ensimmäisen parituksen aikana, sitä luotettavampi yhteys on."
+      "invalid_mac": "T\u00e4m\u00e4 ei n\u00e4yt\u00e4 kelvolliselta Bluetooth-osoitteelta. Odotettu muoto: XX:XX:XX:XX:XX:XX.",
+      "invalid_key": "Virheellinen avain \u2014 tarvitaan t\u00e4sm\u00e4lleen 32 heksadesimaalimerkkei\u00e4.",
+      "invalid_bridge_host": "Sy\u00f6t\u00e4 kelvollinen osoite, esim. 192.168.1.100 tai raspberrypi.local.",
+      "invalid_credential_length": "Verkkonimi ja salasana saavat olla enint\u00e4\u00e4n 16 merkki\u00e4 kumpikin.",
+      "invalid_vendor_id": "Virheellinen valmistajan koodi \u2014 k\u00e4yt\u00e4 1\u20134 heksadesimaalimerkkei\u00e4 (esim. 0x1001).",
+      "cannot_connect": "Hubiin ei saatu yhteyttä. Tarkista, ett\u00e4 se on p\u00e4\u00e4ll\u00e4 ja yhteydess\u00e4 verkkoon.",
+      "provisioning_failed": "Laitteeseen ei voitu muodostaa yhteytt\u00e4. Varmista, ett\u00e4 se on p\u00e4\u00e4ll\u00e4 ja l\u00e4hell\u00e4 Bluetooth-sovitintasi, ja yrit\u00e4 uudelleen.",
+      "timeout": "Yhteys aikakatkaistiin. Varmista, ett\u00e4 laite on p\u00e4\u00e4ll\u00e4 ja l\u00e4hell\u00e4, ja yrit\u00e4 uudelleen.",
+      "device_not_found": "Laitetta ei l\u00f6ydy. Varmista, ett\u00e4 se on p\u00e4\u00e4ll\u00e4 ja Bluetooth-kantaman sis\u00e4ll\u00e4, ja yrit\u00e4 uudelleen.",
+      "invalid_iv_index": "Sy\u00f6t\u00e4 luku v\u00e4lill\u00e4 0\u20134 294 967 295.",
+      "invalid_unicast_address": "Sy\u00f6t\u00e4 4-merkkinen heksadesimaalisosoite v\u00e4lill\u00e4 0001\u20137FFF (esim. 00B0)."
     },
     "abort": {
-      "already_configured": "Tämä laite on jo määritetty",
-      "reauth_successful": "Uudelleenkirjautuminen onnistui",
-      "reconfigure_successful": "Uudelleenmääritys onnistui",
-      "entry_not_found": "Määritysmerkintää ei löytynyt",
-      "device_not_available": "Laite ei enää lähetä signaalia. Se voi olla kantaman ulkopuolella, pois päältä tai jo määritetty.",
-      "device_not_found": "Laitetta ei löytynyt BLE-rekisteristä."
+      "already_configured": "T\u00e4m\u00e4 laite on jo m\u00e4\u00e4ritetty Home Assistantissa.",
+      "reauth_successful": "Asetukset p\u00e4ivitetty. Muodostetaan yhteys laitteeseesi nyt.",
+      "device_not_available": "Laite ei ole en\u00e4\u00e4 l\u00e4hell\u00e4. Yrit\u00e4 lis\u00e4t\u00e4 se uudelleen, kun se on kantaman sis\u00e4ll\u00e4."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Määritä yhteys",
-        "description": "Update your bridge connection or mesh credentials below. Need more control? Enable **Show advanced settings** for timeout and reconnect options.",
+        "title": "Laitteen asetukset",
+        "description": "P\u00e4ivit\u00e4 t\u00e4m\u00e4n laitteen yhteysasetukset.",
         "data": {
-          "mesh_name": "Mesh-nimi",
-          "mesh_password": "Mesh-salasana",
-          "vendor_id": "Valmistajan tunniste (hex)",
-          "mesh_address": "Mesh-osoite (0 = automaattinen)",
-          "bridge_host": "Siltalaitteen osoite",
-          "bridge_port": "Siltalaitteen portti",
-          "unicast_target": "Kohteen unicast-osoite (hex)",
-          "iv_index": "IV Index",
-          "validate_bridge": "Testaa siltalaitteen yhteys ennen tallentamista",
-          "show_advanced": "Näytä lisäasetukset"
+          "mesh_name": "Verkkonimi",
+          "mesh_password": "Verkkosalasana",
+          "mesh_address": "Laitteen osoite",
+          "bridge_host": "Hubin osoite",
+          "bridge_port": "Hubin portti",
+          "unicast_target": "Laitteen tunnus",
+          "iv_index": "Turvalaskuri"
         },
         "data_description": {
-          "mesh_name": "Tuya BLE Mesh -laitteidesi verkon nimi (max 16 merkkiä). Oletusarvo: out_of_mesh",
-          "mesh_password": "Tuya BLE Mesh -laitteidesi verkon salasana (max 16 merkkiä). Oletusarvo: 123456",
-          "vendor_id": "Valmistajan tunniste. Yleisiä arvoja: Malmbergs=0x1001, AwoX=0x0160, Dimond=0x0211",
-          "mesh_address": "Laitteen osoite mesh-verkossa. Käytä 0:aa automaattiseen määritykseen (suositeltu).",
-          "bridge_host": "Raspberry Pi:n IP-osoite tai hostname, jossa siltapalvelu on käynnissä. Esimerkki: 192.168.1.100",
-          "bridge_port": "Verkkoportti siltalaitteen viestintään (oletus: 8099). Muuta vain, jos olet mukauttanut siltalaitteen asetuksia.",
-          "unicast_target": "SIG Mesh unicast-osoite heksadesimaalimuodossa (oletus: 00B0). Vain edistyneille käyttäjille.",
-          "iv_index": "Mesh-verkon alustusindeksi. Vain edistyneille käyttäjille - väärä arvo rikkoo viestinnän.",
-          "validate_bridge": "Testaa yhteys siltalaitteeseesi ennen tallentamista. Suositeltu virheiden havaitsemiseksi ajoissa."
-        }
-      },
-      "advanced": {
-        "title": "Hienosäädä laitetta",
-        "description": "Adjust debug verbosity, command timeouts, and reconnect storm protection. Useimmat käyttäjät voivat jättää nämä oletusarvoiksi.",
-        "data": {
-          "debug_level": "BLE mesh -lokitaso",
-          "command_timeout": "Komennon aikakatkaisu (sekuntia)",
-          "max_reconnects": "Max uudelleenyhdistämisyrityksiä (0 = rajoittamaton)",
-          "reconnect_storm_threshold": "Uudelleenyhdistämismyrskyn kynnysarvo (per 5 minuuttia)"
-        },
-        "data_description": {
-          "debug_level": "Hallitsee BLE mesh -lokien yksityiskohtaisuutta. Varoitus on suositeltu normaaliin käyttöön.",
-          "command_timeout": "Kuinka kauan odotetaan laitteen vastausta ennen uudelleenyritystä (3–60 sekuntia).",
-          "max_reconnects": "Rajoita uudelleenyhdistämisyritysten kokonaismäärää. 0 = yritä loputtomiin.",
-          "reconnect_storm_threshold": "Luo korjausilmoitus, jos näin monta uudelleenyhdistämistä tapahtuu 5 minuutissa."
+          "mesh_name": "Laitteesi verkkonimi.",
+          "mesh_password": "Laitteesi verkkosalasana.",
+          "mesh_address": "T\u00e4m\u00e4n laitteen sis\u00e4inen osoite. Aseta arvoon 0 k\u00e4ytt\u00e4\u00e4ksesi oletusta.",
+          "bridge_host": "Hubisi IP-osoite tai palvelinnimi.",
+          "bridge_port": "Portti, jolla hubi kuuntelee. Oletus on 8099.",
+          "unicast_target": "Muuta vain, jos sinulle on annettu ohjeet.",
+          "iv_index": "Muuta vain, jos sinulle on annettu ohjeet."
         }
       }
-    },
-    "error": {
-      "invalid_bridge_host": "Virheellinen siltalaitteen osoite. Syötä hostname tai IP-osoite (ei URL).",
-      "bridge_unreachable": "Siltapalveluun ei saada yhteyttä. Tarkista osoite/portti ja että palvelu on käynnissä.",
-      "invalid_credential_length": "Mesh-nimen ja salasanan on oltava kummankin enintään 16 tavua.",
-      "invalid_vendor_id": "Virheellinen valmistajan tunniste. Odotettu 1–4 heksadesimaalimerkkiä (esim. 0x1001)."
     }
   },
   "entity": {
@@ -175,178 +133,70 @@
         "name": "Signaalin voimakkuus"
       },
       "firmware": {
-        "name": "Firmware-versio"
+        "name": "Laiteohjelmistoversio"
       },
       "power": {
         "name": "Teho"
       },
       "energy": {
         "name": "Energia"
-      },
-      "connection_quality": {
-        "name": "Yhteyden laatu",
-        "state": {
-          "good": "Hyvä (≥-60 dBm)",
-          "marginal": "Kohtalainen (-60 - -80 dBm)",
-          "poor": "Heikko (<-80 dBm)"
-        }
-      },
-      "last_seen": {
-        "name": "Viimeksi nähty"
-      }
-    },
-    "update": {
-      "firmware_update": {
-        "name": "Firmware"
-      }
-    },
-    "binary_sensor": {
-      "connectivity": {
-        "name": "Yhteys"
-      }
-    },
-    "button": {
-      "identify": {
-        "name": "Tunnista"
-      },
-      "reconnect": {
-        "name": "Yhdistä uudelleen"
       }
     }
   },
   "exceptions": {
     "connection_failed": {
-      "message": "Yhteys laitteeseen {device} epäonnistui: {error}"
+      "message": "{device}-laitteeseen ei voitu muodostaa yhteytt\u00e4. Tarkista, ett\u00e4 se on p\u00e4\u00e4ll\u00e4 ja kantaman sis\u00e4ll\u00e4."
     },
     "command_timeout": {
-      "message": "Komennon aikakatkaisu laitteelle {device}"
+      "message": "{device} ei vastaa. Se saattaa olla kantaman ulkopuolella."
     },
     "provisioning_failed": {
-      "message": "Laitteen {device} paritus epäonnistui: {error}"
+      "message": "{device}-laitteeseen ei voitu muodostaa yhteytt\u00e4. Yrit\u00e4 poistaa ja lis\u00e4t\u00e4 se uudelleen."
     },
     "invalid_key": {
-      "message": "Virheellinen mesh-avainmuoto"
+      "message": "Virheellinen salausavaimen muoto"
     }
   },
   "services": {
     "identify": {
-      "name": "Tunnista laite",
-      "description": "Flash the device LED to make it easy to find. **Käytä tätä, jos:** You have multiple similar lights and want to confirm which one is which.",
+      "name": "Vilkuta laitetta",
+      "description": "Vilkuttaa laitteen merkkivaloa tunnistamisen helpottamiseksi.",
       "fields": {
         "device_id": {
           "name": "Laite",
-          "description": "Tunnistettava laite (vilkuta LED:iä)."
+          "description": "Vilkutettava laite."
         }
       }
     },
     "set_log_level": {
-      "name": "Aseta lokitaso",
-      "description": "Change BLE mesh logging verbosity without restarting Home Assistant. **Käytä tätä, jos:** You're troubleshooting connection issues and need more detailed logs.",
+      "name": "Aseta lokitarkkuus",
+      "description": "Muuttaa, kuinka paljon diagnostiikkatietoja kirjataan t\u00e4h\u00e4n integraatioon. Uudelleenk\u00e4ynnistyst\u00e4 ei tarvita.",
       "fields": {
         "level": {
           "name": "Taso",
-          "description": "Lokitaso: debug, info, warning tai error."
+          "description": "Tarkkuustaso: debug (eniten), info, warning tai error (v\u00e4hiten)."
         }
       }
     },
     "get_diagnostics": {
-      "name": "Hae diagnostiikka",
-      "description": "Log diagnostic information for a device to the HA log. **Käytä tätä, jos:** The device isn't working as expected and you need to share technical details for support.",
+      "name": "Hae laitetiedot",
+      "description": "Hakee yhteyden tilastot ja kuntoilmoitukset laitteelle.",
       "fields": {
         "device_id": {
           "name": "Laite",
-          "description": "Laite, jonka diagnostiikka haetaan."
-        }
-      }
-    },
-    "reconnect": {
-      "name": "Yhdistä laite uudelleen",
-      "description": "Pakota yhteyden katkaisu ja uudelleenyhdistäminen ilman integraation uudelleenlatausta.",
-      "fields": {
-        "device_id": {
-          "name": "Laite",
-          "description": "Laite, joka yhdistetään uudelleen."
+          "description": "Tarkistettava laite."
         }
       }
     }
   },
   "issues": {
-    "bridge_unreachable": {
-      "title": "Siltapalvelu ei vastaa: {host}:{port}",
-      "fix_flow": {
-        "step": {
-          "confirm": {
-            "title": "Siltalaite ei vastaa: {host}:{port}",
-            "description": "BLE-siltapalvelu osoitteessa **{host}:{port}** ei vastaa.\n\n**Tarkistukset:**\n1. Onko siltalaite päällä?\n2. Onko palvelu käynnissä? Aja: `systemctl status tuya-ble-bridge`\n3. Pääseekö Home Assistant porttiin {port}?\n4. Testaa: `curl http://{host}:{port}/health`\n\nTämä ilmoitus katoaa automaattisesti, kun palvelu tulee takaisin online-tilaan."
-          }
-        }
-      }
-    },
-    "auth_or_mesh_mismatch": {
-      "title": "Mesh-kirjautumistietojen ristiriita: {device}",
-      "fix_flow": {
-        "step": {
-          "reauth_hint": {
-            "title": "Korjaus: Päivitä mesh-kirjautumistiedot",
-            "description": "Laite **{device}** hylkää tallennetut mesh-kirjautumistiedot.\n\n**Korjataksesi:**\n1. Mene **Asetukset → Integraatiot → {device} → Määritä**\n2. Päivitä mesh-nimi ja salasana vastaamaan laitetta\n3. Oletusarvot: nimi=`out_of_mesh`, salasana=`123456`\n\nJos laite on palautettu tehdasasetuksiin, poista ja lisää integraatio uudelleen."
-          },
-          "credentials": {
-            "title": "Syötä uudet kirjautumistiedot",
-            "description": "Laite hylkäsi tallennetut kirjautumistiedot. Syötä päivitetyt mesh-kirjautumistiedot tai siltalaitteen yhteysasetukset alle.",
-            "data": {
-              "mesh_name": "Mesh-nimi",
-              "mesh_password": "Mesh-salasana",
-              "bridge_host": "Siltalaitteen osoite",
-              "bridge_port": "Siltalaitteen portti"
-            }
-          }
-        }
-      }
-    },
-    "unsupported_vendor": {
-      "title": "Tuntematon valmistajan tunniste: {device} ({vendor_id})",
-      "fix_flow": {
-        "step": {
-          "confirm": {
-            "title": "Korjaus: Päivitä valmistajan tunniste",
-            "description": "Valmistajan tunniste **{vendor_id}** laitteelle **{device}** ei ole tunnistettu.\n\n**Oikean tunnisteen selvittämiseksi:**\n1. Käytä BLE-nuuskijaa kaappaamaan laitteen lähetyksiä\n2. Katso valmistajan tietoja — valmistajatavut ovat kuorman kohdassa `[3:5]`\n3. Tunnettuja tunnisteita: Malmbergs=`0x1001`, AwoX=`0x0160`, Dimond=`0x0211`\n\n**Korjataksesi:** Mene **Asetukset → Integraatiot → {device} → Määritä** ja päivitä valmistajan tunniste."
-          }
-        }
-      }
-    },
-    "device_not_found": {
-      "title": "Laitetta ei näy: {device} (…{mac})"
-    },
-    "timeout": {
-      "title": "Toistuvia aikakatkaisuja: {device} ({operation})"
-    },
-    "reconnect_storm": {
-      "title": "Yhteys katkeilee jatkuvasti: {device}",
-      "fix_flow": {
-        "step": {
-          "storm_confirm": {
-            "title": "Laitteesi yhteys katkeaa jatkuvasti",
-            "description": "**{device}** on yhdistänyt uudelleen **{count}** kertaa viimeisen {window} minuutin aikana. Tämä tarkoittaa yleensä, että jotain on vialla.\n\n**Mitä tarkistaa:**\n1. **Signaalin voimakkuus:** Onko laite liian kaukana siltalaitteeseesi tai BLE-sovittimestasi? Kokeile siirtää se lähemmäksi.\n2. **Virta-ongelmat:** Saako laite vakaata virtaa? Kokeile toista pistorasiaa tai virtalähdettä.\n3. **Laitteen kunto:** Toimiiko laite muuten normaalisti? Se saattaa kaivata uudelleenkäynnistystä tai tehdasasetusten palautusta.\n4. **Häiriöt:** Onko laitteen ja siltalaitteen välissä metalliesineitä tai muita elektroniikkalaitteita?\n\n**Mitä tämä painike tekee:**\nOK:n painaminen poistaa tämän ilmoituksen, mutta se ei korjaa ongelmaa. Yhteyskatkokset jatkuvat, kunnes korjaat yllä olevan syyn.\n\n**Tarvitsetko apua?** Tarkista siltalaitteen lokeista Asetukset → Järjestelmä → Lokit lisätietoja."
-          }
-        }
-      }
-    },
-    "protocol_mismatch": {
-      "title": "Protokollan ristiriita: {device}"
-    },
     "provisioning_failed": {
-      "title": "Paritus epäonnistui: {device}",
-      "fix_flow": {
-        "step": {
-          "confirm": {
-            "title": "Korjaa paritusvirhe",
-            "description": "SIG Mesh -paritus epäonnistui laitteelle **{device}**.\n\n**Korjataksesi:**\n1. Poista tämä integraaciomerkintä\n2. Palauta laite tehdasasetukset: 5× nopea virtajakso (LED vilkkuu nopeasti, kun valmis)\n3. Lisää integraatio uudelleen LED:n vilkkuessa\n\nVarmista, että laite on BLE-kantaman sisällä paikallisesta sovittimesta tai ESPHome BLE -välittimestä parituksen aikana."
-          }
-        }
-      }
+      "title": "Laitteen m\u00e4\u00e4ritys ep\u00e4onnistui",
+      "description": "{device}-laitteen m\u00e4\u00e4ritys ep\u00e4onnistui. Katkaise laitteen virta ja kytke se uudelleen, ja lis\u00e4\u00e4 se sitten uudelleen Home Assistantiin."
     },
-    "key_mismatch": {
-      "title": "Avaimen ristiriita: {device}"
+    "bridge_unreachable": {
+      "title": "Hubi ei vastaa",
+      "description": "Laitteen hubiin osoitteessa {host}:{port} ei saada yhteyttä. Tarkista, ett\u00e4 se on p\u00e4\u00e4ll\u00e4 ja yhteydess\u00e4 verkkoon."
     }
   }
 }

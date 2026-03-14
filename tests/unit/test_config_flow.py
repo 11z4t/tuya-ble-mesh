@@ -24,6 +24,9 @@ from custom_components.tuya_ble_mesh.const import (  # noqa: E402
     CONF_MESH_PASSWORD,
     CONF_VENDOR_ID,
     DEVICE_TYPE_LIGHT,
+    DEVICE_TYPE_PLUG,
+    DEVICE_TYPE_SIG_PLUG,
+    DOMAIN,
 )
 
 

@@ -2,14 +2,8 @@
 
 Provides device diagnostics with automatic redaction of sensitive
 fields (mesh credentials, encryption keys, IP/MAC addresses).
-Includes:
-  - Connection statistics with response time percentiles
-  - Error tracking and error classification
-  - Protocol mode (Tuya BLE / SIG Mesh / Bridge)
-  - Vendor ID and known vendor name
-  - Bridge connectivity info (redacted)
-  - Firmware version and feature capabilities
-  - Reconnect storm state
+Includes connection statistics, response time percentiles, and
+error tracking.
 """
 
 from __future__ import annotations
@@ -25,18 +19,9 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
     CONF_BRIDGE_HOST,
     CONF_DEV_KEY,
-    CONF_DEVICE_TYPE,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
     CONF_NET_KEY,
-    CONF_VENDOR_ID,
-    DEFAULT_VENDOR_ID,
-    DEVICE_TYPE_LIGHT,
-    DEVICE_TYPE_PLUG,
-    DEVICE_TYPE_SIG_BRIDGE_PLUG,
-    DEVICE_TYPE_SIG_PLUG,
-    DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
-    KNOWN_VENDOR_IDS,
 )
 
 REDACTED = "**REDACTED**"
@@ -56,12 +41,10 @@ _SENSITIVE_KEYS = frozenset(
 _IP_PATTERN = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 _MAC_PATTERN = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
 
-# Re-export from const (single source of truth)
-_KNOWN_VENDORS = KNOWN_VENDOR_IDS
-
 
 def _redact_string(text: str | Any) -> str:
     """Redact IP addresses and MAC addresses from a string."""
+    # Handle non-string types gracefully (e.g., MagicMock in tests)
     if not isinstance(text, str):
         text = str(text)
     text = _IP_PATTERN.sub("xxx.xxx.xxx.xxx", text)
@@ -105,80 +88,15 @@ def _calculate_percentiles(times: list[float]) -> dict[str, float]:
     }
 
 
-def _get_protocol_mode(device_type: str) -> str:
-    """Return human-readable protocol mode from device type constant."""
-    protocol_map = {
-        DEVICE_TYPE_LIGHT: "Tuya BLE Mesh (Telink)",
-        DEVICE_TYPE_PLUG: "Tuya BLE Mesh (Telink)",
-        DEVICE_TYPE_SIG_PLUG: "SIG Mesh (direct BLE)",
-        DEVICE_TYPE_SIG_BRIDGE_PLUG: "SIG Mesh (HTTP bridge)",
-        DEVICE_TYPE_TELINK_BRIDGE_LIGHT: "Tuya BLE Mesh (HTTP bridge)",
-    }
-    return protocol_map.get(device_type, f"Unknown ({device_type})")
-
-
-def _get_vendor_name(vendor_id_hex: str) -> str:
-    """Return human-readable vendor name for a vendor ID hex string."""
-    vid = vendor_id_hex.lower().strip()
-    if not vid.startswith("0x"):
-        vid = f"0x{vid}"
-    name = _KNOWN_VENDORS.get(vid)
-    return name if name is not None else "Unknown vendor"
-
-
-def _rssi_trend(history: list[tuple[float, int]]) -> str:
-    """Classify RSSI trend from timestamped samples as improving/declining/stable/unknown.
-
-    Uses a simple linear regression direction: if the slope of the last N samples
-    is above +2 dBm we call it improving, below -2 dBm declining, otherwise stable.
-    Requires at least 3 samples; returns "unknown" otherwise.
-
-    Args:
-        history: List of (timestamp, rssi_dbm) tuples sorted oldest-first.
-
-    Returns:
-        One of: "improving", "declining", "stable", "unknown".
-    """
-    if len(history) < 3:
-        return "unknown"
-
-    n = len(history)
-    xs = [float(i) for i in range(n)]
-    ys = [float(r) for _, r in history]
-    mean_x = sum(xs) / n
-    mean_y = sum(ys) / n
-    numerator = sum((xs[i] - mean_x) * (ys[i] - mean_y) for i in range(n))
-    denominator = sum((xs[i] - mean_x) ** 2 for i in range(n))
-    if denominator == 0:
-        return "stable"
-    slope = numerator / denominator
-
-    if slope > 2.0:
-        return "improving"
-    if slope < -2.0:
-        return "declining"
-    return "stable"
-
-
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant,
     entry: TuyaBLEMeshConfigEntry,
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
-    device_type: str = entry.data.get(CONF_DEVICE_TYPE, "")
-    vendor_id: str = entry.data.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
-
     diag: dict[str, Any] = {
         "entry_id": entry.entry_id,
         "data": _redact_data(dict(entry.data)),
-        "protocol_mode": _get_protocol_mode(device_type),
-        "vendor_id": vendor_id,
-        "vendor_name": _get_vendor_name(vendor_id),
     }
-
-    # Initialize health_summary early so it's always present
-    health_summary = "Unknown"
-    health_details = []
 
     # Add coordinator state if available via runtime_data (modern pattern)
     runtime = getattr(entry, "runtime_data", None)
@@ -204,12 +122,9 @@ async def async_get_config_entry_diagnostics(
                 if stats.last_error_time
                 else None
             ),
-            "last_error_class": stats.last_error_class,
-            "storm_detected": stats.storm_detected,
-            "recent_reconnect_count": len(stats.reconnect_times),
         }
 
-        # Response times (avg, p50, p95, p99)
+        # Response times (avg, p95, p99)
         response_times = list(stats.response_times)
         if response_times:
             percentiles = _calculate_percentiles(response_times)
@@ -219,7 +134,6 @@ async def async_get_config_entry_diagnostics(
                 "p95_seconds": percentiles["p95"],
                 "p99_seconds": percentiles["p99"],
                 "sample_count": len(response_times),
-                "_info": "p50=median (50% of commands faster), p95=95th percentile (only 5% slower), p99=99th percentile (worst-case latency)",
             }
         else:
             diag["response_times"] = {
@@ -245,114 +159,32 @@ async def async_get_config_entry_diagnostics(
 
         # Device info (MAC redacted)
         device = coordinator.device
-        is_bridge = "Bridge" in type(device).__name__
         diag["device_info"] = {
             "type": type(device).__name__,
             "address": _redact_string(device.address),  # MAC redaction
-            "is_bridge": is_bridge,
+            "is_bridge": "Bridge" in type(device).__name__,
         }
-
-        # Feature capabilities (what this device type supports)
-        capabilities: dict[str, bool] = {
-            "on_off": True,
-            "brightness": device_type in (DEVICE_TYPE_LIGHT, DEVICE_TYPE_TELINK_BRIDGE_LIGHT),
-            "color_temp": device_type in (DEVICE_TYPE_LIGHT, DEVICE_TYPE_TELINK_BRIDGE_LIGHT),
-            "rgb": device_type in (DEVICE_TYPE_LIGHT, DEVICE_TYPE_TELINK_BRIDGE_LIGHT),
-            "power_monitoring": device_type in (DEVICE_TYPE_SIG_PLUG, DEVICE_TYPE_SIG_BRIDGE_PLUG),
-            "rssi": not is_bridge,
-            "firmware_version": True,
-        }
-        diag["capabilities"] = capabilities
 
         # Firmware compatibility status
         fw_version = state.firmware_version or "unknown"
         diag["firmware_compatibility"] = {
             "version": fw_version,
             "status": "compatible" if state.available else "unknown",
-            "protocol": coordinator.capabilities.protocol,
+            "protocol": "SIG_Mesh" if hasattr(device, "set_seq") else "Tuya_BLE",
         }
 
-        # Mesh network topology info
-        if is_bridge:
+        # Mesh network topology info (bridge-specific)
+        if hasattr(device, "bridge_url"):
+            # Bridge device - redact full URL but show it's using bridge
             diag["mesh_topology"] = {
                 "mode": "bridge",
                 "bridge_url": REDACTED,  # Full redaction of internal topology
                 "local_ble": False,
-                "bridge_type": type(device).__name__,
             }
         else:
             diag["mesh_topology"] = {
                 "mode": "direct_ble",
                 "local_ble": True,
             }
-
-        # Connection quality: RSSI trend analysis from sampled history
-        rssi_history = list(stats.rssi_history)
-        rssi_values = [r for _, r in rssi_history]
-        current_rssi = state.rssi if isinstance(state.rssi, (int, float)) else None
-        diag["connection_quality"] = {
-            "current_rssi": current_rssi,
-            "rssi_trend": _rssi_trend(rssi_history),
-            "rssi_samples": len(rssi_history),
-            "avg_rssi": round(sum(rssi_values) / len(rssi_values), 1) if rssi_values else None,
-            "min_rssi": min(rssi_values) if rssi_values else None,
-            "max_rssi": max(rssi_values) if rssi_values else None,
-            "quality_hint": (
-                "good"
-                if current_rssi is not None and current_rssi >= -70
-                else "marginal"
-                if current_rssi is not None and current_rssi >= -85
-                else "poor"
-                if current_rssi is not None
-                else "unknown"
-            ),
-        }
-
-        # Protocol health: reconnect timeline summary + error breakdown
-        timeline = list(stats.reconnect_timeline)
-        last_error_class = timeline[-1].error_class if timeline else None
-        diag["protocol_health"] = {
-            "protocol": coordinator.capabilities.protocol,
-            "reconnect_timeline_events": len(timeline),
-            "last_reconnect_error_class": last_error_class,
-            "command_error_rate": round(
-                stats.command_errors / max(stats.total_reconnects + 1, 1), 3
-            ),
-            "consecutive_failures": coordinator.consecutive_failures,
-            "storm_threshold": coordinator.storm_threshold,
-        }
-
-        # Generate health summary based on all collected metrics
-        if not state.available:
-            health_summary = "Offline"
-            health_details.append("Device is not responding")
-        elif stats.storm_detected:
-            health_summary = "Degraded (connection unstable)"
-            health_details.append(f"Device reconnected {len(stats.reconnect_times)} times recently")
-        elif current_rssi is not None and current_rssi < -85:
-            health_summary = "Degraded (signal weak)"
-            health_details.append(
-                f"Signal strength {current_rssi} dBm is below recommended minimum"
-            )
-        elif stats.total_errors > 10 and stats.total_errors > stats.total_reconnects * 2:
-            health_summary = "Degraded (high error rate)"
-            health_details.append(
-                f"{stats.total_errors} errors, command error rate {diag['protocol_health']['command_error_rate']}"
-            )
-        else:
-            health_summary = "Healthy"
-            if uptime_seconds and uptime_seconds > 3600:
-                health_details.append(
-                    f"Stable connection for {uptime_seconds // 3600}h {(uptime_seconds % 3600) // 60}m"
-                )
-            if current_rssi and current_rssi >= -70:
-                health_details.append(f"Excellent signal strength ({current_rssi} dBm)")
-
-    # Add health summary at the top level for easy access
-    diag["health_summary"] = {
-        "status": health_summary,
-        "details": health_details,
-        "_info": "Overall device health: Healthy (working normally), Degraded (issues detected), or Offline (not responding)",
-    }
 
     return diag

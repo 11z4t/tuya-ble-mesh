@@ -41,6 +41,11 @@ class OptionsFlow:
     def __init__(self) -> None:
         self.context = {}
 
+    @property
+    def show_advanced_options(self) -> bool:
+        """Return True if the user enabled advanced options in HA settings."""
+        return self.context.get("show_advanced_options", False)
+
     def async_abort(self, reason: str) -> dict[str, Any]:
         return {"type": "abort", "reason": reason}
 
@@ -105,6 +110,11 @@ class ConfigFlow(metaclass=_ConfigFlowMeta):
 
     def __init__(self) -> None:
         self.context = {}
+
+    @property
+    def show_advanced_options(self) -> bool:
+        """Return True if the user enabled advanced options in HA settings."""
+        return self.context.get("show_advanced_options", False)
 
     async def async_set_unique_id(self, unique_id: str, *, raise_on_progress: bool = True) -> None:
         """Store unique_id for later duplicate checking."""

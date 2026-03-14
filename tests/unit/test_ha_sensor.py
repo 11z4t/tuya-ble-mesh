@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import sys
-import time
-from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -29,8 +27,6 @@ from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
 from custom_components.tuya_ble_mesh.sensor import (  # noqa: E402
     SENSOR_DESCRIPTIONS,
     TuyaBLEMeshSensor,
-    _connection_quality,
-    _last_seen_datetime,
     async_setup_entry,
 )
 
@@ -42,7 +38,6 @@ def make_mock_coordinator(
     power_w: float | None = None,
     energy_kwh: float | None = None,
     available: bool = True,
-    last_seen: float | None = None,
 ) -> MagicMock:
     """Create a mock coordinator."""
     coord = MagicMock()
@@ -52,15 +47,11 @@ def make_mock_coordinator(
         power_w=power_w,
         energy_kwh=energy_kwh,
         available=available,
-        last_seen=last_seen,
     )
     coord.device = MagicMock()
     coord.device.address = "DC:23:4D:21:43:A5"
     coord.device.supports_power_monitoring = False
-    coord.capabilities = MagicMock()
-    coord.capabilities.has_power_monitoring = False
     coord.add_listener = MagicMock(return_value=MagicMock())
-    coord.async_add_listener = MagicMock(return_value=MagicMock())
     return coord
 
 
@@ -68,8 +59,8 @@ class TestSensorDescriptions:
     """Test SENSOR_DESCRIPTIONS configuration."""
 
     def test_sensor_descriptions_count(self) -> None:
-        """Verify we have exactly 6 sensor descriptions."""
-        assert len(SENSOR_DESCRIPTIONS) == 6
+        """Verify we have exactly 4 sensor descriptions."""
+        assert len(SENSOR_DESCRIPTIONS) == 4
 
     def test_rssi_description(self) -> None:
         """Test RSSI sensor description."""
@@ -315,25 +306,21 @@ class TestSensorLifecycle:
         coord = make_mock_coordinator()
         desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
         sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
-        sensor.hass = MagicMock()
 
         await sensor.async_added_to_hass()
 
-        coord.async_add_listener.assert_called_once()
+        coord.add_listener.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_removed_from_hass(self) -> None:
         coord = make_mock_coordinator()
         remove_fn = MagicMock()
-        coord.async_add_listener.return_value = remove_fn
+        coord.add_listener.return_value = remove_fn
         desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
         sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
-        sensor.hass = MagicMock()
 
         await sensor.async_added_to_hass()
-        # CoordinatorEntity stores the unsubscribe fn via async_on_remove;
-        # _call_on_remove_callbacks() triggers cleanup (as done by async_remove())
-        sensor._call_on_remove_callbacks()
+        await sensor.async_will_remove_from_hass()
 
         remove_fn.assert_called_once()
 
@@ -343,10 +330,9 @@ class TestSensorLifecycle:
         desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
         sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
         sensor.async_write_ha_state = MagicMock()
-        sensor.hass = MagicMock()
 
         await sensor.async_added_to_hass()
-        callback = coord.async_add_listener.call_args[0][0]
+        callback = coord.add_listener.call_args[0][0]
         callback()
 
         sensor.async_write_ha_state.assert_called_once()
@@ -357,7 +343,7 @@ class TestSensorPlatformSetup:
 
     @pytest.mark.asyncio
     async def test_setup_entry_creates_two_sensors_for_light(self) -> None:
-        """Lights: RSSI + Firmware + connection_quality + last_seen = 4 sensors."""
+        """Light devices get RSSI + Firmware = 2 sensors (no power/energy)."""
         coord = make_mock_coordinator()
         hass = MagicMock()
         entry = MagicMock()
@@ -371,7 +357,7 @@ class TestSensorPlatformSetup:
 
         add_entities.assert_called_once()
         entities = add_entities.call_args[0][0]
-        assert len(entities) == 4
+        assert len(entities) == 2
         keys = {e.entity_description.key for e in entities}
         assert "rssi" in keys
         assert "firmware" in keys
@@ -380,10 +366,9 @@ class TestSensorPlatformSetup:
 
     @pytest.mark.asyncio
     async def test_setup_entry_creates_four_sensors_for_plug(self) -> None:
-        """Plugs with power: RSSI + FW + Power + Energy + quality + seen = 6."""
+        """Plug devices with power monitoring get RSSI + Firmware + Power + Energy = 4."""
         coord = make_mock_coordinator()
         coord.device.supports_power_monitoring = True
-        coord.capabilities.has_power_monitoring = True
         hass = MagicMock()
         entry = MagicMock()
         entry.entry_id = "entry1"
@@ -395,7 +380,7 @@ class TestSensorPlatformSetup:
         await async_setup_entry(hass, entry, add_entities)
 
         entities = add_entities.call_args[0][0]
-        assert len(entities) == 6
+        assert len(entities) == 4
         keys = {e.entity_description.key for e in entities}
         assert "rssi" in keys
         assert "firmware" in keys
@@ -417,7 +402,7 @@ class TestSensorPlatformSetup:
 
         entities = add_entities.call_args[0][0]
         for entity in entities:
-            assert entity.coordinator is coord
+            assert entity._coordinator is coord
 
     @pytest.mark.asyncio
     async def test_setup_entry_sets_device_info(self) -> None:
@@ -446,181 +431,3 @@ class TestSensorHasEntityName:
         desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
         sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
         assert sensor.has_entity_name is True
-
-
-# --- connection_quality sensor ---
-
-
-class TestConnectionQualityDescription:
-    """Test connection_quality sensor description."""
-
-    def test_description_exists(self) -> None:
-        desc = next((d for d in SENSOR_DESCRIPTIONS if d.key == "connection_quality"), None)
-        assert desc is not None
-
-    def test_device_class_enum(self) -> None:
-        from homeassistant.components.sensor import SensorDeviceClass
-
-        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "connection_quality")
-        assert desc.device_class == SensorDeviceClass.ENUM
-
-    def test_options(self) -> None:
-        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "connection_quality")
-        assert desc.options == ["good", "marginal", "poor"]
-
-    def test_entity_category_diagnostic(self) -> None:
-        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "connection_quality")
-        assert desc.entity_category == EntityCategory.DIAGNOSTIC
-
-    def test_no_available_fn(self) -> None:
-        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "connection_quality")
-        assert desc.available_fn is None
-
-
-class TestConnectionQualityValues:
-    """Test _connection_quality mapping from RSSI."""
-
-    def test_good_rssi(self) -> None:
-        state = TuyaBLEMeshDeviceState(rssi=-55)
-        assert _connection_quality(state) == "good"
-
-    def test_rssi_exactly_at_good_threshold(self) -> None:
-        state = TuyaBLEMeshDeviceState(rssi=-60)
-        assert _connection_quality(state) == "good"
-
-    def test_marginal_rssi(self) -> None:
-        state = TuyaBLEMeshDeviceState(rssi=-70)
-        assert _connection_quality(state) == "marginal"
-
-    def test_rssi_exactly_at_marginal_threshold(self) -> None:
-        state = TuyaBLEMeshDeviceState(rssi=-80)
-        assert _connection_quality(state) == "marginal"
-
-    def test_poor_rssi(self) -> None:
-        state = TuyaBLEMeshDeviceState(rssi=-85)
-        assert _connection_quality(state) == "poor"
-
-    def test_none_rssi_returns_none(self) -> None:
-        state = TuyaBLEMeshDeviceState(rssi=None)
-        assert _connection_quality(state) is None
-
-
-class TestConnectionQualitySensor:
-    """Test TuyaBLEMeshSensor with connection_quality description."""
-
-    def test_unique_id(self) -> None:
-        coord = make_mock_coordinator(rssi=-65)
-        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "connection_quality")
-        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
-        assert sensor.unique_id == "DC:23:4D:21:43:A5_connection_quality"
-
-    def test_native_value_good(self) -> None:
-        coord = make_mock_coordinator(rssi=-50)
-        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "connection_quality")
-        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
-        assert sensor.native_value == "good"
-
-    def test_native_value_marginal(self) -> None:
-        coord = make_mock_coordinator(rssi=-75)
-        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "connection_quality")
-        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
-        assert sensor.native_value == "marginal"
-
-    def test_native_value_poor(self) -> None:
-        coord = make_mock_coordinator(rssi=-90)
-        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "connection_quality")
-        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
-        assert sensor.native_value == "poor"
-
-    def test_native_value_none_when_no_rssi(self) -> None:
-        coord = make_mock_coordinator(rssi=None)
-        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "connection_quality")
-        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
-        assert sensor.native_value is None
-
-
-# --- last_seen sensor ---
-
-
-class TestLastSeenDescription:
-    """Test last_seen sensor description."""
-
-    def test_description_exists(self) -> None:
-        desc = next((d for d in SENSOR_DESCRIPTIONS if d.key == "last_seen"), None)
-        assert desc is not None
-
-    def test_device_class_timestamp(self) -> None:
-        from homeassistant.components.sensor import SensorDeviceClass
-
-        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "last_seen")
-        assert desc.device_class == SensorDeviceClass.TIMESTAMP
-
-    def test_entity_category_diagnostic(self) -> None:
-        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "last_seen")
-        assert desc.entity_category == EntityCategory.DIAGNOSTIC
-
-    def test_no_available_fn(self) -> None:
-        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "last_seen")
-        assert desc.available_fn is None
-
-
-class TestLastSeenValues:
-    """Test _last_seen_datetime conversion."""
-
-    def test_returns_none_when_no_last_seen(self) -> None:
-        state = TuyaBLEMeshDeviceState(last_seen=None)
-        assert _last_seen_datetime(state) is None
-
-    def test_returns_utc_datetime(self) -> None:
-        ts = 1700000000.0
-        state = TuyaBLEMeshDeviceState(last_seen=ts)
-        result = _last_seen_datetime(state)
-        assert result is not None
-        assert result.tzinfo is UTC
-
-    def test_correct_timestamp_conversion(self) -> None:
-        ts = 1700000000.0
-        state = TuyaBLEMeshDeviceState(last_seen=ts)
-        result = _last_seen_datetime(state)
-        expected = datetime.fromtimestamp(ts, tz=UTC)
-        assert result == expected
-
-    def test_recent_timestamp(self) -> None:
-        ts = time.time()
-        state = TuyaBLEMeshDeviceState(last_seen=ts)
-        result = _last_seen_datetime(state)
-        assert result is not None
-        assert isinstance(result, datetime)
-
-
-class TestLastSeenSensor:
-    """Test TuyaBLEMeshSensor with last_seen description."""
-
-    def test_unique_id(self) -> None:
-        coord = make_mock_coordinator()
-        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "last_seen")
-        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
-        assert sensor.unique_id == "DC:23:4D:21:43:A5_last_seen"
-
-    def test_native_value_none_when_never_seen(self) -> None:
-        coord = make_mock_coordinator(last_seen=None)
-        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "last_seen")
-        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
-        assert sensor.native_value is None
-
-    def test_native_value_is_datetime_when_seen(self) -> None:
-        ts = 1700000000.0
-        coord = make_mock_coordinator(last_seen=ts)
-        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "last_seen")
-        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
-        result = sensor.native_value
-        assert isinstance(result, datetime)
-        assert result.tzinfo is UTC
-
-    def test_native_value_correct_time(self) -> None:
-        ts = 1700000000.0
-        coord = make_mock_coordinator(last_seen=ts)
-        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "last_seen")
-        sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
-        expected = datetime.fromtimestamp(ts, tz=UTC)
-        assert sensor.native_value == expected

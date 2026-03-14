@@ -11,6 +11,7 @@ Covers:
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import sys
 from dataclasses import replace

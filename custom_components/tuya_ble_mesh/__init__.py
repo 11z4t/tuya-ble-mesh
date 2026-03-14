@@ -13,20 +13,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeAlias
 
-# Ensure bundled lib/tuya_ble_mesh is importable
-_BUNDLED_LIB = str(Path(__file__).resolve().parent / "lib")
-_DEV_LIB = str(Path(__file__).resolve().parent.parent.parent / "lib")
-for _lib_dir in (_BUNDLED_LIB, _DEV_LIB):
-    if Path(_lib_dir).is_dir() and _lib_dir not in sys.path:
-        sys.path.insert(0, _lib_dir)
-        break
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.exceptions import HomeAssistantError
 
-import contextlib  # noqa: E402
-
-from homeassistant.config_entries import ConfigEntry  # noqa: E402
-from homeassistant.exceptions import HomeAssistantError  # noqa: E402
-
-from custom_components.tuya_ble_mesh.const import (  # noqa: E402
+from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
     CONF_BRIDGE_HOST,
     CONF_BRIDGE_PORT,
@@ -42,18 +32,17 @@ from custom_components.tuya_ble_mesh.const import (  # noqa: E402
     CONF_UNICAST_TARGET,
     CONF_VENDOR_ID,
     DEFAULT_BRIDGE_PORT,
-    DEFAULT_FACTORY_MESH_NAME,
-    DEFAULT_FACTORY_MESH_PASSWORD,
     DEFAULT_IV_INDEX,
     DEFAULT_MESH_ADDRESS,
     DEFAULT_VENDOR_ID,
+    DEVICE_MODEL_NAMES,
     DEVICE_TYPE_SIG_BRIDGE_PLUG,
     DEVICE_TYPE_SIG_PLUG,
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
     DOMAIN,
-    KNOWN_VENDOR_IDS,
     PLATFORMS,
 )
+from custom_components.tuya_ble_mesh.device_registry import TuyaBLEMeshDeviceRegistry
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -65,20 +54,13 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
-
-def _get_entry_option(entry: ConfigEntry, key: str, default: Any = None) -> Any:
-    """Read a configurable option from entry.options with fallback to entry.data.
-
-    This handles migration: existing entries have everything in data, while
-    new or updated entries store user-configurable settings in options.
-
-    Identity fields (MAC, device_type, keys) remain only in data.
-    Configurable fields (mesh credentials, bridge host/port, vendor ID, etc.)
-    may live in options after the user visits the options flow.
-    """
-    if key in (entry.options or {}):
-        return entry.options[key]
-    return entry.data.get(key, default)
+# Make lib/tuya_ble_mesh importable — check bundled copy first, then dev layout
+_BUNDLED_LIB = str(Path(__file__).resolve().parent / "lib")
+_DEV_LIB = str(Path(__file__).resolve().parent.parent.parent / "lib")
+for _lib_dir in (_BUNDLED_LIB, _DEV_LIB):
+    if Path(_lib_dir).is_dir() and _lib_dir not in sys.path:
+        sys.path.insert(0, _lib_dir)
+        break
 
 
 @dataclass
@@ -92,36 +74,11 @@ class TuyaBLEMeshRuntimeData:
     coordinator: TuyaBLEMeshCoordinator
     device_info: DeviceInfo
     cancel_listeners: list[Callable[[], None]] = field(default_factory=list)
+    registry: TuyaBLEMeshDeviceRegistry | None = None
 
 
 # Type alias for typed config entry access in platform files
 TuyaBLEMeshConfigEntry: TypeAlias = ConfigEntry[TuyaBLEMeshRuntimeData]
-
-
-async def async_setup(hass: HomeAssistant, config: dict[str, Any]) -> bool:
-    """Set up the Tuya BLE Mesh integration.
-
-    Called once when the integration is first loaded. Registers services
-    early so they are available even before any config entry is set up.
-
-    Args:
-        hass: Home Assistant instance.
-        config: Integration configuration from YAML (unused — config entry only).
-
-    Returns:
-        True always.
-    """
-    await _async_register_services(hass)
-    return True
-
-
-async def async_migrate_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
-    """Migrate config entry to latest version."""
-    if entry.version > 1:
-        return False
-    # Version 1 is current — no migration needed yet
-    _LOGGER.debug("Migration not needed for entry %s (version %s)", entry.entry_id, entry.version)
-    return True
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) -> bool:
@@ -160,17 +117,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         return device
 
     if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
-        from tuya_ble_mesh.sig_mesh_bridge import (
-            SIGMeshBridgeDevice,
-        )
+        from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice  # type: ignore[import-not-found]
 
-        # unicast_target is identity — stays in data; bridge settings are configurable
-        try:
-            target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
-        except ValueError as exc:
-            raise HomeAssistantError(f"Invalid unicast_target in config entry: {exc}") from exc
-        bridge_host: str = _get_entry_option(entry, CONF_BRIDGE_HOST, "")
-        bridge_port: int = _get_entry_option(entry, CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+        target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
+        bridge_host: str = entry.data[CONF_BRIDGE_HOST]
+        bridge_port: int = entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
 
         device = SIGMeshBridgeDevice(
             mac_address,
@@ -179,12 +130,10 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             bridge_port,
         )
     elif device_type == DEVICE_TYPE_TELINK_BRIDGE_LIGHT:
-        from tuya_ble_mesh.sig_mesh_bridge import (
-            TelinkBridgeDevice,
-        )
+        from tuya_ble_mesh.sig_mesh_bridge import TelinkBridgeDevice  # type: ignore[import-not-found]
 
-        bridge_host = _get_entry_option(entry, CONF_BRIDGE_HOST, "")
-        bridge_port = _get_entry_option(entry, CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+        bridge_host = entry.data[CONF_BRIDGE_HOST]
+        bridge_port = entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
 
         device = TelinkBridgeDevice(
             mac_address,
@@ -192,19 +141,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             bridge_port,
         )
     elif device_type == DEVICE_TYPE_SIG_PLUG:
-        from tuya_ble_mesh.secrets import DictSecretsManager
-        from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
+        from tuya_ble_mesh.secrets import DictSecretsManager  # type: ignore[import-not-found]
+        from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
 
-        # Unicast addresses and keys are identity — always from data
-        try:
-            target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
-            our_addr = int(entry.data.get(CONF_UNICAST_OUR, "0001"), 16)
-        except ValueError as exc:
-            raise HomeAssistantError(f"Invalid unicast address in config entry: {exc}") from exc
-        # iv_index may need updating when BLE network is reset — configurable
-        iv_index: int = _get_entry_option(entry, CONF_IV_INDEX, DEFAULT_IV_INDEX)
+        target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
+        our_addr = int(entry.data.get(CONF_UNICAST_OUR, "0001"), 16)
+        iv_index: int = entry.data.get(CONF_IV_INDEX, DEFAULT_IV_INDEX)
 
-        # Build secrets dict from config entry keys (identity fields, always from data)
+        # Build secrets dict from config entry keys
         target_hex = f"{target_addr:04x}"
         op_prefix = "cfg"
         secrets_dict = {
@@ -213,10 +157,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             f"{op_prefix}-app-key/password": entry.data.get(CONF_APP_KEY, ""),
         }
 
-        # SIG Mesh devices need direct BLE access (GATT Proxy), NOT through
-        # HA's habluetooth/ESPHome proxy which can't handle mesh GATT properly.
-        # Use adapter=None at runtime — let bleak pick the best available adapter.
-        # During pairing (config_flow), we force adapter="hci0" explicitly.
         device = SIGMeshDevice(
             mac_address,
             target_addr,
@@ -227,18 +167,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             ble_device_callback=_ble_device_from_ha,
         )
     else:
-        from tuya_ble_mesh.device import MeshDevice
+        from tuya_ble_mesh.device import MeshDevice  # type: ignore[import-not-found]
 
-        # Mesh credentials and vendor settings are configurable — read from options first
-        mesh_name: str = _get_entry_option(entry, CONF_MESH_NAME, DEFAULT_FACTORY_MESH_NAME)
-        mesh_password: str = _get_entry_option(
-            entry, CONF_MESH_PASSWORD, DEFAULT_FACTORY_MESH_PASSWORD
-        )
-        vendor_id_hex: str = _get_entry_option(entry, CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
+        mesh_name: str = entry.data[CONF_MESH_NAME]
+        mesh_password: str = entry.data[CONF_MESH_PASSWORD]
+        vendor_id_hex: str = entry.data.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
         vendor_id_int = int(vendor_id_hex, 16)
         vendor_id_bytes = vendor_id_int.to_bytes(2, "little")
 
-        mesh_addr: int = _get_entry_option(entry, CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS)
+        mesh_addr: int = entry.data.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS)
 
         device = MeshDevice(
             mac_address,
@@ -253,36 +190,53 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
 
     from homeassistant.helpers.device_registry import DeviceInfo
 
-    # Determine manufacturer name from vendor_id
-    vendor_id = _get_entry_option(entry, CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
-    # Normalize vendor_id format: handle both "0x1001" and "1001" formats
-    if isinstance(vendor_id, str) and not vendor_id.startswith("0x"):
-        vendor_id = f"0x{vendor_id}"
-    manufacturer = KNOWN_VENDOR_IDS.get(vendor_id, "Tuya / Telink")
-
     # Create device_info (firmware version will be updated by coordinator after connection)
     device_info = DeviceInfo(
         identifiers={(DOMAIN, mac_address)},
         name=entry.title,
-        manufacturer=manufacturer,
-        model=device_type or "BLE Mesh",
+        manufacturer="Malmbergs / Tuya",
+        model=DEVICE_MODEL_NAMES.get(device_type, "BLE Mesh Device"),
         sw_version=None,  # Will be populated by coordinator after connection
         connections={("mac", mac_address)},
     )
+
+    # Initialize device registry and register this device
+    registry = TuyaBLEMeshDeviceRegistry(hass)
+    await registry.async_load()
+    registry.register_device(mac_address, entry.title, device_type or "unknown")
 
     # Store runtime data BEFORE async_start to avoid race condition
     # (callbacks may fire during async_start and need access to runtime_data)
     entry.runtime_data = TuyaBLEMeshRuntimeData(
         coordinator=coordinator,
         device_info=device_info,
+        registry=registry,
     )
 
     await coordinator.async_start()
 
+    # Update registry with connection result
+    if coordinator.state.available:
+        registry.record_connection(mac_address)
+        if coordinator.state.firmware_version:
+            registry.update_firmware_version(mac_address, coordinator.state.firmware_version)
+        await registry.async_save()
+    else:
+        registry.record_error(mac_address, "initial_connection_failed")
+
     # Forward platform setup even if device is unavailable —
-    # entities will show as "unavailable" until connection succeeds.
-    # HA's async_forward_entry_setups handles parallel platform import natively.
+    # entities will show as "unavailable" until connection succeeds
+    # Pre-import platform modules in executor to avoid blocking the event loop
+    # (HA 2026.x raises warnings for synchronous imports during setup)
+    import importlib
+
+    for platform in PLATFORMS:
+        await hass.async_add_import_executor_job(importlib.import_module, f".{platform}", __name__)
+
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Register services
+    await _async_register_services(hass)
 
     # Reload entry when options are changed
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
@@ -315,15 +269,14 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         try:
             device = coordinator.device
             if hasattr(device, "send_power"):
-                # Flash: off → on → off → on
+                # Flash: off/on x3, with 0.5s delay between each command
                 for _ in range(3):
                     await device.send_power(False)
                     await asyncio.sleep(0.5)
                     await device.send_power(True)
                     await asyncio.sleep(0.5)
         except Exception as exc:
-            _LOGGER.debug("Identify device failed: %s", exc, exc_info=True)
-            raise HomeAssistantError("Failed to identify device — check logs for details") from exc
+            raise HomeAssistantError(f"Failed to identify device: {exc}") from exc
 
     async def handle_set_log_level(call: ServiceCall) -> None:
         """Change BLE mesh logging verbosity without HA restart.
@@ -338,16 +291,11 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         _logging.getLogger("tuya_ble_mesh").setLevel(level)
         _LOGGER.info("Log level set to %s", level_str)
 
-    async def handle_get_diagnostics(call: ServiceCall) -> dict[str, Any]:
+    async def handle_get_diagnostics(call: ServiceCall) -> None:
         """Get diagnostic information for a device.
-
-        Returns structured diagnostics data via SupportsResponse.
 
         Args:
             call: Service call with device_id field.
-
-        Returns:
-            Dict with connection stats, RSSI, firmware, and error history.
         """
         device_id: str = call.data.get("device_id", "")
         coordinator = _get_coordinator_for_device(hass, device_id)
@@ -355,39 +303,21 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             raise HomeAssistantError(f"Device not found: {device_id}")
 
         stats = coordinator.statistics
-        diagnostics: dict[str, Any] = {
+        diagnostics = {
             "device_address": coordinator.device.address,
             "available": coordinator.state.available,
-            "connection_uptime_seconds": round(stats.connection_uptime, 1),
+            "connection_uptime": f"{stats.connection_uptime:.1f}s",
             "total_reconnects": stats.total_reconnects,
             "total_errors": stats.total_errors,
             "connection_errors": stats.connection_errors,
             "command_errors": stats.command_errors,
-            "avg_response_time_seconds": (
-                round(stats.avg_response_time, 3) if stats.response_times else None
-            ),
-            "rssi_dbm": coordinator.state.rssi,
+            "avg_response_time": f"{stats.avg_response_time:.3f}s" if stats.response_times else "N/A",
+            "rssi": coordinator.state.rssi,
             "firmware_version": coordinator.state.firmware_version,
             "last_error": stats.last_error,
-            "last_disconnect_timestamp": stats.last_disconnect_time,
+            "last_disconnect": stats.last_disconnect_time,
         }
         _LOGGER.info("Diagnostics for %s: %s", device_id, diagnostics)
-        return diagnostics
-
-    async def handle_reconnect(call: ServiceCall) -> None:
-        """Force reconnect a device without reloading the config entry.
-
-        Args:
-            call: Service call with device_id field.
-        """
-        device_id: str = call.data.get("device_id", "")
-        coordinator = _get_coordinator_for_device(hass, device_id)
-        if coordinator is None:
-            raise HomeAssistantError(f"Device not found: {device_id}")
-        with contextlib.suppress(OSError, ConnectionError):
-            await coordinator.device.disconnect()
-        coordinator.schedule_reconnect()
-        _LOGGER.info("Reconnect triggered for %s", device_id)
 
     hass.services.async_register(
         DOMAIN,
@@ -405,19 +335,10 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             }
         ),
     )
-    from homeassistant.core import SupportsResponse
-
     hass.services.async_register(
         DOMAIN,
         "get_diagnostics",
         handle_get_diagnostics,
-        schema=vol.Schema({vol.Required("device_id"): str}),
-        supports_response=SupportsResponse.OPTIONAL,
-    )
-    hass.services.async_register(
-        DOMAIN,
-        "reconnect",
-        handle_reconnect,
         schema=vol.Schema({vol.Required("device_id"): str}),
     )
 
@@ -476,13 +397,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry)
         await runtime.coordinator.async_stop()
 
     unload_ok: bool = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
-
-    # Remove services if no more entries remain
-    remaining = hass.config_entries.async_entries(DOMAIN)
-    if not remaining or (len(remaining) == 1 and remaining[0].entry_id == entry.entry_id):
-        for service_name in ("identify", "set_log_level", "get_diagnostics", "reconnect"):
-            if hass.services.has_service(DOMAIN, service_name):
-                hass.services.async_remove(DOMAIN, service_name)
 
     _LOGGER.info("Tuya BLE Mesh entry unloaded: %s (ok=%s)", entry.title, unload_ok)
     return unload_ok

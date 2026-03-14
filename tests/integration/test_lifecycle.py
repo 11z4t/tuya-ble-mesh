@@ -99,24 +99,12 @@ class TestFullLifecycle:
         }
         mock_entry.async_on_unload = MagicMock(return_value=None)
 
-        # Mock the MeshDevice and device registry (avoids HA Store I/O)
-        mock_registry = AsyncMock()
-        mock_registry.async_load = AsyncMock()
-        mock_registry.register_device = MagicMock()
-        mock_registry.record_connection = MagicMock()
-        mock_registry.record_error = MagicMock()
-        mock_registry.async_save = AsyncMock()
-
+        # Mock the MeshDevice
         with (
             patch("tuya_ble_mesh.device.MeshDevice") as mock_device_cls,
             patch(
                 "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator.async_start"
             ) as mock_start,
-            patch(
-                "custom_components.tuya_ble_mesh.TuyaBLEMeshDeviceRegistry",
-                return_value=mock_registry,
-                create=True,
-            ),
         ):
             mock_device = MagicMock()
             mock_device.address = "DC:23:4D:21:43:A5"
@@ -193,8 +181,7 @@ class TestFullLifecycle:
             await coord.async_start()
 
         # Mark as connected
-        from dataclasses import replace as dc_replace
-        coord._state = dc_replace(coord._state, available=True)
+        coord._state.available = True
 
         # Entity should now be available
         assert light.available is True
@@ -232,13 +219,6 @@ class TestFullLifecycle:
         }
         mock_entry.async_on_unload = MagicMock(return_value=None)
 
-        mock_registry = AsyncMock()
-        mock_registry.async_load = AsyncMock()
-        mock_registry.register_device = MagicMock()
-        mock_registry.record_connection = MagicMock()
-        mock_registry.record_error = MagicMock()
-        mock_registry.async_save = AsyncMock()
-
         with (
             patch("tuya_ble_mesh.device.MeshDevice") as mock_device_cls,
             patch(
@@ -247,11 +227,6 @@ class TestFullLifecycle:
             patch(
                 "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator.async_stop"
             ) as mock_stop,
-            patch(
-                "custom_components.tuya_ble_mesh.TuyaBLEMeshDeviceRegistry",
-                return_value=mock_registry,
-                create=True,
-            ),
         ):
             mock_device = MagicMock()
             mock_device.address = "DC:23:4D:21:43:A5"
@@ -410,23 +385,11 @@ class TestRuntimeDataIntegrity:
             if original_start:
                 await original_start(self)
 
-        mock_registry = AsyncMock()
-        mock_registry.async_load = AsyncMock()
-        mock_registry.register_device = MagicMock()
-        mock_registry.record_connection = MagicMock()
-        mock_registry.record_error = MagicMock()
-        mock_registry.async_save = AsyncMock()
-
         with (
             patch("tuya_ble_mesh.device.MeshDevice") as mock_device_cls,
             patch(
                 "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator.async_start",
                 new=track_start,
-            ),
-            patch(
-                "custom_components.tuya_ble_mesh.TuyaBLEMeshDeviceRegistry",
-                return_value=mock_registry,
-                create=True,
             ),
         ):
             mock_device = MagicMock()
@@ -467,5 +430,5 @@ class TestRuntimeDataIntegrity:
         light = TuyaBLEMeshLight(runtime.coordinator, mock_entry)
 
         # Verify entity has access to coordinator
-        assert light.coordinator is not None
-        assert light.coordinator.device.address == "DC:23:4D:21:43:A5"
+        assert light._coordinator is not None
+        assert light._coordinator.device.address == "DC:23:4D:21:43:A5"

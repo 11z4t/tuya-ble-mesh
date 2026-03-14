@@ -18,35 +18,15 @@
         "default": "mdi:chip"
       },
       "power": {
-        "default": "mdi:flash"
+        "default": "mdi:lightning-bolt"
       },
       "energy": {
-        "default": "mdi:lightning-bolt"
-      }
-    },
-    "update": {
-      "firmware_update": {
-        "default": "mdi:package-up"
-      }
-    },
-    "event": {
-      "device_connected": {
-        "default": "mdi:connection"
-      },
-      "device_disconnected": {
-        "default": "mdi:connection-off"
-      },
-      "provisioning_complete": {
-        "default": "mdi:check-circle"
-      },
-      "mesh_authenticated": {
-        "default": "mdi:shield-check"
+        "default": "mdi:lightning-bolt-circle"
       }
     }
   },
   "services": {
     "identify": "mdi:magnify",
-    "set_log_level": "mdi:text-box-outline",
-    "get_diagnostics": "mdi:information-outline"
+    "set_log_level": "mdi:text-box-outline"
   }
 }
