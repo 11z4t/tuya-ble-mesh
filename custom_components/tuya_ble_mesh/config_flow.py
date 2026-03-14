@@ -2,8 +2,7 @@
 
 Supports bluetooth discovery (out_of_mesh*, tymesh*, SIG Mesh Proxy/Provisioning)
 and manual MAC entry. Bridge connectivity is validated before creating config entries.
-SIG Mesh plugs are provisioned automatically — NetKey and AppKey are generated
-and the device key is derived from the ECDH provisioning exchange.
+SIG Mesh plugs are provisioned automatically using a secure key exchange.
 """
 
 from __future__ import annotations
@@ -729,10 +728,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         """Handle SIG Mesh plug — auto-provisions and generates all keys.
 
         The device is provisioned via PB-GATT (Service UUID 0x1827).
-        A random NetKey and AppKey are generated. The DevKey is derived
-        from the ECDH exchange during provisioning.  After provisioning,
-        AppKey is added and bound to the GenericOnOff Server model via
-        the Proxy Service (UUID 0x1828).
+        A random network key and device key are established via a secure key exchange.
+        After provisioning, the application key is added and bound to the
+        GenericOnOff Server model via the Proxy Service (UUID 0x1828).
 
         Args:
             user_input: Empty dict when user confirms provisioning (no fields).
@@ -814,11 +812,11 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         )
 
     async def _run_provision(self, mac: str) -> tuple[str, str, str]:
-        """Generate keys, provision the device, configure AppKey and model bind.
+        """Generate keys, provision the device, configure application key and model bind.
 
         Phase 1: PB-GATT provisioning (Service 0x1827).
         Phase 2: Wait for device to reboot into Proxy Service (0x1828).
-        Phase 3: Add AppKey and bind to GenericOnOff Server model.
+        Phase 3: Add application key and bind to GenericOnOff Server model.
 
         Args:
             mac: BLE MAC address of the unprovisioned device.
@@ -924,9 +922,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         )
         try:
             await device.connect(timeout=20.0, max_retries=5)
-            appkey_ok = await device.send_config_appkey_add(app_key)
-            if not appkey_ok:
-                _LOGGER.warning("AppKey Add returned non-success for %s", mac)
+            key_add_ok = await device.send_config_app_key_add(app_key)
+            if not key_add_ok:
+                _LOGGER.warning("Application key add returned non-success for %s", mac)
             await asyncio.sleep(0.5)
             bind_ok = await device.send_config_model_app_bind(
                 _UNICAST_DEVICE_DEFAULT, 0, _MODEL_GENERIC_ONOFF_SERVER
@@ -939,7 +937,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 )
         except Exception:
             _LOGGER.warning(
-                "Post-provisioning config failed for %s (device provisioned but AppKey not bound)",
+                "Post-provisioning config failed for %s (device provisioned but application key not bound)",
                 mac,
                 exc_info=True,
             )
