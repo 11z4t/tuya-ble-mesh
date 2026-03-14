@@ -683,26 +683,27 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                     },
                 )
 
-        return self.async_show_form(
-            step_id="user",
-            data_schema=vol.Schema(
+        # UX-1.4: 3 user-facing device types (SIG types auto-detected via Bluetooth discovery)
+        # UX-1.5: Progressive disclosure — advanced fields shown only in HA advanced mode
+        schema_dict: dict[object, object] = {
+            vol.Required(CONF_MAC_ADDRESS): str,
+            vol.Required(CONF_DEVICE_TYPE, default=DEVICE_TYPE_LIGHT): vol.In(
                 {
-                    vol.Required(CONF_MAC_ADDRESS): str,
-                    vol.Required(CONF_DEVICE_TYPE, default=DEVICE_TYPE_LIGHT): vol.In(
-                        {
-                            DEVICE_TYPE_SIG_BRIDGE_PLUG: "SIG Mesh Plug (via bridge)",
-                            DEVICE_TYPE_TELINK_BRIDGE_LIGHT: "Telink Light (via bridge)",
-                            DEVICE_TYPE_LIGHT: "Light (direct BLE, requires adapter)",
-                            DEVICE_TYPE_PLUG: "Plug (direct BLE, requires adapter)",
-                            DEVICE_TYPE_SIG_PLUG: "SIG Mesh Plug (direct BLE)",
-                        }
-                    ),
-                    vol.Optional(CONF_MESH_NAME, default="out_of_mesh"): str,
-                    vol.Optional(CONF_MESH_PASSWORD, default="123456"): str,
-                    vol.Optional(CONF_VENDOR_ID, default=DEFAULT_VENDOR_ID): str,
-                    vol.Optional(CONF_MESH_ADDRESS, default=DEFAULT_MESH_ADDRESS): int,
+                    DEVICE_TYPE_LIGHT: "LED Light",
+                    DEVICE_TYPE_PLUG: "Smart Plug",
+                    DEVICE_TYPE_TELINK_BRIDGE_LIGHT: "LED Light (via bridge)",
                 }
             ),
+        }
+        if self.show_advanced_options:
+            schema_dict[vol.Optional(CONF_MESH_NAME, default="out_of_mesh")] = str
+            schema_dict[vol.Optional(CONF_MESH_PASSWORD, default="123456")] = str  # pragma: allowlist secret
+            schema_dict[vol.Optional(CONF_VENDOR_ID, default=DEFAULT_VENDOR_ID)] = str
+            schema_dict[vol.Optional(CONF_MESH_ADDRESS, default=DEFAULT_MESH_ADDRESS)] = int
+
+        return self.async_show_form(
+            step_id="user",
+            data_schema=vol.Schema(schema_dict),
             description_placeholders={},
             errors=errors,
         )
