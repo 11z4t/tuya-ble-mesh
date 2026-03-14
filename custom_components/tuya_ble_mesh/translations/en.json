@@ -2,86 +2,112 @@
   "config": {
     "step": {
       "user": {
-        "title": "Tuya BLE Mesh Device",
-        "description": "Enter the BLE MAC address and mesh credentials.\n\nNote: Default credentials (out_of_mesh/123456) are factory defaults. Mesh credentials are stored in the Home Assistant config database.",
+        "title": "Add Bluetooth Mesh Device",
+        "description": "Enter your device's Bluetooth address and choose what type it is.\n\nFactory defaults work for most new devices — expand **Advanced options** only if needed.",
         "data": {
-          "mac_address": "MAC Address",
-          "mesh_name": "Mesh Name",
-          "mesh_password": "Mesh Password",
-          "vendor_id": "Vendor ID (hex, e.g. 0x1001)",
+          "mac_address": "Bluetooth Address",
           "device_type": "Device Type",
-          "mesh_address": "Mesh Address (0 = auto)"
+          "mesh_name": "Network Name",
+          "mesh_password": "Network Password",
+          "vendor_id": "Vendor Code",
+          "mesh_address": "Device Address"
+        },
+        "data_description": {
+          "mac_address": "The Bluetooth address printed on your device (format: XX:XX:XX:XX:XX:XX).",
+          "mesh_name": "The name of your mesh network. Leave as default if unsure.",
+          "mesh_password": "The password of your mesh network. Leave as default if unsure.",
+          "vendor_id": "Manufacturer identifier in hex. Only change if instructed.",
+          "mesh_address": "Internal network address. Set to 0 to assign automatically."
         }
       },
       "sig_bridge": {
-        "title": "SIG Mesh Bridge Configuration",
-        "description": "Configure the BLE bridge daemon connection for {name}.",
+        "title": "Connect to Bluetooth Bridge",
+        "description": "Enter the network address of the bridge that connects to **{name}**.",
         "data": {
-          "bridge_host": "Bridge Host (RPi IP address)",
+          "bridge_host": "Bridge Address",
           "bridge_port": "Bridge Port",
-          "unicast_target": "Target Unicast Address (hex)"
+          "unicast_target": "Device Network Address"
+        },
+        "data_description": {
+          "bridge_host": "The IP address or hostname of your Bluetooth bridge (e.g. your Raspberry Pi).",
+          "bridge_port": "Port the bridge is listening on. Default is 8099.",
+          "unicast_target": "Internal mesh address of the device. Only change if instructed."
         }
       },
       "telink_bridge": {
-        "title": "Telink Bridge Light Configuration",
-        "description": "Configure the BLE bridge daemon connection for {name}.",
+        "title": "Connect to Bluetooth Bridge",
+        "description": "Enter the network address of the bridge that connects to **{name}**.",
         "data": {
-          "bridge_host": "Bridge Host (RPi IP address)",
+          "bridge_host": "Bridge Address",
           "bridge_port": "Bridge Port"
+        },
+        "data_description": {
+          "bridge_host": "The IP address or hostname of your Bluetooth bridge (e.g. your Raspberry Pi).",
+          "bridge_port": "Port the bridge is listening on. Default is 8099."
         }
       },
       "sig_plug": {
-        "title": "SIG Mesh Plug \u2014 Auto Provisioning",
-        "description": "The device **{name}** will be provisioned automatically.\n\nA random NetKey and AppKey are generated. The DevKey is derived from the ECDH provisioning exchange. All keys are saved in the Home Assistant config database.\n\nEnsure the device is in factory-reset state (advertising Provisioning Service 0x1827) and within BLE range, then click Submit.",
+        "title": "Setting Up {name}",
+        "description": "We'll automatically set up the secure connection to your device.\n\nMake sure the device is **powered on** and **close to your Bluetooth adapter**, then click **Submit**.",
         "data": {}
       },
       "confirm": {
-        "title": "{name} ({mac})",
-        "description": "**{category}** device discovered\n\n- **Name:** {name}\n- **MAC:** {mac}\n- **Signal:** {rssi} dBm\n\nChoose device type and mesh credentials.",
+        "title": "Device Found: {name}",
+        "description": "A **{category}** device was discovered nearby.\n\n- **Name:** {name}\n- **Address:** {mac}\n- **Signal:** {rssi} dBm\n\nConfirm the device type below to finish setup.",
         "data": {
           "device_type": "Device Type",
-          "mesh_name": "Mesh Name",
-          "mesh_password": "Mesh Password",
-          "mesh_address": "Mesh Address (0 = auto)"
+          "mesh_name": "Network Name",
+          "mesh_password": "Network Password",
+          "mesh_address": "Device Address"
         }
       },
       "reauth_confirm": {
-        "title": "Re-enter Mesh Credentials",
-        "description": "Authentication failed. Please re-enter the mesh credentials to reconnect.",
+        "title": "Update Connection Credentials",
+        "description": "Your device stopped responding. Please re-enter the connection details to reconnect.",
         "data": {
-          "mesh_name": "Mesh Name",
-          "mesh_password": "Mesh Password",
-          "bridge_host": "Bridge Host",
+          "mesh_name": "Network Name",
+          "mesh_password": "Network Password",
+          "bridge_host": "Bridge Address",
           "bridge_port": "Bridge Port"
         }
       }
     },
     "error": {
-      "invalid_mac": "Invalid MAC address format (expected XX:XX:XX:XX:XX:XX)",
-      "invalid_key": "Invalid key format (expected 32 hex characters)",
-      "invalid_bridge_host": "Invalid bridge host. Use a hostname or IP address (not a URL). Loopback and link-local addresses are not allowed.",
-      "invalid_credential_length": "Mesh name and password must be 16 bytes or fewer.",
-      "invalid_vendor_id": "Invalid Vendor ID (expected 1–4 hex digits, e.g. 0x1001).",
-      "cannot_connect": "Cannot connect to bridge daemon. Verify the host/port and that the daemon is running.",
-      "provisioning_failed": "Provisioning failed. Ensure the device is in factory-reset state, within BLE range, and try again."
+      "invalid_mac": "That doesn't look like a valid Bluetooth address. Expected format: XX:XX:XX:XX:XX:XX.",
+      "invalid_key": "Invalid key \u2014 we need exactly 32 hex characters.",
+      "invalid_bridge_host": "Please enter a hostname or IP address (not a URL). Loopback addresses are not allowed.",
+      "invalid_credential_length": "Network name and password must each be 16 characters or fewer.",
+      "invalid_vendor_id": "Invalid vendor code \u2014 use 1 to 4 hex digits (e.g. 0x1001).",
+      "cannot_connect": "Could not reach the bridge. Check that it's powered on and connected to your network.",
+      "provisioning_failed": "Setup failed. Make sure the device is powered on and close to your Bluetooth adapter, then try again. Check Home Assistant logs for details."
     },
     "abort": {
-      "already_configured": "This device is already configured",
-      "reauth_successful": "Re-authentication successful"
+      "already_configured": "This device is already set up in Home Assistant.",
+      "reauth_successful": "Credentials updated. Reconnecting your device now."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Tuya BLE Mesh Options",
+        "title": "Device Settings",
+        "description": "Update connection settings for this device.",
         "data": {
-          "mesh_name": "Mesh Name",
-          "mesh_password": "Mesh Password",
-          "mesh_address": "Mesh Address (0 = auto)",
-          "bridge_host": "Bridge Host",
+          "mesh_name": "Network Name",
+          "mesh_password": "Network Password",
+          "mesh_address": "Device Address",
+          "bridge_host": "Bridge Address",
           "bridge_port": "Bridge Port",
-          "unicast_target": "Target Unicast Address (hex)",
-          "iv_index": "IV Index"
+          "unicast_target": "Device Network Address",
+          "iv_index": "Security Index"
+        },
+        "data_description": {
+          "mesh_name": "The name of your mesh network.",
+          "mesh_password": "The password of your mesh network.",
+          "mesh_address": "Internal address of this device. Set to 0 to use the default.",
+          "bridge_host": "The IP address or hostname of your Bluetooth bridge.",
+          "bridge_port": "Port the bridge is listening on. Default is 8099.",
+          "unicast_target": "Internal mesh address of the target device. Only change if instructed.",
+          "iv_index": "Mesh security IV index. Only change if instructed."
         }
       }
     }
@@ -114,48 +140,58 @@
   },
   "exceptions": {
     "connection_failed": {
-      "message": "Failed to connect to {device}: {error}"
+      "message": "Could not connect to {device}: {error}"
     },
     "command_timeout": {
-      "message": "Command timed out for {device}"
+      "message": "No response from {device}. It may be out of range."
     },
     "provisioning_failed": {
-      "message": "Provisioning failed for {device}: {error}"
+      "message": "Device setup failed for {device}: {error}"
     },
     "invalid_key": {
-      "message": "Invalid mesh key format"
+      "message": "Invalid encryption key format"
     }
   },
   "services": {
     "identify": {
-      "name": "Identify device",
-      "description": "Flash the device LED to make it easy to find.",
+      "name": "Flash device",
+      "description": "Flash the device's indicator light to help you identify it.",
       "fields": {
         "device_id": {
           "name": "Device",
-          "description": "The device to identify (flash LED)."
+          "description": "The device to flash."
         }
       }
     },
     "set_log_level": {
-      "name": "Set log level",
-      "description": "Change BLE mesh logging verbosity without restarting Home Assistant.",
+      "name": "Set log detail",
+      "description": "Change how much diagnostic detail is logged for Bluetooth mesh. No restart required.",
       "fields": {
         "level": {
           "name": "Level",
-          "description": "Logging level: debug, info, warning, or error."
+          "description": "Amount of detail: debug (most), info, warning, or error (least)."
+        }
+      }
+    },
+    "get_diagnostics": {
+      "name": "Get device info",
+      "description": "Retrieve connection statistics and health information for a device.",
+      "fields": {
+        "device_id": {
+          "name": "Device",
+          "description": "The device to check."
         }
       }
     }
   },
   "issues": {
     "provisioning_failed": {
-      "title": "Device provisioning failed",
-      "description": "Could not provision {device}. Ensure it is in factory-reset state and within BLE range, then reconfigure the integration."
+      "title": "Device setup failed",
+      "description": "Could not set up {device}. Power the device off and on again, then re-add it to Home Assistant."
     },
     "bridge_unreachable": {
-      "title": "Bridge unreachable",
-      "description": "Cannot reach the BLE bridge at {host}:{port}. Check network connectivity and that the bridge daemon is running."
+      "title": "Bridge not responding",
+      "description": "Cannot reach the Bluetooth bridge at {host}:{port}. Check that it's powered on and connected to your network."
     }
   }
 }
