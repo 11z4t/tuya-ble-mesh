@@ -14,6 +14,8 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
+pytest.importorskip("pytest_benchmark")
+
 import contextlib
 
 from tuya_ble_mesh.crypto import crypt_payload, make_checksum, verify_checksum

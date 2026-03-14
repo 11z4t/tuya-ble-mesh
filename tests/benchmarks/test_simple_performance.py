@@ -14,7 +14,11 @@ import pytest
 
 _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
+
+pytest.importorskip("pytest_benchmark")
 sys.path.insert(0, str(Path(_ROOT) / "lib"))
+
+pytest.importorskip("pytest_benchmark")
 
 
 class TestCryptoPerformance:
