@@ -2,8 +2,8 @@
   "config": {
     "step": {
       "user": {
-        "title": "Lis\u00e4\u00e4 Bluetooth-laite",
-        "description": "Sy\u00f6t\u00e4 laitteen Bluetooth-osoite ja valitse laitetyyppi.\n\nTehtaalta toimitetut oletusasetukset toimivat useimmissa uusissa laitteissa \u2014 avaa **Lis\u00e4asetukset** vain tarvittaessa.",
+        "title": "Lisää Bluetooth-laite",
+        "description": "Syötä laitteen Bluetooth-osoite ja valitse laitetyyppi.\n\nTehtaalta toimitetut oletusasetukset toimivat useimmissa uusissa laitteissa — avaa **Lisäasetukset** vain tarvittaessa.",
         "data": {
           "mac_address": "Bluetooth-osoite",
           "device_type": "Laitetyyppi",
@@ -14,15 +14,15 @@
         },
         "data_description": {
           "mac_address": "Laitteeseen painettu Bluetooth-osoite (muoto: XX:XX:XX:XX:XX:XX).",
-          "mesh_name": "J\u00e4t\u00e4 oletusasetukseen, ellei toisin ohjeisteta.",
-          "mesh_password": "J\u00e4t\u00e4 oletusasetukseen, ellei toisin ohjeisteta.",
+          "mesh_name": "Jätä oletusasetukseen, ellei toisin ohjeisteta.",
+          "mesh_password": "Jätä oletusasetukseen, ellei toisin ohjeisteta.",
           "vendor_id": "Valmistajan tunniste heksadesimaalimuodossa. Muuta vain, jos sinulle on annettu ohjeet.",
-          "mesh_address": "J\u00e4t\u00e4 arvoon 0, ellei toisin ohjeisteta."
+          "mesh_address": "Jätä arvoon 0, ellei toisin ohjeisteta."
         }
       },
       "sig_bridge": {
-        "title": "Yhdist\u00e4 laitteen hubiin",
-        "description": "Sy\u00f6t\u00e4 hubin osoite, joka yhdist\u00e4\u00e4 laitteeseen **{name}**.",
+        "title": "Yhdistä laitteen hubiin",
+        "description": "Syötä hubin osoite, joka yhdistää laitteeseen **{name}**.",
         "data": {
           "bridge_host": "Hubin osoite",
           "bridge_port": "Hubin portti",
@@ -35,8 +35,8 @@
         }
       },
       "telink_bridge": {
-        "title": "Yhdist\u00e4 laitteen hubiin",
-        "description": "Sy\u00f6t\u00e4 hubin osoite, joka yhdist\u00e4\u00e4 laitteeseen **{name}**.",
+        "title": "Yhdistä laitteen hubiin",
+        "description": "Syötä hubin osoite, joka yhdistää laitteeseen **{name}**.",
         "data": {
           "bridge_host": "Hubin osoite",
           "bridge_port": "Hubin portti"
@@ -47,13 +47,13 @@
         }
       },
       "sig_plug": {
-        "title": "M\u00e4\u00e4ritet\u00e4\u00e4n {name}",
-        "description": "Suojattu Bluetooth-yhteys laitteeseesi m\u00e4\u00e4ritet\u00e4\u00e4n automaattisesti.\n\nVarmista, ett\u00e4 laite on **p\u00e4\u00e4ll\u00e4** ja **l\u00e4hell\u00e4 Bluetooth-sovitintasi**, ja paina sitten **L\u00e4het\u00e4**.",
+        "title": "Määritetään {name}",
+        "description": "Suojattu Bluetooth-yhteys laitteeseesi määritetään automaattisesti.\n\nVarmista, että laite on **päällä** ja **lähellä Bluetooth-sovitintasi**, ja paina sitten **Lähetä**.",
         "data": {}
       },
       "confirm": {
-        "title": "Laite l\u00f6ydetty: {name}",
-        "description": "L\u00e4helt\u00e4 l\u00f6ytyi uusi **{category}**.\n\n**Signaali:** {signal_quality}\n\nValitse laitteen tyyppi alta viimeistell\u00e4ksesi m\u00e4\u00e4rityksen.",
+        "title": "Laite löydetty: {name}",
+        "description": "Läheltä löytyi uusi **{category}**.\n\n**Signaali:** {signal_quality}\n\nValitse laitteen tyyppi alta viimeistelläksesi määrityksen.",
         "data": {
           "device_type": "Laitetyyppi",
           "mesh_name": "Verkkonimi",
@@ -62,8 +62,8 @@
         }
       },
       "reauth_confirm": {
-        "title": "Yhdist\u00e4 laite uudelleen",
-        "description": "Home Assistant menetti yhteyden laitteeseesi. P\u00e4ivit\u00e4 alla olevat asetukset yhteyden muodostamiseksi uudelleen.",
+        "title": "Yhdistä laite uudelleen",
+        "description": "Home Assistant menetti yhteyden laitteeseesi. Päivitä alla olevat asetukset yhteyden muodostamiseksi uudelleen.",
         "data": {
           "mesh_name": "Verkkonimi",
           "mesh_password": "Verkkosalasana",
@@ -73,29 +73,29 @@
       }
     },
     "error": {
-      "invalid_mac": "T\u00e4m\u00e4 ei n\u00e4yt\u00e4 kelvolliselta Bluetooth-osoitteelta. Odotettu muoto: XX:XX:XX:XX:XX:XX.",
-      "invalid_key": "Virheellinen avain \u2014 tarvitaan t\u00e4sm\u00e4lleen 32 heksadesimaalimerkkei\u00e4.",
-      "invalid_bridge_host": "Sy\u00f6t\u00e4 kelvollinen osoite, esim. 192.168.1.100 tai raspberrypi.local.",
-      "invalid_credential_length": "Verkkonimi ja salasana saavat olla enint\u00e4\u00e4n 16 merkki\u00e4 kumpikin.",
-      "invalid_vendor_id": "Virheellinen valmistajan koodi \u2014 k\u00e4yt\u00e4 1\u20134 heksadesimaalimerkkei\u00e4 (esim. 0x1001).",
-      "cannot_connect": "Hubiin ei saatu yhteyttä. Tarkista, ett\u00e4 se on p\u00e4\u00e4ll\u00e4 ja yhteydess\u00e4 verkkoon.",
-      "provisioning_failed": "Laitteeseen ei voitu muodostaa yhteytt\u00e4. Varmista, ett\u00e4 se on p\u00e4\u00e4ll\u00e4 ja l\u00e4hell\u00e4 Bluetooth-sovitintasi, ja yrit\u00e4 uudelleen.",
-      "timeout": "Yhteys aikakatkaistiin. Varmista, ett\u00e4 laite on p\u00e4\u00e4ll\u00e4 ja l\u00e4hell\u00e4, ja yrit\u00e4 uudelleen.",
-      "device_not_found": "Laitetta ei l\u00f6ydy. Varmista, ett\u00e4 se on p\u00e4\u00e4ll\u00e4 ja Bluetooth-kantaman sis\u00e4ll\u00e4, ja yrit\u00e4 uudelleen.",
-      "invalid_iv_index": "Sy\u00f6t\u00e4 luku v\u00e4lill\u00e4 0\u20134 294 967 295.",
-      "invalid_unicast_address": "Sy\u00f6t\u00e4 4-merkkinen heksadesimaalisosoite v\u00e4lill\u00e4 0001\u20137FFF (esim. 00B0)."
+      "invalid_mac": "Tämä ei näytä kelvolliselta Bluetooth-osoitteelta. Odotettu muoto: XX:XX:XX:XX:XX:XX.",
+      "invalid_key": "Virheellinen avain — tarvitaan täsmälleen 32 heksadesimaalimerkkeiä.",
+      "invalid_bridge_host": "Syötä kelvollinen osoite, esim. 192.168.1.100 tai raspberrypi.local.",
+      "invalid_credential_length": "Verkkonimi ja salasana saavat olla enintään 16 merkkiä kumpikin.",
+      "invalid_vendor_id": "Virheellinen valmistajan koodi — käytä 1–4 heksadesimaalimerkkeiä (esim. 0x1001).",
+      "cannot_connect": "Hubiin ei saatu yhteyttä. Tarkista, että se on päällä ja yhteydessä verkkoon.",
+      "provisioning_failed": "Laitteeseen ei voitu muodostaa yhteyttä. Varmista, että se on päällä ja lähellä Bluetooth-sovitintasi, ja yritä uudelleen.",
+      "timeout": "Yhteys aikakatkaistiin. Varmista, että laite on päällä ja lähellä, ja yritä uudelleen.",
+      "device_not_found": "Laitetta ei löydy. Varmista, että se on päällä ja Bluetooth-kantaman sisällä, ja yritä uudelleen.",
+      "invalid_iv_index": "Syötä luku välillä 0–4 294 967 295.",
+      "invalid_unicast_address": "Syötä 4-merkkinen heksadesimaalisosoite välillä 0001–7FFF (esim. 00B0)."
     },
     "abort": {
-      "already_configured": "T\u00e4m\u00e4 laite on jo m\u00e4\u00e4ritetty Home Assistantissa.",
-      "reauth_successful": "Asetukset p\u00e4ivitetty. Muodostetaan yhteys laitteeseesi nyt.",
-      "device_not_available": "Laite ei ole en\u00e4\u00e4 l\u00e4hell\u00e4. Yrit\u00e4 lis\u00e4t\u00e4 se uudelleen, kun se on kantaman sis\u00e4ll\u00e4."
+      "already_configured": "Tämä laite on jo määritetty Home Assistantissa.",
+      "reauth_successful": "Asetukset päivitetty. Muodostetaan yhteys laitteeseesi nyt.",
+      "device_not_available": "Laite ei ole enää lähellä. Yritä lisätä se uudelleen, kun se on kantaman sisällä."
     }
   },
   "options": {
     "step": {
       "init": {
         "title": "Laitteen asetukset",
-        "description": "P\u00e4ivit\u00e4 t\u00e4m\u00e4n laitteen yhteysasetukset.",
+        "description": "Päivitä tämän laitteen yhteysasetukset.",
         "data": {
           "mesh_name": "Verkkonimi",
           "mesh_password": "Verkkosalasana",
@@ -108,7 +108,7 @@
         "data_description": {
           "mesh_name": "Laitteesi verkkonimi.",
           "mesh_password": "Laitteesi verkkosalasana.",
-          "mesh_address": "T\u00e4m\u00e4n laitteen sis\u00e4inen osoite. Aseta arvoon 0 k\u00e4ytt\u00e4\u00e4ksesi oletusta.",
+          "mesh_address": "Tämän laitteen sisäinen osoite. Aseta arvoon 0 käyttääksesi oletusta.",
           "bridge_host": "Hubisi IP-osoite tai palvelinnimi.",
           "bridge_port": "Portti, jolla hubi kuuntelee. Oletus on 8099.",
           "unicast_target": "Muuta vain, jos sinulle on annettu ohjeet.",
@@ -141,17 +141,35 @@
       "energy": {
         "name": "Energia"
       }
+    },
+    "binary_sensor": {
+      "connectivity": {
+        "name": "Yhteys"
+      }
+    },
+    "button": {
+      "identify": {
+        "name": "Tunnista"
+      },
+      "reconnect": {
+        "name": "Yhdistä uudelleen"
+      }
+    },
+    "update": {
+      "firmware_update": {
+        "name": "Laiteohjelmisto"
+      }
     }
   },
   "exceptions": {
     "connection_failed": {
-      "message": "{device}-laitteeseen ei voitu muodostaa yhteytt\u00e4. Tarkista, ett\u00e4 se on p\u00e4\u00e4ll\u00e4 ja kantaman sis\u00e4ll\u00e4."
+      "message": "{device}-laitteeseen ei voitu muodostaa yhteyttä. Tarkista, että se on päällä ja kantaman sisällä."
     },
     "command_timeout": {
       "message": "{device} ei vastaa. Se saattaa olla kantaman ulkopuolella."
     },
     "provisioning_failed": {
-      "message": "{device}-laitteeseen ei voitu muodostaa yhteytt\u00e4. Yrit\u00e4 poistaa ja lis\u00e4t\u00e4 se uudelleen."
+      "message": "{device}-laitteeseen ei voitu muodostaa yhteyttä. Yritä poistaa ja lisätä se uudelleen."
     },
     "invalid_key": {
       "message": "Virheellinen salausavaimen muoto"
@@ -170,11 +188,11 @@
     },
     "set_log_level": {
       "name": "Aseta lokitarkkuus",
-      "description": "Muuttaa, kuinka paljon diagnostiikkatietoja kirjataan t\u00e4h\u00e4n integraatioon. Uudelleenk\u00e4ynnistyst\u00e4 ei tarvita.",
+      "description": "Muuttaa, kuinka paljon diagnostiikkatietoja kirjataan tähän integraatioon. Uudelleenkäynnistystä ei tarvita.",
       "fields": {
         "level": {
           "name": "Taso",
-          "description": "Tarkkuustaso: debug (eniten), info, warning tai error (v\u00e4hiten)."
+          "description": "Tarkkuustaso: debug (eniten), info, warning tai error (vähiten)."
         }
       }
     },
@@ -191,12 +209,12 @@
   },
   "issues": {
     "provisioning_failed": {
-      "title": "Laitteen m\u00e4\u00e4ritys ep\u00e4onnistui",
-      "description": "{device}-laitteen m\u00e4\u00e4ritys ep\u00e4onnistui. Katkaise laitteen virta ja kytke se uudelleen, ja lis\u00e4\u00e4 se sitten uudelleen Home Assistantiin."
+      "title": "Laitteen määritys epäonnistui",
+      "description": "{device}-laitteen määritys epäonnistui. Katkaise laitteen virta ja kytke se uudelleen, ja lisää se sitten uudelleen Home Assistantiin."
     },
     "bridge_unreachable": {
       "title": "Hubi ei vastaa",
-      "description": "Laitteen hubiin osoitteessa {host}:{port} ei saada yhteyttä. Tarkista, ett\u00e4 se on p\u00e4\u00e4ll\u00e4 ja yhteydess\u00e4 verkkoon."
+      "description": "Laitteen hubiin osoitteessa {host}:{port} ei saada yhteyttä. Tarkista, että se on päällä ja yhteydessä verkkoon."
     }
   }
 }

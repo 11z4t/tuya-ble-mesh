@@ -2,40 +2,40 @@
   "config": {
     "step": {
       "user": {
-        "title": "Bluetooth-Ger\u00e4t hinzuf\u00fcgen",
-        "description": "Geben Sie die Bluetooth-Adresse Ihres Ger\u00e4ts ein und w\u00e4hlen Sie den Ger\u00e4tetyp.\n\nDie Werkseinstellungen eignen sich f\u00fcr die meisten neuen Ger\u00e4te \u2014 \u00f6ffnen Sie **Erweiterte Optionen** nur bei Bedarf.",
+        "title": "Bluetooth-Gerät hinzufügen",
+        "description": "Geben Sie die Bluetooth-Adresse Ihres Geräts ein und wählen Sie den Gerätetyp.\n\nDie Werkseinstellungen eignen sich für die meisten neuen Geräte — öffnen Sie **Erweiterte Optionen** nur bei Bedarf.",
         "data": {
           "mac_address": "Bluetooth-Adresse",
-          "device_type": "Ger\u00e4tetyp",
+          "device_type": "Gerätetyp",
           "mesh_name": "Netzwerkname",
           "mesh_password": "Netzwerkpasswort",
           "vendor_id": "Herstellercode",
-          "mesh_address": "Ger\u00e4teadresse"
+          "mesh_address": "Geräteadresse"
         },
         "data_description": {
-          "mac_address": "Die auf dem Ger\u00e4t aufgedruckte Bluetooth-Adresse (Format: XX:XX:XX:XX:XX:XX).",
+          "mac_address": "Die auf dem Gerät aufgedruckte Bluetooth-Adresse (Format: XX:XX:XX:XX:XX:XX).",
           "mesh_name": "Lassen Sie dies auf dem Standardwert, sofern Sie keine anderen Anweisungen erhalten haben.",
           "mesh_password": "Lassen Sie dies auf dem Standardwert, sofern Sie keine anderen Anweisungen erhalten haben.",
-          "vendor_id": "Herstellerkennung in Hex. Nur \u00e4ndern, wenn Sie eine Anweisung dazu erhalten haben.",
+          "vendor_id": "Herstellerkennung in Hex. Nur ändern, wenn Sie eine Anweisung dazu erhalten haben.",
           "mesh_address": "Als 0 lassen, sofern Sie keine anderen Anweisungen erhalten haben."
         }
       },
       "sig_bridge": {
-        "title": "Mit Ger\u00e4te-Hub verbinden",
+        "title": "Mit Geräte-Hub verbinden",
         "description": "Geben Sie die Adresse des Hubs ein, der mit **{name}** verbunden ist.",
         "data": {
           "bridge_host": "Hub-Adresse",
           "bridge_port": "Hub-Port",
-          "unicast_target": "Ger\u00e4te-ID"
+          "unicast_target": "Geräte-ID"
         },
         "data_description": {
           "bridge_host": "Die IP-Adresse oder der Hostname Ihres Hubs (z.B. Ihr Raspberry Pi).",
           "bridge_port": "Port, auf dem der Hub lauscht. Standard ist 8099.",
-          "unicast_target": "Nur \u00e4ndern, wenn Sie eine Anweisung dazu erhalten haben."
+          "unicast_target": "Nur ändern, wenn Sie eine Anweisung dazu erhalten haben."
         }
       },
       "telink_bridge": {
-        "title": "Mit Ger\u00e4te-Hub verbinden",
+        "title": "Mit Geräte-Hub verbinden",
         "description": "Geben Sie die Adresse des Hubs ein, der mit **{name}** verbunden ist.",
         "data": {
           "bridge_host": "Hub-Adresse",
@@ -48,22 +48,22 @@
       },
       "sig_plug": {
         "title": "{name} wird eingerichtet",
-        "description": "Die sichere Bluetooth-Verbindung zu Ihrem Ger\u00e4t wird automatisch eingerichtet.\n\nStellen Sie sicher, dass das Ger\u00e4t **eingeschaltet** und **in der N\u00e4he Ihres Bluetooth-Adapters** ist, und klicken Sie dann auf **Senden**.",
+        "description": "Die sichere Bluetooth-Verbindung zu Ihrem Gerät wird automatisch eingerichtet.\n\nStellen Sie sicher, dass das Gerät **eingeschaltet** und **in der Nähe Ihres Bluetooth-Adapters** ist, und klicken Sie dann auf **Senden**.",
         "data": {}
       },
       "confirm": {
-        "title": "Ger\u00e4t gefunden: {name}",
-        "description": "Ein neues **{category}** wurde in der N\u00e4he gefunden.\n\n**Signal:** {signal_quality}\n\nW\u00e4hlen Sie unten den Ger\u00e4tetyp aus, um die Einrichtung abzuschlie\u00dfen.",
+        "title": "Gerät gefunden: {name}",
+        "description": "Ein neues **{category}** wurde in der Nähe gefunden.\n\n**Signal:** {signal_quality}\n\nWählen Sie unten den Gerätetyp aus, um die Einrichtung abzuschließen.",
         "data": {
-          "device_type": "Ger\u00e4tetyp",
+          "device_type": "Gerätetyp",
           "mesh_name": "Netzwerkname",
           "mesh_password": "Netzwerkpasswort",
-          "mesh_address": "Ger\u00e4teadresse"
+          "mesh_address": "Geräteadresse"
         }
       },
       "reauth_confirm": {
-        "title": "Ger\u00e4t erneut verbinden",
-        "description": "Home Assistant hat die Verbindung zu Ihrem Ger\u00e4t verloren. Aktualisieren Sie die Einstellungen unten, um die Verbindung wiederherzustellen.",
+        "title": "Gerät erneut verbinden",
+        "description": "Home Assistant hat die Verbindung zu Ihrem Gerät verloren. Aktualisieren Sie die Einstellungen unten, um die Verbindung wiederherzustellen.",
         "data": {
           "mesh_name": "Netzwerkname",
           "mesh_password": "Netzwerkpasswort",
@@ -73,46 +73,46 @@
       }
     },
     "error": {
-      "invalid_mac": "Das sieht nicht wie eine g\u00fcltige Bluetooth-Adresse aus. Erwartetes Format: XX:XX:XX:XX:XX:XX.",
-      "invalid_key": "Ung\u00fcltiger Schl\u00fcssel \u2014 wir ben\u00f6tigen genau 32 Hex-Zeichen.",
-      "invalid_bridge_host": "Bitte geben Sie eine g\u00fcltige Adresse ein, z.B. 192.168.1.100 oder raspberrypi.local.",
-      "invalid_credential_length": "Netzwerkname und Passwort d\u00fcrfen jeweils maximal 16 Zeichen haben.",
-      "invalid_vendor_id": "Ung\u00fcltiger Herstellercode \u2014 verwenden Sie 1 bis 4 Hex-Ziffern (z.B. 0x1001).",
-      "cannot_connect": "Hub konnte nicht erreicht werden. \u00dcberpr\u00fcfen Sie, ob er eingeschaltet und mit Ihrem Netzwerk verbunden ist.",
-      "provisioning_failed": "Verbindung zum Ger\u00e4t konnte nicht hergestellt werden. Stellen Sie sicher, dass es eingeschaltet und in der N\u00e4he Ihres Bluetooth-Adapters ist, und versuchen Sie es erneut.",
-      "timeout": "Verbindungsversuch abgebrochen. Stellen Sie sicher, dass das Ger\u00e4t eingeschaltet und in der N\u00e4he ist, und versuchen Sie es erneut.",
-      "device_not_found": "Ger\u00e4t nicht gefunden. Stellen Sie sicher, dass es eingeschaltet und in Bluetooth-Reichweite ist, und versuchen Sie es erneut.",
+      "invalid_mac": "Das sieht nicht wie eine gültige Bluetooth-Adresse aus. Erwartetes Format: XX:XX:XX:XX:XX:XX.",
+      "invalid_key": "Ungültiger Schlüssel — wir benötigen genau 32 Hex-Zeichen.",
+      "invalid_bridge_host": "Bitte geben Sie eine gültige Adresse ein, z.B. 192.168.1.100 oder raspberrypi.local.",
+      "invalid_credential_length": "Netzwerkname und Passwort dürfen jeweils maximal 16 Zeichen haben.",
+      "invalid_vendor_id": "Ungültiger Herstellercode — verwenden Sie 1 bis 4 Hex-Ziffern (z.B. 0x1001).",
+      "cannot_connect": "Hub konnte nicht erreicht werden. Überprüfen Sie, ob er eingeschaltet und mit Ihrem Netzwerk verbunden ist.",
+      "provisioning_failed": "Verbindung zum Gerät konnte nicht hergestellt werden. Stellen Sie sicher, dass es eingeschaltet und in der Nähe Ihres Bluetooth-Adapters ist, und versuchen Sie es erneut.",
+      "timeout": "Verbindungsversuch abgebrochen. Stellen Sie sicher, dass das Gerät eingeschaltet und in der Nähe ist, und versuchen Sie es erneut.",
+      "device_not_found": "Gerät nicht gefunden. Stellen Sie sicher, dass es eingeschaltet und in Bluetooth-Reichweite ist, und versuchen Sie es erneut.",
       "invalid_iv_index": "Geben Sie eine Zahl zwischen 0 und 4.294.967.295 ein.",
       "invalid_unicast_address": "Geben Sie eine 4-stellige Hex-Adresse zwischen 0001 und 7FFF ein (z.B. 00B0)."
     },
     "abort": {
-      "already_configured": "Dieses Ger\u00e4t ist bereits in Home Assistant eingerichtet.",
-      "reauth_successful": "Einstellungen aktualisiert. Verbindung mit Ihrem Ger\u00e4t wird wiederhergestellt.",
-      "device_not_available": "Das Ger\u00e4t ist nicht mehr in der N\u00e4he. Versuchen Sie, es erneut hinzuzuf\u00fcgen, wenn es in Reichweite ist."
+      "already_configured": "Dieses Gerät ist bereits in Home Assistant eingerichtet.",
+      "reauth_successful": "Einstellungen aktualisiert. Verbindung mit Ihrem Gerät wird wiederhergestellt.",
+      "device_not_available": "Das Gerät ist nicht mehr in der Nähe. Versuchen Sie, es erneut hinzuzufügen, wenn es in Reichweite ist."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Ger\u00e4teeinstellungen",
-        "description": "Verbindungseinstellungen f\u00fcr dieses Ger\u00e4t aktualisieren.",
+        "title": "Geräteeinstellungen",
+        "description": "Verbindungseinstellungen für dieses Gerät aktualisieren.",
         "data": {
           "mesh_name": "Netzwerkname",
           "mesh_password": "Netzwerkpasswort",
-          "mesh_address": "Ger\u00e4teadresse",
+          "mesh_address": "Geräteadresse",
           "bridge_host": "Hub-Adresse",
           "bridge_port": "Hub-Port",
-          "unicast_target": "Ger\u00e4te-ID",
-          "iv_index": "Sicherheitsz\u00e4hler"
+          "unicast_target": "Geräte-ID",
+          "iv_index": "Sicherheitszähler"
         },
         "data_description": {
-          "mesh_name": "Der Netzwerkname f\u00fcr Ihr Ger\u00e4t.",
-          "mesh_password": "Das Netzwerkpasswort f\u00fcr Ihr Ger\u00e4t.",
-          "mesh_address": "Interne Adresse dieses Ger\u00e4ts. Auf 0 setzen, um den Standard zu verwenden.",
+          "mesh_name": "Der Netzwerkname für Ihr Gerät.",
+          "mesh_password": "Das Netzwerkpasswort für Ihr Gerät.",
+          "mesh_address": "Interne Adresse dieses Geräts. Auf 0 setzen, um den Standard zu verwenden.",
           "bridge_host": "Die IP-Adresse oder der Hostname Ihres Hubs.",
           "bridge_port": "Port, auf dem der Hub lauscht. Standard ist 8099.",
-          "unicast_target": "Nur \u00e4ndern, wenn Sie eine Anweisung dazu erhalten haben.",
-          "iv_index": "Nur \u00e4ndern, wenn Sie eine Anweisung dazu erhalten haben."
+          "unicast_target": "Nur ändern, wenn Sie eine Anweisung dazu erhalten haben.",
+          "iv_index": "Nur ändern, wenn Sie eine Anweisung dazu erhalten haben."
         }
       }
     }
@@ -130,7 +130,7 @@
     },
     "sensor": {
       "rssi": {
-        "name": "Signalst\u00e4rke"
+        "name": "Signalstärke"
       },
       "firmware": {
         "name": "Firmware-Version"
@@ -141,36 +141,54 @@
       "energy": {
         "name": "Energie"
       }
+    },
+    "binary_sensor": {
+      "connectivity": {
+        "name": "Verbindung"
+      }
+    },
+    "button": {
+      "identify": {
+        "name": "Identifizieren"
+      },
+      "reconnect": {
+        "name": "Neu verbinden"
+      }
+    },
+    "update": {
+      "firmware_update": {
+        "name": "Firmware"
+      }
     }
   },
   "exceptions": {
     "connection_failed": {
-      "message": "Verbindung zu {device} konnte nicht hergestellt werden. \u00dcberpr\u00fcfen Sie, ob es eingeschaltet und in Reichweite ist."
+      "message": "Verbindung zu {device} konnte nicht hergestellt werden. Überprüfen Sie, ob es eingeschaltet und in Reichweite ist."
     },
     "command_timeout": {
-      "message": "Keine Antwort von {device}. M\u00f6glicherweise au\u00dfer Reichweite."
+      "message": "Keine Antwort von {device}. Möglicherweise außer Reichweite."
     },
     "provisioning_failed": {
-      "message": "Verbindung zu {device} konnte nicht hergestellt werden. Versuchen Sie, es zu entfernen und erneut hinzuzuf\u00fcgen."
+      "message": "Verbindung zu {device} konnte nicht hergestellt werden. Versuchen Sie, es zu entfernen und erneut hinzuzufügen."
     },
     "invalid_key": {
-      "message": "Ung\u00fcltiges Verschl\u00fcsselungsschl\u00fcssel-Format"
+      "message": "Ungültiges Verschlüsselungsschlüssel-Format"
     }
   },
   "services": {
     "identify": {
-      "name": "Ger\u00e4t blinken lassen",
-      "description": "L\u00e4sst die Kontrollleuchte des Ger\u00e4ts blinken, damit Sie es leichter finden k\u00f6nnen.",
+      "name": "Gerät blinken lassen",
+      "description": "Lässt die Kontrollleuchte des Geräts blinken, damit Sie es leichter finden können.",
       "fields": {
         "device_id": {
-          "name": "Ger\u00e4t",
-          "description": "Das Ger\u00e4t, das blinken soll."
+          "name": "Gerät",
+          "description": "Das Gerät, das blinken soll."
         }
       }
     },
     "set_log_level": {
       "name": "Protokolldetails einstellen",
-      "description": "Legt fest, wie viele Diagnoseinformationen f\u00fcr diese Integration protokolliert werden. Kein Neustart erforderlich.",
+      "description": "Legt fest, wie viele Diagnoseinformationen für diese Integration protokolliert werden. Kein Neustart erforderlich.",
       "fields": {
         "level": {
           "name": "Stufe",
@@ -179,24 +197,24 @@
       }
     },
     "get_diagnostics": {
-      "name": "Ger\u00e4teinformationen abrufen",
-      "description": "Ruft Verbindungsstatistiken und Zustandsinformationen f\u00fcr ein Ger\u00e4t ab.",
+      "name": "Geräteinformationen abrufen",
+      "description": "Ruft Verbindungsstatistiken und Zustandsinformationen für ein Gerät ab.",
       "fields": {
         "device_id": {
-          "name": "Ger\u00e4t",
-          "description": "Das zu pr\u00fcfende Ger\u00e4t."
+          "name": "Gerät",
+          "description": "Das zu prüfende Gerät."
         }
       }
     }
   },
   "issues": {
     "provisioning_failed": {
-      "title": "Ger\u00e4teeinrichtung fehlgeschlagen",
-      "description": "{device} konnte nicht eingerichtet werden. Schalten Sie das Ger\u00e4t aus und wieder ein, und f\u00fcgen Sie es dann erneut zu Home Assistant hinzu."
+      "title": "Geräteeinrichtung fehlgeschlagen",
+      "description": "{device} konnte nicht eingerichtet werden. Schalten Sie das Gerät aus und wieder ein, und fügen Sie es dann erneut zu Home Assistant hinzu."
     },
     "bridge_unreachable": {
       "title": "Hub antwortet nicht",
-      "description": "Ger\u00e4te-Hub unter {host}:{port} nicht erreichbar. \u00dcberpr\u00fcfen Sie, ob er eingeschaltet und mit Ihrem Netzwerk verbunden ist."
+      "description": "Geräte-Hub unter {host}:{port} nicht erreichbar. Überprüfen Sie, ob er eingeschaltet und mit Ihrem Netzwerk verbunden ist."
     }
   }
 }

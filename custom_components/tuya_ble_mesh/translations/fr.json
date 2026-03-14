@@ -3,116 +3,116 @@
     "step": {
       "user": {
         "title": "Ajouter un appareil Bluetooth",
-        "description": "Saisissez l\u2019adresse Bluetooth de votre appareil et choisissez son type.\n\nLes param\u00e8tres d\u2019usine conviennent \u00e0 la plupart des nouveaux appareils \u2014 d\u00e9veloppez **Options avanc\u00e9es** uniquement si n\u00e9cessaire.",
+        "description": "Saisissez l’adresse Bluetooth de votre appareil et choisissez son type.\n\nLes paramètres d’usine conviennent à la plupart des nouveaux appareils — développez **Options avancées** uniquement si nécessaire.",
         "data": {
           "mac_address": "Adresse Bluetooth",
-          "device_type": "Type d\u2019appareil",
-          "mesh_name": "Nom du r\u00e9seau",
-          "mesh_password": "Mot de passe du r\u00e9seau",
+          "device_type": "Type d’appareil",
+          "mesh_name": "Nom du réseau",
+          "mesh_password": "Mot de passe du réseau",
           "vendor_id": "Code fabricant",
-          "mesh_address": "Adresse de l\u2019appareil"
+          "mesh_address": "Adresse de l’appareil"
         },
         "data_description": {
-          "mac_address": "L\u2019adresse Bluetooth imprim\u00e9e sur votre appareil (format\u00a0: XX:XX:XX:XX:XX:XX).",
-          "mesh_name": "Laissez la valeur par d\u00e9faut, sauf instruction contraire.",
-          "mesh_password": "Laissez la valeur par d\u00e9faut, sauf instruction contraire.",
-          "vendor_id": "Identifiant du fabricant en hexad\u00e9cimal. Ne modifier que si vous en avez re\u00e7u l\u2019instruction.",
-          "mesh_address": "Laissez \u00e0 0, sauf instruction contraire."
+          "mac_address": "L’adresse Bluetooth imprimée sur votre appareil (format : XX:XX:XX:XX:XX:XX).",
+          "mesh_name": "Laissez la valeur par défaut, sauf instruction contraire.",
+          "mesh_password": "Laissez la valeur par défaut, sauf instruction contraire.",
+          "vendor_id": "Identifiant du fabricant en hexadécimal. Ne modifier que si vous en avez reçu l’instruction.",
+          "mesh_address": "Laissez à 0, sauf instruction contraire."
         }
       },
       "sig_bridge": {
         "title": "Connecter au concentrateur",
-        "description": "Saisissez l\u2019adresse du concentrateur qui se connecte \u00e0 **{name}**.",
+        "description": "Saisissez l’adresse du concentrateur qui se connecte à **{name}**.",
         "data": {
           "bridge_host": "Adresse du concentrateur",
           "bridge_port": "Port du concentrateur",
-          "unicast_target": "Identifiant de l\u2019appareil"
+          "unicast_target": "Identifiant de l’appareil"
         },
         "data_description": {
-          "bridge_host": "L\u2019adresse IP ou le nom d\u2019h\u00f4te de votre concentrateur (p.ex. votre Raspberry Pi).",
-          "bridge_port": "Port sur lequel \u00e9coute le concentrateur. La valeur par d\u00e9faut est 8099.",
-          "unicast_target": "Ne modifier que si vous en avez re\u00e7u l\u2019instruction."
+          "bridge_host": "L’adresse IP ou le nom d’hôte de votre concentrateur (p.ex. votre Raspberry Pi).",
+          "bridge_port": "Port sur lequel écoute le concentrateur. La valeur par défaut est 8099.",
+          "unicast_target": "Ne modifier que si vous en avez reçu l’instruction."
         }
       },
       "telink_bridge": {
         "title": "Connecter au concentrateur",
-        "description": "Saisissez l\u2019adresse du concentrateur qui se connecte \u00e0 **{name}**.",
+        "description": "Saisissez l’adresse du concentrateur qui se connecte à **{name}**.",
         "data": {
           "bridge_host": "Adresse du concentrateur",
           "bridge_port": "Port du concentrateur"
         },
         "data_description": {
-          "bridge_host": "L\u2019adresse IP ou le nom d\u2019h\u00f4te de votre concentrateur (p.ex. votre Raspberry Pi).",
-          "bridge_port": "Port sur lequel \u00e9coute le concentrateur. La valeur par d\u00e9faut est 8099."
+          "bridge_host": "L’adresse IP ou le nom d’hôte de votre concentrateur (p.ex. votre Raspberry Pi).",
+          "bridge_port": "Port sur lequel écoute le concentrateur. La valeur par défaut est 8099."
         }
       },
       "sig_plug": {
         "title": "Configuration de {name}",
-        "description": "La connexion Bluetooth s\u00e9curis\u00e9e \u00e0 votre appareil sera configur\u00e9e automatiquement.\n\nV\u00e9rifiez que l\u2019appareil est **allum\u00e9** et **proche de votre adaptateur Bluetooth**, puis cliquez sur **Envoyer**.",
+        "description": "La connexion Bluetooth sécurisée à votre appareil sera configurée automatiquement.\n\nVérifiez que l’appareil est **allumé** et **proche de votre adaptateur Bluetooth**, puis cliquez sur **Envoyer**.",
         "data": {}
       },
       "confirm": {
-        "title": "Appareil trouv\u00e9\u00a0: {name}",
-        "description": "Un nouveau **{category}** a \u00e9t\u00e9 trouv\u00e9 \u00e0 proximit\u00e9.\n\n**Signal\u00a0:** {signal_quality}\n\nS\u00e9lectionnez le type d\u2019appareil ci-dessous pour terminer la configuration.",
+        "title": "Appareil trouvé : {name}",
+        "description": "Un nouveau **{category}** a été trouvé à proximité.\n\n**Signal :** {signal_quality}\n\nSélectionnez le type d’appareil ci-dessous pour terminer la configuration.",
         "data": {
-          "device_type": "Type d\u2019appareil",
-          "mesh_name": "Nom du r\u00e9seau",
-          "mesh_password": "Mot de passe du r\u00e9seau",
-          "mesh_address": "Adresse de l\u2019appareil"
+          "device_type": "Type d’appareil",
+          "mesh_name": "Nom du réseau",
+          "mesh_password": "Mot de passe du réseau",
+          "mesh_address": "Adresse de l’appareil"
         }
       },
       "reauth_confirm": {
-        "title": "Reconnecter l\u2019appareil",
-        "description": "Home Assistant a perdu la connexion \u00e0 votre appareil. Mettez \u00e0 jour les param\u00e8tres ci-dessous pour vous reconnecter.",
+        "title": "Reconnecter l’appareil",
+        "description": "Home Assistant a perdu la connexion à votre appareil. Mettez à jour les paramètres ci-dessous pour vous reconnecter.",
         "data": {
-          "mesh_name": "Nom du r\u00e9seau",
-          "mesh_password": "Mot de passe du r\u00e9seau",
+          "mesh_name": "Nom du réseau",
+          "mesh_password": "Mot de passe du réseau",
           "bridge_host": "Adresse du concentrateur",
           "bridge_port": "Port du concentrateur"
         }
       }
     },
     "error": {
-      "invalid_mac": "Cela ne ressemble pas \u00e0 une adresse Bluetooth valide. Format attendu\u00a0: XX:XX:XX:XX:XX:XX.",
-      "invalid_key": "Cl\u00e9 invalide \u2014 nous avons besoin de exactement 32 caract\u00e8res hexad\u00e9cimaux.",
+      "invalid_mac": "Cela ne ressemble pas à une adresse Bluetooth valide. Format attendu : XX:XX:XX:XX:XX:XX.",
+      "invalid_key": "Clé invalide — nous avons besoin de exactement 32 caractères hexadécimaux.",
       "invalid_bridge_host": "Veuillez saisir une adresse valide, par exemple 192.168.1.100 ou raspberrypi.local.",
-      "invalid_credential_length": "Le nom et le mot de passe du r\u00e9seau doivent chacun comporter 16 caract\u00e8res au maximum.",
-      "invalid_vendor_id": "Code fabricant invalide \u2014 utilisez 1 \u00e0 4 chiffres hexad\u00e9cimaux (p.ex. 0x1001).",
-      "cannot_connect": "Impossible d\u2019atteindre le concentrateur. V\u00e9rifiez qu\u2019il est allum\u00e9 et connect\u00e9 \u00e0 votre r\u00e9seau.",
-      "provisioning_failed": "Impossible de se connecter \u00e0 l\u2019appareil. V\u00e9rifiez qu\u2019il est allum\u00e9 et proche de votre adaptateur Bluetooth, puis r\u00e9essayez.",
-      "timeout": "La connexion a expir\u00e9. V\u00e9rifiez que l\u2019appareil est allum\u00e9 et \u00e0 proximit\u00e9, puis r\u00e9essayez.",
-      "device_not_found": "Appareil introuvable. V\u00e9rifiez qu\u2019il est allum\u00e9 et \u00e0 port\u00e9e Bluetooth, puis r\u00e9essayez.",
-      "invalid_iv_index": "Saisissez un nombre entre 0 et 4\u00a0294\u00a0967\u00a0295.",
-      "invalid_unicast_address": "Saisissez une adresse hexad\u00e9cimale \u00e0 4 caract\u00e8res entre 0001 et 7FFF (p.ex. 00B0)."
+      "invalid_credential_length": "Le nom et le mot de passe du réseau doivent chacun comporter 16 caractères au maximum.",
+      "invalid_vendor_id": "Code fabricant invalide — utilisez 1 à 4 chiffres hexadécimaux (p.ex. 0x1001).",
+      "cannot_connect": "Impossible d’atteindre le concentrateur. Vérifiez qu’il est allumé et connecté à votre réseau.",
+      "provisioning_failed": "Impossible de se connecter à l’appareil. Vérifiez qu’il est allumé et proche de votre adaptateur Bluetooth, puis réessayez.",
+      "timeout": "La connexion a expiré. Vérifiez que l’appareil est allumé et à proximité, puis réessayez.",
+      "device_not_found": "Appareil introuvable. Vérifiez qu’il est allumé et à portée Bluetooth, puis réessayez.",
+      "invalid_iv_index": "Saisissez un nombre entre 0 et 4 294 967 295.",
+      "invalid_unicast_address": "Saisissez une adresse hexadécimale à 4 caractères entre 0001 et 7FFF (p.ex. 00B0)."
     },
     "abort": {
-      "already_configured": "Cet appareil est d\u00e9j\u00e0 configur\u00e9 dans Home Assistant.",
-      "reauth_successful": "Param\u00e8tres mis \u00e0 jour. Reconnexion de votre appareil en cours.",
-      "device_not_available": "L\u2019appareil n\u2019est plus \u00e0 proximit\u00e9. R\u00e9essayez de l\u2019ajouter quand il est \u00e0 port\u00e9e."
+      "already_configured": "Cet appareil est déjà configuré dans Home Assistant.",
+      "reauth_successful": "Paramètres mis à jour. Reconnexion de votre appareil en cours.",
+      "device_not_available": "L’appareil n’est plus à proximité. Réessayez de l’ajouter quand il est à portée."
     }
   },
   "options": {
     "step": {
       "init": {
-        "title": "Param\u00e8tres de l\u2019appareil",
-        "description": "Mettez \u00e0 jour les param\u00e8tres de connexion pour cet appareil.",
+        "title": "Paramètres de l’appareil",
+        "description": "Mettez à jour les paramètres de connexion pour cet appareil.",
         "data": {
-          "mesh_name": "Nom du r\u00e9seau",
-          "mesh_password": "Mot de passe du r\u00e9seau",
-          "mesh_address": "Adresse de l\u2019appareil",
+          "mesh_name": "Nom du réseau",
+          "mesh_password": "Mot de passe du réseau",
+          "mesh_address": "Adresse de l’appareil",
           "bridge_host": "Adresse du concentrateur",
           "bridge_port": "Port du concentrateur",
-          "unicast_target": "Identifiant de l\u2019appareil",
-          "iv_index": "Compteur de s\u00e9curit\u00e9"
+          "unicast_target": "Identifiant de l’appareil",
+          "iv_index": "Compteur de sécurité"
         },
         "data_description": {
-          "mesh_name": "Le nom du r\u00e9seau pour votre appareil.",
-          "mesh_password": "Le mot de passe du r\u00e9seau pour votre appareil.",
-          "mesh_address": "Adresse interne de cet appareil. Mettez \u00e0 0 pour utiliser la valeur par d\u00e9faut.",
-          "bridge_host": "L\u2019adresse IP ou le nom d\u2019h\u00f4te de votre concentrateur.",
-          "bridge_port": "Port sur lequel \u00e9coute le concentrateur. La valeur par d\u00e9faut est 8099.",
-          "unicast_target": "Ne modifier que si vous en avez re\u00e7u l\u2019instruction.",
-          "iv_index": "Ne modifier que si vous en avez re\u00e7u l\u2019instruction."
+          "mesh_name": "Le nom du réseau pour votre appareil.",
+          "mesh_password": "Le mot de passe du réseau pour votre appareil.",
+          "mesh_address": "Adresse interne de cet appareil. Mettez à 0 pour utiliser la valeur par défaut.",
+          "bridge_host": "L’adresse IP ou le nom d’hôte de votre concentrateur.",
+          "bridge_port": "Port sur lequel écoute le concentrateur. La valeur par défaut est 8099.",
+          "unicast_target": "Ne modifier que si vous en avez reçu l’instruction.",
+          "iv_index": "Ne modifier que si vous en avez reçu l’instruction."
         }
       }
     }
@@ -130,7 +130,7 @@
     },
     "sensor": {
       "rssi": {
-        "name": "Intensit\u00e9 du signal"
+        "name": "Intensité du signal"
       },
       "firmware": {
         "name": "Version du micrologiciel"
@@ -139,64 +139,82 @@
         "name": "Puissance"
       },
       "energy": {
-        "name": "\u00c9nergie"
+        "name": "Énergie"
+      }
+    },
+    "binary_sensor": {
+      "connectivity": {
+        "name": "Connexion"
+      }
+    },
+    "button": {
+      "identify": {
+        "name": "Identifier"
+      },
+      "reconnect": {
+        "name": "Reconnecter"
+      }
+    },
+    "update": {
+      "firmware_update": {
+        "name": "Micrologiciel"
       }
     }
   },
   "exceptions": {
     "connection_failed": {
-      "message": "Impossible de se connecter \u00e0 {device}. V\u00e9rifiez qu\u2019il est allum\u00e9 et \u00e0 port\u00e9e."
+      "message": "Impossible de se connecter à {device}. Vérifiez qu’il est allumé et à portée."
     },
     "command_timeout": {
-      "message": "Aucune r\u00e9ponse de {device}. Il est peut-\u00eatre hors de port\u00e9e."
+      "message": "Aucune réponse de {device}. Il est peut-être hors de portée."
     },
     "provisioning_failed": {
-      "message": "Impossible de se connecter \u00e0 {device}. Essayez de le supprimer et de le rajouter."
+      "message": "Impossible de se connecter à {device}. Essayez de le supprimer et de le rajouter."
     },
     "invalid_key": {
-      "message": "Format de cl\u00e9 de chiffrement invalide"
+      "message": "Format de clé de chiffrement invalide"
     }
   },
   "services": {
     "identify": {
-      "name": "Faire clignoter l\u2019appareil",
-      "description": "Fait clignoter le voyant de l\u2019appareil pour vous aider \u00e0 l\u2019identifier.",
+      "name": "Faire clignoter l’appareil",
+      "description": "Fait clignoter le voyant de l’appareil pour vous aider à l’identifier.",
       "fields": {
         "device_id": {
           "name": "Appareil",
-          "description": "L\u2019appareil \u00e0 faire clignoter."
+          "description": "L’appareil à faire clignoter."
         }
       }
     },
     "set_log_level": {
-      "name": "D\u00e9finir le niveau de journal",
-      "description": "Modifie la quantit\u00e9 de d\u00e9tails de diagnostic enregistr\u00e9s pour cette int\u00e9gration. Aucun red\u00e9marrage n\u00e9cessaire.",
+      "name": "Définir le niveau de journal",
+      "description": "Modifie la quantité de détails de diagnostic enregistrés pour cette intégration. Aucun redémarrage nécessaire.",
       "fields": {
         "level": {
           "name": "Niveau",
-          "description": "Niveau de d\u00e9tail\u00a0: debug (le plus), info, warning ou error (le moins)."
+          "description": "Niveau de détail : debug (le plus), info, warning ou error (le moins)."
         }
       }
     },
     "get_diagnostics": {
-      "name": "Obtenir les informations de l\u2019appareil",
-      "description": "R\u00e9cup\u00e8re les statistiques de connexion et les informations sur l\u2019\u00e9tat d\u2019un appareil.",
+      "name": "Obtenir les informations de l’appareil",
+      "description": "Récupère les statistiques de connexion et les informations sur l’état d’un appareil.",
       "fields": {
         "device_id": {
           "name": "Appareil",
-          "description": "L\u2019appareil \u00e0 v\u00e9rifier."
+          "description": "L’appareil à vérifier."
         }
       }
     }
   },
   "issues": {
     "provisioning_failed": {
-      "title": "\u00c9chec de la configuration de l\u2019appareil",
-      "description": "Impossible de configurer {device}. \u00c9teignez et rallumez l\u2019appareil, puis ajoutez-le \u00e0 nouveau dans Home Assistant."
+      "title": "Échec de la configuration de l’appareil",
+      "description": "Impossible de configurer {device}. Éteignez et rallumez l’appareil, puis ajoutez-le à nouveau dans Home Assistant."
     },
     "bridge_unreachable": {
-      "title": "Le concentrateur ne r\u00e9pond pas",
-      "description": "Impossible d\u2019atteindre le concentrateur \u00e0 {host}:{port}. V\u00e9rifiez qu\u2019il est allum\u00e9 et connect\u00e9 \u00e0 votre r\u00e9seau."
+      "title": "Le concentrateur ne répond pas",
+      "description": "Impossible d’atteindre le concentrateur à {host}:{port}. Vérifiez qu’il est allumé et connecté à votre réseau."
     }
   }
 }

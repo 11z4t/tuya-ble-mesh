@@ -74,10 +74,10 @@
     },
     "error": {
       "invalid_mac": "That doesn't look like a valid Bluetooth address. Expected format: XX:XX:XX:XX:XX:XX.",
-      "invalid_key": "Invalid key \u2014 we need exactly 32 hex characters.",
+      "invalid_key": "Invalid key — we need exactly 32 hex characters.",
       "invalid_bridge_host": "Please enter a valid address, like 192.168.1.100 or raspberrypi.local.",
       "invalid_credential_length": "Network name and password must each be 16 characters or fewer.",
-      "invalid_vendor_id": "Invalid vendor code \u2014 use 1 to 4 hex digits (e.g. 0x1001).",
+      "invalid_vendor_id": "Invalid vendor code — use 1 to 4 hex digits (e.g. 0x1001).",
       "cannot_connect": "Could not reach the hub. Check that it's powered on and connected to your network.",
       "provisioning_failed": "Could not connect to the device. Make sure it's powered on and close to your Bluetooth adapter, then try again.",
       "timeout": "Connection timed out. Make sure the device is powered on and close by, then try again.",
@@ -140,6 +140,24 @@
       },
       "energy": {
         "name": "Energy"
+      }
+    },
+    "binary_sensor": {
+      "connectivity": {
+        "name": "Connection"
+      }
+    },
+    "button": {
+      "identify": {
+        "name": "Identify"
+      },
+      "reconnect": {
+        "name": "Reconnect"
+      }
+    },
+    "update": {
+      "firmware_update": {
+        "name": "Firmware"
       }
     }
   },
