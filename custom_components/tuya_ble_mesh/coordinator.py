@@ -862,7 +862,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             if exc is not None:
                 _LOGGER.error(
                     "Reconnect task failed for %s",
-                    self._device_name,
+                    self._device.address,  # CF-4: Fixed undefined _device_name
                     exc_info=exc,
                 )
         except Exception:

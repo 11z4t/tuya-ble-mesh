@@ -10,6 +10,7 @@ Key material is NEVER logged — only operation names and lengths.
 from __future__ import annotations
 
 import asyncio
+import contextlib  # CF-3: For suppress in _stop_keep_alive
 import enum
 import logging
 import random
@@ -265,7 +266,7 @@ class BLEConnection:
         await self._read_firmware_version()
 
         self._state = ConnectionState.READY
-        self._start_keep_alive()
+        await self._start_keep_alive()  # CF-3: Now awaited
         await self._start_notify_safe()
         _LOGGER.info("Connected and provisioned: %s", self._address)
 
@@ -370,7 +371,7 @@ class BLEConnection:
 
     async def _cleanup(self) -> None:
         """Clean up resources and transition to DISCONNECTED."""
-        self._stop_keep_alive()
+        await self._stop_keep_alive()  # CF-3: Now awaited for proper cleanup
         self._notify_active = False
 
         # Zero-fill session key before clearing
@@ -411,7 +412,7 @@ class BLEConnection:
             raise MeshConnectionError(msg) from exc
 
         # Reset keep-alive timer on successful write
-        self._restart_keep_alive()
+        await self._restart_keep_alive()  # CF-3: Now awaited
 
     async def _handle_disconnect(self) -> None:
         """Handle an unexpected disconnect."""
@@ -429,21 +430,33 @@ class BLEConnection:
 
     # --- Keep-alive ---
 
-    def _start_keep_alive(self) -> None:
-        """Start the keep-alive timer."""
-        self._stop_keep_alive()
+    async def _start_keep_alive(self) -> None:
+        """Start the keep-alive timer.
+
+        CF-3: Now async to properly await _stop_keep_alive.
+        """
+        await self._stop_keep_alive()  # CF-3: Await for clean shutdown
         self._keep_alive_task = asyncio.ensure_future(self._keep_alive_loop())
 
-    def _stop_keep_alive(self) -> None:
-        """Stop the keep-alive timer."""
+    async def _stop_keep_alive(self) -> None:
+        """Stop the keep-alive timer.
+
+        CF-3: Now async to properly await task cancellation and prevent resource leak.
+        """
         if self._keep_alive_task is not None:
             self._keep_alive_task.cancel()
+            # CF-3: Await task to ensure clean cancellation without ResourceWarning
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._keep_alive_task
             self._keep_alive_task = None
 
-    def _restart_keep_alive(self) -> None:
-        """Reset the keep-alive timer (called after real commands)."""
+    async def _restart_keep_alive(self) -> None:
+        """Reset the keep-alive timer (called after real commands).
+
+        CF-3: Now async to properly await _start_keep_alive.
+        """
         if self._state == ConnectionState.READY:
-            self._start_keep_alive()
+            await self._start_keep_alive()  # CF-3: Await for proper cleanup
 
     async def _keep_alive_loop(self) -> None:
         """Periodically send 0xDA status query to keep connection alive."""
