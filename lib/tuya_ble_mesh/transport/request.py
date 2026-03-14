@@ -11,6 +11,8 @@ import uuid
 from dataclasses import dataclass, field
 from typing import Literal
 
+from tuya_ble_mesh.exceptions import InvalidRequestError
+
 
 @dataclass(frozen=True)
 class RetryPolicy:
@@ -31,13 +33,13 @@ class RetryPolicy:
     def __post_init__(self) -> None:
         """Validate retry policy parameters."""
         if self.max_retries < 0:
-            raise ValueError("max_retries must be >= 0")
+            raise InvalidRequestError("max_retries must be >= 0")
         if self.backoff_base <= 0:
-            raise ValueError("backoff_base must be > 0")
+            raise InvalidRequestError("backoff_base must be > 0")
         if self.backoff_max < self.backoff_base:
-            raise ValueError("backoff_max must be >= backoff_base")
+            raise InvalidRequestError("backoff_max must be >= backoff_base")
         if not 0 <= self.jitter <= 1:
-            raise ValueError("jitter must be in [0, 1]")
+            raise InvalidRequestError("jitter must be in [0, 1]")
 
 
 @dataclass(frozen=True)
@@ -82,15 +84,15 @@ class CommandRequest:
 
         # Validate parameters
         if not 0 <= self.target_node <= 0xFFFF:
-            raise ValueError(f"target_node must be 0..0xFFFF, got {self.target_node}")
+            raise InvalidRequestError(f"target_node must be 0..0xFFFF, got {self.target_node}")
         if not 0 <= self.opcode <= 0xFFFF:
-            raise ValueError(f"opcode must be 0..0xFFFF, got {self.opcode}")
+            raise InvalidRequestError(f"opcode must be 0..0xFFFF, got {self.opcode}")
         if self.ttl <= 0:
-            raise ValueError(f"ttl must be > 0, got {self.ttl}")
+            raise InvalidRequestError(f"ttl must be > 0, got {self.ttl}")
         if self.priority < 0:
-            raise ValueError(f"priority must be >= 0, got {self.priority}")
+            raise InvalidRequestError(f"priority must be >= 0, got {self.priority}")
         if self.protocol not in ("telink", "sig"):
-            raise ValueError(f"protocol must be 'telink' or 'sig', got {self.protocol}")
+            raise InvalidRequestError(f"protocol must be 'telink' or 'sig', got {self.protocol}")
 
     def is_expired(self) -> bool:
         """Return True if request has exceeded its deadline."""
