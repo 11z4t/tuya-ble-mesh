@@ -183,9 +183,15 @@ class TuyaBLEMeshDeviceState:
     last_seen: float | None = None  # Unix timestamp of last successful communication
 
     # --- PLAT-402 Phase 1 Task 1.2: Desired vs Confirmed State ---
-    desired_state: MappingProxyType[str, Any] = field(default_factory=lambda: MappingProxyType({}))
-    last_sent_state: MappingProxyType[str, Any] = field(default_factory=lambda: MappingProxyType({}))
-    last_confirmed_state: MappingProxyType[str, Any] = field(default_factory=lambda: MappingProxyType({}))
+    desired_state: MappingProxyType[str, Any] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
+    last_sent_state: MappingProxyType[str, Any] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
+    last_confirmed_state: MappingProxyType[str, Any] = field(
+        default_factory=lambda: MappingProxyType({})
+    )
     state_confidence: float = 0.0  # 0.0 = no confidence, 1.0 = fully confirmed
     last_update_source: str = StateUpdateSource.ASSUMED.value
     last_update_time: float | None = None  # Unix timestamp of last state update

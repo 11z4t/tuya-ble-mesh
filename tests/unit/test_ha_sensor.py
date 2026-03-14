@@ -29,7 +29,6 @@ from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
 from custom_components.tuya_ble_mesh.sensor import (  # noqa: E402
     SENSOR_DESCRIPTIONS,
     TuyaBLEMeshSensor,
-    TuyaBLEMeshSensorEntityDescription,
     _connection_quality,
     _last_seen_datetime,
     async_setup_entry,

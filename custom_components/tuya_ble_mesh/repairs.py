@@ -414,9 +414,7 @@ class TuyaBLEMeshRepairFlow(RepairsFlow):
 
         return self.async_show_form(step_id="confirm")
 
-    async def async_step_reauth_hint(
-        self, user_input: dict[str, str] | None = None
-    ) -> FlowResult:
+    async def async_step_reauth_hint(self, user_input: dict[str, str] | None = None) -> FlowResult:
         """Guide user to re-enter credentials via options flow."""
         if user_input is not None:
             return self.async_create_entry(data={})
@@ -445,9 +443,7 @@ class MeshAuthRepairFlow(TuyaBLEMeshRepairFlow):
         """Go directly to credential form instead of static hint."""
         return await self.async_step_credentials()
 
-    async def async_step_credentials(
-        self, user_input: dict[str, str] | None = None
-    ) -> FlowResult:
+    async def async_step_credentials(self, user_input: dict[str, str] | None = None) -> FlowResult:
         """Collect new credentials and apply them to the config entry."""
         import voluptuous as vol
 

@@ -12,6 +12,7 @@ Provides fire-and-forget command dispatch with:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import random
 import time
@@ -114,10 +115,8 @@ class AsyncCommandDispatcher:
         # Cancel worker
         if self._worker_task is not None:
             self._worker_task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._worker_task
-            except asyncio.CancelledError:
-                pass
 
         # Cancel all pending futures
         for request_id, future in list(self._result_futures.items()):
@@ -240,7 +239,7 @@ class AsyncCommandDispatcher:
 
                 # Wait for a request (with timeout to check _running)
                 try:
-                    priority, created_at, request = await asyncio.wait_for(
+                    _, _, request = await asyncio.wait_for(
                         self._queue.get(), timeout=1.0
                     )
                 except TimeoutError:

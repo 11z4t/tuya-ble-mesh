@@ -236,7 +236,7 @@ class _CommandDispatcher:
             except asyncio.CancelledError:
                 _LOGGER.debug("Command dispatcher worker cancelled")
                 raise
-            except BaseException:  # noqa: S110
+            except BaseException:
                 _LOGGER.error("Command dispatcher worker error", exc_info=True)
 
         _LOGGER.debug("Command dispatcher worker stopped")
@@ -379,7 +379,7 @@ class MeshDevice:
         for callback in list(self._status_callbacks):
             try:
                 callback(status)
-            except BaseException:  # noqa: S110
+            except BaseException:
                 _LOGGER.warning("Status callback error", exc_info=True)
 
     def _on_disconnect(self) -> None:
@@ -389,7 +389,7 @@ class MeshDevice:
         for callback in list(self._disconnect_callbacks):
             try:
                 callback()
-            except BaseException:  # noqa: S110
+            except BaseException:
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
 
     async def connect(

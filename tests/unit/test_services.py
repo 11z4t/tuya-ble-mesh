@@ -16,9 +16,7 @@ sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
 from custom_components.tuya_ble_mesh import (  # noqa: E402
     _async_register_services,
-    _get_coordinator_for_device,
 )
-from custom_components.tuya_ble_mesh.const import DOMAIN  # noqa: E402
 
 
 class TestServiceRegistration:
@@ -119,9 +117,8 @@ class TestIdentifyService:
         with patch(
             "custom_components.tuya_ble_mesh._get_coordinator_for_device",
             return_value=None,
-        ):
-            with pytest.raises(HomeAssistantError, match="Device not found"):
-                await identify_handler(call)
+        ), pytest.raises(HomeAssistantError, match="Device not found"):
+            await identify_handler(call)
 
 
 class TestSetLogLevelService:
@@ -280,9 +277,8 @@ class TestGetDiagnosticsService:
         with patch(
             "custom_components.tuya_ble_mesh._get_coordinator_for_device",
             return_value=None,
-        ):
-            with pytest.raises(HomeAssistantError, match="Device not found"):
-                await get_diagnostics_handler(call)
+        ), pytest.raises(HomeAssistantError, match="Device not found"):
+            await get_diagnostics_handler(call)
 
 
 class TestReconnectService:
@@ -381,9 +377,8 @@ class TestReconnectService:
         with patch(
             "custom_components.tuya_ble_mesh._get_coordinator_for_device",
             return_value=None,
-        ):
-            with pytest.raises(HomeAssistantError, match="Device not found"):
-                await reconnect_handler(call)
+        ), pytest.raises(HomeAssistantError, match="Device not found"):
+            await reconnect_handler(call)
 
 
 # Note: _get_coordinator_for_device tests removed as they require complex HA device registry mocking
