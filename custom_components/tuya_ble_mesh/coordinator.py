@@ -24,6 +24,7 @@ from collections import deque
 from collections.abc import Callable
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
+from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Union
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
@@ -182,9 +183,9 @@ class TuyaBLEMeshDeviceState:
     last_seen: float | None = None  # Unix timestamp of last successful communication
 
     # --- PLAT-402 Phase 1 Task 1.2: Desired vs Confirmed State ---
-    desired_state: dict[str, Any] = field(default_factory=dict)
-    last_sent_state: dict[str, Any] = field(default_factory=dict)
-    last_confirmed_state: dict[str, Any] = field(default_factory=dict)
+    desired_state: MappingProxyType[str, Any] = field(default_factory=lambda: MappingProxyType({}))
+    last_sent_state: MappingProxyType[str, Any] = field(default_factory=lambda: MappingProxyType({}))
+    last_confirmed_state: MappingProxyType[str, Any] = field(default_factory=lambda: MappingProxyType({}))
     state_confidence: float = 0.0  # 0.0 = no confidence, 1.0 = fully confirmed
     last_update_source: str = StateUpdateSource.ASSUMED.value
     last_update_time: float | None = None  # Unix timestamp of last state update
@@ -429,7 +430,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         now = time.time()
 
         # PLAT-402 Task 1.2: Confirmed state from device notification
-        confirmed = {"is_on": on}
+        confirmed = MappingProxyType({"is_on": on})
         # PLAT-402 Task 1.3: Reset failure counters on successful notify
         self._state = replace(
             self._state,
@@ -497,7 +498,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         is_on = status.white_brightness > 0 or status.color_brightness > 0
 
         # PLAT-402 Task 1.2: Confirmed state from device notification
-        confirmed = {
+        confirmed = MappingProxyType({
             "is_on": is_on,
             "mode": status.mode,
             "brightness": status.white_brightness,
@@ -506,7 +507,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             "green": status.green,
             "blue": status.blue,
             "color_brightness": status.color_brightness,
-        }
+        })
 
         # PLAT-402 Task 1.3: Reset failure counters on successful notify
         self._state = replace(
@@ -605,11 +606,12 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         if updated:
             now = time.time()
             # PLAT-402 Task 1.2: Confirmed vendor data (power/energy)
-            confirmed = {**self._state.last_confirmed_state}
+            confirmed_dict = dict(self._state.last_confirmed_state)
             if power_w is not None:
-                confirmed["power_w"] = power_w
+                confirmed_dict["power_w"] = power_w
             if energy_kwh is not None:
-                confirmed["energy_kwh"] = energy_kwh
+                confirmed_dict["energy_kwh"] = energy_kwh
+            confirmed = MappingProxyType(confirmed_dict)
 
             self._state = replace(
                 self._state,
@@ -1351,9 +1353,9 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         now = time.time()
         # Apply sent state to current fields (optimistic update)
         # PLAT-402 Task 1.3: Mark as ASSUMED_ONLINE
-        updates = {
-            "desired_state": desired,
-            "last_sent_state": sent,
+        updates: dict[str, Any] = {
+            "desired_state": MappingProxyType(desired),
+            "last_sent_state": MappingProxyType(sent),
             "state_confidence": 0.3,  # Low confidence — not yet confirmed
             "last_update_source": StateUpdateSource.ASSUMED.value,
             "last_update_time": now,
