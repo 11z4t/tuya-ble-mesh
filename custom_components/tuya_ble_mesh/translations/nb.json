@@ -1,0 +1,318 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Legg til enheten din",
+        "description": "**Trinn 1 av 3:** Let's connect your Tuya BLE Mesh device to Home Assistant.\n\n**What you'll need:**\n- The device's MAC address (found on the device label or in the manual)\n- The device type (light, plug, etc.)\n- Mesh credentials (if you haven't changed them, use the factory defaults below)\n\n**Next step:** We'll configure how to connect (tar ca. 2 minutter).",
+        "data": {
+          "mac_address": "MAC-adresse",
+          "mesh_name": "Mesh-navn",
+          "mesh_password": "Mesh-passord",
+          "vendor_id": "Leverandør-ID (hex, f.eks. 0x1001)",
+          "device_type": "Enhetstype",
+          "mesh_address": "Mesh-adresse (0 = auto)"
+        },
+        "data_description": {
+          "mac_address": "Format: XX:XX:XX:XX:XX:XX",
+          "vendor_id": "Malmbergs=0x1001, AwoX=0x0160, Dimond=0x0211",
+          "mesh_name": "Fabrikkinnstilling: out_of_mesh (maks 16 byte)",
+          "mesh_password": "Fabrikkinnstilling: 123456 (maks 16 byte)"
+        }
+      },
+      "sig_bridge": {
+        "title": "Koble til bridge",
+        "description": "**Trinn 2 av 3:** Now let's connect **{name}** through your bridge.\n\n**What's a bridge?** It's a Raspberry Pi (or similar device) that relays commands between Home Assistant and your BLE devices.\n\n**Before continuing:**\n- Make sure your bridge device is powered on\n- Verify it's connected to the same network as Home Assistant\n\n**Next step:** We'll test the connection and complete setup (tar 10 sekunder).",
+        "data": {
+          "bridge_host": "Bridge-vert (IP-adresse eller vertsnavn)",
+          "bridge_port": "Bridge-port",
+          "unicast_target": "Mål-unicast-adresse (hex)"
+        },
+        "data_description": {
+          "bridge_host": "IP-adresse eller vertsnavn til Raspberry Pi som kjører bridge-tjenesten",
+          "bridge_port": "Standard: 8099",
+          "unicast_target": "Standard: 00B0"
+        }
+      },
+      "telink_bridge": {
+        "title": "Koble til bridge",
+        "description": "**Trinn 2 av 3:** Now let's connect **{name}** through your bridge.\n\n**What's a bridge?** It's a Raspberry Pi (or similar device) that relays commands between Home Assistant and your BLE devices.\n\n**Before continuing:**\n- Make sure your bridge device is powered on\n- Verify it's connected to the same network as Home Assistant\n\n**Next step:** We'll test the connection and complete setup (tar 10 sekunder).",
+        "data": {
+          "bridge_host": "Bridge-vert (IP-adresse eller vertsnavn)",
+          "bridge_port": "Bridge-port"
+        },
+        "data_description": {
+          "bridge_host": "IP-adresse eller vertsnavn til Raspberry Pi som kjører bridge-tjenesten",
+          "bridge_port": "Standard: 8099"
+        }
+      },
+      "sig_plug": {
+        "title": "Klar til paring",
+        "description": "**Siste trinn:** Almost there! We're ready to pair **{name}**.\n\n**What happens when you click Submit:**\n1. Home Assistant will generate secure encryption keys (instant)\n2. The device will be paired automatically (takes about 10 seconds)\n3. All settings are saved securely\n\n**Before clicking Submit, make sure:**\n- The device LED is flashing (if not, factory-reset it by unplugging and replugging 5 times quickly)\n- The device is within Bluetooth range of Home Assistant or your BLE proxy\n\n**Next step:** Click Submit and wait about 10 seconds. You'll see the device appear in Home Assistant!",
+        "data": {}
+      },
+      "confirm": {
+        "title": "Nesten ferdig!",
+        "description": "**Trinn 3 av 3:** Great! We found **{name}**.\n\n**Device details:**\n- MAC address: {mac}\n- Signal strength: {rssi} dBm\n\n**What happens next:**\nWhen you click Submit, Home Assistant will pair with this device and add it to your system (tar ca. 5 sekunder). You'll be able to control it right away.\n\nReady? Click Submit to finish!",
+        "data": {}
+      },
+      "reauth_confirm": {
+        "title": "Skriv inn legitimasjon på nytt",
+        "description": "Tilkobling feilet — legitimasjonen kan ha blitt endret. Skriv inn på nytt for å koble til igjen.",
+        "data": {
+          "mesh_name": "Mesh-navn",
+          "mesh_password": "Mesh-passord",
+          "bridge_host": "Bridge-vert",
+          "bridge_port": "Bridge-port"
+        }
+      },
+      "reconfigure": {
+        "title": "Konfigurer tilkobling på nytt",
+        "description": "Oppdater tilkoblingsinnstillingene for denne enheten. MAC-adressen og enhetstypen kan ikke endres her.",
+        "data": {
+          "mesh_name": "Mesh-navn",
+          "mesh_password": "Mesh-passord",
+          "vendor_id": "Leverandør-ID (hex)",
+          "bridge_host": "Bridge-vert",
+          "bridge_port": "Bridge-port"
+        }
+      }
+    },
+    "error": {
+      "invalid_mac": "Ugyldig MAC-adresseformat. Forventet XX:XX:XX:XX:XX:XX (kolonadskilt hex).",
+      "invalid_key": "Ugyldig nøkkelformat (forventet 32 hex-tegn).",
+      "invalid_bridge_host": "Ugyldig bridge-vert. Skriv inn vertsnavn eller IP-adresse (ikke en URL). Loopback- og link-local-adresser er ikke tillatt.",
+      "invalid_credential_length": "Mesh-navn og passord må hver være 16 byte eller mindre.",
+      "invalid_vendor_id": "Ugyldig leverandør-ID. Forventet 1–4 hex-siffer med valgfritt 0x-prefiks (f.eks. 0x1001).",
+      "bridge_unreachable": "Vi kan ikke koble til bridge.\n\n**Sjekk følgende:**\n1. Er bridge-enheten (Raspberry Pi) slått på og koblet til nettverket?\n2. Er den på samme nettverk som Home Assistant?\n3. Prøv å pinge bridge fra en annen enhet for å bekrefte nettverkstilkobling\n\n**Slik løser du det:**\n- Sjekk strøm- og nettverkskablene til bridge\n- Bekreft at IP-adressen er riktig\n- Hvis du nylig endret nettverket, må du kanskje oppdatere nettverksinnstillingene til bridge",
+      "auth_or_mesh_mismatch": "Passordet stemmer ikke.\n\n**Dette betyr:**\nEnheten svarer, men avviser mesh-navnet eller passordet du skrev inn.\n\n**Slik løser du det:**\n1. Dobbeltsjekk mesh-navnet og passordet du skrev inn\n2. Hvis du ikke har endret dem, prøv fabrikkinnstillingene: navn = `out_of_mesh`, passord = `123456`\n3. Hvis du tilbakestilte enheten nylig, er den tilbake til fabrikkinnstillinger\n\n**Fungerer det fortsatt ikke?** Slett denne integrasjonen og legg den til på nytt fra bunnen av.",
+      "unsupported_vendor": "Leverandør-ID ikke gjenkjent. Sjekk BLE snoop-logger for korrekte leverandør-bytes.",
+      "device_not_found": "Vi kan ikke se enheten din.\n\n**Dette betyr:**\nBridge fungerer, men kan ikke oppdage Bluetooth-signalet fra enheten.\n\n**Slik løser du det:**\n1. Sjekk at enheten er plugget inn og slått på\n2. Flytt enheten nærmere bridge (innenfor 10 meter)\n3. Sjekk om LED-lyset på enheten er på - hvis ikke, prøv en annen stikkontakt\n4. Vent 30 sekunder og prøv igjen (enheter kan ta litt tid før de begynner å sende)\n\n**Dobbeltsjekk:** Er MAC-adressen riktig? Sjekk enhetens etikett eller manual.",
+      "timeout": "Operasjonen fikk tidsavbrudd. Bridge eller enheten svarte ikke i tide.",
+      "unknown_protocol": "Protokollforhandling feilet. Dette kan indikere en firmware-mismatch på bridge.",
+      "cannot_connect": "Kunne ikke koble til enheten. Sjekk at den er slått på, innenfor BLE-rekkevidde, og i paringsmodus.",
+      "pairing_failed": "Paring feilet. Enheten svarte ikke eller avslo tilkoblingen. Sjekk at den er i fabrikkinnstilt tilstand og innenfor BLE-rekkevidde.",
+      "provisioning_failed": "Paring feilet.\n\n**Hva gikk galt:**\nEnheten svarte ikke under paringsprosessen.\n\n**Slik løser du det:**\n1. **Tilbakestill enheten til fabrikkinnstillinger:** Trekk ut pluggen, deretter plugg inn igjen 5 ganger raskt (1 sekunds intervaller). LED skal blinke raskt når den er klar.\n2. **Flytt den nærmere:** Sjekk at enheten er innenfor 5 meter fra Home Assistant eller BLE-proxy\n3. **Vent på LED:** Klikk Send inn bare når LED blinker\n4. **Prøv igjen:** Slett denne mislykkede oppføringen og start på nytt\n\n**Har du fortsatt problemer?** Sjekk Home Assistant-loggene for flere detaljer (Innstillinger → System → Logger).",
+      "provisioning_appkey_failed": "Enheten godtok ikke krypteringsnøkkelen.\n\n**Dette betyr:**\nEnheten din er ikke i fabrikkinnstilt modus, så den har allerede gamle innstillinger lagret.\n\n**Slik løser du det:**\n1. **Tilbakestill enheten til fabrikkinnstillinger:** Trekk ut pluggen, deretter plugg inn igjen 5 ganger raskt (ca. 1 sekund mellom hver gang)\n2. **Se etter LED:** Den skal blinke raskt når tilbakestillingen er fullført\n3. **Prøv å pare igjen:** Slett denne oppføringen og legg til enheten på nytt mens LED blinker\n\n**Hvorfor dette skjer:** Hvis du har paret denne enheten tidligere, husker den de gamle innstillingene og vil ikke godta nye før du tilbakestiller den.",
+      "provisioning_proxy_failed": "Provisjonering feilet under Proxy Service-oppsett. Enheten støtter ikke eller har deaktivert Proxy Service. Sjekk enhetsdokumentasjonen eller prøv en annen enhet.",
+      "provisioning_pbgatt_failed": "Kan ikke koble til enheten - den er for langt unna eller svarer ikke.\n\n**Dette betyr:**\nHome Assistant prøvde å koble til via Bluetooth, men kunne ikke nå enheten.\n\n**Slik løser du det:**\n1. **Flytt enheten nærmere:** Ta den innenfor 5 meter fra Home Assistant\n2. **Sjekk BLE-oppsettet:**\n   - Har du en Bluetooth-adapter på Home Assistant-enheten?\n   - Eller har du en ESPHome BLE-proxy satt opp?\n3. **Sjekk at enheten er på:** Bekreft at stikkontakten fungerer og at LED lyser\n4. **Vent og prøv igjen:** Noen ganger trenger enheter litt tid for å våkne - vent 30 sekunder og prøv igjen\n\n**Tips:** Jo nærmere enheten er under første paring, jo mer pålitelig blir tilkoblingen."
+    },
+    "abort": {
+      "already_configured": "Denne enheten er allerede konfigurert",
+      "reauth_successful": "Re-autentisering vellykket",
+      "reconfigure_successful": "Re-konfigurering vellykket",
+      "entry_not_found": "Konfigurasjonsoppføring ikke funnet",
+      "device_not_available": "Enheten sender ikke lenger. Den kan være utenfor rekkevidde, slått av, eller allerede konfigurert.",
+      "device_not_found": "Enhet ikke funnet i BLE-registeret."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Konfigurer tilkoblingen",
+        "description": "Update your bridge connection or mesh credentials below. Need more control? Enable **Show advanced settings** for timeout and reconnect options.",
+        "data": {
+          "mesh_name": "Mesh-navn",
+          "mesh_password": "Mesh-passord",
+          "vendor_id": "Leverandør-ID (hex)",
+          "mesh_address": "Mesh-adresse (0 = auto)",
+          "bridge_host": "Bridge-vert",
+          "bridge_port": "Bridge-port",
+          "unicast_target": "Mål-unicast-adresse (hex)",
+          "iv_index": "IV-indeks",
+          "validate_bridge": "Test bridge-tilkobling før lagring",
+          "show_advanced": "Vis avanserte innstillinger"
+        },
+        "data_description": {
+          "mesh_name": "Nettverksnavnet for Tuya BLE Mesh-enhetene dine (maks 16 tegn). Fabrikkinnstilling: out_of_mesh",
+          "mesh_password": "Nettverkspassordet for Tuya BLE Mesh-enhetene dine (maks 16 tegn). Fabrikkinnstilling: 123456",
+          "vendor_id": "Produsent-identifikator. Vanlige verdier: Malmbergs=0x1001, AwoX=0x0160, Dimond=0x0211",
+          "mesh_address": "Enhetsadresse på mesh-nettverket. Bruk 0 for automatisk tildeling (anbefalt).",
+          "bridge_host": "IP-adresse eller vertsnavn til Raspberry Pi som kjører bridge-tjenesten. Eksempel: 192.168.1.100",
+          "bridge_port": "Nettverksport for bridge-kommunikasjon (standard: 8099). Endre bare hvis du har tilpasset bridge-oppsettet.",
+          "unicast_target": "SIG Mesh unicast-adresse i heksadesimalt format (standard: 00B0). Kun for avanserte brukere.",
+          "iv_index": "Mesh-nettverkets initialiseringsvektorindeks. Kun for avanserte brukere - feil verdi vil ødelegge kommunikasjonen.",
+          "validate_bridge": "Test tilkoblingen til bridge før lagring. Anbefalt for å fange opp konfigurasjonsfeil tidlig."
+        }
+      },
+      "advanced": {
+        "title": "Finjuster enheten",
+        "description": "Adjust debug verbosity, command timeouts, and reconnect storm protection. De fleste brukere kan beholde standardinnstillingene.",
+        "data": {
+          "debug_level": "Loggnivå for BLE mesh",
+          "command_timeout": "Kommando-tidsavbrudd (sekunder)",
+          "max_reconnects": "Maks retilkoblingsforsøk (0 = ubegrenset)",
+          "reconnect_storm_threshold": "Terskel for retilkoblingsstorm (per 5 minutter)"
+        },
+        "data_description": {
+          "debug_level": "Styrer detaljnivået i BLE mesh-logger. Warning er anbefalt for normal bruk.",
+          "command_timeout": "Hvor lenge skal vi vente på svar fra enheten før vi prøver igjen (3–60 sekunder).",
+          "max_reconnects": "Begrens totalt antall retilkoblingsforsøk. 0 = fortsett å prøve på ubestemt tid.",
+          "reconnect_storm_threshold": "Opprett en reparasjonssak hvis dette antallet retilkoblinger skjer innen 5 minutter."
+        }
+      }
+    },
+    "error": {
+      "invalid_bridge_host": "Ugyldig bridge-vert. Skriv inn vertsnavn eller IP-adresse (ikke en URL).",
+      "bridge_unreachable": "Kan ikke nå bridge-tjenesten. Bekreft vert/port og at tjenesten kjører.",
+      "invalid_credential_length": "Mesh-navn og passord må hver være 16 byte eller mindre.",
+      "invalid_vendor_id": "Ugyldig leverandør-ID. Forventet 1–4 hex-siffer (f.eks. 0x1001)."
+    }
+  },
+  "entity": {
+    "light": {
+      "mesh_light": {
+        "name": "Lys"
+      }
+    },
+    "switch": {
+      "mesh_switch": {
+        "name": "Bryter"
+      }
+    },
+    "sensor": {
+      "rssi": {
+        "name": "Signalstyrke"
+      },
+      "firmware": {
+        "name": "Firmware-versjon"
+      },
+      "power": {
+        "name": "Effekt"
+      },
+      "energy": {
+        "name": "Energi"
+      }
+    },
+    "update": {
+      "firmware_update": {
+        "name": "Firmware"
+      }
+    }
+  },
+  "exceptions": {
+    "connection_failed": {
+      "message": "Kunne ikke koble til {device}: {error}"
+    },
+    "command_timeout": {
+      "message": "Kommando fikk tidsavbrudd for {device}"
+    },
+    "provisioning_failed": {
+      "message": "Provisjonering feilet for {device}: {error}"
+    },
+    "invalid_key": {
+      "message": "Ugyldig mesh-nøkkelformat"
+    }
+  },
+  "services": {
+    "identify": {
+      "name": "Identifiser enhet",
+      "description": "Flash the device LED to make it easy to find. **Bruk dette hvis:** You have multiple similar lights and want to confirm which one is which.",
+      "fields": {
+        "device_id": {
+          "name": "Enhet",
+          "description": "Enheten som skal identifiseres (blink LED)."
+        }
+      }
+    },
+    "set_log_level": {
+      "name": "Sett loggnivå",
+      "description": "Change BLE mesh logging verbosity without restarting Home Assistant. **Bruk dette hvis:** You're troubleshooting connection issues and need more detailed logs.",
+      "fields": {
+        "level": {
+          "name": "Nivå",
+          "description": "Loggnivå: debug, info, warning eller error."
+        }
+      }
+    },
+    "get_diagnostics": {
+      "name": "Hent diagnostikk",
+      "description": "Log diagnostic information for a device to the HA log. **Bruk dette hvis:** The device isn't working as expected and you need to share technical details for support.",
+      "fields": {
+        "device_id": {
+          "name": "Enhet",
+          "description": "Enheten som diagnostikk skal hentes for."
+        }
+      }
+    }
+  },
+  "issues": {
+    "bridge_unreachable": {
+      "title": "Bridge-tjeneste ikke tilgjengelig: {host}:{port}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Bridge ikke tilgjengelig: {host}:{port}",
+            "description": "BLE bridge-tjenesten på **{host}:{port}** svarer ikke.\n\n**Sjekk følgende:**\n1. Er bridge-verten slått på?\n2. Kjører tjenesten? Kjør: `systemctl status tuya-ble-bridge`\n3. Er port {port} tilgjengelig fra Home Assistant?\n4. Test: `curl http://{host}:{port}/health`\n\nDenne saken løses automatisk når tjenesten kommer tilbake online."
+          }
+        }
+      }
+    },
+    "auth_or_mesh_mismatch": {
+      "title": "Mesh-legitimasjon stemmer ikke: {device}",
+      "fix_flow": {
+        "step": {
+          "reauth_hint": {
+            "title": "Løsning: Oppdater mesh-legitimasjon",
+            "description": "Enheten **{device}** avviser den lagrede mesh-legitimasjonen.\n\n**Slik løser du det:**\n1. Gå til **Innstillinger → Integrasjoner → {device} → Konfigurer**\n2. Oppdater mesh-navn og passord slik at de stemmer med enheten\n3. Fabrikkinnstillinger: navn=`out_of_mesh`, passord=`123456`\n\nHvis enheten ble tilbakestilt til fabrikkinnstillinger, slett og legg til integrasjonen på nytt."
+          },
+          "credentials": {
+            "title": "Skriv inn ny legitimasjon",
+            "description": "Enheten avslo den lagrede legitimasjonen. Skriv inn oppdatert mesh-legitimasjon eller bridge-tilkoblingsinnstillinger nedenfor.",
+            "data": {
+              "mesh_name": "Mesh-navn",
+              "mesh_password": "Mesh-passord",
+              "bridge_host": "Bridge-vert",
+              "bridge_port": "Bridge-port"
+            }
+          }
+        }
+      }
+    },
+    "unsupported_vendor": {
+      "title": "Leverandør-ID ikke støttet: {device} ({vendor_id})",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Løsning: Oppdater leverandør-ID",
+            "description": "Leverandør-ID **{vendor_id}** for **{device}** er ikke gjenkjent.\n\n**Slik finner du riktig ID:**\n1. Bruk en BLE-sniffer til å fange opp kringkastinger fra enheten\n2. Se på produsentspesifikke data — leverandør-bytes er ved payload-offset `[3:5]`\n3. Kjente ID-er: Malmbergs=`0x1001`, AwoX=`0x0160`, Dimond=`0x0211`\n\n**Slik løser du det:** Gå til **Innstillinger → Integrasjoner → {device} → Konfigurer** og oppdater leverandør-ID."
+          }
+        }
+      }
+    },
+    "device_not_found": {
+      "title": "Enhet ikke synlig: {device} (…{mac})"
+    },
+    "timeout": {
+      "title": "Gjentatte tidsavbrudd: {device} ({operation})"
+    },
+    "reconnect_storm": {
+      "title": "Tilkoblingen fortsetter å falle: {device}",
+      "fix_flow": {
+        "step": {
+          "storm_confirm": {
+            "title": "Enheten din fortsetter å koble fra",
+            "description": "**{device}** har koblet til på nytt **{count}** ganger de siste {window} minuttene. Dette betyr vanligvis at noe er galt.\n\n**Sjekk følgende:**\n1. **Signalstyrke:** Er enheten for langt fra bridge eller BLE-adapteren? Prøv å flytte den nærmere.\n2. **Strømproblemer:** Får enheten stabil strøm? Prøv en annen stikkontakt eller strømadapter.\n3. **Enhetshelse:** Fungerer enheten normalt ellers? Den kan trenge omstart eller tilbakestilling til fabrikkinnstillinger.\n4. **Interferens:** Er det metallobjekter eller annen elektronikk mellom enheten og bridge?\n\n**Hva denne knappen gjør:**\nÅ klikke OK vil fjerne denne varslingen, men det vil ikke løse problemet. Frakoblingene vil fortsette til du tar tak i årsakene ovenfor.\n\n**Trenger du hjelp?** Sjekk bridge-loggene i Innstillinger → System → Logger for flere detaljer."
+          }
+        }
+      }
+    },
+    "protocol_mismatch": {
+      "title": "Protokoll-mismatch: {device}"
+    },
+    "provisioning_failed": {
+      "title": "Provisjonering feilet: {device}",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Løs provisjoneringsfeil",
+            "description": "SIG Mesh-provisjonering feilet for **{device}**.\n\n**Slik løser du det:**\n1. Slett denne integrasjonsoppføringen\n2. Tilbakestill enheten til fabrikkinnstillinger: 5× rask strømsykling (LED blinker raskt når den er klar)\n3. Legg til integrasjonen på nytt mens LED blinker\n\nSjekk at enheten er innenfor BLE-rekkevidde til en lokal adapter eller ESPHome BLE-proxy under provisjonering."
+          }
+        }
+      }
+    },
+    "key_mismatch": {
+      "title": "Nøkkel-mismatch: {device}"
+    }
+  }
+}
