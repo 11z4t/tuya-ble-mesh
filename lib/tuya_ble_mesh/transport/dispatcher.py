@@ -239,9 +239,7 @@ class AsyncCommandDispatcher:
 
                 # Wait for a request (with timeout to check _running)
                 try:
-                    _, _, request = await asyncio.wait_for(
-                        self._queue.get(), timeout=1.0
-                    )
+                    _, _, request = await asyncio.wait_for(self._queue.get(), timeout=1.0)
                 except TimeoutError:
                     continue
 

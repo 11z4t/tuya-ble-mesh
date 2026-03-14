@@ -96,11 +96,7 @@ class CorrelationEngine:
         # We match on (opcode, destination=source, sequence)
         # request_id can be any, so we need to scan
         for key, request in list(self._pending.items()):
-            if (
-                key.opcode == opcode
-                and key.destination == source
-                and key.sequence == sequence
-            ):
+            if key.opcode == opcode and key.destination == source and key.sequence == sequence:
                 # Found a match — remove from tracking
                 del self._pending[key]
                 del self._by_request_id[request.request_id]
