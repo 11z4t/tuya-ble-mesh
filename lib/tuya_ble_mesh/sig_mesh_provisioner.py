@@ -271,9 +271,10 @@ class SIGMeshProvisioner:
             try:
                 return await self._run_exchange(client)
             finally:
-                with contextlib.suppress(Exception):
+                # HF-2: Suppress only expected BLE exceptions, not all exceptions
+                with contextlib.suppress(BleakError, OSError):
                     await client.stop_notify(PROV_DATA_OUT)
-                with contextlib.suppress(Exception):
+                with contextlib.suppress(BleakError, OSError):
                     await client.disconnect()
                 _LOGGER.info("Provisioning session disconnected from %s", address.upper())
                 # PLAT-506: Give BLE adapter time to release connection slot
@@ -555,29 +556,46 @@ class SIGMeshProvisioner:
         Raises:
             ProvisioningError: On any protocol or crypto failure.
         """
+        # CF-2: Use asyncio.Lock to protect rx_buffer and rx_sar_buffer from race conditions
+        rx_lock = asyncio.Lock()
         rx_event: asyncio.Event = asyncio.Event()
         rx_buffer: bytearray = bytearray()
         rx_sar_buffer: bytearray = bytearray()
 
         def _on_notify(_sender: object, data: bytearray) -> None:
-            """Handle Provisioning Data Out notifications with SAR reassembly."""
+            """Handle Provisioning Data Out notifications with SAR reassembly.
+
+            CF-2: Schedule async processing to use lock protection.
+            """
             if not data:
                 return
+            # CF-2: Schedule async handler to use lock
+            data_copy = bytes(data)
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(_process_notify(data_copy))
+            except RuntimeError:
+                # No running event loop (shutdown)
+                _LOGGER.debug("No running event loop for provisioning notify")
+
+        async def _process_notify(data: bytes) -> None:
+            """Process notification with lock protection (CF-2)."""
             nonlocal rx_buffer, rx_sar_buffer
-            sar = (data[0] >> 6) & 0x03
-            payload = bytes(data[1:])
-            if sar == _SAR_COMPLETE:
-                rx_buffer = bytearray(payload)
-                rx_event.set()
-            elif sar == _SAR_FIRST:
-                rx_sar_buffer = bytearray(payload)
-            elif sar == _SAR_CONTINUATION:
-                rx_sar_buffer.extend(payload)
-            elif sar == _SAR_LAST:
-                rx_sar_buffer.extend(payload)
-                rx_buffer = rx_sar_buffer
-                rx_sar_buffer = bytearray()
-                rx_event.set()
+            async with rx_lock:
+                sar = (data[0] >> 6) & 0x03
+                payload = bytes(data[1:])
+                if sar == _SAR_COMPLETE:
+                    rx_buffer = bytearray(payload)
+                    rx_event.set()
+                elif sar == _SAR_FIRST:
+                    rx_sar_buffer = bytearray(payload)
+                elif sar == _SAR_CONTINUATION:
+                    rx_sar_buffer.extend(payload)
+                elif sar == _SAR_LAST:
+                    rx_sar_buffer.extend(payload)
+                    rx_buffer = rx_sar_buffer
+                    rx_sar_buffer = bytearray()
+                    rx_event.set()
 
         async def send_prov(pdu: bytes) -> None:
             segments = _wrap_provisioning_pdu(pdu, client.mtu_size)
@@ -587,11 +605,16 @@ class SIGMeshProvisioner:
                     await asyncio.sleep(_PROVISIONING_POLL_INTERVAL)
 
         async def recv_prov(recv_timeout: float = 10.0, step_name: str = "PDU") -> bytes:
-            """Receive provisioning PDU with timeout and context."""
+            """Receive provisioning PDU with timeout and context.
+
+            CF-2: Read rx_buffer with lock protection.
+            """
             rx_event.clear()
             try:
                 await asyncio.wait_for(rx_event.wait(), timeout=recv_timeout)
-                return bytes(rx_buffer)
+                # CF-2: Lock access to rx_buffer to prevent race with concurrent notify
+                async with rx_lock:
+                    return bytes(rx_buffer)
             except TimeoutError as exc:
                 msg = (
                     f"Timeout waiting for {step_name} (waited {recv_timeout:.1f}s). "

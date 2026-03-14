@@ -202,6 +202,7 @@ class SIGMeshDevice:
         self._keys: MeshKeys | None = None
         self._seq_store: SeqStore = seq_store if seq_store is not None else InMemorySeqStore()
         self._seq_lock = asyncio.Lock()
+        self._segment_lock = asyncio.Lock()  # CF-1: Protect _segment_buffers and _pending_responses
         self._tid = 0
         self._correlation_id = 0
 
@@ -438,9 +439,10 @@ class SIGMeshDevice:
     async def disconnect(self) -> None:
         """Disconnect from the device and zero key material."""
         if self._client is not None:
-            with contextlib.suppress(Exception):
+            # HF-1: Suppress only expected BLE exceptions, not all exceptions
+            with contextlib.suppress(BleakError, OSError):
                 await self._client.stop_notify(SIG_MESH_PROXY_DATA_OUT)
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(BleakError, OSError):
                 await self._client.disconnect()
             self._client = None
 
@@ -771,13 +773,14 @@ class SIGMeshDevice:
             aid=0,
         )
 
-        # Register response future BEFORE sending
+        # CF-1: Register response future BEFORE sending (protected by lock)
         loop = asyncio.get_running_loop()
         future: asyncio.Future[bytes] = loop.create_future()
-        corr_id = self._correlation_id
-        self._correlation_id += 1
-        resp_key = (_OPCODE_APPKEY_STATUS, corr_id)
-        self._pending_responses[resp_key] = future
+        async with self._segment_lock:
+            corr_id = self._correlation_id
+            self._correlation_id += 1
+            resp_key = (_OPCODE_APPKEY_STATUS, corr_id)
+            self._pending_responses[resp_key] = future
 
         try:
             for seg_seq, transport_pdu in segments:
@@ -812,7 +815,9 @@ class SIGMeshDevice:
             msg = "Timeout waiting for AppKey Status response"
             raise SIGMeshError(msg) from None
         finally:
-            self._pending_responses.pop(resp_key, None)
+            # CF-1: Cleanup response future (protected by lock)
+            async with self._segment_lock:
+                self._pending_responses.pop(resp_key, None)
 
         status = params[0] if params else 0xFF
         _LOGGER.info(
@@ -880,13 +885,14 @@ class SIGMeshDevice:
         )
         proxy_pdu = make_proxy_pdu(network_pdu)
 
-        # Register response future BEFORE sending
+        # CF-1: Register response future BEFORE sending (protected by lock)
         loop = asyncio.get_running_loop()
         future_bind: asyncio.Future[bytes] = loop.create_future()
-        corr_id = self._correlation_id
-        self._correlation_id += 1
-        resp_key = (_OPCODE_MODEL_APP_STATUS, corr_id)
-        self._pending_responses[resp_key] = future_bind
+        async with self._segment_lock:
+            corr_id = self._correlation_id
+            self._correlation_id += 1
+            resp_key = (_OPCODE_MODEL_APP_STATUS, corr_id)
+            self._pending_responses[resp_key] = future_bind
 
         try:
             await self._client.write_gatt_char(SIG_MESH_PROXY_DATA_IN, proxy_pdu, response=False)
@@ -906,7 +912,9 @@ class SIGMeshDevice:
             msg = "Timeout waiting for Model App Status response"
             raise SIGMeshError(msg) from None
         finally:
-            self._pending_responses.pop(resp_key, None)
+            # CF-1: Cleanup response future (protected by lock)
+            async with self._segment_lock:
+                self._pending_responses.pop(resp_key, None)
 
         status_bind = params_bind[0] if params_bind else 0xFF
         _LOGGER.info(
@@ -1018,17 +1026,20 @@ class SIGMeshDevice:
             return
 
         if access_msg.seg:
-            self._handle_segment(net_pdu.src, net_pdu.dst, net_pdu.transport_pdu)
+            await self._handle_segment(net_pdu.src, net_pdu.dst, net_pdu.transport_pdu)
             return
 
         if access_msg.access_payload is None:
             _LOGGER.debug("Unsegmented access payload decryption failed")
             return
 
-        self._dispatch_access_payload(net_pdu.src, access_msg.access_payload)
+        await self._dispatch_access_payload(net_pdu.src, access_msg.access_payload)
 
-    def _handle_segment(self, src: int, dst: int, transport_pdu: bytes) -> None:
+    async def _handle_segment(self, src: int, dst: int, transport_pdu: bytes) -> None:
         """Collect a segment and attempt reassembly when complete.
+
+        CF-1: Protected with _segment_lock to prevent race conditions in concurrent
+        notify callbacks corrupting segment reassembly state.
 
         Args:
             src: Source unicast address.
@@ -1044,43 +1055,48 @@ class SIGMeshDevice:
         # Per BT Mesh spec: buffer key must include src, dst, seq_zero, and aid
         buf_key = (src, dst, seg_hdr.seq_zero, seg_hdr.aid)
 
-        # Get or create reassembly buffer
-        buf = self._segment_buffers.get(buf_key)
-        if buf is None:
-            buf = _ReassemblyBuffer(
-                src=src,
-                dst=dst,
-                akf=seg_hdr.akf,
-                aid=seg_hdr.aid,
-                szmic=seg_hdr.szmic,
-                seq_zero=seg_hdr.seq_zero,
-                seg_n=seg_hdr.seg_n,
+        # CF-1: Lock ALL access to _segment_buffers to prevent race conditions
+        async with self._segment_lock:
+            # Get or create reassembly buffer
+            buf = self._segment_buffers.get(buf_key)
+            if buf is None:
+                buf = _ReassemblyBuffer(
+                    src=src,
+                    dst=dst,
+                    akf=seg_hdr.akf,
+                    aid=seg_hdr.aid,
+                    szmic=seg_hdr.szmic,
+                    seq_zero=seg_hdr.seq_zero,
+                    seg_n=seg_hdr.seg_n,
+                )
+                self._segment_buffers[buf_key] = buf
+
+            buf.segments[seg_hdr.seg_o] = seg_hdr.segment_data
+
+            _LOGGER.debug(
+                "Segment %d/%d received from 0x%04X (seq_zero=%d)",
+                seg_hdr.seg_o,
+                seg_hdr.seg_n,
+                src,
+                seg_hdr.seq_zero,
             )
-            self._segment_buffers[buf_key] = buf
 
-        buf.segments[seg_hdr.seg_o] = seg_hdr.segment_data
+            # Check if all segments received
+            if len(buf.segments) == buf.seg_n + 1:
+                await self._complete_reassembly(buf_key)
 
-        _LOGGER.debug(
-            "Segment %d/%d received from 0x%04X (seq_zero=%d)",
-            seg_hdr.seg_o,
-            seg_hdr.seg_n,
-            src,
-            seg_hdr.seq_zero,
-        )
+            # Clean stale buffers
+            await self._clean_stale_buffers()
 
-        # Check if all segments received
-        if len(buf.segments) == buf.seg_n + 1:
-            self._complete_reassembly(buf_key)
-
-        # Clean stale buffers
-        self._clean_stale_buffers()
-
-    def _complete_reassembly(self, buf_key: tuple[int, int, int, int]) -> None:
+    async def _complete_reassembly(self, buf_key: tuple[int, int, int, int]) -> None:
         """Decrypt a fully reassembled segmented message and dispatch.
+
+        CF-1: Called while holding _segment_lock to ensure atomic buffer removal.
 
         Args:
             buf_key: (src, dst, seq_zero, aid) key into _segment_buffers.
         """
+        # CF-1: Buffer removal happens while lock is held (caller holds _segment_lock)
         buf = self._segment_buffers.pop(buf_key, None)
         if buf is None or self._keys is None:
             return
@@ -1110,10 +1126,14 @@ class SIGMeshDevice:
             len(access_payload),
         )
 
-        self._dispatch_access_payload(buf.src, access_payload)
+        await self._dispatch_access_payload(buf.src, access_payload)
 
-    def _clean_stale_buffers(self) -> None:
-        """Remove reassembly buffers older than _REASSEMBLY_TIMEOUT."""
+    async def _clean_stale_buffers(self) -> None:
+        """Remove reassembly buffers older than _REASSEMBLY_TIMEOUT.
+
+        CF-1: Called while holding _segment_lock to ensure thread-safe iteration.
+        """
+        # CF-1: Iteration happens while lock is held (caller holds _segment_lock)
         now = time.monotonic()
         stale = [
             key
@@ -1124,8 +1144,11 @@ class SIGMeshDevice:
             _LOGGER.debug("Discarding stale reassembly buffer: %s", key)
             del self._segment_buffers[key]
 
-    def _dispatch_access_payload(self, src: int, access_payload: bytes) -> None:
+    async def _dispatch_access_payload(self, src: int, access_payload: bytes) -> None:
         """Parse opcode and route to appropriate handler.
+
+        CF-1: Protected with _segment_lock to prevent race conditions when accessing
+        _pending_responses from concurrent notify callbacks.
 
         Shared by both unsegmented and reassembled segmented paths.
         Pending response futures (from send_config_*) are resolved first.
@@ -1140,18 +1163,20 @@ class SIGMeshDevice:
             _LOGGER.debug("Failed to parse access opcode", exc_info=True)
             return
 
-        # Resolve pending config response futures (AppKey Status, Model App Status)
-        # Match first pending response with matching opcode (FIFO order by correlation_id)
-        matched_key = None
-        for key in self._pending_responses:
-            if key[0] == opcode:
-                matched_key = key
-                break
-        if matched_key is not None:
-            future = self._pending_responses.pop(matched_key)
-            if not future.done():
-                future.set_result(params)
-            return
+        # CF-1: Lock access to _pending_responses to prevent race conditions
+        async with self._segment_lock:
+            # Resolve pending config response futures (AppKey Status, Model App Status)
+            # Match first pending response with matching opcode (FIFO order by correlation_id)
+            matched_key = None
+            for key in self._pending_responses:
+                if key[0] == opcode:
+                    matched_key = key
+                    break
+            if matched_key is not None:
+                future = self._pending_responses.pop(matched_key)
+                if not future.done():
+                    future.set_result(params)
+                return
 
         if opcode == _OPCODE_ONOFF_STATUS and params:
             on_state = bool(params[0])
