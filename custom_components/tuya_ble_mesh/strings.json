@@ -2,7 +2,7 @@
   "config": {
     "step": {
       "user": {
-        "title": "Add Bluetooth Mesh Device",
+        "title": "Add Bluetooth Device",
         "description": "Enter your device's Bluetooth address and choose what type it is.\n\nFactory defaults work for most new devices — expand **Advanced options** only if needed.",
         "data": {
           "mac_address": "Bluetooth Address",
@@ -14,36 +14,36 @@
         },
         "data_description": {
           "mac_address": "The Bluetooth address printed on your device (format: XX:XX:XX:XX:XX:XX).",
-          "mesh_name": "The name of your mesh network. Leave as default if unsure.",
-          "mesh_password": "The password of your mesh network. Leave as default if unsure.",
+          "mesh_name": "Leave this as the default unless instructed otherwise.",
+          "mesh_password": "Leave this as the default unless instructed otherwise.",
           "vendor_id": "Manufacturer identifier in hex. Only change if instructed.",
-          "mesh_address": "Internal network address. Set to 0 to assign automatically."
+          "mesh_address": "Leave as 0 unless instructed otherwise."
         }
       },
       "sig_bridge": {
-        "title": "Connect to Bluetooth Bridge",
-        "description": "Enter the network address of the bridge that connects to **{name}**.",
+        "title": "Connect to Device Hub",
+        "description": "Enter the address of the hub that connects to **{name}**.",
         "data": {
-          "bridge_host": "Bridge Address",
-          "bridge_port": "Bridge Port",
-          "unicast_target": "Device Network Address"
+          "bridge_host": "Hub Address",
+          "bridge_port": "Hub Port",
+          "unicast_target": "Device ID"
         },
         "data_description": {
-          "bridge_host": "The IP address or hostname of your Bluetooth bridge (e.g. your Raspberry Pi).",
-          "bridge_port": "Port the bridge is listening on. Default is 8099.",
-          "unicast_target": "Internal mesh address of the device. Only change if instructed."
+          "bridge_host": "The IP address or hostname of your hub (e.g. your Raspberry Pi).",
+          "bridge_port": "Port the hub is listening on. Default is 8099.",
+          "unicast_target": "Only change if instructed."
         }
       },
       "telink_bridge": {
-        "title": "Connect to Bluetooth Bridge",
-        "description": "Enter the network address of the bridge that connects to **{name}**.",
+        "title": "Connect to Device Hub",
+        "description": "Enter the address of the hub that connects to **{name}**.",
         "data": {
-          "bridge_host": "Bridge Address",
-          "bridge_port": "Bridge Port"
+          "bridge_host": "Hub Address",
+          "bridge_port": "Hub Port"
         },
         "data_description": {
-          "bridge_host": "The IP address or hostname of your Bluetooth bridge (e.g. your Raspberry Pi).",
-          "bridge_port": "Port the bridge is listening on. Default is 8099."
+          "bridge_host": "The IP address or hostname of your hub (e.g. your Raspberry Pi).",
+          "bridge_port": "Port the hub is listening on. Default is 8099."
         }
       },
       "sig_plug": {
@@ -53,7 +53,7 @@
       },
       "confirm": {
         "title": "Device Found: {name}",
-        "description": "A **{category}** device was discovered nearby.\n\n- **Name:** {name}\n- **Address:** {mac}\n- **Signal:** {rssi} dBm\n\nConfirm the device type below to finish setup.",
+        "description": "A new **{category}** was found nearby.\n\n**Signal:** {signal_quality}\n\nSelect the device type below to finish setup.",
         "data": {
           "device_type": "Device Type",
           "mesh_name": "Network Name",
@@ -62,28 +62,33 @@
         }
       },
       "reauth_confirm": {
-        "title": "Update Connection Credentials",
-        "description": "Your device stopped responding. Please re-enter the connection details to reconnect.",
+        "title": "Reconnect Device",
+        "description": "Home Assistant lost connection to your device. Update the settings below to reconnect.",
         "data": {
           "mesh_name": "Network Name",
           "mesh_password": "Network Password",
-          "bridge_host": "Bridge Address",
-          "bridge_port": "Bridge Port"
+          "bridge_host": "Hub Address",
+          "bridge_port": "Hub Port"
         }
       }
     },
     "error": {
       "invalid_mac": "That doesn't look like a valid Bluetooth address. Expected format: XX:XX:XX:XX:XX:XX.",
       "invalid_key": "Invalid key \u2014 we need exactly 32 hex characters.",
-      "invalid_bridge_host": "Please enter a hostname or IP address (not a URL). Loopback addresses are not allowed.",
+      "invalid_bridge_host": "Please enter a valid address, like 192.168.1.100 or raspberrypi.local.",
       "invalid_credential_length": "Network name and password must each be 16 characters or fewer.",
       "invalid_vendor_id": "Invalid vendor code \u2014 use 1 to 4 hex digits (e.g. 0x1001).",
-      "cannot_connect": "Could not reach the bridge. Check that it's powered on and connected to your network.",
-      "provisioning_failed": "Setup failed. Make sure the device is powered on and close to your Bluetooth adapter, then try again. Check Home Assistant logs for details."
+      "cannot_connect": "Could not reach the hub. Check that it's powered on and connected to your network.",
+      "provisioning_failed": "Could not connect to the device. Make sure it's powered on and close to your Bluetooth adapter, then try again.",
+      "timeout": "Connection timed out. Make sure the device is powered on and close by, then try again.",
+      "device_not_found": "Device not found. Make sure it's powered on and within Bluetooth range, then try again.",
+      "invalid_iv_index": "Enter a number between 0 and 4,294,967,295.",
+      "invalid_unicast_address": "Enter a 4-character hex address between 0001 and 7FFF (e.g. 00B0)."
     },
     "abort": {
       "already_configured": "This device is already set up in Home Assistant.",
-      "reauth_successful": "Credentials updated. Reconnecting your device now."
+      "reauth_successful": "Settings updated. Reconnecting your device now.",
+      "device_not_available": "Device is no longer nearby. Try adding it again when it's in range."
     }
   },
   "options": {
@@ -95,19 +100,19 @@
           "mesh_name": "Network Name",
           "mesh_password": "Network Password",
           "mesh_address": "Device Address",
-          "bridge_host": "Bridge Address",
-          "bridge_port": "Bridge Port",
-          "unicast_target": "Device Network Address",
-          "iv_index": "Security Index"
+          "bridge_host": "Hub Address",
+          "bridge_port": "Hub Port",
+          "unicast_target": "Device ID",
+          "iv_index": "Security Counter"
         },
         "data_description": {
-          "mesh_name": "The name of your mesh network.",
-          "mesh_password": "The password of your mesh network.",
+          "mesh_name": "The network name for your device.",
+          "mesh_password": "The network password for your device.",
           "mesh_address": "Internal address of this device. Set to 0 to use the default.",
-          "bridge_host": "The IP address or hostname of your Bluetooth bridge.",
-          "bridge_port": "Port the bridge is listening on. Default is 8099.",
-          "unicast_target": "Internal mesh address of the target device. Only change if instructed.",
-          "iv_index": "Mesh security IV index. Only change if instructed."
+          "bridge_host": "The IP address or hostname of your hub.",
+          "bridge_port": "Port the hub is listening on. Default is 8099.",
+          "unicast_target": "Only change if instructed.",
+          "iv_index": "Only change if instructed."
         }
       }
     }
@@ -140,13 +145,13 @@
   },
   "exceptions": {
     "connection_failed": {
-      "message": "Could not connect to {device}: {error}"
+      "message": "Could not connect to {device}. Check that it's powered on and within range."
     },
     "command_timeout": {
       "message": "No response from {device}. It may be out of range."
     },
     "provisioning_failed": {
-      "message": "Device setup failed for {device}: {error}"
+      "message": "Could not connect to {device}. Try removing and re-adding it."
     },
     "invalid_key": {
       "message": "Invalid encryption key format"
@@ -165,7 +170,7 @@
     },
     "set_log_level": {
       "name": "Set log detail",
-      "description": "Change how much diagnostic detail is logged for Bluetooth mesh. No restart required.",
+      "description": "Change how much diagnostic detail is logged for this integration. No restart required.",
       "fields": {
         "level": {
           "name": "Level",
@@ -190,8 +195,8 @@
       "description": "Could not set up {device}. Power the device off and on again, then re-add it to Home Assistant."
     },
     "bridge_unreachable": {
-      "title": "Bridge not responding",
-      "description": "Cannot reach the Bluetooth bridge at {host}:{port}. Check that it's powered on and connected to your network."
+      "title": "Hub not responding",
+      "description": "Cannot reach the device hub at {host}:{port}. Check that it's powered on and connected to your network."
     }
   }
 }
