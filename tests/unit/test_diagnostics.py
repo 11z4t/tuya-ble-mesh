@@ -17,6 +17,7 @@ from custom_components.tuya_ble_mesh.const import (  # noqa: E402
     CONF_APP_KEY,
     CONF_BRIDGE_HOST,
     CONF_DEV_KEY,
+    CONF_DEVICE_TYPE,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
     CONF_NET_KEY,

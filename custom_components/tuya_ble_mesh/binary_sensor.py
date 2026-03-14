@@ -42,11 +42,9 @@ async def async_setup_entry(
     coordinator: TuyaBLEMeshCoordinator = runtime_data.coordinator
     device_info: DeviceInfo = runtime_data.device_info
 
-    async_add_entities(
-        [
-            TuyaBLEMeshConnectivitySensor(coordinator, entry.entry_id, device_info),
-        ]
-    )
+    async_add_entities([
+        TuyaBLEMeshConnectivitySensor(coordinator, entry.entry_id, device_info),
+    ])
 
 
 class TuyaBLEMeshConnectivitySensor(TuyaBLEMeshEntity, BinarySensorEntity):

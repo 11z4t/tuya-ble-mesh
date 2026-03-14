@@ -8,8 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -25,8 +24,6 @@ from homeassistant.const import (
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory  # type: ignore[attr-defined]
 from homeassistant.helpers.typing import StateType
-
-from custom_components.tuya_ble_mesh.entity import TuyaBLEMeshEntity
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -67,32 +64,6 @@ class TuyaBLEMeshSensorEntityDescription(SensorEntityDescription):
     available_fn: Callable[[TuyaBLEMeshDeviceState], bool] | None = None
 
 
-_RSSI_GOOD = -60
-_RSSI_MARGINAL = -80
-
-
-def _connection_quality(state: TuyaBLEMeshDeviceState) -> str | None:
-    """Map RSSI to human-readable connection quality."""
-    if state.rssi is None:
-        return None
-    if state.rssi >= _RSSI_GOOD:
-        return "good"
-    if state.rssi >= _RSSI_MARGINAL:
-        return "marginal"
-    return "poor"
-
-
-def _last_seen_datetime(state: TuyaBLEMeshDeviceState) -> datetime | None:
-    """Convert Unix timestamp to timezone-aware datetime for HA.
-
-    Returns UTC datetime. Home Assistant automatically converts this to the user's
-    configured timezone for display in the UI. No manual timezone conversion needed.
-    """
-    if state.last_seen is None:
-        return None
-    return datetime.fromtimestamp(state.last_seen, tz=UTC)
-
-
 SENSOR_DESCRIPTIONS: tuple[TuyaBLEMeshSensorEntityDescription, ...] = (
     TuyaBLEMeshSensorEntityDescription(
         key="rssi",
@@ -100,7 +71,7 @@ SENSOR_DESCRIPTIONS: tuple[TuyaBLEMeshSensorEntityDescription, ...] = (
         device_class=SensorDeviceClass.SIGNAL_STRENGTH,
         native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
         entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=lambda state: state.rssi if state.rssi != 0 else None,
+        value_fn=lambda state: state.rssi,
     ),
     TuyaBLEMeshSensorEntityDescription(
         key="firmware",
@@ -129,22 +100,6 @@ SENSOR_DESCRIPTIONS: tuple[TuyaBLEMeshSensorEntityDescription, ...] = (
         value_fn=lambda state: state.energy_kwh,
         available_fn=lambda state: state.energy_kwh is not None,
     ),
-    TuyaBLEMeshSensorEntityDescription(
-        key="connection_quality",
-        translation_key="connection_quality",
-        device_class=SensorDeviceClass.ENUM,
-        options=["good", "marginal", "poor"],
-        entity_category=EntityCategory.DIAGNOSTIC,
-        icon="mdi:signal",
-        value_fn=_connection_quality,
-    ),
-    TuyaBLEMeshSensorEntityDescription(
-        key="last_seen",
-        translation_key="last_seen",
-        device_class=SensorDeviceClass.TIMESTAMP,
-        entity_category=EntityCategory.DIAGNOSTIC,
-        value_fn=_last_seen_datetime,
-    ),
 )
 
 
@@ -172,9 +127,8 @@ async def async_setup_entry(
     entities: list[SensorEntity] = []
     for description in SENSOR_DESCRIPTIONS:
         # Power/energy sensors require device support
-        if (
-            description.key in ("power", "energy")
-            and not coordinator.capabilities.has_power_monitoring
+        if description.key in ("power", "energy") and not getattr(
+            coordinator.device, "supports_power_monitoring", False
         ):
             continue
 
@@ -190,15 +144,17 @@ async def async_setup_entry(
     async_add_entities(entities)
 
 
-class TuyaBLEMeshSensor(TuyaBLEMeshEntity, SensorEntity):
+class TuyaBLEMeshSensor(SensorEntity):
     """Unified sensor entity for Tuya BLE Mesh devices using EntityDescription pattern.
 
-    Inherits CoordinatorEntity (via TuyaBLEMeshEntity) for automatic state
-    updates. All sensor-specific behavior is defined in SENSOR_DESCRIPTIONS
-    via value_fn and available_fn callables.
+    This class replaces individual sensor classes (RSSI, firmware, power, energy)
+    with a single, data-driven implementation following HA Core Platinum patterns.
+    All sensor-specific behavior is defined in SENSOR_DESCRIPTIONS via value_fn
+    and available_fn callables.
     """
 
     _attr_should_poll = False
+    _attr_has_entity_name = True
     _attr_unique_id: str
 
     entity_description: TuyaBLEMeshSensorEntityDescription
@@ -210,22 +166,67 @@ class TuyaBLEMeshSensor(TuyaBLEMeshEntity, SensorEntity):
         description: TuyaBLEMeshSensorEntityDescription,
         device_info: DeviceInfo | None = None,
     ) -> None:
-        """Initialize the sensor entity."""
-        super().__init__(coordinator, entry_id, device_info)
+        """Initialize the sensor entity.
+
+        Args:
+            coordinator: Coordinator managing device state.
+            entry_id: Config entry ID for this integration instance.
+            description: Sensor entity description defining sensor behavior.
+            device_info: Device registry information.
+        """
         self.entity_description = description
+        self._coordinator = coordinator
+        self._entry_id = entry_id
         self._attr_unique_id = f"{coordinator.device.address}_{description.key}"
+        if device_info is not None:
+            self._attr_device_info = device_info
+        self._remove_listener: Any = None
+
+    @property
+    def unique_id(self) -> str:
+        """Return unique ID for this sensor."""
+        return self._attr_unique_id
 
     @property
     def available(self) -> bool:
-        """Return True if the sensor is available."""
+        """Return True if the sensor is available.
+
+        Uses description.available_fn if provided, otherwise falls back
+        to coordinator.state.available. This allows sensors like power/energy
+        to report unavailable if the device doesn't support those features.
+        """
         if (
             self.entity_description.available_fn is not None
-            and not self.entity_description.available_fn(self.coordinator.state)
+            and not self.entity_description.available_fn(self._coordinator.state)
         ):
             return False
-        return self.coordinator.state.available
+        # Base availability from coordinator
+        return self._coordinator.state.available
 
     @property
     def native_value(self) -> StateType:
-        """Return the current sensor value."""
-        return self.entity_description.value_fn(self.coordinator.state)
+        """Return the current sensor value.
+
+        Extracts the value from coordinator state using the value_fn
+        defined in the entity description. This eliminates duplicate
+        property definitions across multiple sensor classes.
+        """
+        return self.entity_description.value_fn(self._coordinator.state)
+
+    async def async_added_to_hass(self) -> None:
+        """Register state listener when added to Home Assistant."""
+        self._remove_listener = self._coordinator.add_listener(self._handle_coordinator_update)
+
+    async def async_will_remove_from_hass(self) -> None:
+        """Remove state listener when removed from Home Assistant."""
+        if self._remove_listener is not None:
+            self._remove_listener()
+            self._remove_listener = None
+
+    def _handle_coordinator_update(self) -> None:
+        """Handle updated data from the coordinator.
+
+        Called by coordinator when device state changes. Triggers
+        entity state write to Home Assistant.
+        """
+        self.async_write_ha_state()

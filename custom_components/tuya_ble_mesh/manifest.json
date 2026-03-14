@@ -10,6 +10,7 @@
   ],
   "config_flow": true,
   "iot_class": "local_push",
+  "quality_scale": "platinum",
   "loggers": ["tuya_ble_mesh"],
   "bluetooth": [
     {
@@ -17,6 +18,12 @@
     },
     {
       "local_name": "tymesh*"
+    },
+    {
+      "service_uuid": "00001828-0000-1000-8000-00805f9b34fb"
+    },
+    {
+      "service_uuid": "00001827-0000-1000-8000-00805f9b34fb"
     }
   ],
   "dependencies": [

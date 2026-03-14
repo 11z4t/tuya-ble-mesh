@@ -1,0 +1,202 @@
+{
+  "config": {
+    "step": {
+      "user": {
+        "title": "Bluetooth-nalunaarusiorfik nalunaarsinneqassasoq",
+        "description": "Nalunaarusiorfimmit Bluetooth-adresse naliunngissussarsioruk nalunaarusiorfilluni suliassatissaminnik nalilersoruk.\n\nSineri nalunaarusiorfissanngortitsinerani nalunaarusiorfissaminnik naliunngissussamik atorsinnaapput \u2014 **Nalunaarusiorfissaminnik nalunaarsorneqarsinnaassoq** tassunga tikissinnaasoqarsinnaanngikkaluarluni.",
+        "data": {
+          "mac_address": "Bluetooth-adresse",
+          "device_type": "Nalunaarusiorfimmik nalilersorneqarsinnaassoq",
+          "mesh_name": "Nettiarfiup aaqqissussia",
+          "mesh_password": "Nettiarfiup naliunngissussia",
+          "vendor_id": "Nalunaarusiorfissami kode",
+          "mesh_address": "Nalunaarusiorfimmik adresse"
+        },
+        "data_description": {
+          "mac_address": "Nalunaarusiorfimmit Bluetooth-adresse tamanna nalunaarusiorfimmi nalinginnaasumik nalunaarusiorfissaminnik nalilersoqataanissaminnik naliunngissussamik atorsinnaapput (tassami: XX:XX:XX:XX:XX:XX).",
+          "mesh_name": "Naliunngissussamik nalinginnaasumik nalunaarusiorfissaminnik atorsinnaapput, siunnersuissoq allat nalunaarsorneqarsinnaannginnami.",
+          "mesh_password": "Naliunngissussamik nalinginnaasumik nalunaarusiorfissaminnik atorsinnaapput, siunnersuissoq allat nalunaarsorneqarsinnaannginnami.",
+          "vendor_id": "Nalunaarusiorfissami kode hexadecimalimiit. Allanngorsinnaanngikkaluarluni siunnersuissoqarsinnaanngikkaluarluni.",
+          "mesh_address": "0-mik nalunaarusiorfissaminnik atorsinnaapput, siunnersuissoq allat nalunaarsorneqarsinnaannginnami."
+        }
+      },
+      "sig_bridge": {
+        "title": "Hub-imik naaperissitaasoqarsinnaapaa",
+        "description": "Hub-ip adressimik naliunngissussarsioruk **{name}**-imik naaperissitaasoqarsinnaassoq.",
+        "data": {
+          "bridge_host": "Hub-adresse",
+          "bridge_port": "Hub-port",
+          "unicast_target": "Nalunaarusiorfimmik ID"
+        },
+        "data_description": {
+          "bridge_host": "Hub-ip IP-adresse imaluunniit hostname (tassami Raspberry Pi-p nalunaarusiorfissaminnik nalunaarusiorfissanngortitsisoqataanissaminnik).",
+          "bridge_port": "Hub-ip naaperissitaasoqarsinnaassanngikkaluarluni port. Nalinginnaasumik 8099.",
+          "unicast_target": "Allanngorsinnaanngikkaluarluni siunnersuissoqarsinnaanngikkaluarluni."
+        }
+      },
+      "telink_bridge": {
+        "title": "Hub-imik naaperissitaasoqarsinnaapaa",
+        "description": "Hub-ip adressimik naliunngissussarsioruk **{name}**-imik naaperissitaasoqarsinnaassoq.",
+        "data": {
+          "bridge_host": "Hub-adresse",
+          "bridge_port": "Hub-port"
+        },
+        "data_description": {
+          "bridge_host": "Hub-ip IP-adresse imaluunniit hostname (tassami Raspberry Pi-p nalunaarusiorfissaminnik nalunaarusiorfissanngortitsisoqataanissaminnik).",
+          "bridge_port": "Hub-ip naaperissitaasoqarsinnaassanngikkaluarluni port. Nalinginnaasumik 8099."
+        }
+      },
+      "sig_plug": {
+        "title": "{name} nalunaarsorneqarsinnaapaa",
+        "description": "Bluetooth-naaperineqarsinnaassoq nalunaarusiorfimmi siunnersuissineqassasoq automatiskimiit nalunaarusiorfissaminnik nalunaarusiorfissanngortitsinerani.\n\nNalunaarusiorfik **naaperissitaasoqarsinnaassoq** nalunaarusiorfissaminnik nalilersoqataanissaminnik **Bluetooth-adapternikkut naleqquttumik**, kingornussaminnik **Send**-imik tigummissassavat.",
+        "data": {}
+      },
+      "confirm": {
+        "title": "Nalunaarusiorfik nalilersorneqarpoq: {name}",
+        "description": "**{category}** nutaaq matumani nalilersorneqarpoq.\n\n**Signal:** {signal_quality}\n\nNalunaarusiorfimmik nalilersorneqarsinnaassoq naliunngissussaminnik nalilersoruk nalunaarsorneqarsinnaassanngikkaluarluni.",
+        "data": {
+          "device_type": "Nalunaarusiorfimmik nalilersorneqarsinnaassoq",
+          "mesh_name": "Nettiarfiup aaqqissussia",
+          "mesh_password": "Nettiarfiup naliunngissussia",
+          "mesh_address": "Nalunaarusiorfimmik adresse"
+        }
+      },
+      "reauth_confirm": {
+        "title": "Nalunaarusiorfik naaperissitaasoqarsinnaapaa",
+        "description": "Home Assistant nalunaarusiorfimmi naaperissitaasoqarsinnaassoq nalilersorneqarpoq. Nalunaarusiorfissaminnik nalunaarsorneqarsinnaassanngikkaluarluni nalunaarusiorfissaminnik naliunngissussaminnik nalunaarusiorfissanngortitsisoqarsinnaannginnami.",
+        "data": {
+          "mesh_name": "Nettiarfiup aaqqissussia",
+          "mesh_password": "Nettiarfiup naliunngissussia",
+          "bridge_host": "Hub-adresse",
+          "bridge_port": "Hub-port"
+        }
+      }
+    },
+    "error": {
+      "invalid_mac": "Bluetooth-adresse tamanna nalilersorneqarsinnaanngitsoq. Nalunaarusiorfissaminnik tassami: XX:XX:XX:XX:XX:XX.",
+      "invalid_key": "Kode nalilersorneqarsinnaanngitsoq \u2014 32 hex-nalunaarusiorfissaminnik atorsinnaapput.",
+      "invalid_bridge_host": "Adresse nalilersorneqarsinnaassoq naliunngissussaminnik nalunaarusiorfissaminnik, tassami 192.168.1.100 imaluunniit raspberrypi.local.",
+      "invalid_credential_length": "Nettiarfiup aaqqissussia naliunngissussialu 16-inik nalunaarusiorfissaminnik naleqquttumik nalilersorneqarsinnaassoq.",
+      "invalid_vendor_id": "Nalunaarusiorfissami kode nalilersorneqarsinnaanngitsoq \u2014 1-inik 4-nik hex-nalunaarusiorfissaminnik atoruk (tassami 0x1001).",
+      "cannot_connect": "Hub-imik naaperissitaasoqarsinnaanngitsoq. Hub-ip naaperissitaasoqarsinnaassoq nalunaarusiorfissaminnik nettiarfimmi nalunaarusiorfissanngortitsinerani.",
+      "provisioning_failed": "Nalunaarusiorfimmi naaperissitaasoqarsinnaanngitsoq. Nalunaarusiorfik naaperissitaasoqarsinnaassoq Bluetooth-adapternikkut naleqquttumik naliunngissussamik nalunaarsorneqarsinnaassoq.",
+      "timeout": "Naaperissitaasoqarsinnaanngitsoq. Nalunaarusiorfik naaperissitaasoqarsinnaassoq nalunaarusiorfissaminnik naliersoruk, utissassaatit.",
+      "device_not_found": "Nalunaarusiorfik nalilersorneqarsinnaanngitsoq. Nalunaarusiorfik naaperissitaasoqarsinnaassoq Bluetooth-nalunaarusiorfissaminnik naliunngissussamik nalunaarsorneqarsinnaassoq.",
+      "invalid_iv_index": "Nalunaarusiorfissaminnik 0-mit 4.294.967.295-mut nalunaarusiorfissaminnik atorsinnaapput.",
+      "invalid_unicast_address": "4-inik hex-nalunaarusiorfissaminnik 0001-mit 7FFF-mut atorsinnaapput (tassami 00B0)."
+    },
+    "abort": {
+      "already_configured": "Nalunaarusiorfik tamanna Home Assistantimi nalunaarsorneqarpoq.",
+      "reauth_successful": "Nalunaarusiorfissaminnik nalunaarsorneqarpoq. Nalunaarusiorfik naaperissitaasoqarsinnaassoq.",
+      "device_not_available": "Nalunaarusiorfik matumani naleqquttumik nalilersorneqarsinnaanngitsoq. Nalunaarusiorfissaminnik nalunaarsorneqarsinnaassanngikkaluarluni naaperissinnaasoqarsinnaassoq."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Nalunaarusiorfimmik nalunaarsorneqarsinnaassoq",
+        "description": "Nalunaarusiorfimmit naaperissitaasoqarsinnaassanngikkaluarluni nalunaarusiorfissaminnik nalunaarsorneqarsinnaassoq.",
+        "data": {
+          "mesh_name": "Nettiarfiup aaqqissussia",
+          "mesh_password": "Nettiarfiup naliunngissussia",
+          "mesh_address": "Nalunaarusiorfimmik adresse",
+          "bridge_host": "Hub-adresse",
+          "bridge_port": "Hub-port",
+          "unicast_target": "Nalunaarusiorfimmik ID",
+          "iv_index": "Sikkerhed-nalunaarusiorfissaminnik"
+        },
+        "data_description": {
+          "mesh_name": "Nalunaarusiorfimmit nettiarfiup aaqqissussia.",
+          "mesh_password": "Nalunaarusiorfimmit nettiarfiup naliunngissussia.",
+          "mesh_address": "Nalunaarusiorfimmit adresse nalunaarusiorfissaminnik. 0-mik atorsinnaapput nalinginnaasumik atorsinnaassanngikkaluarluni.",
+          "bridge_host": "Hub-ip IP-adresse imaluunniit hostname.",
+          "bridge_port": "Hub-ip naaperissitaasoqarsinnaassanngikkaluarluni port. Nalinginnaasumik 8099.",
+          "unicast_target": "Allanngorsinnaanngikkaluarluni siunnersuissoqarsinnaanngikkaluarluni.",
+          "iv_index": "Allanngorsinnaanngikkaluarluni siunnersuissoqarsinnaanngikkaluarluni."
+        }
+      }
+    }
+  },
+  "entity": {
+    "light": {
+      "mesh_light": {
+        "name": "Qaaqqusisoq"
+      }
+    },
+    "switch": {
+      "mesh_switch": {
+        "name": "Nalunaarusiorfissaminnik"
+      }
+    },
+    "sensor": {
+      "rssi": {
+        "name": "Signal-nalunaarusiorfissaminnik"
+      },
+      "firmware": {
+        "name": "Firmware-version"
+      },
+      "power": {
+        "name": "Kraft"
+      },
+      "energy": {
+        "name": "Energi"
+      }
+    }
+  },
+  "exceptions": {
+    "connection_failed": {
+      "message": "Nalunaarusiorfimmi {device} naaperissitaasoqarsinnaanngitsoq. Nalunaarusiorfik naaperissitaasoqarsinnaassoq nalunaarusiorfissaminnik naleqquttumik nalunaarsorneqarsinnaassoq."
+    },
+    "command_timeout": {
+      "message": "Nalunaarusiorfimmi {device} nalilersorneqarsinnaanngitsoq. Nalunaarusiorfissaminnik naaperissitaasoqarsinnaanngitsoq."
+    },
+    "provisioning_failed": {
+      "message": "Nalunaarusiorfimmi {device} naaperissitaasoqarsinnaanngitsoq. Nalunaarusiorfik nalunaarsinneqarsinnaassoq nalunaarusiorfissaminnik nalunaarsorneqarsinnaassoq."
+    },
+    "invalid_key": {
+      "message": "Kryptering-kode nalilersorneqarsinnaanngitsoq"
+    }
+  },
+  "services": {
+    "identify": {
+      "name": "Nalunaarusiorfik nalilersoqataanissaminnik",
+      "description": "Nalunaarusiorfimmit LED-nalunaarusiorfissaminnik nalilersoqataanissaminnik nalunaarusiorfissanngortitsisoqarsinnaassoq.",
+      "fields": {
+        "device_id": {
+          "name": "Nalunaarusiorfik",
+          "description": "Nalunaarusiorfik nalilersoqataanissaminnik nalunaarusiorfissanngortitsisoqarsinnaassoq."
+        }
+      }
+    },
+    "set_log_level": {
+      "name": "Log-nalunaarusiorfissaminnik nalunaarsorneqarsinnaassoq",
+      "description": "Nalunaarusiorfimmit log-nalunaarusiorfissaminnik nalunaarsorneqarsinnaassanngikkaluarluni nalunaarusiorfissaminnik nalunaarsorneqarsinnaassoq. Restart nalunaarusiorfissaminnik naleqquttumik nalilersorneqarsinnaanngitsoq.",
+      "fields": {
+        "level": {
+          "name": "Niveausorneqarsinnaassoq",
+          "description": "Nalunaarusiorfissaminnik: debug (amerlanerannik), info, warning imaluunniit error (naleqquttumik)."
+        }
+      }
+    },
+    "get_diagnostics": {
+      "name": "Nalunaarusiorfimmik nalilersorneqarsinnaassoq",
+      "description": "Nalunaarusiorfimmit naaperissitaasoqarsinnaassanngikkaluarluni nalunaarusiorfissaminnik nalunaarsorneqarsinnaassoq.",
+      "fields": {
+        "device_id": {
+          "name": "Nalunaarusiorfik",
+          "description": "Nalunaarusiorfik nalilersoqataanissaminnik nalunaarusiorfissanngortitsisoqarsinnaassoq."
+        }
+      }
+    }
+  },
+  "issues": {
+    "provisioning_failed": {
+      "title": "Nalunaarusiorfimmik nalunaarsorneqarsinnaanngitsoq",
+      "description": "Nalunaarusiorfimmi {device} nalunaarsorneqarsinnaanngitsoq. Nalunaarusiorfik naaperissitaasoqarsinnaassoq nalunaarusiorfissaminnik Home Assistantimi nalunaarsorneqarsinnaassoq."
+    },
+    "bridge_unreachable": {
+      "title": "Hub nalilersorneqarsinnaanngitsoq",
+      "description": "Hub-ip {host}:{port}-imi nalunaarusiorfissaminnik nalilersorneqarsinnaanngitsoq. Hub-ip naaperissitaasoqarsinnaassoq nalunaarusiorfissaminnik nettiarfimmi nalunaarusiorfissanngortitsinerani."
+    }
+  }
+}

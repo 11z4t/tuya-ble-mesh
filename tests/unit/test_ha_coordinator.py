@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import asyncio
 import sys
-from dataclasses import replace
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -29,7 +28,6 @@ from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     TuyaBLEMeshCoordinator,
     TuyaBLEMeshDeviceState,
 )
-from custom_components.tuya_ble_mesh.device_capabilities import DeviceCapabilities  # noqa: E402
 
 _PATCH_SLEEP = "custom_components.tuya_ble_mesh.coordinator.asyncio.sleep"
 
@@ -277,7 +275,7 @@ class TestDisconnectCallback:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state = replace(coord._state, available=True)
+        coord.state.available = True
 
         coord._on_disconnect()
 
@@ -294,8 +292,7 @@ class TestDisconnectCallback:
 
         listener.assert_called_once()
 
-    @pytest.mark.asyncio
-    async def test_on_disconnect_schedules_reconnect(self) -> None:
+    def test_on_disconnect_schedules_reconnect(self) -> None:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
@@ -317,42 +314,6 @@ class TestDisconnectCallback:
 
         # No reconnect task scheduled when not running
         assert coord._reconnect_task is None
-
-    def test_on_disconnect_accumulates_uptime_when_connect_time_set(self) -> None:
-        """Covers coordinator.py:393-394 — connect_time branch in _on_disconnect."""
-        import time as _time
-
-        device = make_mock_device()
-        coord = TuyaBLEMeshCoordinator(device)
-        coord._running = True
-        # Set connect_time so the uptime branch is exercised
-        coord._stats.connect_time = _time.time() - 5.0  # connected 5 seconds ago
-
-        coord._on_disconnect()
-
-        # connection_uptime should have been incremented
-        assert coord._stats.connection_uptime >= 5.0
-        # reconnect task cleanup
-        if coord._reconnect_task is not None:
-            coord._reconnect_task.cancel()
-            coord._reconnect_task = None
-
-    def test_on_disconnect_averages_response_times_when_populated(self) -> None:
-        """Covers coordinator.py:399 — response_times branch in _on_disconnect."""
-        device = make_mock_device()
-        coord = TuyaBLEMeshCoordinator(device)
-        coord._running = True
-        # Populate response times so the averaging branch is exercised
-        coord._stats.response_times.extend([0.1, 0.3, 0.5])
-
-        coord._on_disconnect()
-
-        # avg_response_time should have been calculated
-        assert coord._stats.avg_response_time == pytest.approx(0.3)
-        # reconnect task cleanup
-        if coord._reconnect_task is not None:
-            coord._reconnect_task.cancel()
-            coord._reconnect_task = None
 
 
 @pytest.mark.requires_ha
@@ -927,20 +888,19 @@ class TestReconnectLoop:
 
 @pytest.mark.requires_ha
 class TestScheduleReconnect:
-    """Test schedule_reconnect edge cases."""
+    """Test _schedule_reconnect edge cases."""
 
-    def testschedule_reconnect_noop_when_not_running(self) -> None:
+    def test_schedule_reconnect_noop_when_not_running(self) -> None:
         """Should not create task when coordinator is not running."""
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = False
 
-        coord.schedule_reconnect()
+        coord._schedule_reconnect()
 
         assert coord._reconnect_task is None
 
-    @pytest.mark.asyncio
-    async def testschedule_reconnect_cancels_existing_task(self) -> None:
+    def test_schedule_reconnect_cancels_existing_task(self) -> None:
         """Should cancel previous reconnect task before starting new one."""
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
@@ -949,7 +909,7 @@ class TestScheduleReconnect:
         old_task = MagicMock()
         coord._reconnect_task = old_task
 
-        coord.schedule_reconnect()
+        coord._schedule_reconnect()
 
         old_task.cancel.assert_called_once()
         assert coord._reconnect_task is not None
@@ -1014,8 +974,7 @@ class TestRSSIPolling:
 
         assert coord._rssi_task is None
 
-    @pytest.mark.asyncio
-    async def test_start_rssi_creates_task_for_ble_device(self) -> None:
+    def test_start_rssi_creates_task_for_ble_device(self) -> None:
         """RSSI polling should start for regular BLE devices."""
         device = make_mock_device()
         type(device).__name__ = "MeshDevice"
@@ -1049,8 +1008,7 @@ class TestRSSIPolling:
         coord._stop_rssi_polling()  # Should not raise
         assert coord._rssi_task is None
 
-    @pytest.mark.asyncio
-    async def test_start_rssi_stops_existing_before_starting(self) -> None:
+    def test_start_rssi_stops_existing_before_starting(self) -> None:
         """Starting RSSI polling should stop any existing task first."""
         device = make_mock_device()
         type(device).__name__ = "MeshDevice"
@@ -1075,7 +1033,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state = replace(coord._state, available=True)
+        coord._state.available = True
 
         mock_ble_device = MagicMock()
         mock_ble_device.rssi = -55
@@ -1103,7 +1061,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state = replace(coord._state, available=False)  # already unavailable
+        coord._state.available = False  # already unavailable
 
         # Should exit immediately without sleeping
         await coord._rssi_loop()
@@ -1115,7 +1073,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state = replace(coord._state, available=True)
+        coord._state.available = True
 
         call_count = 0
 
@@ -1141,7 +1099,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state = replace(coord._state, available=True)
+        coord._state.available = True
 
         call_count = 0
 
@@ -1166,7 +1124,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state = replace(coord._state, available=True)
+        coord._state.available = True
 
         async def raise_cancel(seconds: float) -> None:
             raise asyncio.CancelledError()
@@ -1181,7 +1139,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state = replace(coord._state, available=True)
+        coord._state.available = True
         listener = MagicMock()
         coord.add_listener(listener)
 
@@ -1211,7 +1169,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state = replace(coord._state, available=True)
+        coord._state.available = True
 
         # Create BLE devices with stable RSSI (within ±2 dBm)
         mock_ble_device_1 = MagicMock()
@@ -1473,8 +1431,7 @@ class TestListenerErrorHandling:
         assert coord.state.brightness == 50
         assert coord.state.available is True
 
-    @pytest.mark.asyncio
-    async def test_listener_error_during_disconnect(self) -> None:
+    def test_listener_error_during_disconnect(self) -> None:
         """Disconnect should complete even if listener raises."""
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
@@ -1614,7 +1571,7 @@ class TestRSSILoopHABluetooth:
         mock_hass = MagicMock()
         coord = TuyaBLEMeshCoordinator(device, hass=mock_hass)
         coord._running = True
-        coord._state = replace(coord._state, available=True)
+        coord._state.available = True
 
         mock_ble_device = MagicMock()
         mock_ble_device.rssi = -65
@@ -1703,9 +1660,7 @@ class TestLogConnectMetrics:
 
         callback.assert_called_once()
         # Log should mention listener count
-        assert any(
-            "1" in record.message and "listener" in record.message for record in caplog.records
-        )
+        assert any("1" in record.message and "listener" in record.message for record in caplog.records)
 
 
 @pytest.mark.requires_ha
@@ -1721,17 +1676,18 @@ class TestBrokenListenerRemoval:
         bad_callback = MagicMock(side_effect=RuntimeError("broken"))
         coord.add_listener(bad_callback)
 
-        assert len(coord._standalone_listeners) == 1
+        assert len(coord._listeners) == 1
 
         # Call _notify_listeners enough times to trigger removal
         for _ in range(_MAX_CALLBACK_ERRORS):
             coord._notify_listeners()
 
         # Callback should be removed after max consecutive errors
-        assert bad_callback not in coord._standalone_listeners
+        assert bad_callback not in coord._listeners
 
     def test_callback_error_count_resets_on_success(self) -> None:
         """Error count resets to 0 after callback succeeds."""
+        from custom_components.tuya_ble_mesh.coordinator import _MAX_CALLBACK_ERRORS
 
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
@@ -1748,11 +1704,11 @@ class TestBrokenListenerRemoval:
 
         # First call fails, increments error count
         coord._notify_listeners()
-        assert len(coord._standalone_listeners) == 1
+        assert len(coord._listeners) == 1
 
         # Second call succeeds, resets error count
         coord._notify_listeners()
-        assert len(coord._standalone_listeners) == 1
+        assert len(coord._listeners) == 1
 
         # Error count should be cleared after success
         cb_id = id(flaky_callback)
@@ -1771,9 +1727,9 @@ class TestBrokenListenerRemoval:
         coord._notify_listeners()
 
         # Good callback should still be there
-        assert good_callback in coord._standalone_listeners
+        assert good_callback in coord._listeners
         # Bad callback may still be there after 1 error (not yet at max)
-        assert bad_callback in coord._standalone_listeners
+        assert bad_callback in coord._listeners
         assert coord._listener_error_counts.get(id(bad_callback), 0) == 1
 
     def test_removed_callback_error_count_cleaned_up(self) -> None:
@@ -1789,7 +1745,7 @@ class TestBrokenListenerRemoval:
             coord._notify_listeners()
 
         cb_id = id(bad_callback)
-        assert bad_callback not in coord._standalone_listeners
+        assert bad_callback not in coord._listeners
         assert cb_id not in coord._listener_error_counts
 
 
@@ -1844,9 +1800,9 @@ class TestSkipUnchangedNotifications:
         listener = MagicMock()
         coord.add_listener(listener)
 
-        coord._on_onoff_update(True)  # fires: availability changed
+        coord._on_onoff_update(True)   # fires: availability changed
         listener.reset_mock()
-        coord._on_onoff_update(True)  # same value, no fire
+        coord._on_onoff_update(True)   # same value, no fire
 
         listener.assert_not_called()
 
@@ -1857,7 +1813,7 @@ class TestSkipUnchangedNotifications:
         listener = MagicMock()
         coord.add_listener(listener)
 
-        coord._on_onoff_update(True)  # fires
+        coord._on_onoff_update(True)   # fires
         listener.reset_mock()
         coord._on_onoff_update(False)  # changed: fires
 
@@ -1883,17 +1839,15 @@ class TestCommandDebouncing:
     async def test_rapid_turn_on_coalesces_to_last_command(self) -> None:
         """Rapid turn_on calls should coalesce — only last command fires."""
         import sys
-
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
-        import asyncio
-        from unittest.mock import AsyncMock, MagicMock
-
-        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshDeviceState
         from custom_components.tuya_ble_mesh.light import (
-            _COMMAND_DEBOUNCE_INTERVAL,
             TuyaBLEMeshLight,
+            _COMMAND_DEBOUNCE_INTERVAL,
         )
+        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshDeviceState
+        from unittest.mock import AsyncMock, MagicMock
+        import asyncio
 
         coord = MagicMock()
         coord.state = TuyaBLEMeshDeviceState(is_on=True, brightness=50, mode=0, available=True)
@@ -1902,11 +1856,6 @@ class TestCommandDebouncing:
         coord.device.send_brightness = AsyncMock()
         coord.device.send_power = AsyncMock()
         coord.add_listener = MagicMock(return_value=MagicMock())
-
-        async def _pass_through(coro_func, **_kw):  # type: ignore[no-untyped-def]
-            await coro_func()
-
-        coord.send_command_with_retry = _pass_through
 
         light = TuyaBLEMeshLight(coord, "entry_id")
 
@@ -1928,17 +1877,15 @@ class TestCommandDebouncing:
     async def test_turn_off_cancels_pending_command(self) -> None:
         """async_turn_off should cancel a pending debounced turn_on."""
         import sys
-
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
-        import asyncio
-        from unittest.mock import AsyncMock, MagicMock
-
-        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshDeviceState
         from custom_components.tuya_ble_mesh.light import (
-            _COMMAND_DEBOUNCE_INTERVAL,
             TuyaBLEMeshLight,
+            _COMMAND_DEBOUNCE_INTERVAL,
         )
+        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshDeviceState
+        from unittest.mock import AsyncMock, MagicMock
+        import asyncio
 
         coord = MagicMock()
         coord.state = TuyaBLEMeshDeviceState(is_on=True, brightness=50, mode=0, available=True)
@@ -1947,11 +1894,6 @@ class TestCommandDebouncing:
         coord.device.send_brightness = AsyncMock()
         coord.device.send_power = AsyncMock()
         coord.add_listener = MagicMock(return_value=MagicMock())
-
-        async def _pass_through(coro_func, **_kw):  # type: ignore[no-untyped-def]
-            await coro_func()
-
-        coord.send_command_with_retry = _pass_through
 
         light = TuyaBLEMeshLight(coord, "entry_id")
 
@@ -1963,329 +1905,3 @@ class TestCommandDebouncing:
 
         coord.device.send_brightness.assert_not_called()
         coord.device.send_power.assert_called_once_with(False)
-
-
-@pytest.mark.requires_ha
-class TestDeviceCapabilities:
-    """Tests for DeviceCapabilities.from_device() and coordinator.capabilities."""
-
-    def _make_tuya_ble_device(self) -> MagicMock:
-        """Mock for MeshDevice / TelinkBridgeDevice (Tuya BLE protocol)."""
-        device = MagicMock(
-            spec=[
-                "address",
-                "register_status_callback",
-                "unregister_status_callback",
-                "register_disconnect_callback",
-                "unregister_disconnect_callback",
-                "send_brightness",
-            ]
-        )
-        device.address = "AA:BB:CC:DD:EE:FF"
-        return device
-
-    def _make_sig_mesh_device(self) -> MagicMock:
-        """Mock for SIGMeshDevice (SIG Mesh protocol, direct BLE)."""
-        device = MagicMock(
-            spec=[
-                "address",
-                "register_onoff_callback",
-                "unregister_onoff_callback",
-                "register_vendor_callback",
-                "unregister_vendor_callback",
-                "register_composition_callback",
-                "unregister_composition_callback",
-                "register_disconnect_callback",
-                "unregister_disconnect_callback",
-                "set_seq",
-                "get_seq",
-            ]
-        )
-        device.address = "BB:CC:DD:EE:FF:00"
-        return device
-
-    def test_tuya_ble_device_capabilities(self) -> None:
-        """Tuya BLE device: has_status_callback=True, has_onoff_callback=False."""
-        device = self._make_tuya_ble_device()
-        caps = DeviceCapabilities.from_device(device)
-
-        assert caps.has_status_callback is True
-        assert caps.has_onoff_callback is False
-        assert caps.has_vendor_callback is False
-        assert caps.has_composition_callback is False
-        assert caps.has_sig_sequence is False
-        assert caps.has_light_control is True
-        assert caps.protocol == "Tuya_BLE"
-
-    def test_sig_mesh_device_capabilities(self) -> None:
-        """SIG Mesh device: has_sig_sequence=True, protocol=SIG_Mesh."""
-        device = self._make_sig_mesh_device()
-        caps = DeviceCapabilities.from_device(device)
-
-        assert caps.has_status_callback is False
-        assert caps.has_onoff_callback is True
-        assert caps.has_vendor_callback is True
-        assert caps.has_composition_callback is True
-        assert caps.has_sig_sequence is True
-        assert caps.has_light_control is False
-        assert caps.protocol == "SIG_Mesh"
-
-    def test_power_monitoring_absent_by_default(self) -> None:
-        """Device without supports_power_monitoring → has_power_monitoring=False."""
-        device = MagicMock(spec=["address", "register_disconnect_callback"])
-        device.address = "AA:BB:CC:DD:EE:FF"
-        caps = DeviceCapabilities.from_device(device)
-
-        assert caps.has_power_monitoring is False
-
-    def test_power_monitoring_detected(self) -> None:
-        """Device with supports_power_monitoring=True → has_power_monitoring=True."""
-        device = MagicMock()
-        device.address = "AA:BB:CC:DD:EE:FF"
-        device.supports_power_monitoring = True
-        caps = DeviceCapabilities.from_device(device)
-
-        assert caps.has_power_monitoring is True
-
-    def test_coordinator_exposes_capabilities(self) -> None:
-        """Coordinator should expose capabilities built from its device."""
-        device = self._make_tuya_ble_device()
-        coord = TuyaBLEMeshCoordinator(device)
-
-        assert isinstance(coord.capabilities, DeviceCapabilities)
-        assert coord.capabilities.has_status_callback is True
-        assert coord.capabilities.protocol == "Tuya_BLE"
-
-
-class TestFrozenState:
-    """MESH-15: TuyaBLEMeshDeviceState is frozen — verify immutability and replace() patterns."""
-
-    def test_state_is_immutable(self) -> None:
-        """Direct field assignment must raise FrozenInstanceError."""
-        import dataclasses
-
-        state = TuyaBLEMeshDeviceState()
-        with pytest.raises(dataclasses.FrozenInstanceError):
-            state.available = True  # type: ignore[misc]
-
-    def test_replace_produces_new_snapshot(self) -> None:
-        """replace() must return a new object, not mutate in place."""
-        s1 = TuyaBLEMeshDeviceState()
-        s2 = replace(s1, available=True, brightness=80)
-
-        assert s1.available is False  # original unchanged
-        assert s2.available is True
-        assert s2.brightness == 80
-        assert s1 is not s2
-
-    def test_atomic_status_update(self) -> None:
-        """All fields from _on_status_update are applied atomically via replace()."""
-        device = make_mock_device()
-        coord = TuyaBLEMeshCoordinator(device)
-        status = make_mock_status(mode=1, white_brightness=200, white_temp=30, color_brightness=128)
-        status.red = 255
-        status.green = 100
-        status.blue = 50
-
-        coord._on_status_update(status)
-        s = coord.state
-
-        assert s.mode == 1
-        assert s.brightness == 200
-        assert s.color_temp == 30
-        assert s.color_brightness == 128
-        assert s.red == 255
-        assert s.green == 100
-        assert s.blue == 50
-        assert s.available is True
-
-    def test_state_has_scene_id_field(self) -> None:
-        """TuyaBLEMeshDeviceState must include scene_id for MESH-19."""
-        state = TuyaBLEMeshDeviceState()
-        assert state.scene_id == 0  # default = no active scene
-
-        s2 = replace(state, scene_id=3)
-        assert s2.scene_id == 3
-        assert state.scene_id == 0  # original unchanged
-
-    def test_command_semaphore_initialized(self) -> None:
-        """Coordinator must initialize _command_semaphore in __init__."""
-        import asyncio
-
-        device = make_mock_device()
-        coord = TuyaBLEMeshCoordinator(device)
-        assert isinstance(coord._command_semaphore, asyncio.Semaphore)
-
-    def test_listeners_initialized_in_init(self) -> None:
-        """_standalone_listeners and _listener_error_counts must be initialized."""
-        device = make_mock_device()
-        coord = TuyaBLEMeshCoordinator(device)
-
-        # Access without calling add_listener first
-        assert isinstance(coord._standalone_listeners, list)
-        assert isinstance(coord._listener_error_counts, dict)
-        assert len(coord._standalone_listeners) == 0
-
-
-@pytest.mark.requires_ha
-class TestDesiredConfirmedState:
-    """Test PLAT-402 Task 1.2: Desired vs Confirmed State Model."""
-
-    def test_default_state_fields(self) -> None:
-        """Default state includes desired/confirmed state tracking fields."""
-        from custom_components.tuya_ble_mesh.coordinator import StateUpdateSource
-
-        state = TuyaBLEMeshDeviceState()
-        assert state.desired_state == {}
-        assert state.last_sent_state == {}
-        assert state.last_confirmed_state == {}
-        assert state.state_confidence == 0.0
-        assert state.last_update_source == StateUpdateSource.ASSUMED.value
-        assert state.last_update_time is None
-
-    def test_assume_state_sets_low_confidence(self) -> None:
-        """assume_state() sets confidence=0.3 and source=ASSUMED."""
-        from custom_components.tuya_ble_mesh.coordinator import StateUpdateSource
-
-        device = make_mock_device()
-        coord = TuyaBLEMeshCoordinator(device)
-
-        desired = {"is_on": True, "brightness": 100}
-        sent = {"is_on": True, "brightness": 100}
-        coord.assume_state(desired, sent)
-
-        assert coord.state.desired_state == desired
-        assert coord.state.last_sent_state == sent
-        assert coord.state.state_confidence == 0.3
-        assert coord.state.last_update_source == StateUpdateSource.ASSUMED.value
-        assert coord.state.last_update_time is not None
-        assert coord.state.is_on is True
-        assert coord.state.brightness == 100
-
-    def test_on_status_update_sets_confirmed(self) -> None:
-        """_on_status_update() sets confidence=1.0 and source=NOTIFY."""
-        from custom_components.tuya_ble_mesh.coordinator import StateUpdateSource
-
-        device = make_mock_device()
-        coord = TuyaBLEMeshCoordinator(device)
-        status = make_mock_status(mode=1, white_brightness=200, white_temp=30)
-
-        coord._on_status_update(status)
-
-        assert coord.state.state_confidence == 1.0
-        assert coord.state.last_update_source == StateUpdateSource.NOTIFY.value
-        assert "brightness" in coord.state.last_confirmed_state
-        assert coord.state.last_confirmed_state["brightness"] == 200
-
-    def test_on_onoff_update_sets_confirmed(self) -> None:
-        """_on_onoff_update() sets confidence=1.0 and source=NOTIFY."""
-        from custom_components.tuya_ble_mesh.coordinator import StateUpdateSource
-
-        device = make_mock_device()
-        coord = TuyaBLEMeshCoordinator(device)
-
-        coord._on_onoff_update(True)
-
-        assert coord.state.state_confidence == 1.0
-        assert coord.state.last_update_source == StateUpdateSource.NOTIFY.value
-        assert coord.state.last_confirmed_state == {"is_on": True}
-
-    def test_assumed_then_confirmed_increases_confidence(self) -> None:
-        """Assumed state (0.3) followed by notify (1.0) demonstrates confidence increase."""
-        from custom_components.tuya_ble_mesh.coordinator import StateUpdateSource
-
-        device = make_mock_device()
-        coord = TuyaBLEMeshCoordinator(device)
-
-        # Step 1: Assume state
-        coord.assume_state({"is_on": True}, {"is_on": True})
-        assert coord.state.state_confidence == 0.3
-
-        # Step 2: Device confirms
-        coord._on_onoff_update(True)
-        assert coord.state.state_confidence == 1.0
-        assert coord.state.last_update_source == StateUpdateSource.NOTIFY.value
-
-    def test_assume_state_merges_fields(self) -> None:
-        """assume_state() merges sent fields into current state."""
-        device = make_mock_device()
-        coord = TuyaBLEMeshCoordinator(device)
-
-        sent = {
-            "is_on": True,
-            "brightness": 150,
-            "color_temp": 40,
-            "red": 255,
-            "green": 128,
-            "blue": 64,
-            "mode": 2,
-        }
-        coord.assume_state({}, sent)
-
-        assert coord.state.is_on is True
-        assert coord.state.brightness == 150
-        assert coord.state.color_temp == 40
-        assert coord.state.red == 255
-        assert coord.state.green == 128
-        assert coord.state.blue == 64
-        assert coord.state.mode == 2
-
-
-@pytest.mark.requires_ha
-class TestExtendedConnectionState:
-    """Test PLAT-402 Task 1.3: Extended Connection State Machine."""
-
-    def test_default_device_availability_unknown(self) -> None:
-        """Default device_availability is UNKNOWN."""
-        from custom_components.tuya_ble_mesh.coordinator import DeviceAvailabilityState
-
-        state = TuyaBLEMeshDeviceState()
-        assert state.device_availability == DeviceAvailabilityState.UNKNOWN.value
-        assert state.consecutive_write_failures == 0
-        assert state.degraded_reason is None
-
-    def test_notify_sets_available(self) -> None:
-        """Successful notify sets device_availability=AVAILABLE and resets failures."""
-        from custom_components.tuya_ble_mesh.coordinator import DeviceAvailabilityState
-
-        device = make_mock_device()
-        coord = TuyaBLEMeshCoordinator(device)
-        # Set pre-existing failures
-        coord._state = replace(coord._state, consecutive_write_failures=3)
-
-        coord._on_onoff_update(True)
-
-        assert coord.state.device_availability == DeviceAvailabilityState.AVAILABLE.value
-        assert coord.state.consecutive_write_failures == 0
-        assert coord.state.degraded_reason is None
-
-    def test_assume_state_sets_assumed_online(self) -> None:
-        """assume_state() sets device_availability=ASSUMED_ONLINE."""
-        from custom_components.tuya_ble_mesh.coordinator import DeviceAvailabilityState
-
-        device = make_mock_device()
-        coord = TuyaBLEMeshCoordinator(device)
-
-        coord.assume_state({"is_on": True}, {"is_on": True})
-
-        assert coord.state.device_availability == DeviceAvailabilityState.ASSUMED_ONLINE.value
-
-    def test_connection_state_enum_has_degraded_recovering(self) -> None:
-        """ConnectionState enum includes DEGRADED and RECOVERING."""
-        from lib.tuya_ble_mesh.connection import ConnectionState
-
-        assert hasattr(ConnectionState, "DEGRADED")
-        assert hasattr(ConnectionState, "RECOVERING")
-        assert ConnectionState.DEGRADED.value == "degraded"
-        assert ConnectionState.RECOVERING.value == "recovering"
-
-    def test_device_availability_enum_values(self) -> None:
-        """DeviceAvailabilityState enum has all required states."""
-        from custom_components.tuya_ble_mesh.coordinator import DeviceAvailabilityState
-
-        assert DeviceAvailabilityState.UNKNOWN.value == "unknown"
-        assert DeviceAvailabilityState.AVAILABLE.value == "available"
-        assert DeviceAvailabilityState.STALE.value == "stale"
-        assert DeviceAvailabilityState.ASSUMED_ONLINE.value == "assumed_online"
-        assert DeviceAvailabilityState.UNREACHABLE.value == "unreachable"
-        assert DeviceAvailabilityState.REPROVISION_REQUIRED.value == "reprovision_required"

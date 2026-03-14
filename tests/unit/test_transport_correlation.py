@@ -3,6 +3,7 @@
 import uuid
 
 import pytest
+
 from tuya_ble_mesh.transport import CommandRequest, CorrelationEngine
 
 
