@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import sys
+from dataclasses import replace as dc_replace
 from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -275,7 +276,7 @@ class TestDisconnectCallback:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord.state.available = True
+        coord._state = dc_replace(coord._state, available=True)
 
         coord._on_disconnect()
 
@@ -292,7 +293,8 @@ class TestDisconnectCallback:
 
         listener.assert_called_once()
 
-    def test_on_disconnect_schedules_reconnect(self) -> None:
+    @pytest.mark.asyncio
+    async def test_on_disconnect_schedules_reconnect(self) -> None:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
@@ -896,11 +898,12 @@ class TestScheduleReconnect:
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = False
 
-        coord._schedule_reconnect()
+        coord.schedule_reconnect()
 
         assert coord._reconnect_task is None
 
-    def test_schedule_reconnect_cancels_existing_task(self) -> None:
+    @pytest.mark.asyncio
+    async def test_schedule_reconnect_cancels_existing_task(self) -> None:
         """Should cancel previous reconnect task before starting new one."""
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
@@ -909,7 +912,7 @@ class TestScheduleReconnect:
         old_task = MagicMock()
         coord._reconnect_task = old_task
 
-        coord._schedule_reconnect()
+        coord.schedule_reconnect()
 
         old_task.cancel.assert_called_once()
         assert coord._reconnect_task is not None
@@ -974,7 +977,8 @@ class TestRSSIPolling:
 
         assert coord._rssi_task is None
 
-    def test_start_rssi_creates_task_for_ble_device(self) -> None:
+    @pytest.mark.asyncio
+    async def test_start_rssi_creates_task_for_ble_device(self) -> None:
         """RSSI polling should start for regular BLE devices."""
         device = make_mock_device()
         type(device).__name__ = "MeshDevice"
@@ -1008,7 +1012,8 @@ class TestRSSIPolling:
         coord._stop_rssi_polling()  # Should not raise
         assert coord._rssi_task is None
 
-    def test_start_rssi_stops_existing_before_starting(self) -> None:
+    @pytest.mark.asyncio
+    async def test_start_rssi_stops_existing_before_starting(self) -> None:
         """Starting RSSI polling should stop any existing task first."""
         device = make_mock_device()
         type(device).__name__ = "MeshDevice"
@@ -1033,7 +1038,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state.available = True
+        coord._state = dc_replace(coord._state, available=True)
 
         mock_ble_device = MagicMock()
         mock_ble_device.rssi = -55
@@ -1061,7 +1066,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state.available = False  # already unavailable
+        coord._state = dc_replace(coord._state, available=False)  # already unavailable
 
         # Should exit immediately without sleeping
         await coord._rssi_loop()
@@ -1073,7 +1078,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state.available = True
+        coord._state = dc_replace(coord._state, available=True)
 
         call_count = 0
 
@@ -1099,7 +1104,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state.available = True
+        coord._state = dc_replace(coord._state, available=True)
 
         call_count = 0
 
@@ -1124,7 +1129,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state.available = True
+        coord._state = dc_replace(coord._state, available=True)
 
         async def raise_cancel(seconds: float) -> None:
             raise asyncio.CancelledError()
@@ -1139,7 +1144,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state.available = True
+        coord._state = dc_replace(coord._state, available=True)
         listener = MagicMock()
         coord.add_listener(listener)
 
@@ -1169,7 +1174,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
-        coord._state.available = True
+        coord._state = dc_replace(coord._state, available=True)
 
         # Create BLE devices with stable RSSI (within ±2 dBm)
         mock_ble_device_1 = MagicMock()
@@ -1431,7 +1436,8 @@ class TestListenerErrorHandling:
         assert coord.state.brightness == 50
         assert coord.state.available is True
 
-    def test_listener_error_during_disconnect(self) -> None:
+    @pytest.mark.asyncio
+    async def test_listener_error_during_disconnect(self) -> None:
         """Disconnect should complete even if listener raises."""
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
@@ -1571,7 +1577,7 @@ class TestRSSILoopHABluetooth:
         mock_hass = MagicMock()
         coord = TuyaBLEMeshCoordinator(device, hass=mock_hass)
         coord._running = True
-        coord._state.available = True
+        coord._state = dc_replace(coord._state, available=True)
 
         mock_ble_device = MagicMock()
         mock_ble_device.rssi = -65
@@ -1676,14 +1682,14 @@ class TestBrokenListenerRemoval:
         bad_callback = MagicMock(side_effect=RuntimeError("broken"))
         coord.add_listener(bad_callback)
 
-        assert len(coord._listeners) == 1
+        assert len(coord._standalone_listeners) == 1
 
         # Call _notify_listeners enough times to trigger removal
         for _ in range(_MAX_CALLBACK_ERRORS):
             coord._notify_listeners()
 
         # Callback should be removed after max consecutive errors
-        assert bad_callback not in coord._listeners
+        assert bad_callback not in coord._standalone_listeners
 
     def test_callback_error_count_resets_on_success(self) -> None:
         """Error count resets to 0 after callback succeeds."""
@@ -1704,11 +1710,11 @@ class TestBrokenListenerRemoval:
 
         # First call fails, increments error count
         coord._notify_listeners()
-        assert len(coord._listeners) == 1
+        assert len(coord._standalone_listeners) == 1
 
         # Second call succeeds, resets error count
         coord._notify_listeners()
-        assert len(coord._listeners) == 1
+        assert len(coord._standalone_listeners) == 1
 
         # Error count should be cleared after success
         cb_id = id(flaky_callback)
@@ -1727,9 +1733,9 @@ class TestBrokenListenerRemoval:
         coord._notify_listeners()
 
         # Good callback should still be there
-        assert good_callback in coord._listeners
+        assert good_callback in coord._standalone_listeners
         # Bad callback may still be there after 1 error (not yet at max)
-        assert bad_callback in coord._listeners
+        assert bad_callback in coord._standalone_listeners
         assert coord._listener_error_counts.get(id(bad_callback), 0) == 1
 
     def test_removed_callback_error_count_cleaned_up(self) -> None:
@@ -1745,7 +1751,7 @@ class TestBrokenListenerRemoval:
             coord._notify_listeners()
 
         cb_id = id(bad_callback)
-        assert bad_callback not in coord._listeners
+        assert bad_callback not in coord._standalone_listeners
         assert cb_id not in coord._listener_error_counts
 
 

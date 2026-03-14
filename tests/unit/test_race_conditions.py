@@ -123,7 +123,7 @@ async def test_cf2_concurrent_provisioning_notify():
     Simulates rapid SAR-segmented provisioning responses arriving concurrently.
     Without proper locking, this could corrupt rx_buffer or rx_sar_buffer.
     """
-    provisioner = SIGMeshProvisioner()
+    provisioner = SIGMeshProvisioner(b"\x00" * 16, b"\x01" * 16, 0x00B0)
 
     # Mock a connected client
     mock_client = MagicMock()

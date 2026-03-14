@@ -35,6 +35,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from bleak import BleakClient, BleakScanner
+from bleak.exc import BleakError
 from cryptography.hazmat.primitives.asymmetric.ec import (
     ECDH,
     SECP256R1,
@@ -84,13 +85,26 @@ _BLUETOOTHCTL_TIMEOUT = 5.0
 _PROVISIONING_POLL_INTERVAL = 0.05
 
 # BLE adapter slot release delay after disconnect (seconds)
-_BLE_SLOT_RELEASE_DELAY = 1.0  # Increased from 0.5s — see PLAT-506
+_BLE_SLOT_RELEASE_DELAY = 0.5
 
 # BlueZ device cache processing delay after bluetoothctl remove (seconds)
 _BLUEZ_CACHE_SETTLE_DELAY = 0.5
 
 # Delay after Start PDU to let device initialize provisioning state (seconds)
 _POST_START_PDU_DELAY = 0.5
+
+# Exponential backoff parameters for retries
+_SCAN_RETRY_BACKOFF_BASE = 2.0
+_SCAN_RETRY_BACKOFF_EXPONENT = 1.5
+_SCAN_RETRY_MAX_BACKOFF = 10.0
+
+_CONNECT_RETRY_BACKOFF_BASE = 3.0
+_CONNECT_RETRY_BACKOFF_EXPONENT = 1.5
+_CONNECT_RETRY_MAX_BACKOFF = 15.0
+
+_SLOTS_RETRY_BACKOFF_BASE = 5.0
+_SLOTS_RETRY_BACKOFF_EXPONENT = 1.5
+_SLOTS_RETRY_MAX_BACKOFF = 20.0
 
 # Error code → name mapping for PROV_FAILED
 _PROV_ERROR_NAMES: dict[int, str] = {
@@ -324,7 +338,7 @@ class SIGMeshProvisioner:
             await asyncio.sleep(_BLUEZ_CACHE_SETTLE_DELAY)
         except FileNotFoundError:
             _LOGGER.debug("bluetoothctl not found, skipping cleanup")
-        except Exception as exc:
+        except (TimeoutError, OSError) as exc:
             _LOGGER.debug(
                 "Failed to clean up stale connection for %s: %s",
                 address,
@@ -394,7 +408,10 @@ class SIGMeshProvisioner:
                         max_retries,
                     )
                     # Exponential backoff for scan retries
-                    backoff = min(2.0 * (1.5 ** (attempt - 1)), 10.0)
+                    backoff = min(
+                        _SCAN_RETRY_BACKOFF_BASE * (_SCAN_RETRY_BACKOFF_EXPONENT ** (attempt - 1)),
+                        _SCAN_RETRY_MAX_BACKOFF,
+                    )
                     await asyncio.sleep(backoff)
                     continue
 
@@ -435,7 +452,11 @@ class SIGMeshProvisioner:
                         services = client.services
                     if services and not any(
                         str(s.uuid) == PROV_SERVICE
-                        for s in (services.services.values() if hasattr(services, "services") else services)
+                        for s in (
+                            services.services.values()
+                            if hasattr(services, "services")
+                            else services
+                        )
                     ):
                         msg = f"Device {address} does not expose Provisioning Service (0x1827)"
                         raise ProvisioningError(msg)
@@ -463,13 +484,16 @@ class SIGMeshProvisioner:
                 )
                 # PLAT-506: Ensure client is disconnected before retry
                 if client is not None:
-                    with contextlib.suppress(Exception):
+                    with contextlib.suppress(OSError, asyncio.TimeoutError):
                         await client.disconnect()
                     client = None
                 # PLAT-506: Longer backoff to allow connection slot release
-                backoff = min(3.0 * (1.5 ** (attempt - 1)), 15.0)
+                backoff = min(
+                    _CONNECT_RETRY_BACKOFF_BASE * (_CONNECT_RETRY_BACKOFF_EXPONENT ** (attempt - 1)),
+                    _CONNECT_RETRY_MAX_BACKOFF,
+                )
                 await asyncio.sleep(backoff)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — catch-all for scan/connect failures
                 last_exc = exc
                 connect_failures += 1
 
@@ -483,7 +507,7 @@ class SIGMeshProvisioner:
 
                 # PLAT-506: Ensure client is disconnected before retry
                 if client is not None:
-                    with contextlib.suppress(Exception):
+                    with contextlib.suppress(OSError, asyncio.TimeoutError):
                         await client.disconnect()
                     client = None
 
@@ -498,7 +522,10 @@ class SIGMeshProvisioner:
                     # PLAT-506: Force cleanup to free connection slot
                     await self._cleanup_stale_connections(address)
                     # Longer backoff when slots are exhausted
-                    backoff = min(5.0 * (1.5 ** (attempt - 1)), 20.0)
+                    backoff = min(
+                        _SLOTS_RETRY_BACKOFF_BASE * (_SLOTS_RETRY_BACKOFF_EXPONENT ** (attempt - 1)),
+                        _SLOTS_RETRY_MAX_BACKOFF,
+                    )
                     await asyncio.sleep(backoff)
                 else:
                     _LOGGER.warning(
@@ -509,7 +536,10 @@ class SIGMeshProvisioner:
                         str(exc),
                     )
                     # Standard backoff for other errors
-                    backoff = min(3.0 * (1.5 ** (attempt - 1)), 15.0)
+                    backoff = min(
+                        _CONNECT_RETRY_BACKOFF_BASE * (_CONNECT_RETRY_BACKOFF_EXPONENT ** (attempt - 1)),
+                        _CONNECT_RETRY_MAX_BACKOFF,
+                    )
                     await asyncio.sleep(backoff)
 
         # Build detailed error message
@@ -518,9 +548,7 @@ class SIGMeshProvisioner:
             f"connect_failures={connect_failures}, "
             f"out_of_slots={out_of_slots_failures}"
         )
-        msg = (
-            f"Failed to connect to {address} after {max_retries} attempts ({error_details}). "
-        )
+        msg = f"Failed to connect to {address} after {max_retries} attempts ({error_details}). "
         if out_of_slots_failures > 0:
             msg += (
                 "BLE adapter ran out of connection slots. "
@@ -528,9 +556,7 @@ class SIGMeshProvisioner:
                 "2) Restart Bluetooth service, or 3) Use a different BLE adapter. "
             )
         else:
-            msg += (
-                "Check device is in range, not already provisioned, and advertising. "
-            )
+            msg += "Check device is in range, not already provisioned, and advertising. "
         msg += f"Last error: {type(last_exc).__name__ if last_exc else 'unknown'}"
         raise ProvisioningError(msg) from last_exc
 
@@ -554,29 +580,46 @@ class SIGMeshProvisioner:
         Raises:
             ProvisioningError: On any protocol or crypto failure.
         """
+        # CF-2: Use asyncio.Lock to protect rx_buffer and rx_sar_buffer from race conditions
+        rx_lock = asyncio.Lock()
         rx_event: asyncio.Event = asyncio.Event()
         rx_buffer: bytearray = bytearray()
         rx_sar_buffer: bytearray = bytearray()
 
         def _on_notify(_sender: object, data: bytearray) -> None:
-            """Handle Provisioning Data Out notifications with SAR reassembly."""
+            """Handle Provisioning Data Out notifications with SAR reassembly.
+
+            CF-2: Schedule async processing to use lock protection.
+            """
             if not data:
                 return
+            # CF-2: Schedule async handler to use lock
+            data_copy = bytes(data)
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(_process_notify(data_copy))
+            except RuntimeError:
+                # No running event loop (shutdown)
+                _LOGGER.debug("No running event loop for provisioning notify")
+
+        async def _process_notify(data: bytes) -> None:
+            """Process notification with lock protection (CF-2)."""
             nonlocal rx_buffer, rx_sar_buffer
-            sar = (data[0] >> 6) & 0x03
-            payload = bytes(data[1:])
-            if sar == _SAR_COMPLETE:
-                rx_buffer = bytearray(payload)
-                rx_event.set()
-            elif sar == _SAR_FIRST:
-                rx_sar_buffer = bytearray(payload)
-            elif sar == _SAR_CONTINUATION:
-                rx_sar_buffer.extend(payload)
-            elif sar == _SAR_LAST:
-                rx_sar_buffer.extend(payload)
-                rx_buffer = rx_sar_buffer
-                rx_sar_buffer = bytearray()
-                rx_event.set()
+            async with rx_lock:
+                sar = (data[0] >> 6) & 0x03
+                payload = bytes(data[1:])
+                if sar == _SAR_COMPLETE:
+                    rx_buffer = bytearray(payload)
+                    rx_event.set()
+                elif sar == _SAR_FIRST:
+                    rx_sar_buffer = bytearray(payload)
+                elif sar == _SAR_CONTINUATION:
+                    rx_sar_buffer.extend(payload)
+                elif sar == _SAR_LAST:
+                    rx_sar_buffer.extend(payload)
+                    rx_buffer = rx_sar_buffer
+                    rx_sar_buffer = bytearray()
+                    rx_event.set()
 
         async def send_prov(pdu: bytes) -> None:
             segments = _wrap_provisioning_pdu(pdu, client.mtu_size)
@@ -586,11 +629,16 @@ class SIGMeshProvisioner:
                     await asyncio.sleep(_PROVISIONING_POLL_INTERVAL)
 
         async def recv_prov(recv_timeout: float = 10.0, step_name: str = "PDU") -> bytes:
-            """Receive provisioning PDU with timeout and context."""
+            """Receive provisioning PDU with timeout and context.
+
+            CF-2: Read rx_buffer with lock protection.
+            """
             rx_event.clear()
             try:
                 await asyncio.wait_for(rx_event.wait(), timeout=recv_timeout)
-                return bytes(rx_buffer)
+                # CF-2: Lock access to rx_buffer to prevent race with concurrent notify
+                async with rx_lock:
+                    return bytes(rx_buffer)
             except TimeoutError as exc:
                 msg = (
                     f"Timeout waiting for {step_name} (waited {recv_timeout:.1f}s). "
@@ -628,7 +676,7 @@ class SIGMeshProvisioner:
             if hasattr(client, "pair"):
                 _LOGGER.info("Provisioning: pairing (BlueZ bond) before GATT subscribe")
                 await asyncio.wait_for(client.pair(), timeout=10.0)
-        except Exception as pair_exc:
+        except (TimeoutError, OSError) as pair_exc:
             _LOGGER.warning(
                 "BlueZ pair() failed (%s: %s) — trying start_notify anyway",
                 type(pair_exc).__name__,
@@ -689,9 +737,6 @@ class SIGMeshProvisioner:
                 f"Invalid device public key: point not on curve. "
                 f"Device sent malformed ECDH public key: {exc}"
             )
-            raise ProvisioningError(msg) from exc
-        except Exception as exc:
-            msg = f"ECDH key exchange failed: {type(exc).__name__}: {exc}"
             raise ProvisioningError(msg) from exc
 
         _LOGGER.info("Provisioning: ECDH shared secret (%d bytes) [REDACTED]", len(shared_secret))

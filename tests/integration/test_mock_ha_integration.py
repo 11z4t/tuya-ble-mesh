@@ -6,6 +6,7 @@ Tests focus on interface contracts rather than internal implementation.
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -126,6 +127,7 @@ class TestEntityServiceCalls:
         light = TuyaBLEMeshLight(coord, mock_config_entry)
 
         await light.async_turn_on()
+        await asyncio.sleep(0.1)  # Wait for debounced task to run
 
         mock_device.send_power.assert_called_once_with(True)
 

@@ -72,3 +72,16 @@ HA_MIRED_MAX = 370  # warmest (2703K)
 # Color brightness mapping: device 0-255 ↔ HA 0-255 (same scale)
 DEVICE_COLOR_BRIGHTNESS_MIN = 0
 DEVICE_COLOR_BRIGHTNESS_MAX = 255
+
+# Command retry defaults
+DEFAULT_MAX_COMMAND_RETRIES = 3
+DEFAULT_COMMAND_RETRY_BASE_DELAY = 0.5
+
+# Mesh scene/effect presets: scene_id (1-based) → display name
+MESH_SCENES: dict[int, str] = {
+    1: "Warm Candlelight",
+    2: "Ocean Breeze",
+    3: "Forest Dawn",
+    4: "Sunset Glow",
+    5: "Arctic Aurora",
+}

@@ -4,6 +4,8 @@ from __future__ import annotations
 from enum import IntFlag, StrEnum
 from typing import Any
 
+from homeassistant.helpers.entity import Entity
+
 
 class ColorMode(StrEnum):
     UNKNOWN = "unknown"
@@ -41,7 +43,7 @@ SUPPORT_COLOR = 16
 SUPPORT_COLOR_TEMP = 2
 
 
-class LightEntity:
+class LightEntity(Entity):
     _attr_color_mode: ColorMode | None = None
     _attr_brightness: int | None = None
     _attr_is_on: bool | None = None

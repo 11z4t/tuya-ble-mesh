@@ -140,6 +140,17 @@
       },
       "energy": {
         "name": "Енергiя"
+      },
+      "connection_quality": {
+        "name": "Якість підключення",
+        "state": {
+          "good": "Хороше",
+          "marginal": "Задовільне",
+          "poor": "Слабке"
+        }
+      },
+      "last_seen": {
+        "name": "Останній зв'язок"
       }
     },
     "binary_sensor": {

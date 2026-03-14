@@ -22,6 +22,10 @@ _LOGGER = logging.getLogger(__name__)
 ISSUE_PROVISIONING_FAILED = "provisioning_failed"
 ISSUE_BRIDGE_UNREACHABLE = "bridge_unreachable"
 ISSUE_KEY_MISMATCH = "key_mismatch"
+ISSUE_AUTH_OR_MESH_MISMATCH = "auth_or_mesh_mismatch"
+ISSUE_DEVICE_NOT_FOUND = "device_not_found"
+ISSUE_TIMEOUT = "timeout"
+ISSUE_RECONNECT_STORM = "reconnect_storm"
 
 DOMAIN = "tuya_ble_mesh"
 
@@ -54,20 +58,16 @@ async def async_create_issue_bridge_unreachable(
     hass: HomeAssistant,
     host: str,
     port: int,
+    entry_id: str | None = None,
 ) -> None:
-    """Create a repair issue when the bridge daemon cannot be reached.
-
-    Args:
-        hass: Home Assistant instance.
-        host: Bridge hostname/IP.
-        port: Bridge port.
-    """
+    """Create a repair issue when the bridge daemon cannot be reached."""
     from homeassistant.helpers import issue_registry as ir
 
+    issue_id = f"{ISSUE_BRIDGE_UNREACHABLE}_{entry_id}" if entry_id else ISSUE_BRIDGE_UNREACHABLE
     ir.async_create_issue(
         hass,
         DOMAIN,
-        ISSUE_BRIDGE_UNREACHABLE,
+        issue_id,
         is_fixable=True,
         severity=ir.IssueSeverity.WARNING,
         translation_key="bridge_unreachable",
@@ -76,17 +76,105 @@ async def async_create_issue_bridge_unreachable(
     _LOGGER.warning("Repair issue created: bridge_unreachable for %s:%d", host, port)
 
 
-def async_delete_issue(hass: HomeAssistant, issue_id: str) -> None:
-    """Clear a repair issue when the problem resolves.
-
-    Args:
-        hass: Home Assistant instance.
-        issue_id: Issue ID to clear.
-    """
+async def async_create_issue_auth_or_mesh_mismatch(
+    hass: HomeAssistant,
+    device_name: str,
+    entry_id: str | None = None,
+) -> None:
+    """Create a repair issue when mesh authentication fails."""
     from homeassistant.helpers import issue_registry as ir
 
-    ir.async_delete_issue(hass, DOMAIN, issue_id)
-    _LOGGER.debug("Repair issue cleared: %s", issue_id)
+    issue_id = f"{ISSUE_AUTH_OR_MESH_MISMATCH}_{entry_id}" if entry_id else ISSUE_AUTH_OR_MESH_MISMATCH
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=True,
+        severity=ir.IssueSeverity.ERROR,
+        translation_key="provisioning_failed",
+        translation_placeholders={"device": device_name},
+    )
+    _LOGGER.warning("Repair issue created: auth_or_mesh_mismatch for %s", device_name)
+
+
+async def async_create_issue_device_not_found(
+    hass: HomeAssistant,
+    device_name: str,
+    mac: str,
+    entry_id: str | None = None,
+) -> None:
+    """Create a repair issue when the device cannot be found."""
+    from homeassistant.helpers import issue_registry as ir
+
+    issue_id = f"{ISSUE_DEVICE_NOT_FOUND}_{entry_id}" if entry_id else ISSUE_DEVICE_NOT_FOUND
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="provisioning_failed",
+        translation_placeholders={"device": device_name},
+    )
+    _LOGGER.warning("Repair issue created: device_not_found for %s (%s)", device_name, mac)
+
+
+async def async_create_issue_timeout(
+    hass: HomeAssistant,
+    device_name: str,
+    entry_id: str | None = None,
+) -> None:
+    """Create a repair issue when device connection times out."""
+    from homeassistant.helpers import issue_registry as ir
+
+    issue_id = f"{ISSUE_TIMEOUT}_{entry_id}" if entry_id else ISSUE_TIMEOUT
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="bridge_unreachable",
+        translation_placeholders={"device": device_name},
+    )
+    _LOGGER.warning("Repair issue created: timeout for %s", device_name)
+
+
+async def async_create_issue_reconnect_storm(
+    hass: HomeAssistant,
+    device_name: str,
+    reconnect_count: int,
+    entry_id: str | None = None,
+    window_minutes: int = 5,
+) -> None:
+    """Create a repair issue when reconnect storm is detected."""
+    from homeassistant.helpers import issue_registry as ir
+
+    issue_id = f"{ISSUE_RECONNECT_STORM}_{entry_id}" if entry_id else ISSUE_RECONNECT_STORM
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key="bridge_unreachable",
+        translation_placeholders={"device": device_name},
+    )
+    _LOGGER.warning(
+        "Repair issue created: reconnect_storm for %s (%d reconnects in %d min)",
+        device_name,
+        reconnect_count,
+        window_minutes,
+    )
+
+
+def async_delete_issue(hass: HomeAssistant, issue_id: str, entry_id: str | None = None) -> None:
+    """Clear a repair issue when the problem resolves."""
+    from homeassistant.helpers import issue_registry as ir
+
+    full_id = f"{issue_id}_{entry_id}" if entry_id else issue_id
+    ir.async_delete_issue(hass, DOMAIN, full_id)
+    _LOGGER.debug("Repair issue cleared: %s", full_id)
 
 
 class TuyaBLEMeshRepairFlow(RepairsFlow):

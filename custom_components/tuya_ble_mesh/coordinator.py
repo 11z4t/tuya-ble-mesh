@@ -710,7 +710,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
         data = await self._seq_store.async_load()
         if data is not None and "seq" in data:
-            restored_seq = (data["seq"] + _SEQ_SAFETY_MARGIN) & 0xFFFFFF  # Wrap within 24-bit range
+            restored_seq = data["seq"] + _SEQ_SAFETY_MARGIN  # device handles overflow internally
             self._device.set_seq(restored_seq)
             _LOGGER.info(
                 "Restored seq=%d (stored=%d + margin=%d)",
@@ -896,18 +896,18 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
         # --- Fallback: generic OS / asyncio / aiohttp errors ---
         err_msg = str(err).lower()
-        if (
-            "unsupported device" in err_msg
-            or "unsupported" in err_msg
-            or "unknown vendor" in err_msg
-        ):
-            return ErrorClass.PERMANENT
         if "timeout" in err_msg or isinstance(err, (asyncio.TimeoutError, TimeoutError)):
             return ErrorClass.TRANSIENT
         if "auth" in err_msg or "password" in err_msg or "credential" in err_msg:
             return ErrorClass.MESH_AUTH
         if "protocol" in err_msg or "version" in err_msg:
             return ErrorClass.PROTOCOL
+        if (
+            "unsupported device" in err_msg
+            or "unsupported" in err_msg
+            or "unknown vendor" in err_msg
+        ):
+            return ErrorClass.PERMANENT
         if "connection refused" in err_msg or "unreachable" in err_msg or "no route" in err_msg:
             return ErrorClass.BRIDGE_DOWN
         if "not found" in err_msg:

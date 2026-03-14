@@ -140,6 +140,17 @@
       },
       "energy": {
         "name": "Energia"
+      },
+      "connection_quality": {
+        "name": "Yhteyslaatu",
+        "state": {
+          "good": "Hyvä",
+          "marginal": "Kohtalainen",
+          "poor": "Heikko"
+        }
+      },
+      "last_seen": {
+        "name": "Viimeksi yhteydessä"
       }
     },
     "binary_sensor": {

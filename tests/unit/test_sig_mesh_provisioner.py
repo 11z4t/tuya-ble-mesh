@@ -421,6 +421,7 @@ class TestProvisionerExchange:
         """Create a mock BleakClient."""
         client = MagicMock()
         client.mtu_size = 23
+        client.pair = AsyncMock()
         client.start_notify = AsyncMock()
         client.stop_notify = AsyncMock()
         client.disconnect = AsyncMock()

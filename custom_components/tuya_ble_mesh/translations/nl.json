@@ -140,6 +140,17 @@
       },
       "energy": {
         "name": "Energie"
+      },
+      "connection_quality": {
+        "name": "Verbindingskwaliteit",
+        "state": {
+          "good": "Goed",
+          "marginal": "Matig",
+          "poor": "Slecht"
+        }
+      },
+      "last_seen": {
+        "name": "Laatste contact"
       }
     },
     "binary_sensor": {

@@ -82,6 +82,18 @@ class CommandExpiredError(TuyaBLEMeshError):
     """Command expired before it could be sent (TTL exceeded)."""
 
 
+class InvalidRequestError(TuyaBLEMeshError, ValueError):
+    """Invalid command request parameters."""
+
+
+class InvalidResultError(TuyaBLEMeshError):
+    """Invalid command result data."""
+
+
+class CorrelationConflictError(TuyaBLEMeshError):
+    """Correlation key conflict — request_id already registered."""
+
+
 # --- Backward-compatible aliases ---
 
 # Phase 2 → Phase 3 rename

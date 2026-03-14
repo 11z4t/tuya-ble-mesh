@@ -4,6 +4,7 @@ import uuid
 
 import pytest
 
+from tuya_ble_mesh.exceptions import CorrelationConflictError
 from tuya_ble_mesh.transport import CommandRequest, CorrelationEngine
 
 
@@ -132,7 +133,7 @@ def test_correlation_register_duplicate_fails():
 
     engine.register(request1, sequence=100)
 
-    with pytest.raises(ValueError, match="already registered"):
+    with pytest.raises(CorrelationConflictError, match="already registered"):
         engine.register(request2, sequence=101)
 
 

@@ -60,7 +60,7 @@ class TestSensorDescriptions:
 
     def test_sensor_descriptions_count(self) -> None:
         """Verify we have exactly 4 sensor descriptions."""
-        assert len(SENSOR_DESCRIPTIONS) == 4
+        assert len(SENSOR_DESCRIPTIONS) == 6
 
     def test_rssi_description(self) -> None:
         """Test RSSI sensor description."""
@@ -357,10 +357,12 @@ class TestSensorPlatformSetup:
 
         add_entities.assert_called_once()
         entities = add_entities.call_args[0][0]
-        assert len(entities) == 2
+        assert len(entities) == 4
         keys = {e.entity_description.key for e in entities}
         assert "rssi" in keys
         assert "firmware" in keys
+        assert "connection_quality" in keys
+        assert "last_seen" in keys
         assert "power" not in keys
         assert "energy" not in keys
 
@@ -380,7 +382,7 @@ class TestSensorPlatformSetup:
         await async_setup_entry(hass, entry, add_entities)
 
         entities = add_entities.call_args[0][0]
-        assert len(entities) == 4
+        assert len(entities) == 6
         keys = {e.entity_description.key for e in entities}
         assert "rssi" in keys
         assert "firmware" in keys

@@ -58,7 +58,7 @@ class TestConnectionState:
         assert "disconnecting" in states
 
     def test_state_count(self) -> None:
-        assert len(ConnectionState) == 5
+        assert len(ConnectionState) == 7
 
 
 # --- Construction ---
@@ -403,12 +403,12 @@ class TestKeepAlive:
             await conn.connect()
 
         assert conn._keep_alive_task is not None
-        conn._stop_keep_alive()
+        await conn._stop_keep_alive()
 
     @pytest.mark.asyncio
     async def test_keep_alive_stopped_on_disconnect(self) -> None:
         conn, _ = _make_ready_conn()
-        conn._start_keep_alive()
+        await conn._start_keep_alive()
         assert conn._keep_alive_task is not None
 
         await conn.disconnect()

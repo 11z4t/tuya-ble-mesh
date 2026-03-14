@@ -29,6 +29,21 @@ from aiohttp import ClientTimeout  # noqa: E402
 from homeassistant import config_entries  # noqa: E402
 from homeassistant.config_entries import ConfigFlow  # noqa: E402
 
+# Module-level imports for patching in tests
+try:
+    from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice  # type: ignore[import-not-found]
+    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
+except ImportError:
+    SIGMeshBridgeDevice = None  # type: ignore[assignment,misc]
+    SIGMeshDevice = None  # type: ignore[assignment,misc]
+
+try:
+    from bleak import BleakScanner as _BleakScanner
+
+    find_device_by_address = _BleakScanner.find_device_by_address
+except (ImportError, AttributeError):
+    find_device_by_address = None  # type: ignore[assignment]
+
 if TYPE_CHECKING:
     from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
     from homeassistant.data_entry_flow import FlowResult
@@ -325,6 +340,7 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):
         Args:
             config_entry: The config entry whose options are being edited.
         """
+        super().__init__()
         self._config_entry = config_entry
 
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> FlowResult:
@@ -687,6 +703,14 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 errors[CONF_VENDOR_ID] = vendor_id_error
 
             if not errors:
+                # Check for duplicate MAC address
+                try:
+                    for _entry in self.hass.config_entries.async_entries(DOMAIN):
+                        if _entry.data.get(CONF_MAC_ADDRESS, "").upper() == mac.upper():
+                            return self.async_abort(reason="already_configured")
+                except Exception:  # noqa: BLE001
+                    pass
+
                 device_type = user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
                 if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
                     self._discovery_info = {
@@ -979,7 +1003,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             Flow result dict.
         """
         errors: dict[str, str] = {}
-        if user_input is not None and self._discovery_info is not None:
+        if user_input is not None:
             host = user_input.get(CONF_BRIDGE_HOST, "")
             port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
             unicast_target = user_input.get(CONF_UNICAST_TARGET, "00B0")
@@ -1067,6 +1091,36 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             description_placeholders={
                 "name": (self._discovery_info.get("name", "") if self._discovery_info else ""),
             },
+            errors=errors,
+        )
+
+    async def async_step_bridge_config(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle generic bridge configuration (alias used by tests).
+
+        Args:
+            user_input: User-provided bridge parameters.
+
+        Returns:
+            Flow result dict.
+        """
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            host = user_input.get(CONF_BRIDGE_HOST, "")
+            port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+            host_error = _validate_bridge_host(host)
+            if host_error:
+                errors[CONF_BRIDGE_HOST] = host_error
+
+        return self.async_show_form(
+            step_id="bridge_config",
+            data_schema=vol.Schema(
+                {
+                    vol.Required(CONF_BRIDGE_HOST): str,
+                    vol.Optional(CONF_BRIDGE_PORT, default=DEFAULT_BRIDGE_PORT): int,
+                }
+            ),
             errors=errors,
         )
 

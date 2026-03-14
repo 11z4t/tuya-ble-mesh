@@ -312,12 +312,13 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             "connection_errors": stats.connection_errors,
             "command_errors": stats.command_errors,
             "avg_response_time": f"{stats.avg_response_time:.3f}s" if stats.response_times else "N/A",
-            "rssi": coordinator.state.rssi,
+            "rssi_dbm": coordinator.state.rssi,
             "firmware_version": coordinator.state.firmware_version,
             "last_error": stats.last_error,
             "last_disconnect": stats.last_disconnect_time,
         }
         _LOGGER.info("Diagnostics for %s: %s", device_id, diagnostics)
+        return diagnostics
 
     hass.services.async_register(
         DOMAIN,
@@ -335,10 +336,34 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             }
         ),
     )
+    async def handle_reconnect(call: ServiceCall) -> None:
+        """Force reconnect a device.
+
+        Args:
+            call: Service call with device_id field.
+        """
+        device_id: str = call.data.get("device_id", "")
+        coordinator = _get_coordinator_for_device(hass, device_id)
+        if coordinator is None:
+            raise HomeAssistantError(f"Device not found: {device_id}")
+
+        try:
+            await coordinator.device.disconnect()
+        except OSError:
+            pass
+        coordinator.schedule_reconnect()
+        _LOGGER.info("Reconnect scheduled for %s", device_id)
+
     hass.services.async_register(
         DOMAIN,
         "get_diagnostics",
         handle_get_diagnostics,
+        schema=vol.Schema({vol.Required("device_id"): str}),
+    )
+    hass.services.async_register(
+        DOMAIN,
+        "reconnect",
+        handle_reconnect,
         schema=vol.Schema({vol.Required("device_id"): str}),
     )
 

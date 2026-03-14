@@ -8,6 +8,10 @@ def utcnow() -> datetime:
     return datetime.now(tz=UTC)
 
 
+def utc_from_timestamp(timestamp: float) -> datetime:
+    return datetime.fromtimestamp(timestamp, tz=UTC)
+
+
 def now() -> datetime:
     return datetime.now()
 
