@@ -22,7 +22,7 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
-from bleak import BleakClient, BleakError, BleakScanner
+from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak.exc import BleakError
 
