@@ -17,8 +17,10 @@ import random
 import time
 import uuid
 from collections import deque
-from typing import TYPE_CHECKING, Callable
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
+from tuya_ble_mesh.exceptions import TuyaBLEMeshError
 from tuya_ble_mesh.transport.correlation import CorrelationEngine
 from tuya_ble_mesh.transport.metrics import TransportMetrics
 from tuya_ble_mesh.transport.request import CommandRequest
@@ -292,7 +294,7 @@ class AsyncCommandDispatcher:
             except asyncio.CancelledError:
                 _LOGGER.debug("AsyncCommandDispatcher worker cancelled")
                 raise
-            except Exception:
+            except (TuyaBLEMeshError, OSError, TimeoutError):
                 _LOGGER.error("AsyncCommandDispatcher worker error", exc_info=True)
 
         _LOGGER.debug("AsyncCommandDispatcher worker stopped")
