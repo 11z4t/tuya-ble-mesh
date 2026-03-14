@@ -362,60 +362,77 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):
 
         device_type = self._config_entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
 
-        # Build schema based on device type
-        if device_type in (
-            DEVICE_TYPE_SIG_BRIDGE_PLUG,
-            DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
-        ):
-            schema = vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_BRIDGE_HOST,
-                        default=self._config_entry.data.get(CONF_BRIDGE_HOST, ""),
-                    ): str,
-                    vol.Optional(
-                        CONF_BRIDGE_PORT,
-                        default=self._config_entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT),
-                    ): int,
-                }
-            )
-        elif device_type == DEVICE_TYPE_SIG_PLUG:
-            schema = vol.Schema(
-                {
+        # UX-1.7: Build schema based on device type with progressive disclosure.
+        # Normal view: credentials/connection settings that users may legitimately change.
+        # Advanced mode: low-level mesh addressing fields (unicast, iv_index, mesh_address).
+        schema_dict: dict[object, object] = {}
+
+        if device_type in (DEVICE_TYPE_SIG_BRIDGE_PLUG, DEVICE_TYPE_TELINK_BRIDGE_LIGHT):
+            # Bridge devices: show host/port always; unicast is advanced-only
+            schema_dict[
+                vol.Optional(
+                    CONF_BRIDGE_HOST,
+                    default=self._config_entry.data.get(CONF_BRIDGE_HOST, ""),
+                )
+            ] = str
+            schema_dict[
+                vol.Optional(
+                    CONF_BRIDGE_PORT,
+                    default=self._config_entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT),
+                )
+            ] = int
+            if self.show_advanced_options and device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
+                schema_dict[
                     vol.Optional(
                         CONF_UNICAST_TARGET,
                         default=self._config_entry.data.get(CONF_UNICAST_TARGET, "00B0"),
-                    ): str,
+                    )
+                ] = str
+        elif device_type == DEVICE_TYPE_SIG_PLUG:
+            # SIG Mesh plug: unicast and iv_index are advanced network settings
+            if self.show_advanced_options:
+                schema_dict[
+                    vol.Optional(
+                        CONF_UNICAST_TARGET,
+                        default=self._config_entry.data.get(CONF_UNICAST_TARGET, "00B0"),
+                    )
+                ] = str
+                schema_dict[
                     vol.Optional(
                         CONF_IV_INDEX,
                         default=self._config_entry.data.get(CONF_IV_INDEX, DEFAULT_IV_INDEX),
-                    ): int,
-                }
-            )
+                    )
+                ] = int
         else:
-            schema = vol.Schema(
-                {
-                    vol.Optional(
-                        CONF_MESH_NAME,
-                        default=self._config_entry.data.get(CONF_MESH_NAME, "out_of_mesh"),
-                    ): str,
-                    vol.Optional(
+            # Direct BLE devices: mesh credentials always visible; mesh_address is advanced
+            schema_dict[
+                vol.Optional(
+                    CONF_MESH_NAME,
+                    default=self._config_entry.data.get(CONF_MESH_NAME, "out_of_mesh"),
+                )
+            ] = str
+            schema_dict[
+                vol.Optional(
+                    CONF_MESH_PASSWORD,
+                    default=self._config_entry.data.get(
                         CONF_MESH_PASSWORD,
-                        default=self._config_entry.data.get(
-                            CONF_MESH_PASSWORD,
-                            "123456",  # pragma: allowlist secret
-                        ),
-                    ): str,
+                        "123456",  # pragma: allowlist secret
+                    ),
+                )
+            ] = str
+            if self.show_advanced_options:
+                schema_dict[
                     vol.Optional(
                         CONF_MESH_ADDRESS,
                         default=self._config_entry.data.get(
                             CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS
                         ),
-                    ): int,
-                }
-            )
+                    )
+                ] = int
 
-        return self.async_show_form(step_id="init", data_schema=schema, errors=errors)
+        return self.async_show_form(
+            step_id="init", data_schema=vol.Schema(schema_dict), errors=errors
+        )
 
 
 class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
