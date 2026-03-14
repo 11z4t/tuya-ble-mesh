@@ -140,6 +140,17 @@
       },
       "energy": {
         "name": "Nukissamik atorneq"
+      },
+      "connection_quality": {
+        "name": "Naaperissitaasoqarneq pillugu",
+        "state": {
+          "good": "Ajornanngilaq",
+          "marginal": "Allanngortinneqarsinnaasumik",
+          "poor": "Ajornartorsiutissaqarpoq"
+        }
+      },
+      "last_seen": {
+        "name": "Kingornussami naaperissitaasoqarneq"
       }
     },
     "binary_sensor": {

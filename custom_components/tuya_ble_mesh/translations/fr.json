@@ -140,6 +140,17 @@
       },
       "energy": {
         "name": "Énergie"
+      },
+      "connection_quality": {
+        "name": "Qualité de connexion",
+        "state": {
+          "good": "Bonne",
+          "marginal": "Marginale",
+          "poor": "Mauvaise"
+        }
+      },
+      "last_seen": {
+        "name": "Dernier contact"
       }
     },
     "binary_sensor": {

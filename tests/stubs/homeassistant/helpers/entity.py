@@ -74,3 +74,16 @@ class Entity:
 
     def schedule_update_ha_state(self, force_refresh: bool = False) -> None:
         pass
+
+    def async_on_remove(self, fn: Any) -> None:
+        """Register a callback to be called when entity is removed."""
+        if not hasattr(self, "_on_remove_callbacks"):
+            self._on_remove_callbacks: list[Any] = []
+        self._on_remove_callbacks.append(fn)
+
+    def _call_on_remove_callbacks(self) -> None:
+        """Call all registered on-remove callbacks."""
+        callbacks = getattr(self, "_on_remove_callbacks", [])
+        for fn in callbacks:
+            fn()
+        self._on_remove_callbacks = []

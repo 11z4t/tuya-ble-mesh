@@ -88,14 +88,75 @@ def _calculate_percentiles(times: list[float]) -> dict[str, float]:
     }
 
 
+_PROTOCOL_MODE_MAP: dict[str, str] = {
+    "light": "Tuya BLE Mesh (Telink)",
+    "plug": "Tuya BLE Mesh (Telink)",
+    "sig_plug": "SIG Mesh (direct BLE)",
+    "sig_bridge_plug": "SIG Mesh (HTTP bridge)",
+    "telink_bridge_light": "Tuya BLE Mesh (HTTP bridge)",
+}
+
+
+def _get_protocol_mode(device_type: str) -> str:
+    """Map a device type string to a human-readable protocol mode name."""
+    return _PROTOCOL_MODE_MAP.get(device_type, f"Unknown ({device_type})")
+
+
+_VENDOR_NAMES: dict[str, str] = {
+    "1001": "Malmbergs BT Smart",
+}
+
+
+def _get_vendor_name(vendor_id: str) -> str:
+    """Map a vendor ID (hex string) to a human-readable vendor name."""
+    normalized = vendor_id.strip().lower().lstrip("0x")
+    return _VENDOR_NAMES.get(normalized, "Unknown vendor")
+
+
+def _rssi_trend(history: list[tuple[float, int]]) -> str:
+    """Analyse RSSI history and return trend as 'improving', 'declining', or 'stable'.
+
+    Requires at least 3 samples. Returns 'unknown' with fewer samples.
+    Uses linear regression slope: > 2.0 = improving, < -2.0 = declining.
+    """
+    if len(history) < 3:
+        return "unknown"
+
+    n = len(history)
+    xs = [t for t, _ in history]
+    ys = [r for _, r in history]
+
+    x_mean = sum(xs) / n
+    y_mean = sum(ys) / n
+
+    numerator = sum((x - x_mean) * (y - y_mean) for x, y in zip(xs, ys))
+    denominator = sum((x - x_mean) ** 2 for x in xs)
+
+    if denominator == 0:
+        return "stable"
+
+    slope = numerator / denominator
+
+    if slope > 2.0:
+        return "improving"
+    if slope < -2.0:
+        return "declining"
+    return "stable"
+
+
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant,
     entry: TuyaBLEMeshConfigEntry,
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
+    device_type = entry.data.get("device_type", "")
+    vendor_id_raw = entry.data.get("vendor_id", "")
     diag: dict[str, Any] = {
         "entry_id": entry.entry_id,
         "data": _redact_data(dict(entry.data)),
+        "protocol_mode": _get_protocol_mode(device_type),
+        "vendor_id": vendor_id_raw,
+        "vendor_name": _get_vendor_name(str(vendor_id_raw)),
     }
 
     # Add coordinator state if available via runtime_data (modern pattern)
@@ -186,5 +247,34 @@ async def async_get_config_entry_diagnostics(
                 "mode": "direct_ble",
                 "local_ble": True,
             }
+
+        # Device capabilities summary
+        caps = coordinator.capabilities
+        diag["capabilities"] = {
+            "has_power_monitoring": bool(getattr(caps, "has_power_monitoring", False)),
+            "protocol": getattr(caps, "protocol", "unknown"),
+        }
+
+        # Connection quality based on current RSSI
+        rssi = state.rssi
+        if isinstance(rssi, (int, float)) and rssi != 0:
+            if rssi >= -60:
+                quality = "good"
+            elif rssi >= -80:
+                quality = "marginal"
+            else:
+                quality = "poor"
+        else:
+            quality = "unknown"
+        diag["connection_quality"] = quality
+
+        # Protocol health summary
+        total_errors = getattr(stats, "total_errors", 0)
+        consecutive_failures = getattr(coordinator, "consecutive_failures", 0)
+        diag["protocol_health"] = {
+            "consecutive_failures": consecutive_failures,
+            "storm_detected": bool(getattr(stats, "storm_detected", False)),
+            "error_rate": "high" if isinstance(total_errors, (int, float)) and total_errors > 10 else "normal",
+        }
 
     return diag

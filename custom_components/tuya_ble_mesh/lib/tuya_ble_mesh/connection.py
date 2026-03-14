@@ -10,13 +10,14 @@ Key material is NEVER logged — only operation names and lengths.
 from __future__ import annotations
 
 import asyncio
+import contextlib  # CF-3: For suppress in _stop_keep_alive
 import enum
 import logging
 import random
 from collections.abc import Callable
 from typing import Any
 
-from bleak import BleakClient, BleakScanner
+from bleak import BleakClient, BleakError, BleakScanner
 from bleak_retry_connector import establish_connection
 
 from tuya_ble_mesh.const import (
@@ -26,7 +27,7 @@ from tuya_ble_mesh.const import (
     TELINK_CMD_STATUS_QUERY,
     TELINK_VENDOR_ID,
 )
-from tuya_ble_mesh.exceptions import MeshConnectionError, DisconnectedError
+from tuya_ble_mesh.exceptions import DisconnectedError, MeshConnectionError, ProvisioningError
 from tuya_ble_mesh.protocol import encode_command_packet
 from tuya_ble_mesh.provisioner import provision
 from tuya_ble_mesh.scanner import mac_to_bytes
@@ -45,23 +46,24 @@ _MAX_BACKOFF = 300.0
 _BACKOFF_MULTIPLIER = 2.0
 _JITTER_FACTOR = 0.2  # 0-20% random jitter
 
+# Connection attempt backoff (within a single connect() call)
+_CONNECT_RETRY_BACKOFF_MULTIPLIER = 2.0
+_CONNECT_RETRY_MAX_BACKOFF = 8.0
+
 # Max connection retries per attempt
 _DEFAULT_MAX_RETRIES = 5
 
 # Sequence counter wraps at 24 bits
 _MAX_SEQUENCE = 0xFFFFFF
 
-# Bluetoothctl command timeout (seconds)
-_BLUETOOTHCTL_TIMEOUT = 5.0
-
 # Disconnect callback type
-DisconnectCallback = Callable[[], None]
+DisconnectCallback = Callable[[], Any]
 
 
 class ConnectionState(enum.Enum):
     """BLE connection state machine states.
 
-    State transitions::
+    State transitions (PLAT-402 Phase 1 Task 1.3 extended)::
 
         DISCONNECTED ──connect()──→ CONNECTING
         CONNECTING ──BLE success──→ PAIRING
@@ -71,6 +73,12 @@ class ConnectionState(enum.Enum):
 
         CONNECTING ──all retries failed──→ DISCONNECTED
         PAIRING ──provision failed──→ DISCONNECTED
+
+        Task 1.3: Extended states for degraded connections:
+        READY ──X failed writes──→ DEGRADED
+        DEGRADED ──reconnect initiated──→ RECOVERING
+        RECOVERING ──reconnect success──→ READY
+        RECOVERING ──reconnect failed──→ DISCONNECTED
     """
 
     DISCONNECTED = "disconnected"
@@ -78,6 +86,9 @@ class ConnectionState(enum.Enum):
     PAIRING = "pairing"
     READY = "ready"
     DISCONNECTING = "disconnecting"
+    # PLAT-402 Task 1.3: Degraded connection states
+    DEGRADED = "degraded"  # Connection alive but unreliable (X failed writes)
+    RECOVERING = "recovering"  # Active reconnect in progress
 
 
 class BLEConnection:
@@ -118,24 +129,40 @@ class BLEConnection:
 
     @property
     def state(self) -> ConnectionState:
-        """Return the current connection state."""
+        """Return the current connection state.
+
+        Returns:
+            ConnectionState: Current connection state.
+        """
         return self._state
 
     @property
     def address(self) -> str:
-        """Return the device BLE MAC address."""
+        """Return the device BLE MAC address.
+
+        Returns:
+            str: Device BLE MAC address.
+        """
         return self._address
 
     @property
     def session_key(self) -> bytes | None:
-        """Return a copy of the session key, or None if not connected."""
+        """Return a copy of the session key, or None if not connected.
+
+        Returns:
+            bytes | None: Copy of session key, or None if not connected.
+        """
         if self._session_key is None:
             return None
         return bytes(self._session_key)
 
     @property
     def is_ready(self) -> bool:
-        """Return True if the connection is ready for commands."""
+        """Return True if the connection is ready for commands.
+
+        Returns:
+            bool: True if connection is ready for commands.
+        """
         return self._state == ConnectionState.READY
 
     @property
@@ -144,12 +171,19 @@ class BLEConnection:
 
         False means the connection is in poll-only mode — status updates
         only arrive via keep-alive status-query responses.
+
+        Returns:
+            bool: True if GATT notification subscription is active.
         """
         return self._notify_active
 
     @property
     def firmware_version(self) -> str | None:
-        """Return the device firmware version, or None if not read."""
+        """Return the device firmware version, or None if not read.
+
+        Returns:
+            str | None: Device firmware version, or None if not read.
+        """
         return self._firmware_version
 
     async def next_sequence(self) -> int:
@@ -164,27 +198,15 @@ class BLEConnection:
             return seq
 
     def register_disconnect_callback(self, callback: DisconnectCallback) -> None:
-        """Register a callback for disconnect events.
-
-        Args:
-            callback: Callable invoked when BLE connection is lost.
-        """
+        """Register a callback for disconnect events."""
         self._disconnect_callbacks.append(callback)
 
     def unregister_disconnect_callback(self, callback: DisconnectCallback) -> None:
-        """Remove a previously registered disconnect callback.
-
-        Args:
-            callback: Callback to remove from disconnect notification list.
-        """
+        """Remove a previously registered disconnect callback."""
         self._disconnect_callbacks.remove(callback)
 
     def set_notification_handler(self, handler: Callable[..., Any] | None) -> None:
-        """Set the handler for BLE notifications from char 1911.
-
-        Args:
-            handler: Callable invoked with notification data, or None to clear.
-        """
+        """Set the handler for BLE notifications from char 1911."""
         self._notification_handler = handler
 
     async def _start_notify_safe(self) -> bool:
@@ -211,7 +233,7 @@ class BLEConnection:
                 "GATT notification subscription active for %s (push mode)",
                 self._address,
             )
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             self._notify_active = False
             _LOGGER.warning(
                 "start_notify failed for %s (%s) — running in poll-only mode. "
@@ -245,7 +267,7 @@ class BLEConnection:
 
         try:
             await self._connect_with_retry(timeout, max_retries)
-        except Exception:
+        except (TimeoutError, OSError, MeshConnectionError):
             self._state = ConnectionState.DISCONNECTED
             raise
 
@@ -263,7 +285,7 @@ class BLEConnection:
                 self._mesh_password,
             )
             self._session_key = bytearray(key)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             await self._cleanup()
             msg = f"Provisioning failed for {self._address}"
             raise MeshConnectionError(msg) from exc
@@ -271,7 +293,7 @@ class BLEConnection:
         await self._read_firmware_version()
 
         self._state = ConnectionState.READY
-        self._start_keep_alive()
+        await self._start_keep_alive()  # CF-3: Now awaited
         await self._start_notify_safe()
         _LOGGER.info("Connected and provisioned: %s", self._address)
 
@@ -323,13 +345,13 @@ class BLEConnection:
             except MeshConnectionError:
                 self._client = None
                 raise
-            except asyncio.CancelledError:
+            except (OSError, TimeoutError, BleakError, asyncio.CancelledError) as exc:
+                last_exc = exc if isinstance(exc, Exception) else Exception(str(exc))
                 self._client = None
-                raise  # Always propagate cancellation
-            except Exception as exc:
-                last_exc = exc
-                self._client = None
-                backoff = min(2.0 * attempt, 8.0)
+                backoff = min(
+                    _CONNECT_RETRY_BACKOFF_MULTIPLIER * attempt,
+                    _CONNECT_RETRY_MAX_BACKOFF,
+                )
                 _LOGGER.warning(
                     "Connect attempt %d/%d failed (%s), retrying in %.1fs",
                     attempt,
@@ -350,7 +372,7 @@ class BLEConnection:
             raw = await self._client.read_gatt_char(DIS_FIRMWARE_REVISION)
             self._firmware_version = raw.decode("utf-8", errors="replace").strip()
             _LOGGER.debug("Firmware version: %s", self._firmware_version)
-        except Exception:
+        except (OSError, AttributeError, TypeError):
             _LOGGER.debug("Could not read firmware version (ignored)", exc_info=True)
 
     async def _clear_bluez_device(self) -> None:
@@ -363,8 +385,8 @@ class BLEConnection:
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )
-            await asyncio.wait_for(proc.wait(), timeout=_BLUETOOTHCTL_TIMEOUT)
-        except Exception:
+            await asyncio.wait_for(proc.wait(), timeout=5.0)
+        except (TimeoutError, OSError):
             _LOGGER.debug("bluetoothctl remove failed (ignored)", exc_info=True)
 
     async def disconnect(self) -> None:
@@ -379,7 +401,7 @@ class BLEConnection:
 
     async def _cleanup(self) -> None:
         """Clean up resources and transition to DISCONNECTED."""
-        self._stop_keep_alive()
+        await self._stop_keep_alive()  # CF-3: Now awaited for proper cleanup
         self._notify_active = False
 
         # Zero-fill session key before clearing
@@ -391,7 +413,7 @@ class BLEConnection:
         if self._client is not None:
             try:
                 await self._client.disconnect()
-            except Exception:
+            except OSError:
                 _LOGGER.debug("Disconnect error (ignored)", exc_info=True)
             self._client = None
 
@@ -408,19 +430,19 @@ class BLEConnection:
             MeshConnectionError: If write fails (triggers disconnect detection).
         """
         if self._state != ConnectionState.READY or self._client is None:
-            msg = f"Not connected for {self._address}"
+            msg = "Not connected"
             raise DisconnectedError(msg)
 
         try:
             await self._client.write_gatt_char(TELINK_CHAR_COMMAND, packet, response=False)
-        except Exception as exc:
+        except OSError as exc:
             _LOGGER.warning("Write failed, triggering disconnect: %s", type(exc).__name__)
             await self._handle_disconnect()
             msg = f"Write failed to {self._address}"
             raise MeshConnectionError(msg) from exc
 
         # Reset keep-alive timer on successful write
-        self._restart_keep_alive()
+        await self._restart_keep_alive()  # CF-3: Now awaited
 
     async def _handle_disconnect(self) -> None:
         """Handle an unexpected disconnect."""
@@ -433,26 +455,38 @@ class BLEConnection:
         for callback in self._disconnect_callbacks:
             try:
                 callback()
-            except Exception:
+            except BaseException:
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
 
     # --- Keep-alive ---
 
-    def _start_keep_alive(self) -> None:
-        """Start the keep-alive timer."""
-        self._stop_keep_alive()
+    async def _start_keep_alive(self) -> None:
+        """Start the keep-alive timer.
+
+        CF-3: Now async to properly await _stop_keep_alive.
+        """
+        await self._stop_keep_alive()  # CF-3: Await for clean shutdown
         self._keep_alive_task = asyncio.ensure_future(self._keep_alive_loop())
 
-    def _stop_keep_alive(self) -> None:
-        """Stop the keep-alive timer."""
+    async def _stop_keep_alive(self) -> None:
+        """Stop the keep-alive timer.
+
+        CF-3: Now async to properly await task cancellation and prevent resource leak.
+        """
         if self._keep_alive_task is not None:
             self._keep_alive_task.cancel()
+            # CF-3: Await task to ensure clean cancellation without ResourceWarning
+            with contextlib.suppress(asyncio.CancelledError):
+                await self._keep_alive_task
             self._keep_alive_task = None
 
-    def _restart_keep_alive(self) -> None:
-        """Reset the keep-alive timer (called after real commands)."""
+    async def _restart_keep_alive(self) -> None:
+        """Reset the keep-alive timer (called after real commands).
+
+        CF-3: Now async to properly await _start_keep_alive.
+        """
         if self._state == ConnectionState.READY:
-            self._start_keep_alive()
+            await self._start_keep_alive()  # CF-3: Await for proper cleanup
 
     async def _keep_alive_loop(self) -> None:
         """Periodically send 0xDA status query to keep connection alive."""
@@ -487,7 +521,7 @@ class BLEConnection:
             )
             await self._client.write_gatt_char(TELINK_CHAR_COMMAND, packet, response=False)
             _LOGGER.debug("Keep-alive sent (seq=%d)", seq)
-        except Exception:
+        except OSError:
             _LOGGER.warning("Keep-alive failed, triggering disconnect")
             await self._handle_disconnect()
 

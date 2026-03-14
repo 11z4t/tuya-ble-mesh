@@ -181,7 +181,8 @@ class TestFullLifecycle:
             await coord.async_start()
 
         # Mark as connected
-        coord._state.available = True
+        from dataclasses import replace as _dc_replace
+        coord._state = _dc_replace(coord._state, available=True)
 
         # Entity should now be available
         assert light.available is True

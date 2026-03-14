@@ -5,6 +5,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
 
+from homeassistant.helpers.entity import Entity
+
 
 class SensorDeviceClass(StrEnum):
     BATTERY = "battery"
@@ -41,7 +43,7 @@ class SensorEntityDescription:
     options: list[str] | None = None
 
 
-class SensorEntity:
+class SensorEntity(Entity):
     _attr_native_value: Any = None
     _attr_device_class: SensorDeviceClass | None = None
     _attr_state_class: SensorStateClass | None = None

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.sensor import (
@@ -42,6 +43,28 @@ _LOGGER = logging.getLogger(__name__)
 
 # BLE mesh serializes commands — limit to one concurrent update
 PARALLEL_UPDATES = 1
+
+
+def _connection_quality(state: TuyaBLEMeshDeviceState) -> str | None:
+    """Map RSSI to a connection quality label.
+
+    Returns 'good' for RSSI ≥ -60, 'marginal' for -80 to -61, 'poor' for < -80.
+    Returns None when RSSI is not available.
+    """
+    if state.rssi is None:
+        return None
+    if state.rssi >= -60:
+        return "good"
+    if state.rssi >= -80:
+        return "marginal"
+    return "poor"
+
+
+def _last_seen_datetime(state: TuyaBLEMeshDeviceState) -> datetime | None:
+    """Convert last_seen Unix timestamp to a UTC-aware datetime, or None."""
+    if state.last_seen is None:
+        return None
+    return datetime.fromtimestamp(state.last_seen, tz=UTC)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -99,6 +122,22 @@ SENSOR_DESCRIPTIONS: tuple[TuyaBLEMeshSensorEntityDescription, ...] = (
         suggested_display_precision=2,
         value_fn=lambda state: state.energy_kwh,
         available_fn=lambda state: state.energy_kwh is not None,
+    ),
+    TuyaBLEMeshSensorEntityDescription(
+        key="connection_quality",
+        translation_key="connection_quality",
+        device_class=SensorDeviceClass.ENUM,
+        options=["good", "marginal", "poor"],
+        entity_category=EntityCategory.DIAGNOSTIC,
+        icon="mdi:signal",
+        value_fn=_connection_quality,
+    ),
+    TuyaBLEMeshSensorEntityDescription(
+        key="last_seen",
+        translation_key="last_seen",
+        device_class=SensorDeviceClass.TIMESTAMP,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        value_fn=_last_seen_datetime,
     ),
 )
 

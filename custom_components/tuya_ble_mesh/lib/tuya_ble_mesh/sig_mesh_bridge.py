@@ -17,7 +17,11 @@ from typing import Any
 
 import aiohttp
 
-from tuya_ble_mesh.exceptions import MeshConnectionError, SIGMeshError
+from tuya_ble_mesh.exceptions import (
+    InvalidRequestError,
+    MeshConnectionError,
+    SIGMeshError,
+)
 from tuya_ble_mesh.logging_context import MeshLogAdapter, mesh_operation
 
 _LOGGER = MeshLogAdapter(logging.getLogger(__name__), {})
@@ -68,12 +72,10 @@ class BridgeHTTPMixin:
         url = f"{self._bridge_url}{path}"
         try:
             session = self._get_session()
-            async with session.get(
-                url, timeout=aiohttp.ClientTimeout(total=timeout)
-            ) as resp:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
                 result: dict[str, Any] = await resp.json()
                 return result
-        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, aiohttp.ClientError) as exc:
             msg = f"Bridge HTTP GET {path} failed: {exc}"
             raise MeshConnectionError(msg) from exc
 
@@ -92,7 +94,7 @@ class BridgeHTTPMixin:
             ) as resp:
                 result: dict[str, Any] = await resp.json()
                 return result
-        except (aiohttp.ClientError, asyncio.TimeoutError) as exc:
+        except (TimeoutError, aiohttp.ClientError) as exc:
             msg = f"Bridge HTTP POST {path} failed: {exc}"
             raise MeshConnectionError(msg) from exc
 
@@ -121,12 +123,12 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
             bridge_port: HTTP port of the bridge daemon.
 
         Raises:
-            ValueError: If bridge_host contains CRLF characters (injection risk).
+            InvalidRequestError: If bridge_host contains CRLF characters (injection risk).
         """
         # SECURITY: Reject CRLF to prevent HTTP header injection
         if "\r" in bridge_host or "\n" in bridge_host:
             msg = "Invalid bridge_host: contains CRLF characters"
-            raise ValueError(msg)
+            raise InvalidRequestError(msg)
 
         self._address = address.upper()
         self._target_addr = target_addr
@@ -205,7 +207,7 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
                         self._bridge_port,
                     )
                     return
-            except Exception as exc:
+            except (TimeoutError, aiohttp.ClientError, OSError, MeshConnectionError) as exc:
                 _LOGGER.warning(
                     "Bridge connection attempt %d/%d failed: %s",
                     attempt,
@@ -217,6 +219,30 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
 
         msg = f"Bridge daemon not reachable at {self._bridge_url}"
         raise MeshConnectionError(msg)
+
+    @staticmethod
+    def _parse_http_body(raw_response: str) -> str:
+        """Parse HTTP response body from a raw HTTP response string.
+
+        Args:
+            raw_response: Raw HTTP response text including headers.
+
+        Returns:
+            The HTTP body content after the header/body separator.
+
+        Raises:
+            MeshConnectionError: If the response has no valid body separator or empty body.
+        """
+        separator = "\r\n\r\n"
+        idx = raw_response.find(separator)
+        if idx == -1:
+            msg = "Invalid HTTP response: no header/body separator"
+            raise MeshConnectionError(msg)
+        body = raw_response[idx + len(separator):]
+        if not body:
+            msg = "Invalid HTTP response: empty body"
+            raise MeshConnectionError(msg)
+        return body
 
     async def disconnect(self) -> None:
         """Mark as disconnected and close HTTP session."""
@@ -270,7 +296,7 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
                     for callback in list(self._onoff_callbacks):
                         try:
                             callback(on_state)
-                        except Exception:
+                        except BaseException:
                             _LOGGER.warning("OnOff callback error", exc_info=True)
                     return
 
@@ -318,7 +344,7 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
                 # Check if this is a fresh result (timestamp after we submitted)
                 if result.get("action") == action and result.get("timestamp"):
                     return result
-            except Exception:
+            except (TimeoutError, aiohttp.ClientError, OSError):
                 # Bridge might be down (WiFi off during BLE operation)
                 _LOGGER.debug(
                     "Poll attempt %d — bridge unreachable",
@@ -330,7 +356,7 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
         for callback in list(self._disconnect_callbacks):
             try:
                 callback()
-            except Exception:
+            except BaseException:
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
         return {"success": False, "error": "Timed out waiting for bridge result"}
 
@@ -367,12 +393,12 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
             bridge_port: HTTP port of the bridge daemon.
 
         Raises:
-            ValueError: If bridge_host contains CRLF characters (injection risk).
+            InvalidRequestError: If bridge_host contains CRLF characters (injection risk).
         """
         # SECURITY: Reject CRLF to prevent HTTP header injection
         if "\r" in bridge_host or "\n" in bridge_host:
             msg = "Invalid bridge_host: contains CRLF characters"
-            raise ValueError(msg)
+            raise InvalidRequestError(msg)
 
         self._address = address.upper()
         self._bridge_host = bridge_host
@@ -469,7 +495,7 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
                         self._bridge_port,
                     )
                     return
-            except Exception as exc:
+            except (TimeoutError, aiohttp.ClientError, OSError) as exc:
                 _LOGGER.warning(
                     "Bridge attempt %d/%d failed: %s",
                     attempt,
@@ -492,7 +518,7 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
         for callback in list(self._disconnect_callbacks):
             try:
                 callback()
-            except Exception:
+            except BaseException:
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
 
     def _fire_status(self) -> None:
@@ -512,7 +538,7 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
         for callback in list(self._status_callbacks):
             try:
                 callback(status)
-            except Exception:
+            except BaseException:
                 _LOGGER.warning("Status callback error", exc_info=True)
 
     async def send_power(self, on: bool) -> None:
@@ -688,7 +714,7 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
                         raise SIGMeshError(msg)
                 except SIGMeshError:
                     raise
-                except Exception:
+                except (TimeoutError, aiohttp.ClientError, OSError):
                     _LOGGER.debug("Poll — bridge unreachable (WiFi likely down)")
                     continue
 

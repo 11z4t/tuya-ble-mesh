@@ -183,6 +183,10 @@ def mac_to_bytes(mac: str) -> bytes:
     """
     from tuya_ble_mesh.exceptions import ProtocolError
 
+    if not mac:
+        msg = "MAC address cannot be empty"
+        raise ProtocolError(msg)
+
     parts = mac.split(":")
     if len(parts) != 6:
         msg = f"Invalid MAC format: {mac}"

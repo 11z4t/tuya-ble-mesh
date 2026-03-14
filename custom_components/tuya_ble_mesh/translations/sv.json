@@ -140,6 +140,17 @@
       },
       "energy": {
         "name": "Energi"
+      },
+      "connection_quality": {
+        "name": "Anslutningskvalitet",
+        "state": {
+          "good": "Bra",
+          "marginal": "Acceptabel",
+          "poor": "Dålig"
+        }
+      },
+      "last_seen": {
+        "name": "Senast kontaktad"
       }
     },
     "binary_sensor": {

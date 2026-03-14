@@ -61,7 +61,11 @@ def get_log_extra() -> dict[str, str]:
     }
 
 
-def set_context(mac: str, operation: str, corr_id: str | None = None) -> tuple[Any, Any, Any]:
+def set_context(
+    mac: str,
+    operation: str,
+    corr_id: str | None = None,
+) -> tuple[contextvars.Token[str], contextvars.Token[str], contextvars.Token[str]]:
     """Set the logging context variables and return reset tokens.
 
     Args:
@@ -79,7 +83,9 @@ def set_context(mac: str, operation: str, corr_id: str | None = None) -> tuple[A
     return tok_corr, tok_mac, tok_op
 
 
-def reset_context(tokens: tuple[Any, Any, Any]) -> None:
+def reset_context(
+    tokens: tuple[contextvars.Token[str], contextvars.Token[str], contextvars.Token[str]],
+) -> None:
     """Reset context variables to their previous values.
 
     Args:

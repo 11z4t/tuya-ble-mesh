@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.light import (  # type: ignore[attr-defined]
@@ -33,6 +34,7 @@ from custom_components.tuya_ble_mesh.const import (
     HA_BRIGHTNESS_MIN,
     HA_MIRED_MAX,
     HA_MIRED_MIN,
+    MESH_SCENES,
     PLUG_DEVICE_TYPES,
 )
 
@@ -131,6 +133,104 @@ def color_temp_to_device(mired_value: int) -> int:
     )
 
 
+@dataclass(frozen=True)
+class _TurnOnCommand:
+    """Structured turn-on command built from HA service call parameters."""
+
+    power_on: bool
+    brightness: int | None
+    color_temp: int | None
+    rgb: tuple[int, int, int] | None
+    use_color_brightness: bool
+
+
+def _build_turn_on_command(
+    brightness: int | None,
+    color_temp: int | None,
+    rgb_color: tuple[int, int, int] | None,
+    has_target: bool,
+    current_mode: int,
+) -> _TurnOnCommand:
+    """Build a structured turn-on command from HA service call arguments.
+
+    Args:
+        brightness: HA brightness (1-255), or None.
+        color_temp: Color temperature in mireds, or None.
+        rgb_color: RGB tuple (0-255 each), or None.
+        has_target: True if any brightness/CT/RGB target was supplied.
+        current_mode: Current device mode (0=CT/white, 1=RGB/color).
+
+    Returns:
+        _TurnOnCommand with resolved fields.
+    """
+    if not has_target:
+        return _TurnOnCommand(
+            power_on=True,
+            brightness=None,
+            color_temp=None,
+            rgb=None,
+            use_color_brightness=False,
+        )
+
+    # Determine color scale vs white scale
+    # CT request → white scale (use_color_brightness=False)
+    # RGB request → color scale (use_color_brightness=True)
+    # Brightness only → follow current mode
+    if color_temp is not None:
+        use_color = False
+    elif rgb_color is not None:
+        use_color = True
+    else:
+        use_color = current_mode == 1
+
+    dev_brightness: int | None = None
+    if brightness is not None:
+        if use_color:
+            dev_brightness = brightness  # 0-255 identity
+        else:
+            dev_brightness = brightness_to_device(brightness)
+
+    dev_color_temp: int | None = None
+    if color_temp is not None:
+        dev_color_temp = color_temp_to_device(color_temp)
+
+    return _TurnOnCommand(
+        power_on=False,
+        brightness=dev_brightness,
+        color_temp=dev_color_temp,
+        rgb=rgb_color,
+        use_color_brightness=use_color,
+    )
+
+
+def color_brightness_to_ha(device_value: int) -> int:
+    """Convert device color brightness (0-255) to HA color brightness (0-255).
+
+    Color mode uses the same 0-255 scale on both sides.
+
+    Args:
+        device_value: Device color brightness value.
+
+    Returns:
+        HA color brightness value.
+    """
+    return max(0, min(device_value, 255))
+
+
+def color_brightness_to_device(ha_value: int) -> int:
+    """Convert HA color brightness (0-255) to device color brightness (0-255).
+
+    Color mode uses the same 0-255 scale on both sides.
+
+    Args:
+        ha_value: HA color brightness value.
+
+    Returns:
+        Device color brightness value.
+    """
+    return max(0, min(ha_value, 255))
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: TuyaBLEMeshConfigEntry,
@@ -155,7 +255,7 @@ class TuyaBLEMeshLight(LightEntity):
     """Light entity for a Tuya BLE Mesh device."""
 
     _attr_should_poll = False
-    _attr_supported_features = LightEntityFeature.TRANSITION
+    _attr_supported_features = LightEntityFeature.TRANSITION | LightEntityFeature.EFFECT
     _attr_has_entity_name = True
     _attr_name = None  # Use device name as entity name
     _attr_unique_id: str
@@ -178,9 +278,13 @@ class TuyaBLEMeshLight(LightEntity):
         self._attr_unique_id = f"{coordinator.device.address}_light"
         if device_info is not None:
             self._attr_device_info = device_info
-        self._remove_listener: Any = None
         self._transition_task: asyncio.Task[None] | None = None
         self._pending_command_task: asyncio.Task[None] | None = None
+
+    @property
+    def coordinator(self) -> TuyaBLEMeshCoordinator:
+        """Return the coordinator managing this entity."""
+        return self._coordinator
 
     @property
     def unique_id(self) -> str:
@@ -239,6 +343,19 @@ class TuyaBLEMeshLight(LightEntity):
         """Return supported color modes."""
         return {ColorMode.COLOR_TEMP, ColorMode.RGB}
 
+    @property
+    def effect(self) -> str | None:
+        """Return the active scene/effect name, or None if no scene is active."""
+        scene_id = self._coordinator.state.scene_id
+        if scene_id == 0:
+            return None
+        return MESH_SCENES.get(scene_id)
+
+    @property
+    def supported_effects(self) -> list[str]:
+        """Return list of supported scene/effect names."""
+        return list(MESH_SCENES.values())
+
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the light.
 
@@ -251,6 +368,16 @@ class TuyaBLEMeshLight(LightEntity):
         """
         self._cancel_transition()
         self._cancel_pending_command()
+
+        # Handle scene/effect activation immediately (no debounce needed)
+        effect: str | None = kwargs.get("effect")
+        if effect is not None:
+            _SCENES_BY_NAME = {v: k for k, v in MESH_SCENES.items()}
+            scene_id = _SCENES_BY_NAME.get(effect)
+            if scene_id is not None:
+                await self._coordinator.device.send_scene(scene_id)
+                self._coordinator.set_scene_id(scene_id)
+            return
 
         transition: float | None = kwargs.get(ATTR_TRANSITION)
         brightness = kwargs.get("brightness")
@@ -431,15 +558,14 @@ class TuyaBLEMeshLight(LightEntity):
 
     async def async_added_to_hass(self) -> None:
         """Register state listener when added to HA."""
-        self._remove_listener = self._coordinator.add_listener(self._handle_coordinator_update)
+        self.async_on_remove(
+            self._coordinator.async_add_listener(self._handle_coordinator_update)
+        )
 
     async def async_will_remove_from_hass(self) -> None:
-        """Remove state listener when removed from HA."""
+        """Cancel in-progress transitions and pending commands when removed from HA."""
         self._cancel_transition()
         self._cancel_pending_command()
-        if self._remove_listener is not None:
-            self._remove_listener()
-            self._remove_listener = None
 
     def _handle_coordinator_update(self) -> None:
         """Handle updated data from the coordinator."""

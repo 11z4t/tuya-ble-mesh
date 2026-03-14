@@ -304,7 +304,8 @@ class TestSegmentReassembly:
         )
         return dev
 
-    def test_handle_segment_collects_segments(self) -> None:
+    @pytest.mark.asyncio
+    async def test_handle_segment_collects_segments(self) -> None:
         """_handle_segment should collect segments into buffer."""
         import struct
 
@@ -314,7 +315,7 @@ class TestSegmentReassembly:
         info = (0 << 23) | (100 << 10) | (0 << 5) | 1  # seg_o=0, seg_n=1
         pdu = bytes([hdr]) + struct.pack(">I", info)[1:] + b"\x42" * 12
 
-        dev._handle_segment(0x00AA, 0x0001, pdu)
+        await dev._handle_segment(0x00AA, 0x0001, pdu)
 
         assert (0x00AA, 0x0001, 100, 0) in dev._segment_buffers
         buf = dev._segment_buffers[(0x00AA, 0x0001, 100, 0)]
@@ -346,7 +347,8 @@ class TestSegmentReassembly:
         # Buffer should be consumed after complete reassembly
         assert (0x00AA, 100 & 0x1FFF) not in dev._segment_buffers
 
-    def test_stale_buffer_cleanup(self) -> None:
+    @pytest.mark.asyncio
+    async def test_stale_buffer_cleanup(self) -> None:
         """Stale buffers should be removed by _clean_stale_buffers."""
         import struct
         import time
@@ -357,7 +359,7 @@ class TestSegmentReassembly:
         hdr = 0x80
         info = (0 << 23) | (200 << 10) | (0 << 5) | 1
         pdu = bytes([hdr]) + struct.pack(">I", info)[1:] + b"\x42" * 12
-        dev._handle_segment(0x00AA, 0x0001, pdu)
+        await dev._handle_segment(0x00AA, 0x0001, pdu)
 
         # Make the buffer look stale
         buf = dev._segment_buffers[(0x00AA, 0x0001, 200, 0)]
@@ -366,19 +368,20 @@ class TestSegmentReassembly:
         # Trigger cleanup with another segment
         info2 = (0 << 23) | (300 << 10) | (0 << 5) | 0
         pdu2 = bytes([hdr]) + struct.pack(">I", info2)[1:] + b"\x42" * 8
-        dev._handle_segment(0x00BB, 0x0001, pdu2)
+        await dev._handle_segment(0x00BB, 0x0001, pdu2)
 
         # Stale buffer should be gone
         assert (0x00AA, 0x0001, 200, 0) not in dev._segment_buffers
 
-    def test_dispatch_access_payload_onoff(self) -> None:
+    @pytest.mark.asyncio
+    async def test_dispatch_access_payload_onoff(self) -> None:
         """_dispatch_access_payload should invoke onoff callbacks."""
         dev = self._make_device_with_keys()
         cb = MagicMock()
         dev.register_onoff_callback(cb)
 
         # OnOff Status: ON
-        dev._dispatch_access_payload(0x00AA, b"\x82\x04\x01")
+        await dev._dispatch_access_payload(0x00AA, b"\x82\x04\x01")
 
         cb.assert_called_once_with(True)
 
@@ -415,7 +418,8 @@ class TestVendorCallbacks:
         dev.unregister_vendor_callback(cb)
         assert cb not in dev._vendor_callbacks
 
-    def test_dispatch_vendor_opcode(self) -> None:
+    @pytest.mark.asyncio
+    async def test_dispatch_vendor_opcode(self) -> None:
         """3-byte vendor opcodes should invoke vendor callbacks."""
         from tuya_ble_mesh.sig_mesh_protocol import MeshKeys
 
@@ -429,7 +433,7 @@ class TestVendorCallbacks:
         dev.register_vendor_callback(cb)
 
         # 3-byte vendor opcode 0xCDD007
-        dev._dispatch_access_payload(0x00AA, b"\xcd\xd0\x07\x01\x02\x03")
+        await dev._dispatch_access_payload(0x00AA, b"\xcd\xd0\x07\x01\x02\x03")
 
         cb.assert_called_once()
         call_args = cb.call_args[0]
@@ -524,7 +528,8 @@ class TestCompositionData:
         comp = cb.call_args[0][0]
         assert comp.cid == 0x07D0
 
-    def test_dispatch_composition_status_opcode(self) -> None:
+    @pytest.mark.asyncio
+    async def test_dispatch_composition_status_opcode(self) -> None:
         """Opcode 0x02 should route to _handle_composition_data."""
         import struct
 
@@ -541,7 +546,7 @@ class TestCompositionData:
         features = struct.pack("<H", 0x0003)
         access_payload = b"\x02" + page + cid + pid + vid + crpl + features
 
-        dev._dispatch_access_payload(0x00AA, access_payload)
+        await dev._dispatch_access_payload(0x00AA, access_payload)
 
         cb.assert_called_once()
         assert dev.firmware_version is not None

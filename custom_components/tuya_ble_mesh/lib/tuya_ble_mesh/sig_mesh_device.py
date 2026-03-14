@@ -20,21 +20,22 @@ import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Protocol
 
 from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
-from bleak.exc import BleakError
+from bleak.exc import BleakDBusError, BleakError
 
 from tuya_ble_mesh.exceptions import (
     ConnectionError as MeshConnectionError,
 )
 from tuya_ble_mesh.exceptions import (
+    MalformedPacketError,
+    SecretAccessError,
     SIGMeshError,
     SIGMeshKeyError,
 )
 from tuya_ble_mesh.logging_context import MeshLogAdapter, mesh_operation
-from tuya_ble_mesh.secrets import SecretsManager
 from tuya_ble_mesh.sig_mesh_protocol import (
     _OPCODE_COMPOSITION_STATUS,
     SEG_DATA_SIZE,
@@ -70,13 +71,10 @@ _OPCODE_APPKEY_STATUS = 0x8003
 _OPCODE_MODEL_APP_STATUS = 0x803E
 
 # Callback types
-OnOffCallback = Callable[[bool], None]
-VendorCallback = Callable[[int, bytes], None]
-CompositionCallback = Callable[[CompositionData], None]
-DisconnectCallback = Callable[[], None]
-
-# Initial sequence number (in-memory, not persisted)
-_INITIAL_SEQ = 2000
+OnOffCallback = Callable[[bool], Any]
+VendorCallback = Callable[[int, bytes], Any]
+CompositionCallback = Callable[[CompositionData], Any]
+DisconnectCallback = Callable[[], Any]
 
 # Default TTL for mesh commands
 _DEFAULT_TTL = 5
@@ -84,14 +82,12 @@ _DEFAULT_TTL = 5
 # Reassembly timeout for segmented messages (seconds)
 _REASSEMBLY_TIMEOUT = 10.0
 
-# Connection retry delay (seconds)
-_CONNECT_RETRY_DELAY = 2.0
+# BLE write retry backoff parameters
+_BLE_WRITE_RETRY_INITIAL_BACKOFF = 1.0
+_BLE_WRITE_RETRY_BACKOFF_MULTIPLIER = 2.0
 
-# Delay between segment sends (seconds)
-_SEGMENT_SEND_INTERVAL = 0.1
-
-# Bluetoothctl command timeout (seconds)
-_BLUETOOTHCTL_TIMEOUT = 5.0
+# BlueZ D-Bus cache settle delay after device removal (seconds)
+_BLUEZ_CACHE_CLEAR_DELAY = 2.0
 
 
 @dataclass
@@ -109,6 +105,61 @@ class _ReassemblyBuffer:
     created_at: float = field(default_factory=time.monotonic)
 
 
+class SeqStore(Protocol):
+    """Protocol for sequence number persistence.
+
+    Implementations can persist seq to disk (HA coordinator) or keep in-memory (default).
+    """
+
+    def get_seq(self) -> int:
+        """Return the current sequence number.
+
+        Returns:
+            Current sequence number.
+        """
+        ...
+
+    def set_seq(self, seq: int) -> None:
+        """Set the sequence number.
+
+        Args:
+            seq: Sequence number to set.
+        """
+        ...
+
+
+class InMemorySeqStore:
+    """Default in-memory sequence number store.
+
+    Starts from 0 (not the legacy _INITIAL_SEQ=2000).
+    HA coordinator should provide a persistent store via the Store mechanism.
+    """
+
+    def __init__(self, initial_seq: int = 0) -> None:
+        """Initialize the in-memory seq store.
+
+        Args:
+            initial_seq: Initial sequence number (default 0).
+        """
+        self._seq = initial_seq
+
+    def get_seq(self) -> int:
+        """Return the current sequence number.
+
+        Returns:
+            Current sequence number.
+        """
+        return self._seq
+
+    def set_seq(self, seq: int) -> None:
+        """Set the sequence number.
+
+        Args:
+            seq: Sequence number to set.
+        """
+        self._seq = seq
+
+
 class SIGMeshDevice:
     """High-level interface to a SIG Mesh device via GATT Proxy.
 
@@ -121,10 +172,11 @@ class SIGMeshDevice:
         address: str,
         target_addr: int,
         our_addr: int,
-        secrets: SecretsManager,
+        secrets: Any,
         *,
         op_item_prefix: str = "s17",
         iv_index: int = 0,
+        seq_store: SeqStore | None = None,
         ble_device_callback: Any = None,
         adapter: str | None = None,
     ) -> None:
@@ -137,6 +189,8 @@ class SIGMeshDevice:
             secrets: SecretsManager instance for key loading.
             op_item_prefix: 1Password item name prefix for keys.
             iv_index: Mesh IV Index.
+            seq_store: Optional SeqStore for sequence number persistence.
+                If None, uses InMemorySeqStore starting from 0.
             ble_device_callback: Optional callback(address) → BLEDevice for
                 HA Bluetooth Proxy support. If None, uses BleakScanner.
             adapter: BLE adapter name (e.g. "hci0"). Forces scan and connect
@@ -153,9 +207,11 @@ class SIGMeshDevice:
 
         self._client: BleakClient | None = None
         self._keys: MeshKeys | None = None
-        self._seq = _INITIAL_SEQ
+        self._seq_store: SeqStore = seq_store if seq_store is not None else InMemorySeqStore()
         self._seq_lock = asyncio.Lock()
+        self._segment_lock = asyncio.Lock()  # CF-1: Protect _segment_buffers and _pending_responses
         self._tid = 0
+        self._correlation_id = 0
 
         self._onoff_callbacks: list[OnOffCallback] = []
         self._vendor_callbacks: list[VendorCallback] = []
@@ -166,13 +222,15 @@ class SIGMeshDevice:
         self._composition: CompositionData | None = None
         self._firmware_version: str | None = None
 
-        # Segmented message reassembly buffers: (src, seq_zero) -> buffer
-        self._segment_buffers: dict[tuple[int, int], _ReassemblyBuffer] = {}
+        # Segmented message reassembly buffers: (src, dst, seq_zero, aid) -> buffer
+        # Per BT Mesh spec, must include dst and aid to avoid collision
+        self._segment_buffers: dict[tuple[int, int, int, int], _ReassemblyBuffer] = {}
 
-        # Pending response futures: opcode -> Future(params)
-        self._pending_responses: dict[int, asyncio.Future[bytes]] = {}
+        # Pending response futures: (opcode, correlation_id) -> Future(params)
+        # Correlation ID prevents concurrent requests with same opcode from colliding
+        self._pending_responses: dict[tuple[int, int], asyncio.Future[bytes]] = {}
 
-        # Pending notify processing tasks
+        # Pending notify processing tasks (for lifecycle management)
         self._pending_notify_tasks: set[asyncio.Task] = set()
 
     @property
@@ -193,18 +251,22 @@ class SIGMeshDevice:
     def set_seq(self, seq: int) -> None:
         """Override the current sequence number (for restore on startup).
 
+        Delegates to the configured seq_store.
+
         Args:
             seq: Sequence number to set.
         """
-        self._seq = seq
+        self._seq_store.set_seq(seq)
 
     def get_seq(self) -> int:
         """Return the current sequence number (for persistence).
 
+        Delegates to the configured seq_store.
+
         Returns:
             Current sequence number.
         """
-        return self._seq
+        return self._seq_store.get_seq()
 
     def register_onoff_callback(self, callback: OnOffCallback) -> None:
         """Register a callback for GenericOnOff Status notifications.
@@ -325,9 +387,7 @@ class SIGMeshDevice:
                         self._address,
                         self._adapter or "default",
                     )
-                    device = await BleakScanner.find_device_by_address(
-                        self._address, **scan_kwargs
-                    )
+                    device = await BleakScanner.find_device_by_address(self._address, **scan_kwargs)
                 if device is None:
                     msg = f"Device {self._address} not found"
                     raise MeshConnectionError(msg)
@@ -343,10 +403,10 @@ class SIGMeshDevice:
 
                 # Subscribe to Proxy Data Out notifications
                 # Wrap in try/except: on some BlueZ versions, start_notify
-                # triggers EOFError on the D-Bus connection for mesh devices.
+                # triggers EOFError or BleakDBusError on the D-Bus connection for mesh devices.
                 try:
                     await client.start_notify(SIG_MESH_PROXY_DATA_OUT, self._on_notify)
-                except (EOFError, Exception) as notify_exc:
+                except (EOFError, BleakError, BleakDBusError, OSError) as notify_exc:
                     _LOGGER.warning(
                         "Notification subscription failed for %s: %s (%s) — "
                         "device will work but won't receive push status updates",
@@ -361,7 +421,7 @@ class SIGMeshDevice:
                 # Request Composition Data (non-critical)
                 try:
                     await self.request_composition_data()
-                except (asyncio.TimeoutError, SIGMeshError, BleakError):
+                except (TimeoutError, SIGMeshError, BleakError):
                     _LOGGER.debug(
                         "Composition Data request failed (non-critical)",
                         exc_info=True,
@@ -378,21 +438,18 @@ class SIGMeshDevice:
                 )
                 # Remove cached BLE device between retries
                 await self._bluetoothctl_remove()
-                await asyncio.sleep(_CONNECT_RETRY_DELAY)
+                await asyncio.sleep(_BLUEZ_CACHE_CLEAR_DELAY)
 
         msg = f"Failed to connect to {self._address} after {max_retries} attempts"
         raise MeshConnectionError(msg) from last_error
 
     async def disconnect(self) -> None:
-        """Disconnect from the device and zero key material.
-
-        Stops BLE notifications, disconnects the client, and securely zeroes
-        encryption keys in memory before clearing references.
-        """
+        """Disconnect from the device and zero key material."""
         if self._client is not None:
-            with contextlib.suppress(Exception):
+            # HF-1: Suppress only expected BLE exceptions, not all exceptions
+            with contextlib.suppress(BleakError, OSError):
                 await self._client.stop_notify(SIG_MESH_PROXY_DATA_OUT)
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(BleakError, OSError):
                 await self._client.disconnect()
             self._client = None
 
@@ -407,7 +464,7 @@ class SIGMeshDevice:
                     # Overwrite mutable bytearray if possible
                     if isinstance(val, bytearray) and len(val) > 0:
                         val[:] = b"\x00" * len(val)
-            except Exception:
+            except (AttributeError, TypeError):
                 pass  # Frozen dataclass, best effort only
             self._keys = None
 
@@ -436,8 +493,7 @@ class SIGMeshDevice:
                     self._address,
                     exc_info=exc,
                 )
-        except Exception:
-            # Task is not done or other edge cases
+        except asyncio.CancelledError:
             pass
 
     async def send_power(self, on: bool, *, max_retries: int = 3) -> None:
@@ -454,16 +510,16 @@ class SIGMeshDevice:
             MeshConnectionError: If BLE write fails after all retries.
         """
         if self._client is None or self._keys is None:
-            msg = f"Not connected for {self._address} (target=0x{self._target_addr:04X})"
+            msg = "Not connected"
             raise SIGMeshError(msg)
 
         app_key = self._keys.app_key
         if app_key is None:
-            msg = f"No application key loaded for {self._address} (prefix={self._op_item_prefix})"
+            msg = "No application key loaded"
             raise SIGMeshKeyError(msg)
 
         last_error: Exception | None = None
-        backoff = 1.0
+        backoff = _BLE_WRITE_RETRY_INITIAL_BACKOFF
 
         for attempt in range(1, max_retries + 1):
             try:
@@ -524,10 +580,67 @@ class SIGMeshDevice:
                     backoff,
                 )
                 await asyncio.sleep(backoff)
-                backoff *= 2.0
+                backoff *= _BLE_WRITE_RETRY_BACKOFF_MULTIPLIER
 
         msg = f"BLE write failed for {self._address} after {max_retries} attempts"
         raise MeshConnectionError(msg) from last_error
+
+    async def send_vendor_command(self, access_payload: bytes) -> None:
+        """Send a Tuya vendor model command (uses AppKey encryption).
+
+        Args:
+            access_payload: Complete access layer payload including opcode bytes.
+
+        Raises:
+            SIGMeshError: If not connected or keys not loaded.
+            MeshConnectionError: If BLE write fails.
+        """
+        if self._client is None or self._keys is None:
+            msg = "Not connected"
+            raise SIGMeshError(msg)
+
+        app_key = self._keys.app_key
+        if app_key is None:
+            msg = "No application key loaded"
+            raise SIGMeshKeyError(msg)
+
+        seq = await self._next_seq()
+
+        transport_pdu = make_access_unsegmented(
+            app_key,
+            self._our_addr,
+            self._target_addr,
+            seq,
+            self._keys.iv_index,
+            access_payload,
+            akf=1,
+            aid=self._keys.aid,
+        )
+
+        network_pdu = encrypt_network_pdu(
+            self._keys.enc_key,
+            self._keys.priv_key,
+            self._keys.nid,
+            ctl=0,
+            ttl=_DEFAULT_TTL,
+            seq=seq,
+            src=self._our_addr,
+            dst=self._target_addr,
+            transport_pdu=transport_pdu,
+            iv_index=self._keys.iv_index,
+        )
+
+        proxy_pdu = make_proxy_pdu(network_pdu)
+
+        await self._client.write_gatt_char(SIG_MESH_PROXY_DATA_IN, proxy_pdu, response=False)
+
+        _LOGGER.info(
+            "Vendor command sent to 0x%04X (opcode=%s, seq=%d, %d bytes)",
+            self._target_addr,
+            access_payload[:3].hex(),
+            seq,
+            len(access_payload),
+        )
 
     async def request_composition_data(self) -> None:
         """Send Config Composition Data Get to retrieve device info.
@@ -539,7 +652,7 @@ class SIGMeshDevice:
             SIGMeshError: If not connected or keys not loaded.
         """
         if self._client is None or self._keys is None:
-            msg = f"Not connected for {self._address} (target=0x{self._target_addr:04X})"
+            msg = "Not connected"
             raise SIGMeshError(msg)
 
         access_payload = config_composition_get(page=0)
@@ -583,24 +696,24 @@ class SIGMeshDevice:
         """Return and increment the sequence number (24-bit wrap).
 
         Protected by asyncio.Lock to prevent nonce collision from
-        concurrent callers.
+        concurrent callers. Delegates to seq_store.
 
         Raises:
             SIGMeshError: If sequence number exhausted (> 0xFFFFFF).
         """
         async with self._seq_lock:
-            if self._seq > 0xFFFFFF:
-                msg = f"Sequence number exhausted ({self._seq} > 0xFFFFFF) — reconnect required for {self._address}"
+            seq = self._seq_store.get_seq()
+            if seq > 0xFFFFFF:
+                msg = "Sequence number exhausted — reconnect required"
                 raise SIGMeshError(msg)
-            seq = self._seq
-            self._seq += 1
+            self._seq_store.set_seq(seq + 1)
             return seq
 
     async def _next_seqs(self, n: int) -> int:
         """Reserve n consecutive sequence numbers and return the first.
 
         Used for segmented messages that need a contiguous seq range.
-        Wraps at 24-bit boundary per SIG Mesh spec.
+        Wraps at 24-bit boundary per SIG Mesh spec. Delegates to seq_store.
 
         Args:
             n: Number of sequence numbers to reserve.
@@ -612,14 +725,14 @@ class SIGMeshDevice:
             SIGMeshError: If sequence number exhausted (> 0xFFFFFF).
         """
         async with self._seq_lock:
-            if self._seq > 0xFFFFFF or (self._seq + n) > 0xFFFFFF:
-                msg = f"Sequence number exhausted ({self._seq} + {n} > 0xFFFFFF) — reconnect required for {self._address}"
+            seq = self._seq_store.get_seq()
+            if seq > 0xFFFFFF or (seq + n) > 0xFFFFFF:
+                msg = "Sequence number exhausted — reconnect required"
                 raise SIGMeshError(msg)
-            seq = self._seq
-            self._seq += n
+            self._seq_store.set_seq(seq + n)
             return seq
 
-    async def send_config_app_key_add(
+    async def send_config_appkey_add(
         self,
         app_key: bytes,
         *,
@@ -646,7 +759,7 @@ class SIGMeshDevice:
             TimeoutError: If no response within response_timeout.
         """
         if self._client is None or self._keys is None:
-            msg = f"Not connected for {self._address} (target=0x{self._target_addr:04X}) — cannot send AppKey Add"
+            msg = "Not connected"
             raise SIGMeshError(msg)
 
         access_payload = config_appkey_add(net_idx, app_idx, app_key)
@@ -667,10 +780,14 @@ class SIGMeshDevice:
             aid=0,
         )
 
-        # Register response future BEFORE sending
+        # CF-1: Register response future BEFORE sending (protected by lock)
         loop = asyncio.get_running_loop()
         future: asyncio.Future[bytes] = loop.create_future()
-        self._pending_responses[_OPCODE_APPKEY_STATUS] = future
+        async with self._segment_lock:
+            corr_id = self._correlation_id
+            self._correlation_id += 1
+            resp_key = (_OPCODE_APPKEY_STATUS, corr_id)
+            self._pending_responses[resp_key] = future
 
         try:
             for seg_seq, transport_pdu in segments:
@@ -690,21 +807,24 @@ class SIGMeshDevice:
                 await self._client.write_gatt_char(
                     SIG_MESH_PROXY_DATA_IN, proxy_pdu, response=False
                 )
-                await asyncio.sleep(_SEGMENT_SEND_INTERVAL)
+                await asyncio.sleep(0.1)
 
             _LOGGER.info(
-                "AppKey Add sent to 0x%04X (%d segments, seq_start=%d)",
+                "AppKey Add sent to 0x%04X (%d segments, seq_start=%d, corr_id=%d)",
                 self._target_addr,
                 len(segments),
                 seq_start,
+                corr_id,
             )
 
             params = await asyncio.wait_for(asyncio.shield(future), timeout=response_timeout)
         except TimeoutError:
-            msg = f"Timeout waiting for AppKey Status response from 0x{self._target_addr:04X} ({response_timeout}s) on {self._address}"
+            msg = "Timeout waiting for AppKey Status response"
             raise SIGMeshError(msg) from None
         finally:
-            self._pending_responses.pop(_OPCODE_APPKEY_STATUS, None)
+            # CF-1: Cleanup response future (protected by lock)
+            async with self._segment_lock:
+                self._pending_responses.pop(resp_key, None)
 
         status = params[0] if params else 0xFF
         _LOGGER.info(
@@ -742,7 +862,7 @@ class SIGMeshDevice:
             TimeoutError: If no response within response_timeout.
         """
         if self._client is None or self._keys is None:
-            msg = f"Not connected for {self._address} (target=0x{self._target_addr:04X}) — cannot send Model App Bind"
+            msg = "Not connected"
             raise SIGMeshError(msg)
 
         access_payload = config_model_app_bind(element_addr, app_idx, model_id)
@@ -772,29 +892,36 @@ class SIGMeshDevice:
         )
         proxy_pdu = make_proxy_pdu(network_pdu)
 
-        # Register response future BEFORE sending
+        # CF-1: Register response future BEFORE sending (protected by lock)
         loop = asyncio.get_running_loop()
         future_bind: asyncio.Future[bytes] = loop.create_future()
-        self._pending_responses[_OPCODE_MODEL_APP_STATUS] = future_bind
+        async with self._segment_lock:
+            corr_id = self._correlation_id
+            self._correlation_id += 1
+            resp_key = (_OPCODE_MODEL_APP_STATUS, corr_id)
+            self._pending_responses[resp_key] = future_bind
 
         try:
             await self._client.write_gatt_char(SIG_MESH_PROXY_DATA_IN, proxy_pdu, response=False)
             _LOGGER.info(
-                "Model App Bind sent: element=0x%04X app_idx=%d model=0x%04X (seq=%d)",
+                "Model App Bind sent: element=0x%04X app_idx=%d model=0x%04X (seq=%d, corr_id=%d)",
                 element_addr,
                 app_idx,
                 model_id,
                 seq,
+                corr_id,
             )
 
             params_bind = await asyncio.wait_for(
                 asyncio.shield(future_bind), timeout=response_timeout
             )
         except TimeoutError:
-            msg = f"Timeout waiting for Model App Status response from 0x{self._target_addr:04X} ({response_timeout}s) on {self._address}"
+            msg = "Timeout waiting for Model App Status response"
             raise SIGMeshError(msg) from None
         finally:
-            self._pending_responses.pop(_OPCODE_MODEL_APP_STATUS, None)
+            # CF-1: Cleanup response future (protected by lock)
+            async with self._segment_lock:
+                self._pending_responses.pop(resp_key, None)
 
         status_bind = params_bind[0] if params_bind else 0xFF
         _LOGGER.info(
@@ -825,7 +952,7 @@ class SIGMeshDevice:
                 f"{prefix}-app-key",
                 "password",  # pragma: allowlist secret
             )
-        except Exception as exc:
+        except (SecretAccessError, OSError, ValueError, RuntimeError) as exc:
             msg = f"Failed to load SIG Mesh keys for prefix '{prefix}'"
             raise SIGMeshKeyError(msg) from exc
 
@@ -862,6 +989,8 @@ class SIGMeshDevice:
             task.add_done_callback(self._pending_notify_tasks.discard)
             task.add_done_callback(self._log_notify_exception)
         except RuntimeError:
+            # asyncio.get_running_loop() raises RuntimeError if no loop is running
+            # (documented stdlib behavior). This can happen during shutdown.
             _LOGGER.debug("No running event loop for notify callback")
 
     async def _process_notify(self, data: bytes) -> None:
@@ -877,7 +1006,7 @@ class SIGMeshDevice:
 
         try:
             proxy = parse_proxy_pdu(data)
-        except Exception:
+        except MalformedPacketError:
             _LOGGER.debug("Failed to parse proxy PDU (%d bytes)", len(data), exc_info=True)
             return
 
@@ -904,17 +1033,20 @@ class SIGMeshDevice:
             return
 
         if access_msg.seg:
-            self._handle_segment(net_pdu.src, net_pdu.dst, net_pdu.transport_pdu)
+            await self._handle_segment(net_pdu.src, net_pdu.dst, net_pdu.transport_pdu)
             return
 
         if access_msg.access_payload is None:
             _LOGGER.debug("Unsegmented access payload decryption failed")
             return
 
-        self._dispatch_access_payload(net_pdu.src, access_msg.access_payload)
+        await self._dispatch_access_payload(net_pdu.src, access_msg.access_payload)
 
-    def _handle_segment(self, src: int, dst: int, transport_pdu: bytes) -> None:
+    async def _handle_segment(self, src: int, dst: int, transport_pdu: bytes) -> None:
         """Collect a segment and attempt reassembly when complete.
+
+        CF-1: Protected with _segment_lock to prevent race conditions in concurrent
+        notify callbacks corrupting segment reassembly state.
 
         Args:
             src: Source unicast address.
@@ -923,49 +1055,55 @@ class SIGMeshDevice:
         """
         try:
             seg_hdr = parse_segment_header(transport_pdu)
-        except Exception:
+        except MalformedPacketError:
             _LOGGER.debug("Failed to parse segment header", exc_info=True)
             return
 
-        buf_key = (src, seg_hdr.seq_zero)
+        # Per BT Mesh spec: buffer key must include src, dst, seq_zero, and aid
+        buf_key = (src, dst, seg_hdr.seq_zero, seg_hdr.aid)
 
-        # Get or create reassembly buffer
-        buf = self._segment_buffers.get(buf_key)
-        if buf is None:
-            buf = _ReassemblyBuffer(
-                src=src,
-                dst=dst,
-                akf=seg_hdr.akf,
-                aid=seg_hdr.aid,
-                szmic=seg_hdr.szmic,
-                seq_zero=seg_hdr.seq_zero,
-                seg_n=seg_hdr.seg_n,
+        # CF-1: Lock ALL access to _segment_buffers to prevent race conditions
+        async with self._segment_lock:
+            # Get or create reassembly buffer
+            buf = self._segment_buffers.get(buf_key)
+            if buf is None:
+                buf = _ReassemblyBuffer(
+                    src=src,
+                    dst=dst,
+                    akf=seg_hdr.akf,
+                    aid=seg_hdr.aid,
+                    szmic=seg_hdr.szmic,
+                    seq_zero=seg_hdr.seq_zero,
+                    seg_n=seg_hdr.seg_n,
+                )
+                self._segment_buffers[buf_key] = buf
+
+            buf.segments[seg_hdr.seg_o] = seg_hdr.segment_data
+
+            _LOGGER.debug(
+                "Segment %d/%d received from 0x%04X (seq_zero=%d)",
+                seg_hdr.seg_o,
+                seg_hdr.seg_n,
+                src,
+                seg_hdr.seq_zero,
             )
-            self._segment_buffers[buf_key] = buf
 
-        buf.segments[seg_hdr.seg_o] = seg_hdr.segment_data
+            # Check if all segments received
+            if len(buf.segments) == buf.seg_n + 1:
+                await self._complete_reassembly(buf_key)
 
-        _LOGGER.debug(
-            "Segment %d/%d received from 0x%04X (seq_zero=%d)",
-            seg_hdr.seg_o,
-            seg_hdr.seg_n,
-            src,
-            seg_hdr.seq_zero,
-        )
+            # Clean stale buffers
+            await self._clean_stale_buffers()
 
-        # Check if all segments received
-        if len(buf.segments) == buf.seg_n + 1:
-            self._complete_reassembly(buf_key)
-
-        # Clean stale buffers
-        self._clean_stale_buffers()
-
-    def _complete_reassembly(self, buf_key: tuple[int, int]) -> None:
+    async def _complete_reassembly(self, buf_key: tuple[int, int, int, int]) -> None:
         """Decrypt a fully reassembled segmented message and dispatch.
 
+        CF-1: Called while holding _segment_lock to ensure atomic buffer removal.
+
         Args:
-            buf_key: (src, seq_zero) key into _segment_buffers.
+            buf_key: (src, dst, seq_zero, aid) key into _segment_buffers.
         """
+        # CF-1: Buffer removal happens while lock is held (caller holds _segment_lock)
         buf = self._segment_buffers.pop(buf_key, None)
         if buf is None or self._keys is None:
             return
@@ -995,10 +1133,14 @@ class SIGMeshDevice:
             len(access_payload),
         )
 
-        self._dispatch_access_payload(buf.src, access_payload)
+        await self._dispatch_access_payload(buf.src, access_payload)
 
-    def _clean_stale_buffers(self) -> None:
-        """Remove reassembly buffers older than _REASSEMBLY_TIMEOUT."""
+    async def _clean_stale_buffers(self) -> None:
+        """Remove reassembly buffers older than _REASSEMBLY_TIMEOUT.
+
+        CF-1: Called while holding _segment_lock to ensure thread-safe iteration.
+        """
+        # CF-1: Iteration happens while lock is held (caller holds _segment_lock)
         now = time.monotonic()
         stale = [
             key
@@ -1009,8 +1151,11 @@ class SIGMeshDevice:
             _LOGGER.debug("Discarding stale reassembly buffer: %s", key)
             del self._segment_buffers[key]
 
-    def _dispatch_access_payload(self, src: int, access_payload: bytes) -> None:
+    async def _dispatch_access_payload(self, src: int, access_payload: bytes) -> None:
         """Parse opcode and route to appropriate handler.
+
+        CF-1: Protected with _segment_lock to prevent race conditions when accessing
+        _pending_responses from concurrent notify callbacks.
 
         Shared by both unsegmented and reassembled segmented paths.
         Pending response futures (from send_config_*) are resolved first.
@@ -1021,16 +1166,24 @@ class SIGMeshDevice:
         """
         try:
             opcode, params = parse_access_opcode(access_payload)
-        except Exception:
+        except MalformedPacketError:
             _LOGGER.debug("Failed to parse access opcode", exc_info=True)
             return
 
-        # Resolve pending config response futures (AppKey Status, Model App Status)
-        if opcode in self._pending_responses:
-            future = self._pending_responses.pop(opcode)
-            if not future.done():
-                future.set_result(params)
-            return
+        # CF-1: Lock access to _pending_responses to prevent race conditions
+        async with self._segment_lock:
+            # Resolve pending config response futures (AppKey Status, Model App Status)
+            # Match first pending response with matching opcode (FIFO order by correlation_id)
+            matched_key = None
+            for key in self._pending_responses:
+                if key[0] == opcode:
+                    matched_key = key
+                    break
+            if matched_key is not None:
+                future = self._pending_responses.pop(matched_key)
+                if not future.done():
+                    future.set_result(params)
+                return
 
         if opcode == _OPCODE_ONOFF_STATUS and params:
             on_state = bool(params[0])
@@ -1042,7 +1195,7 @@ class SIGMeshDevice:
             for callback in list(self._onoff_callbacks):
                 try:
                     callback(on_state)
-                except Exception:
+                except BaseException:
                     _LOGGER.warning("OnOff callback error", exc_info=True)
         elif opcode == _OPCODE_COMPOSITION_STATUS:
             self._handle_composition_data(params)
@@ -1057,7 +1210,7 @@ class SIGMeshDevice:
             for vcb in list(self._vendor_callbacks):
                 try:
                     vcb(opcode, params)
-                except Exception:
+                except BaseException:
                     _LOGGER.warning("Vendor callback error", exc_info=True)
         else:
             _LOGGER.debug(
@@ -1078,7 +1231,7 @@ class SIGMeshDevice:
         """
         try:
             comp = parse_composition_data(params)
-        except Exception:
+        except MalformedPacketError:
             _LOGGER.debug("Failed to parse Composition Data", exc_info=True)
             return
 
@@ -1095,7 +1248,7 @@ class SIGMeshDevice:
         for callback in list(self._composition_callbacks):
             try:
                 callback(comp)
-            except Exception:
+            except BaseException:
                 _LOGGER.warning("Composition callback error", exc_info=True)
 
     def _on_ble_disconnect(self, _client: BleakClient) -> None:
@@ -1109,7 +1262,7 @@ class SIGMeshDevice:
         for callback in list(self._disconnect_callbacks):
             try:
                 callback()
-            except Exception:
+            except BaseException:
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
 
     async def _bluetoothctl_remove(self) -> None:
@@ -1122,6 +1275,6 @@ class SIGMeshDevice:
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )
-            await asyncio.wait_for(process.wait(), timeout=_BLUETOOTHCTL_TIMEOUT)
-        except Exception:
+            await asyncio.wait_for(process.wait(), timeout=5)
+        except (TimeoutError, OSError):
             _LOGGER.debug("bluetoothctl remove failed (ignored)", exc_info=True)

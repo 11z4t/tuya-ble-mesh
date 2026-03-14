@@ -17,6 +17,7 @@ exception messages. Only lengths and operation names are safe to log.
 
 from __future__ import annotations
 
+from cryptography.exceptions import InvalidTag
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.hazmat.primitives.ciphers.aead import AESCCM
 
@@ -267,6 +268,6 @@ def mesh_aes_ccm_decrypt(
     aesccm = AESCCM(key, tag_length=mic_len)
     try:
         return aesccm.decrypt(nonce, ct_and_mic, b"")
-    except Exception as exc:
+    except InvalidTag as exc:
         msg = "AES-CCM authentication failed"
         raise CryptoError(msg) from exc

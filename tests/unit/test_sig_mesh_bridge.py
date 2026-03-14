@@ -20,24 +20,22 @@ from tuya_ble_mesh.sig_mesh_bridge import (  # noqa: E402
     TelinkBridgeDevice,
 )
 
-_PATCH_HTTP = "tuya_ble_mesh.sig_mesh_bridge.asyncio.open_connection"
+_PATCH_HTTP_GET = "tuya_ble_mesh.sig_mesh_bridge.BridgeHTTPMixin._http_get"
+_PATCH_HTTP_POST = "tuya_ble_mesh.sig_mesh_bridge.BridgeHTTPMixin._http_post"
+# Keep backward-compat alias (used in some tests that haven't been updated yet)
+_PATCH_HTTP = _PATCH_HTTP_GET
 
 
 def _make_mock_connection(response_body: dict) -> tuple[AsyncMock, MagicMock]:
-    """Create mock reader/writer that return an HTTP response with the given JSON body."""
-    body_str = json.dumps(response_body)
-    http_response = f"HTTP/1.1 200 OK\r\nContent-Length: {len(body_str)}\r\n\r\n{body_str}"
-
+    """Legacy helper — no longer used directly; kept for reference."""
     reader = AsyncMock()
-    reader.read = AsyncMock(return_value=http_response.encode())
-
     writer = MagicMock()
-    writer.write = MagicMock()
-    writer.drain = AsyncMock()
-    writer.close = MagicMock()
-    writer.wait_closed = AsyncMock()
-
     return reader, writer
+
+
+def _make_http_sequence(*response_bodies: dict) -> AsyncMock:
+    """Create an AsyncMock that returns response_bodies in sequence."""
+    return AsyncMock(side_effect=list(response_bodies))
 
 
 def _make_sig_device() -> SIGMeshBridgeDevice:
@@ -75,9 +73,7 @@ class TestSIGBridgeConnect:
     @pytest.mark.asyncio
     async def test_connect_success(self) -> None:
         dev = _make_sig_device()
-        reader, writer = _make_mock_connection({"status": "ok"})
-
-        with patch(_PATCH_HTTP, return_value=(reader, writer)):
+        with patch.object(dev, "_http_get", new=AsyncMock(return_value={"status": "ok"})):
             await dev.connect()
 
         assert dev.is_connected is True
@@ -88,7 +84,7 @@ class TestSIGBridgeConnect:
         dev = _make_sig_device()
 
         with (
-            patch(_PATCH_HTTP, side_effect=OSError("Connection refused")),
+            patch.object(dev, "_http_get", new=AsyncMock(side_effect=MeshConnectionError("x"))),
             pytest.raises(MeshConnectionError, match="not reachable"),
         ):
             await dev.connect(timeout=0.1, max_retries=1)
@@ -96,10 +92,9 @@ class TestSIGBridgeConnect:
     @pytest.mark.asyncio
     async def test_connect_bad_status_raises(self) -> None:
         dev = _make_sig_device()
-        reader, writer = _make_mock_connection({"status": "error"})
 
         with (
-            patch(_PATCH_HTTP, return_value=(reader, writer)),
+            patch.object(dev, "_http_get", new=AsyncMock(return_value={"status": "error"})),
             pytest.raises(MeshConnectionError, match="not reachable"),
         ):
             await dev.connect(timeout=0.1, max_retries=1)
@@ -120,22 +115,15 @@ class TestSIGBridgeSendPower:
         dev = _make_sig_device()
         dev._connected = True
 
-        # First call = POST /command, second = GET /result
-        post_reader, post_writer = _make_mock_connection({"ok": True})
-        result_reader, result_writer = _make_mock_connection(
-            {"action": "on", "success": True, "status": "ON", "timestamp": 123}
-        )
-
-        call_count = 0
-
-        async def mock_open(*_a, **_kw):  # type: ignore[no-untyped-def]
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return post_reader, post_writer
-            return result_reader, result_writer
-
-        with patch(_PATCH_HTTP, side_effect=mock_open):
+        with (
+            patch.object(dev, "_http_post", new=AsyncMock(return_value={})),
+            patch.object(
+                dev,
+                "_http_get",
+                new=AsyncMock(return_value={"action": "on", "success": True, "status": "ON", "timestamp": 123}),
+            ),
+            patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
+        ):
             await dev.send_power(True)
 
     @pytest.mark.asyncio
@@ -152,21 +140,15 @@ class TestSIGBridgeSendPower:
         callback = MagicMock()
         dev.register_onoff_callback(callback)
 
-        post_reader, post_writer = _make_mock_connection({"ok": True})
-        result_reader, result_writer = _make_mock_connection(
-            {"action": "on", "success": True, "status": "ON", "timestamp": 1}
-        )
-
-        call_count = 0
-
-        async def mock_open(*_a, **_kw):  # type: ignore[no-untyped-def]
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return post_reader, post_writer
-            return result_reader, result_writer
-
-        with patch(_PATCH_HTTP, side_effect=mock_open):
+        with (
+            patch.object(dev, "_http_post", new=AsyncMock(return_value={})),
+            patch.object(
+                dev,
+                "_http_get",
+                new=AsyncMock(return_value={"action": "on", "success": True, "status": "ON", "timestamp": 1}),
+            ),
+            patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
+        ):
             await dev.send_power(True)
 
         callback.assert_called_once_with(True)
@@ -176,22 +158,14 @@ class TestSIGBridgeSendPower:
         dev = _make_sig_device()
         dev._connected = True
 
-        post_reader, post_writer = _make_mock_connection({"ok": True})
-        result_reader, result_writer = _make_mock_connection(
-            {"action": "on", "success": False, "error": "BLE timeout", "timestamp": 1}
-        )
-
-        call_count = 0
-
-        async def mock_open(*_a, **_kw):  # type: ignore[no-untyped-def]
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return post_reader, post_writer
-            return result_reader, result_writer
-
         with (
-            patch(_PATCH_HTTP, side_effect=mock_open),
+            patch.object(dev, "_http_post", new=AsyncMock(return_value={})),
+            patch.object(
+                dev,
+                "_http_get",
+                new=AsyncMock(return_value={"action": "on", "success": False, "error": "BLE timeout", "timestamp": 1}),
+            ),
+            patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
             pytest.raises(SIGMeshError, match="Bridge command failed"),
         ):
             await dev.send_power(True)
@@ -269,9 +243,8 @@ class TestTelinkBridgeConnect:
     @pytest.mark.asyncio
     async def test_connect_success(self) -> None:
         dev = _make_telink_device()
-        reader, writer = _make_mock_connection({"status": "ok"})
 
-        with patch(_PATCH_HTTP, return_value=(reader, writer)):
+        with patch.object(dev, "_http_get", new=AsyncMock(return_value={"status": "ok"})):
             await dev.connect()
 
         assert dev.is_connected is True
@@ -303,33 +276,29 @@ class TestTelinkBridgeCommands:
         dev._connected = True
         return dev
 
-    def _make_cmd_mocks(self, action: str) -> tuple:
-        post_reader, post_writer = _make_mock_connection({"ok": True})
-        result_reader, result_writer = _make_mock_connection(
-            {
+    def _make_http_mocks(self, action: str) -> tuple[AsyncMock, AsyncMock]:
+        """Return (mock_post, mock_get) for a successful telink command."""
+        mock_post = AsyncMock(return_value={})
+        mock_get = AsyncMock(
+            return_value={
                 "action": action,
                 "device_type": "telink",
                 "success": True,
                 "timestamp": 1,
             }
         )
-        call_count = 0
-
-        async def mock_open(*_a, **_kw):  # type: ignore[no-untyped-def]
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return post_reader, post_writer
-            return result_reader, result_writer
-
-        return mock_open
+        return mock_post, mock_get
 
     @pytest.mark.asyncio
     async def test_send_power_on(self) -> None:
         dev = await self._setup_connected_device()
-        mock_open = self._make_cmd_mocks("on")
+        mock_post, mock_get = self._make_http_mocks("on")
 
-        with patch(_PATCH_HTTP, side_effect=mock_open):
+        with (
+            patch.object(dev, "_http_post", new=mock_post),
+            patch.object(dev, "_http_get", new=mock_get),
+            patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
+        ):
             await dev.send_power(True)
 
         assert dev._is_on is True
@@ -338,9 +307,13 @@ class TestTelinkBridgeCommands:
     async def test_send_power_off(self) -> None:
         dev = await self._setup_connected_device()
         dev._is_on = True
-        mock_open = self._make_cmd_mocks("off")
+        mock_post, mock_get = self._make_http_mocks("off")
 
-        with patch(_PATCH_HTTP, side_effect=mock_open):
+        with (
+            patch.object(dev, "_http_post", new=mock_post),
+            patch.object(dev, "_http_get", new=mock_get),
+            patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
+        ):
             await dev.send_power(False)
 
         assert dev._is_on is False
@@ -348,9 +321,13 @@ class TestTelinkBridgeCommands:
     @pytest.mark.asyncio
     async def test_send_brightness(self) -> None:
         dev = await self._setup_connected_device()
-        mock_open = self._make_cmd_mocks("brightness")
+        mock_post, mock_get = self._make_http_mocks("brightness")
 
-        with patch(_PATCH_HTTP, side_effect=mock_open):
+        with (
+            patch.object(dev, "_http_post", new=mock_post),
+            patch.object(dev, "_http_get", new=mock_get),
+            patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
+        ):
             await dev.send_brightness(75)
 
         assert dev._brightness == 75
@@ -359,9 +336,13 @@ class TestTelinkBridgeCommands:
     @pytest.mark.asyncio
     async def test_send_color_temp(self) -> None:
         dev = await self._setup_connected_device()
-        mock_open = self._make_cmd_mocks("color_temp")
+        mock_post, mock_get = self._make_http_mocks("color_temp")
 
-        with patch(_PATCH_HTTP, side_effect=mock_open):
+        with (
+            patch.object(dev, "_http_post", new=mock_post),
+            patch.object(dev, "_http_get", new=mock_get),
+            patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
+        ):
             await dev.send_color_temp(64)
 
         assert dev._color_temp == 64
@@ -369,9 +350,13 @@ class TestTelinkBridgeCommands:
     @pytest.mark.asyncio
     async def test_send_color(self) -> None:
         dev = await self._setup_connected_device()
-        mock_open = self._make_cmd_mocks("color")
+        mock_post, mock_get = self._make_http_mocks("color")
 
-        with patch(_PATCH_HTTP, side_effect=mock_open):
+        with (
+            patch.object(dev, "_http_post", new=mock_post),
+            patch.object(dev, "_http_get", new=mock_get),
+            patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
+        ):
             await dev.send_color(255, 128, 0)
 
         assert dev._red == 255
@@ -381,9 +366,13 @@ class TestTelinkBridgeCommands:
     @pytest.mark.asyncio
     async def test_send_light_mode(self) -> None:
         dev = await self._setup_connected_device()
-        mock_open = self._make_cmd_mocks("light_mode")
+        mock_post, mock_get = self._make_http_mocks("light_mode")
 
-        with patch(_PATCH_HTTP, side_effect=mock_open):
+        with (
+            patch.object(dev, "_http_post", new=mock_post),
+            patch.object(dev, "_http_get", new=mock_get),
+            patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
+        ):
             await dev.send_light_mode(1)
 
         assert dev._mode == 1
@@ -391,9 +380,13 @@ class TestTelinkBridgeCommands:
     @pytest.mark.asyncio
     async def test_send_color_brightness(self) -> None:
         dev = await self._setup_connected_device()
-        mock_open = self._make_cmd_mocks("color_brightness")
+        mock_post, mock_get = self._make_http_mocks("color_brightness")
 
-        with patch(_PATCH_HTTP, side_effect=mock_open):
+        with (
+            patch.object(dev, "_http_post", new=mock_post),
+            patch.object(dev, "_http_get", new=mock_get),
+            patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
+        ):
             await dev.send_color_brightness(50)
 
         assert dev._color_brightness == 50
@@ -432,20 +425,15 @@ class TestTelinkBridgeCallbacks:
         cb = MagicMock()
         dev.register_status_callback(cb)
 
-        post_reader, post_writer = _make_mock_connection({"ok": True})
-        result_reader, result_writer = _make_mock_connection(
-            {"action": "on", "device_type": "telink", "success": True, "timestamp": 1}
-        )
-        call_count = 0
-
-        async def mock_open(*_a, **_kw):  # type: ignore[no-untyped-def]
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return post_reader, post_writer
-            return result_reader, result_writer
-
-        with patch(_PATCH_HTTP, side_effect=mock_open):
+        with (
+            patch.object(dev, "_http_post", new=AsyncMock(return_value={})),
+            patch.object(
+                dev,
+                "_http_get",
+                new=AsyncMock(return_value={"action": "on", "device_type": "telink", "success": True, "timestamp": 1}),
+            ),
+            patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
+        ):
             await dev.send_power(True)
 
         cb.assert_called_once()
@@ -457,21 +445,11 @@ class TestTelinkBridgeCallbacks:
         cb = MagicMock()
         dev.register_disconnect_callback(cb)
 
-        post_reader, post_writer = _make_mock_connection({"ok": True})
-
-        call_count = 0
-
-        async def mock_open(*_a, **_kw):  # type: ignore[no-untyped-def]
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return post_reader, post_writer
-            raise OSError("unreachable")
-
         with (
-            patch(_PATCH_HTTP, side_effect=mock_open),
+            patch.object(dev, "_http_post", new=AsyncMock(return_value={})),
+            patch.object(dev, "_http_get", new=AsyncMock(side_effect=OSError("unreachable"))),
             patch("tuya_ble_mesh.sig_mesh_bridge._MAX_POLL_ATTEMPTS", 1),
-            patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0.01),
+            patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
             pytest.raises(SIGMeshError, match="Timed out"),
         ):
             await dev.send_power(True)
@@ -489,20 +467,15 @@ class TestTelinkBridgeDefaultBrightness:
         dev._connected = True
         dev._brightness = 0
 
-        post_reader, post_writer = _make_mock_connection({"ok": True})
-        result_reader, result_writer = _make_mock_connection(
-            {"action": "on", "device_type": "telink", "success": True, "timestamp": 1}
-        )
-        call_count = 0
-
-        async def mock_open(*_a, **_kw):  # type: ignore[no-untyped-def]
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return post_reader, post_writer
-            return result_reader, result_writer
-
-        with patch(_PATCH_HTTP, side_effect=mock_open):
+        with (
+            patch.object(dev, "_http_post", new=AsyncMock(return_value={})),
+            patch.object(
+                dev,
+                "_http_get",
+                new=AsyncMock(return_value={"action": "on", "device_type": "telink", "success": True, "timestamp": 1}),
+            ),
+            patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
+        ):
             await dev.send_power(True)
 
         assert dev._brightness == 100
@@ -513,20 +486,15 @@ class TestTelinkBridgeDefaultBrightness:
         dev._connected = True
         dev._brightness = 50
 
-        post_reader, post_writer = _make_mock_connection({"ok": True})
-        result_reader, result_writer = _make_mock_connection(
-            {"action": "on", "device_type": "telink", "success": True, "timestamp": 1}
-        )
-        call_count = 0
-
-        async def mock_open(*_a, **_kw):  # type: ignore[no-untyped-def]
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return post_reader, post_writer
-            return result_reader, result_writer
-
-        with patch(_PATCH_HTTP, side_effect=mock_open):
+        with (
+            patch.object(dev, "_http_post", new=AsyncMock(return_value={})),
+            patch.object(
+                dev,
+                "_http_get",
+                new=AsyncMock(return_value={"action": "on", "device_type": "telink", "success": True, "timestamp": 1}),
+            ),
+            patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
+        ):
             await dev.send_power(True)
 
         assert dev._brightness == 50

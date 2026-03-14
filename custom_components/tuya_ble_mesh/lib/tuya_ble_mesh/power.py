@@ -38,6 +38,10 @@ class ShellyPowerController:
     """
 
     def __init__(self, host: str, timeout: float = 10.0) -> None:
+        if timeout <= 0:
+            msg = f"Timeout must be positive, got {timeout}"
+            raise ValueError(msg)
+
         self._host = host
         self._timeout = aiohttp.ClientTimeout(total=timeout)
         self._session: aiohttp.ClientSession | None = None
@@ -45,12 +49,20 @@ class ShellyPowerController:
 
     @property
     def host(self) -> str:
-        """Return the Shelly device host."""
+        """Return the Shelly device host.
+
+        Returns:
+            str: Shelly device host.
+        """
         return self._host
 
     @property
     def base_url(self) -> str:
-        """Return the base URL for the Shelly device."""
+        """Return the base URL for the Shelly device.
+
+        Returns:
+            str: Base URL for the Shelly device.
+        """
         return f"http://{self._host}"
 
     async def _get_session(self) -> aiohttp.ClientSession:
