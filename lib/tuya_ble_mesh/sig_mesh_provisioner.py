@@ -93,6 +93,19 @@ _BLUEZ_CACHE_SETTLE_DELAY = 0.5
 # Delay after Start PDU to let device initialize provisioning state (seconds)
 _POST_START_PDU_DELAY = 0.5
 
+# Exponential backoff parameters for retries
+_SCAN_RETRY_BACKOFF_BASE = 2.0
+_SCAN_RETRY_BACKOFF_EXPONENT = 1.5
+_SCAN_RETRY_MAX_BACKOFF = 10.0
+
+_CONNECT_RETRY_BACKOFF_BASE = 3.0
+_CONNECT_RETRY_BACKOFF_EXPONENT = 1.5
+_CONNECT_RETRY_MAX_BACKOFF = 15.0
+
+_SLOTS_RETRY_BACKOFF_BASE = 5.0
+_SLOTS_RETRY_BACKOFF_EXPONENT = 1.5
+_SLOTS_RETRY_MAX_BACKOFF = 20.0
+
 # Error code → name mapping for PROV_FAILED
 _PROV_ERROR_NAMES: dict[int, str] = {
     0x00: "Prohibited",
@@ -396,7 +409,10 @@ class SIGMeshProvisioner:
                         max_retries,
                     )
                     # Exponential backoff for scan retries
-                    backoff = min(2.0 * (1.5 ** (attempt - 1)), 10.0)
+                    backoff = min(
+                        _SCAN_RETRY_BACKOFF_BASE * (_SCAN_RETRY_BACKOFF_EXPONENT ** (attempt - 1)),
+                        _SCAN_RETRY_MAX_BACKOFF,
+                    )
                     await asyncio.sleep(backoff)
                     continue
 
@@ -473,7 +489,10 @@ class SIGMeshProvisioner:
                         await client.disconnect()
                     client = None
                 # PLAT-506: Longer backoff to allow connection slot release
-                backoff = min(3.0 * (1.5 ** (attempt - 1)), 15.0)
+                backoff = min(
+                    _CONNECT_RETRY_BACKOFF_BASE * (_CONNECT_RETRY_BACKOFF_EXPONENT ** (attempt - 1)),
+                    _CONNECT_RETRY_MAX_BACKOFF,
+                )
                 await asyncio.sleep(backoff)
             except (OSError, BleakError) as exc:
                 last_exc = exc
@@ -504,7 +523,10 @@ class SIGMeshProvisioner:
                     # PLAT-506: Force cleanup to free connection slot
                     await self._cleanup_stale_connections(address)
                     # Longer backoff when slots are exhausted
-                    backoff = min(5.0 * (1.5 ** (attempt - 1)), 20.0)
+                    backoff = min(
+                        _SLOTS_RETRY_BACKOFF_BASE * (_SLOTS_RETRY_BACKOFF_EXPONENT ** (attempt - 1)),
+                        _SLOTS_RETRY_MAX_BACKOFF,
+                    )
                     await asyncio.sleep(backoff)
                 else:
                     _LOGGER.warning(
@@ -515,7 +537,10 @@ class SIGMeshProvisioner:
                         str(exc),
                     )
                     # Standard backoff for other errors
-                    backoff = min(3.0 * (1.5 ** (attempt - 1)), 15.0)
+                    backoff = min(
+                        _CONNECT_RETRY_BACKOFF_BASE * (_CONNECT_RETRY_BACKOFF_EXPONENT ** (attempt - 1)),
+                        _CONNECT_RETRY_MAX_BACKOFF,
+                    )
                     await asyncio.sleep(backoff)
 
         # Build detailed error message

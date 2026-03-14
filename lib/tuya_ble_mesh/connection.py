@@ -46,6 +46,10 @@ _MAX_BACKOFF = 300.0
 _BACKOFF_MULTIPLIER = 2.0
 _JITTER_FACTOR = 0.2  # 0-20% random jitter
 
+# Connection attempt backoff (within a single connect() call)
+_CONNECT_RETRY_BACKOFF_MULTIPLIER = 2.0
+_CONNECT_RETRY_MAX_BACKOFF = 8.0
+
 # Max connection retries per attempt
 _DEFAULT_MAX_RETRIES = 5
 
@@ -125,24 +129,40 @@ class BLEConnection:
 
     @property
     def state(self) -> ConnectionState:
-        """Return the current connection state."""
+        """Return the current connection state.
+
+        Returns:
+            ConnectionState: Current connection state.
+        """
         return self._state
 
     @property
     def address(self) -> str:
-        """Return the device BLE MAC address."""
+        """Return the device BLE MAC address.
+
+        Returns:
+            str: Device BLE MAC address.
+        """
         return self._address
 
     @property
     def session_key(self) -> bytes | None:
-        """Return a copy of the session key, or None if not connected."""
+        """Return a copy of the session key, or None if not connected.
+
+        Returns:
+            bytes | None: Copy of session key, or None if not connected.
+        """
         if self._session_key is None:
             return None
         return bytes(self._session_key)
 
     @property
     def is_ready(self) -> bool:
-        """Return True if the connection is ready for commands."""
+        """Return True if the connection is ready for commands.
+
+        Returns:
+            bool: True if connection is ready for commands.
+        """
         return self._state == ConnectionState.READY
 
     @property
@@ -151,12 +171,19 @@ class BLEConnection:
 
         False means the connection is in poll-only mode — status updates
         only arrive via keep-alive status-query responses.
+
+        Returns:
+            bool: True if GATT notification subscription is active.
         """
         return self._notify_active
 
     @property
     def firmware_version(self) -> str | None:
-        """Return the device firmware version, or None if not read."""
+        """Return the device firmware version, or None if not read.
+
+        Returns:
+            str | None: Device firmware version, or None if not read.
+        """
         return self._firmware_version
 
     async def next_sequence(self) -> int:
@@ -321,7 +348,10 @@ class BLEConnection:
             except (OSError, TimeoutError, BleakError, asyncio.CancelledError) as exc:
                 last_exc = exc if isinstance(exc, Exception) else Exception(str(exc))
                 self._client = None
-                backoff = min(2.0 * attempt, 8.0)
+                backoff = min(
+                    _CONNECT_RETRY_BACKOFF_MULTIPLIER * attempt,
+                    _CONNECT_RETRY_MAX_BACKOFF,
+                )
                 _LOGGER.warning(
                     "Connect attempt %d/%d failed (%s), retrying in %.1fs",
                     attempt,

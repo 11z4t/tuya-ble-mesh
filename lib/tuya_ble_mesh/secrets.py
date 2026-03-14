@@ -41,7 +41,11 @@ class SecretsManager:
 
     @property
     def vault(self) -> str:
-        """Return the vault name (not secret)."""
+        """Return the vault name (not secret).
+
+        Returns:
+            str: Vault name.
+        """
         return self._vault
 
     async def get(self, item: str, field: str = "password") -> str:
@@ -60,6 +64,10 @@ class SecretsManager:
             SecretAccessError: If ``op`` is not installed, the vault
                 is unreachable, or the item/field does not exist.
         """
+        if not item or not field:
+            msg = f"Item and field cannot be empty (item={item!r}, field={field!r})"
+            raise SecretAccessError(msg)
+
         ref = f"op://{self._vault}/{item}/{field}"
 
         if not self._op_available():

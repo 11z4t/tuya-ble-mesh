@@ -549,7 +549,7 @@ def encode_dps_command(dps: dict[int, bool | int | str | bytes]) -> bytes:
         dps: Mapping of dp_id → value.
 
     Returns:
-        Concatenated TLV bytes for all data points.
+        Concatenated TLV bytes for all data points. Returns empty bytes if dps is empty.
     """
     result = bytearray()
     for dp_id in sorted(dps):
