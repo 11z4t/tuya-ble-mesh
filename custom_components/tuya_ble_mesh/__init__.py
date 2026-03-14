@@ -6,6 +6,7 @@ Provides local BLE mesh control of Tuya/Telink-based devices
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import sys
 from dataclasses import dataclass, field
@@ -268,10 +269,12 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         try:
             device = coordinator.device
             if hasattr(device, "send_power"):
-                # Flash: off → on → off → on
+                # Flash: off/on x3, with 0.5s delay between each command
                 for _ in range(3):
                     await device.send_power(False)
+                    await asyncio.sleep(0.5)
                     await device.send_power(True)
+                    await asyncio.sleep(0.5)
         except Exception as exc:
             raise HomeAssistantError(f"Failed to identify device: {exc}") from exc
 
