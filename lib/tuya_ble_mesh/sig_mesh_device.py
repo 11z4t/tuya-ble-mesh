@@ -24,7 +24,7 @@ from typing import Any, Protocol
 
 from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
-from bleak.exc import BleakError
+from bleak.exc import BleakDBusError, BleakError
 
 from tuya_ble_mesh.exceptions import (
     ConnectionError as MeshConnectionError,
@@ -379,9 +379,7 @@ class SIGMeshDevice:
                         self._address,
                         self._adapter or "default",
                     )
-                    device = await BleakScanner.find_device_by_address(
-                        self._address, **scan_kwargs
-                    )
+                    device = await BleakScanner.find_device_by_address(self._address, **scan_kwargs)
                 if device is None:
                     msg = f"Device {self._address} not found"
                     raise MeshConnectionError(msg)
@@ -397,10 +395,10 @@ class SIGMeshDevice:
 
                 # Subscribe to Proxy Data Out notifications
                 # Wrap in try/except: on some BlueZ versions, start_notify
-                # triggers EOFError on the D-Bus connection for mesh devices.
+                # triggers EOFError or BleakDBusError on the D-Bus connection for mesh devices.
                 try:
                     await client.start_notify(SIG_MESH_PROXY_DATA_OUT, self._on_notify)
-                except (EOFError, BleakError, OSError, RuntimeError) as notify_exc:
+                except (EOFError, BleakError, BleakDBusError, OSError) as notify_exc:
                     _LOGGER.warning(
                         "Notification subscription failed for %s: %s (%s) — "
                         "device will work but won't receive push status updates",
@@ -625,9 +623,7 @@ class SIGMeshDevice:
 
         proxy_pdu = make_proxy_pdu(network_pdu)
 
-        await self._client.write_gatt_char(
-            SIG_MESH_PROXY_DATA_IN, proxy_pdu, response=False
-        )
+        await self._client.write_gatt_char(SIG_MESH_PROXY_DATA_IN, proxy_pdu, response=False)
 
         _LOGGER.info(
             "Vendor command sent to 0x%04X (opcode=%s, seq=%d, %d bytes)",
@@ -978,6 +974,8 @@ class SIGMeshDevice:
             task.add_done_callback(self._pending_notify_tasks.discard)
             task.add_done_callback(self._log_notify_exception)
         except RuntimeError:
+            # asyncio.get_running_loop() raises RuntimeError if no loop is running
+            # (documented stdlib behavior). This can happen during shutdown.
             _LOGGER.debug("No running event loop for notify callback")
 
     async def _process_notify(self, data: bytes) -> None:

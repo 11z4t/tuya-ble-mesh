@@ -373,7 +373,7 @@ class AsyncCommandDispatcher:
                     self._complete_request(request, result)
                     return
 
-                except (TuyaBLEMeshError, OSError, TimeoutError, asyncio.TimeoutError, RuntimeError) as exc:
+                except (TuyaBLEMeshError, OSError, TimeoutError) as exc:
                     last_error = exc
                     retries_used += 1
 

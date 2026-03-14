@@ -72,9 +72,7 @@ class BridgeHTTPMixin:
         url = f"{self._bridge_url}{path}"
         try:
             session = self._get_session()
-            async with session.get(
-                url, timeout=aiohttp.ClientTimeout(total=timeout)
-            ) as resp:
+            async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
                 result: dict[str, Any] = await resp.json()
                 return result
         except (TimeoutError, aiohttp.ClientError) as exc:

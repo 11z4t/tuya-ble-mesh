@@ -846,9 +846,7 @@ def tuya_vendor_timestamp_response() -> bytes:
 
     # Signed timezone offset in hours from UTC
     tz_offset = time.timezone // -3600 if not time.daylight else time.altzone // -3600
-    tz_byte = (
-        tz_offset.to_bytes(1, "big", signed=True) if -12 <= tz_offset <= 14 else b"\x00"
-    )
+    tz_byte = tz_offset.to_bytes(1, "big", signed=True) if -12 <= tz_offset <= 14 else b"\x00"
     # Pad to 8 data bytes (observed in Tuya app traces)
     data = ts_bytes + tz_byte + b"\x00\x00\x00"
     frame = bytes([TUYA_CMD_TIMESTAMP_SYNC, len(data)]) + data
