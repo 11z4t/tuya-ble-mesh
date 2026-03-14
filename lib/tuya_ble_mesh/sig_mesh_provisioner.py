@@ -35,6 +35,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from bleak import BleakClient, BleakScanner
+from bleak.exc import BleakError
 from cryptography.hazmat.primitives.asymmetric.ec import (
     ECDH,
     SECP256R1,
@@ -473,7 +474,7 @@ class SIGMeshProvisioner:
                 # PLAT-506: Longer backoff to allow connection slot release
                 backoff = min(3.0 * (1.5 ** (attempt - 1)), 15.0)
                 await asyncio.sleep(backoff)
-            except (TimeoutError, OSError, ValueError) as exc:
+            except (OSError, BleakError) as exc:
                 last_exc = exc
                 connect_failures += 1
 
@@ -522,9 +523,7 @@ class SIGMeshProvisioner:
             f"connect_failures={connect_failures}, "
             f"out_of_slots={out_of_slots_failures}"
         )
-        msg = (
-            f"Failed to connect to {address} after {max_retries} attempts ({error_details}). "
-        )
+        msg = f"Failed to connect to {address} after {max_retries} attempts ({error_details}). "
         if out_of_slots_failures > 0:
             msg += (
                 "BLE adapter ran out of connection slots. "
@@ -532,9 +531,7 @@ class SIGMeshProvisioner:
                 "2) Restart Bluetooth service, or 3) Use a different BLE adapter. "
             )
         else:
-            msg += (
-                "Check device is in range, not already provisioned, and advertising. "
-            )
+            msg += "Check device is in range, not already provisioned, and advertising. "
         msg += f"Last error: {type(last_exc).__name__ if last_exc else 'unknown'}"
         raise ProvisioningError(msg) from last_exc
 

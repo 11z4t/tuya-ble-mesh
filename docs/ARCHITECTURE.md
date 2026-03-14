@@ -124,6 +124,27 @@ See `lib/tuya_ble_mesh/power.py` and `scripts/sniff.py` for examples.
 **Why:** Custom exceptions enable precise `except` clauses. Callers can catch
 exactly the failures they can handle instead of suppressing everything.
 
+**Exception (pun intended):** Catching `ValueError` or `RuntimeError` from
+stdlib/third-party libraries is acceptable when immediately converted to our
+domain exceptions. We control what we RAISE, but not what external libraries raise.
+
+```python
+# ACCEPTABLE — catching stdlib exceptions to convert:
+try:
+    key_bytes = bytes.fromhex(hex_string)  # raises ValueError
+except ValueError:
+    raise SecretAccessError(f"Invalid hex: {hex_string}") from None
+
+try:
+    loop = asyncio.get_running_loop()  # raises RuntimeError if no loop
+except RuntimeError:
+    _LOGGER.debug("No event loop running")
+
+# FORBIDDEN — raising builtin exceptions ourselves:
+raise ValueError("bad key")  # Never do this
+raise RuntimeError("something failed")  # Never do this
+```
+
 ### S8: Devices via YAML Profiles
 
 New device types are added by creating a YAML profile in `profiles/`, not by

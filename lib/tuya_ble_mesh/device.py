@@ -513,7 +513,6 @@ class MeshDevice:
         msg = f"Command 0x{opcode:02X} failed after {max_retries} attempts"
         raise ConnectionError(msg)
 
-
     # --- High-level commands (0xD2 compact DP format) ---
 
     async def send_power(self, on: bool) -> None:
