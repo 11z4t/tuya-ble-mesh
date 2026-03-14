@@ -1324,9 +1324,17 @@ class TestRunProvision:
 
 
 def _make_options_flow(
-    device_type: str, entry_data: dict[str, Any] | None = None
+    device_type: str,
+    entry_data: dict[str, Any] | None = None,
+    advanced: bool = False,
 ) -> TuyaBLEMeshOptionsFlow:
-    """Create an options flow with a mock config entry and hass."""
+    """Create an options flow with a mock config entry and hass.
+
+    Args:
+        device_type: The device type to use for the config entry.
+        entry_data: Optional extra data to merge into the config entry.
+        advanced: Whether to simulate HA advanced mode (show_advanced_options).
+    """
     data: dict[str, Any] = {CONF_DEVICE_TYPE: device_type}
     if entry_data is not None:
         data.update(entry_data)
@@ -1340,6 +1348,8 @@ def _make_options_flow(
     hass.config_entries = MagicMock()
     hass.config_entries.async_update_entry = MagicMock()
     flow.hass = hass
+    # Progressive disclosure: set show_advanced_options via flow context
+    flow.context = {"show_advanced_options": advanced}
     return flow
 
 
@@ -1362,9 +1372,9 @@ class TestOptionsFlowInit:
         assert CONF_UNICAST_TARGET not in schema_keys
 
     @pytest.mark.asyncio
-    async def test_sig_plug_shows_unicast_fields(self) -> None:
-        """sig_plug shows unicast_target and iv_index fields."""
-        flow = _make_options_flow(DEVICE_TYPE_SIG_PLUG)
+    async def test_sig_plug_shows_unicast_fields_in_advanced_mode(self) -> None:
+        """sig_plug shows unicast_target and iv_index in advanced mode."""
+        flow = _make_options_flow(DEVICE_TYPE_SIG_PLUG, advanced=True)
         result = await flow.async_step_init(None)
 
         assert result["type"] == "form"
@@ -1376,8 +1386,20 @@ class TestOptionsFlowInit:
         assert CONF_MESH_NAME not in schema_keys
 
     @pytest.mark.asyncio
-    async def test_light_shows_mesh_fields(self) -> None:
-        """Default light type shows mesh_name, mesh_password, mesh_address."""
+    async def test_sig_plug_hides_unicast_fields_in_normal_mode(self) -> None:
+        """sig_plug hides unicast_target and iv_index in normal (non-advanced) mode."""
+        flow = _make_options_flow(DEVICE_TYPE_SIG_PLUG, advanced=False)
+        result = await flow.async_step_init(None)
+
+        assert result["type"] == "form"
+        schema_keys = [str(k) for k in result["data_schema"].schema]
+        # Advanced fields hidden in normal mode
+        assert CONF_UNICAST_TARGET not in schema_keys
+        assert CONF_IV_INDEX not in schema_keys
+
+    @pytest.mark.asyncio
+    async def test_light_shows_mesh_credentials_always(self) -> None:
+        """Light type always shows mesh_name and mesh_password."""
         flow = _make_options_flow(DEVICE_TYPE_LIGHT)
         result = await flow.async_step_init(None)
 
@@ -1386,9 +1408,22 @@ class TestOptionsFlowInit:
         schema_keys = [str(k) for k in result["data_schema"].schema]
         assert CONF_MESH_NAME in schema_keys
         assert CONF_MESH_PASSWORD in schema_keys
-        assert CONF_MESH_ADDRESS in schema_keys
+        # mesh_address is advanced-only
+        assert CONF_MESH_ADDRESS not in schema_keys
         assert CONF_BRIDGE_HOST not in schema_keys
         assert CONF_UNICAST_TARGET not in schema_keys
+
+    @pytest.mark.asyncio
+    async def test_light_shows_mesh_address_in_advanced_mode(self) -> None:
+        """Light type shows mesh_address only in advanced mode."""
+        flow = _make_options_flow(DEVICE_TYPE_LIGHT, advanced=True)
+        result = await flow.async_step_init(None)
+
+        assert result["type"] == "form"
+        schema_keys = [str(k) for k in result["data_schema"].schema]
+        assert CONF_MESH_NAME in schema_keys
+        assert CONF_MESH_PASSWORD in schema_keys
+        assert CONF_MESH_ADDRESS in schema_keys
 
 
 @pytest.mark.requires_ha
