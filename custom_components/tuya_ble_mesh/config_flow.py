@@ -94,6 +94,26 @@ _MODEL_GENERIC_ONOFF_SERVER = 0x1000
 _POST_PROV_REBOOT_DELAY = 6.0
 
 
+def _rssi_to_signal_quality(rssi: int | None) -> str:
+    """Convert RSSI dBm value to a human-readable signal quality label.
+
+    Args:
+        rssi: Signal strength in dBm (negative integer) or None if unknown.
+
+    Returns:
+        Human-readable label: Excellent, Good, Fair, Weak, or Unknown.
+    """
+    if rssi is None:
+        return "Unknown"
+    if rssi >= -65:
+        return "Excellent"
+    if rssi >= -75:
+        return "Good"
+    if rssi >= -85:
+        return "Fair"
+    return "Weak"
+
+
 def _parse_json_body(body: str) -> dict[str, object]:
     """Parse a JSON string, returning an empty dict on failure.
 
@@ -492,11 +512,11 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             # BluetoothManager not initialized (e.g. in tests) — skip stale check
             _LOGGER.debug("BluetoothManager not available, skipping stale check for %s", address)
 
-        # Detect device type from advertised name
-        device_category = "SIG Mesh" if any(
+        # Detect human-readable device category from service UUIDs
+        device_category = "Smart Plug" if any(
             u in getattr(discovery_info, "service_uuids", [])
             for u in (SIG_MESH_PROV_UUID, SIG_MESH_PROXY_UUID)
-        ) else "Telink Mesh"
+        ) else "LED Light"
         rssi = getattr(discovery_info, "rssi", None)
 
         # PLAT-510: Auto-detect device type based on service UUIDs
@@ -546,9 +566,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             device_type = user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
             short_mac = mac[-8:]
             title = (
-                f"BLE Mesh Plug {short_mac}"
+                f"Smart Plug {short_mac}"
                 if device_type == DEVICE_TYPE_PLUG
-                else f"BLE Mesh Light {short_mac}"
+                else f"LED Light {short_mac}"
             )
             return self.async_create_entry(
                 title=title,
@@ -577,9 +597,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             mac = self._discovery_info["address"]
             short_mac = mac[-8:]
             title = (
-                f"BLE Mesh Plug {short_mac}"
+                f"Smart Plug {short_mac}"
                 if default_device_type == DEVICE_TYPE_PLUG
-                else f"BLE Mesh Light {short_mac}"
+                else f"LED Light {short_mac}"
             )
             _LOGGER.info(
                 "Zero-knowledge config: auto-detected %s, creating entry with defaults",
@@ -597,36 +617,39 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 },
             )
 
+        # UX: Hide internal credentials in normal mode — only show in advanced options
+        confirm_schema: dict[object, object] = {
+            vol.Required(CONF_DEVICE_TYPE, default=default_device_type): vol.In(
+                {DEVICE_TYPE_LIGHT: "Light", DEVICE_TYPE_PLUG: "Plug"}
+            ),
+        }
+        if self.show_advanced_options:
+            confirm_schema[vol.Optional(CONF_MESH_NAME, default="out_of_mesh")] = str
+            confirm_schema[vol.Optional(CONF_MESH_PASSWORD, default="123456")] = str  # pragma: allowlist secret
+            confirm_schema[vol.Optional(CONF_MESH_ADDRESS, default=DEFAULT_MESH_ADDRESS)] = int
+
+        rssi_raw = self._discovery_info.get("rssi") if self._discovery_info else None
+        rssi_int = int(rssi_raw) if rssi_raw is not None else None
         return self.async_show_form(
             step_id="confirm",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_DEVICE_TYPE, default=default_device_type): vol.In(
-                        {DEVICE_TYPE_LIGHT: "Light", DEVICE_TYPE_PLUG: "Plug"}
-                    ),
-                    vol.Optional(CONF_MESH_NAME, default="out_of_mesh"): str,
-                    vol.Optional(CONF_MESH_PASSWORD, default="123456"): str,
-                    vol.Optional(CONF_MESH_ADDRESS, default=DEFAULT_MESH_ADDRESS): int,
-                }
-            ),
+            data_schema=vol.Schema(confirm_schema),
             description_placeholders={
                 "name": (
                     self._discovery_info.get("name", "Unknown")
                     if self._discovery_info
                     else "Unknown"
                 ),
+                # Human-readable signal quality label (used in current strings.json)
+                "signal_quality": _rssi_to_signal_quality(rssi_int),
+                "category": (
+                    self._discovery_info.get("device_category", "Smart Device")
+                    if self._discovery_info
+                    else "Smart Device"
+                ),
+                # Legacy placeholders kept for older translated strings that reference them
+                "rssi": str(rssi_raw) if rssi_raw is not None else "?",
                 "mac": (
                     self._discovery_info.get("address", "") if self._discovery_info else ""
-                ),
-                "rssi": (
-                    str(self._discovery_info.get("rssi", "?"))
-                    if self._discovery_info
-                    else "?"
-                ),
-                "category": (
-                    self._discovery_info.get("device_category", "")
-                    if self._discovery_info
-                    else ""
                 ),
             },
         )
@@ -668,27 +691,27 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
                     self._discovery_info = {
                         "address": mac.upper(),
-                        "name": f"SIG Bridge Plug {mac[-8:]}",
+                        "name": f"Smart Plug {mac[-8:]}",
                     }
                     return await self.async_step_sig_bridge(None)
                 if device_type == DEVICE_TYPE_TELINK_BRIDGE_LIGHT:
                     self._discovery_info = {
                         "address": mac.upper(),
-                        "name": f"Telink Bridge Light {mac[-8:]}",
+                        "name": f"LED Light {mac[-8:]}",
                     }
                     return await self.async_step_telink_bridge(None)
                 if device_type == DEVICE_TYPE_SIG_PLUG:
                     self._discovery_info = {
                         "address": mac.upper(),
-                        "name": f"SIG Mesh {mac[-8:]}",
+                        "name": f"Smart Plug {mac[-8:]}",
                     }
                     return await self.async_step_sig_plug(None)
                 short = mac[-8:]
-                type_label = "Plug" if device_type == DEVICE_TYPE_PLUG else "Light"
+                type_label = "Smart Plug" if device_type == DEVICE_TYPE_PLUG else "LED Light"
                 await self.async_set_unique_id(mac.upper())
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
-                    title=f"BLE Mesh {type_label} {short}",
+                    title=f"{type_label} {short}",
                     data={
                         CONF_MAC_ADDRESS: mac.upper(),
                         CONF_MESH_NAME: user_input.get(CONF_MESH_NAME, "out_of_mesh"),
@@ -789,7 +812,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 await self.async_set_unique_id(mac)
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
-                    title=f"SIG Mesh {mac[-8:]}",
+                    title=f"Smart Plug {mac[-8:]}",
                     data={
                         CONF_MAC_ADDRESS: mac,
                         CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG,
@@ -974,7 +997,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                     await self.async_set_unique_id(mac)
                     self._abort_if_unique_id_configured()
                     return self.async_create_entry(
-                        title=f"SIG Bridge Plug {mac[-8:]}",
+                        title=f"Smart Plug {mac[-8:]}",
                         data={
                             CONF_MAC_ADDRESS: mac,
                             CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_BRIDGE_PLUG,
@@ -1024,7 +1047,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 await self.async_set_unique_id(mac)
                 self._abort_if_unique_id_configured()
                 return self.async_create_entry(
-                    title=f"Telink Bridge Light {mac[-8:]}",
+                    title=f"LED Light {mac[-8:]}",
                     data={
                         CONF_MAC_ADDRESS: mac,
                         CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT,

@@ -308,7 +308,7 @@ class TestConfirmStep:
 
         result = await flow.async_step_confirm({})
 
-        assert result["title"] == "BLE Mesh Light 21:43:A5"
+        assert result["title"] == "LED Light 21:43:A5"
 
 
 @pytest.mark.requires_ha
@@ -740,7 +740,7 @@ class TestTelinkBridgeStep:
         assert result["data"][CONF_BRIDGE_HOST] == "192.168.1.200"
         assert result["data"][CONF_BRIDGE_PORT] == 9000
         assert result["data"][CONF_MAC_ADDRESS] == "AA:BB:CC:DD:EE:FF"
-        assert result["title"] == "Telink Bridge Light DD:EE:FF"
+        assert result["title"] == "LED Light DD:EE:FF"
         mock_bridge.assert_called_once()
         assert mock_bridge.call_args.args[-2:] == ("192.168.1.200", 9000)
 
