@@ -365,7 +365,7 @@ class MeshDevice:
         try:
             decrypted = decrypt_notification(key, self._mac_bytes, bytes(data))
             status = decode_status(decrypted)
-        except (CryptoError, MalformedPacketError, ValueError):
+        except (CryptoError, MalformedPacketError):
             _LOGGER.warning("Failed to decode notification (%d bytes)", len(data), exc_info=True)
             return
 
