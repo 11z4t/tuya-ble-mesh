@@ -10,6 +10,8 @@ import uuid
 from dataclasses import dataclass
 from typing import Literal
 
+from tuya_ble_mesh.exceptions import InvalidResultError
+
 
 @dataclass(frozen=True)
 class CommandResult:
@@ -34,13 +36,13 @@ class CommandResult:
     def __post_init__(self) -> None:
         """Validate result consistency."""
         if self.status == "error" and self.error is None:
-            raise ValueError("status='error' requires error to be set")
+            raise InvalidResultError("status='error' requires error to be set")
         if self.status == "success" and self.error is not None:
-            raise ValueError("status='success' should not have error set")
+            raise InvalidResultError("status='success' should not have error set")
         if self.latency_ms < 0:
-            raise ValueError(f"latency_ms must be >= 0, got {self.latency_ms}")
+            raise InvalidResultError(f"latency_ms must be >= 0, got {self.latency_ms}")
         if self.retries_used < 0:
-            raise ValueError(f"retries_used must be >= 0, got {self.retries_used}")
+            raise InvalidResultError(f"retries_used must be >= 0, got {self.retries_used}")
 
     def is_successful(self) -> bool:
         """Return True if command succeeded."""
