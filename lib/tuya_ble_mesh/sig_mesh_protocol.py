@@ -1,14 +1,13 @@
-"""SIG Mesh protocol encoder/decoder.
+"""SIG Mesh protocol — state machine, keys, and crypto operations.
 
-Implements the Bluetooth Mesh network, transport, and access layers:
+Implements the cryptographic layers of Bluetooth Mesh:
 
 - Network PDU encryption/decryption with privacy obfuscation
 - Lower transport: unsegmented and segmented access messages
 - Upper transport: AES-CCM with application/device nonces
-- Proxy PDU wrapping (GATT Proxy Service)
-- Config model messages (Composition Get, AppKey Add, Model App Bind)
-- Generic OnOff model messages
-- Access layer opcode parsing and status formatting
+- Mesh key derivation (MeshKeys)
+
+Packet encoding/decoding lives in ``sig_mesh_protocol_codec.py``.
 
 This module complements ``protocol.py`` (Telink proprietary) with standard
 SIG Mesh protocol. Rule S3: raw BLE bytes parsed only in protocol modules.
@@ -23,7 +22,7 @@ import logging
 import struct
 from dataclasses import dataclass
 
-from tuya_ble_mesh.exceptions import CryptoError, MalformedPacketError, ProtocolError
+from tuya_ble_mesh.exceptions import CryptoError, ProtocolError
 from tuya_ble_mesh.sig_mesh_crypto import (
     aes_ecb,
     k2,
@@ -32,58 +31,72 @@ from tuya_ble_mesh.sig_mesh_crypto import (
     mesh_aes_ccm_decrypt,
     mesh_aes_ccm_encrypt,
 )
+from tuya_ble_mesh.sig_mesh_protocol_codec import (  # noqa: F401  — re-exports
+    _OPCODE_COMPOSITION_STATUS,
+    DP_ID_CURRENT_MA,
+    DP_ID_ENERGY_KWH,
+    DP_ID_POWER_W,
+    DP_ID_SWITCH,
+    DP_ID_VOLTAGE_V,
+    MAX_UNSEG_ACCESS_PAYLOAD,
+    MESH_AID_MASK,
+    MESH_AKF_SHIFT,
+    MESH_CTL_SHIFT,
+    MESH_IVI_SHIFT,
+    MESH_NID_MASK,
+    MESH_OPCODE_1BYTE_MASK,
+    MESH_OPCODE_2BYTE_MASK,
+    MESH_OPCODE_2BYTE_VALUE,
+    MESH_SEG_BIT,
+    MESH_SEG_MASK,
+    MESH_SEG_O_SHIFT,
+    MESH_SEQ_ZERO_MASK,
+    MESH_SEQ_ZERO_SHIFT,
+    MESH_SZMIC_SHIFT,
+    MESH_TTL_MASK,
+    MIC_LEN_ACCESS,
+    MIC_LEN_CONTROL,
+    OP_CONFIG_APPKEY_ADD,
+    OP_CONFIG_APPKEY_STATUS,
+    OP_CONFIG_COMPOSITION_GET,
+    OP_CONFIG_COMPOSITION_STATUS,
+    OP_CONFIG_MODEL_APP_BIND,
+    OP_CONFIG_MODEL_APP_STATUS,
+    OP_GENERIC_ONOFF_GET,
+    OP_GENERIC_ONOFF_SET,
+    OP_GENERIC_ONOFF_STATUS,
+    PROXY_SAR_COMPLETE,
+    PROXY_SAR_MASK,
+    PROXY_TYPE_MASK,
+    PROXY_TYPE_NETWORK,
+    SEG_DATA_SIZE,
+    TUYA_CMD_DP_DATA,
+    TUYA_CMD_TIMESTAMP_SYNC,
+    TUYA_VENDOR_OPCODE,
+    TUYA_VENDOR_WRITE_ACK,
+    TUYA_VENDOR_WRITE_UNACK,
+    CompositionData,
+    ProxyPDU,
+    SegmentHeader,
+    TuyaVendorDP,
+    TuyaVendorFrame,
+    config_appkey_add,
+    config_composition_get,
+    config_model_app_bind,
+    format_status_response,
+    generic_onoff_get,
+    generic_onoff_set,
+    make_proxy_pdu,
+    parse_access_opcode,
+    parse_composition_data,
+    parse_proxy_pdu,
+    parse_segment_header,
+    parse_tuya_vendor_dps,
+    parse_tuya_vendor_frame,
+    tuya_vendor_timestamp_response,
+)
 
 _LOGGER = logging.getLogger(__name__)
-
-# --- Proxy PDU constants ---
-PROXY_SAR_COMPLETE = 0x00
-PROXY_TYPE_NETWORK = 0x00
-
-# --- Transport constants ---
-MAX_UNSEG_ACCESS_PAYLOAD = 11  # 15 byte upper transport - 4 byte TransMIC
-SEG_DATA_SIZE = 12  # max bytes per segment chunk
-
-# --- Network PDU field masks and lengths ---
-MESH_NID_MASK = 0x7F       # 7-bit Network ID (bits [6:0] of IVI/NID byte)
-MESH_IVI_SHIFT = 7         # IV Index bit position in IVI/NID byte
-MESH_TTL_MASK = 0x7F       # 7-bit TTL (bits [6:0] of CTL/TTL byte)
-MESH_CTL_SHIFT = 7         # CTL bit position in CTL/TTL byte
-MIC_LEN_ACCESS = 4         # 4-byte TransMIC for access messages
-MIC_LEN_CONTROL = 8        # 8-byte NetMIC for control messages
-
-# --- Lower transport header masks ---
-MESH_SEG_BIT = 0x80        # SEG flag (bit 7) in transport header byte
-MESH_AKF_SHIFT = 6         # AKF bit position in transport header byte
-MESH_AID_MASK = 0x3F       # 6-bit AID (bits [5:0] of transport header byte)
-
-# --- Segmented transport header bit positions (24-bit info field) ---
-MESH_SZMIC_SHIFT = 23      # SZMIC bit position
-MESH_SEQ_ZERO_SHIFT = 10   # SeqZero field start (13 bits)
-MESH_SEQ_ZERO_MASK = 0x1FFF  # 13-bit sequence zero mask
-MESH_SEG_O_SHIFT = 5       # SegO field start (5 bits)
-MESH_SEG_MASK = 0x1F       # 5-bit segment index mask (SegO and SegN)
-
-# --- Proxy PDU header masks ---
-PROXY_SAR_MASK = 0x03      # 2-bit SAR field (bits [7:6] after shift)
-PROXY_TYPE_MASK = 0x3F     # 6-bit PDU type field (bits [5:0])
-
-# --- Access layer opcode format bits (Mesh Profile 3.7.3) ---
-MESH_OPCODE_1BYTE_MASK = 0x80   # If bit 7 = 0, 1-byte opcode
-MESH_OPCODE_2BYTE_MASK = 0xC0   # If bits [7:6] = 10, 2-byte opcode
-MESH_OPCODE_2BYTE_VALUE = 0x80  # The 2-byte opcode discriminator value
-
-# --- Config model opcodes (SIG Mesh Profile 4.3) ---
-OP_CONFIG_COMPOSITION_GET = 0x8008    # Config Composition Data Get
-OP_CONFIG_COMPOSITION_STATUS = 0x02   # Config Composition Data Status
-OP_CONFIG_APPKEY_ADD = 0x0000         # Config AppKey Add (opcode 0x00)
-OP_CONFIG_APPKEY_STATUS = 0x8003      # Config AppKey Status
-OP_CONFIG_MODEL_APP_BIND = 0x803D     # Config Model App Bind
-OP_CONFIG_MODEL_APP_STATUS = 0x803E   # Config Model App Status
-
-# --- Generic OnOff model opcodes (Mesh Model 3.2) ---
-OP_GENERIC_ONOFF_GET = 0x8201         # Generic OnOff Get
-OP_GENERIC_ONOFF_SET = 0x8202         # Generic OnOff Set (acknowledged)
-OP_GENERIC_ONOFF_STATUS = 0x8204      # Generic OnOff Status
 
 
 # ============================================================
@@ -94,10 +107,6 @@ OP_GENERIC_ONOFF_STATUS = 0x8204      # Generic OnOff Status
 @dataclass
 class MeshKeys:
     """Derived mesh cryptographic key set.
-
-    Holds all keys needed for SIG Mesh communication:
-    network key derivatives (NID, encryption key, privacy key),
-    device key, and optional application key with AID.
 
     SECURITY: Key bytes stored in memory only. Never serialized
     to logs or exception messages.
@@ -124,14 +133,9 @@ class MeshKeys:
         self.dev_key = bytes.fromhex(dev_key_hex)
         self.app_key = bytes.fromhex(app_key_hex) if app_key_hex else None
         self.iv_index = iv_index
-
-        # Derive network-layer keys
         self.nid, self.enc_key, self.priv_key = k2(self.net_key, b"\x00")
         self.network_id = k3(self.net_key)
-
-        # Derive app key AID
         self.aid = k4(self.app_key) if self.app_key else 0
-
         _LOGGER.debug(
             "Keys derived: NID=0x%02X AID=0x%02X ivIdx=%d",
             self.nid,
@@ -145,16 +149,8 @@ class MeshKeys:
 # ============================================================
 
 
-def _make_network_nonce(
-    ctl_ttl: int,
-    seq: int,
-    src: int,
-    iv_index: int,
-) -> bytes:
-    """Build 13-byte network nonce (Mesh Profile 3.8.5.1).
-
-    Format: [0x00][CTL|TTL 1B][SEQ 3B BE][SRC 2B BE][0x0000][IVindex 4B BE]
-    """
+def _make_network_nonce(ctl_ttl: int, seq: int, src: int, iv_index: int) -> bytes:
+    """Build 13-byte network nonce (Mesh Profile 3.8.5.1)."""
     return (
         bytes([0x00, ctl_ttl])
         + struct.pack(">I", seq)[1:]
@@ -177,24 +173,7 @@ def encrypt_network_pdu(
     transport_pdu: bytes,
     iv_index: int = 0,
 ) -> bytes:
-    """Encrypt and obfuscate a mesh network PDU (Mesh Profile 3.4.4).
-
-    Args:
-        enc_key: 16-byte network encryption key (from k2).
-        priv_key: 16-byte network privacy key (from k2).
-        nid: 7-bit Network ID (from k2).
-        ctl: Control flag (1 for control messages, 0 for access).
-        ttl: Time-to-live (0-127).
-        seq: 24-bit sequence number.
-        src: 16-bit source unicast address.
-        dst: 16-bit destination address.
-        transport_pdu: Lower transport PDU bytes.
-        iv_index: IV Index (default 0).
-
-    Returns:
-        Complete network PDU with IVI/NID header, obfuscated fields,
-        and encrypted payload.
-    """
+    """Encrypt and obfuscate a mesh network PDU (Mesh Profile 3.4.4)."""
     ctl_ttl = ((ctl & 1) << MESH_CTL_SHIFT) | (ttl & MESH_TTL_MASK)
     nonce = _make_network_nonce(ctl_ttl, seq, src, iv_index)
     plaintext = struct.pack(">H", dst) + transport_pdu
@@ -232,21 +211,9 @@ def decrypt_network_pdu(
     pdu: bytes,
     iv_index: int = 0,
 ) -> NetworkPDU | None:
-    """Decrypt a mesh network PDU (Mesh Profile 3.4.4).
-
-    Args:
-        enc_key: 16-byte network encryption key.
-        priv_key: 16-byte network privacy key.
-        nid: Expected 7-bit NID.
-        pdu: Raw network PDU bytes.
-        iv_index: IV Index.
-
-    Returns:
-        Decoded NetworkPDU or None if NID mismatch or decryption fails.
-    """
+    """Decrypt a mesh network PDU (Mesh Profile 3.4.4)."""
     if len(pdu) < 10:
         return None
-
     if pdu[0] & MESH_NID_MASK != nid:
         return None
 
@@ -297,10 +264,7 @@ def _make_app_nonce(
     dst: int,
     iv_index: int,
 ) -> bytes:
-    """Build 13-byte application/device nonce (Mesh Profile 3.8.5.2/3.8.5.3).
-
-    Nonce type 0x01 for application key, 0x02 for device key.
-    """
+    """Build 13-byte application/device nonce (Mesh Profile 3.8.5.2/3.8.5.3)."""
     nonce_type = 0x01 if akf else 0x02
     return (
         bytes([nonce_type, szmic << 7])
@@ -322,26 +286,7 @@ def make_access_unsegmented(
     akf: int = 0,
     aid: int = 0,
 ) -> bytes:
-    """Create unsegmented access message lower transport PDU.
-
-    Max access payload: 11 bytes (15 upper transport - 4 byte TransMIC).
-
-    Args:
-        key: 16-byte encryption key (device key or app key).
-        src: Source unicast address.
-        dst: Destination address.
-        seq: Sequence number.
-        iv_index: IV Index.
-        access_payload: Access layer payload (max 11 bytes).
-        akf: Application Key Flag (0=device key, 1=app key).
-        aid: Application key ID (from k4, 0 for device key).
-
-    Returns:
-        Lower transport PDU bytes.
-
-    Raises:
-        ProtocolError: If access payload exceeds 11 bytes.
-    """
+    """Create unsegmented access message lower transport PDU (max 11 bytes payload)."""
     if len(access_payload) > MAX_UNSEG_ACCESS_PAYLOAD:
         msg = (
             f"Unsegmented access payload max {MAX_UNSEG_ACCESS_PAYLOAD} bytes, "
@@ -351,7 +296,7 @@ def make_access_unsegmented(
 
     nonce = _make_app_nonce(akf, 0, seq, src, dst, iv_index)
     encrypted = mesh_aes_ccm_encrypt(key, nonce, access_payload, MIC_LEN_ACCESS)
-    hdr = (akf << MESH_AKF_SHIFT) | (aid & MESH_AID_MASK)  # SEG=0
+    hdr = (akf << MESH_AKF_SHIFT) | (aid & MESH_AID_MASK)
     return bytes([hdr]) + encrypted
 
 
@@ -367,24 +312,7 @@ def make_access_segmented(
     aid: int = 0,
     szmic: int = 0,
 ) -> list[tuple[int, bytes]]:
-    """Create segmented access message lower transport PDUs.
-
-    Splits the encrypted upper transport into segments of up to 12 bytes.
-
-    Args:
-        key: 16-byte encryption key.
-        src: Source unicast address.
-        dst: Destination address.
-        seq_start: Starting sequence number (increments per segment).
-        iv_index: IV Index.
-        access_payload: Access layer payload (any length).
-        akf: Application Key Flag.
-        aid: Application key ID.
-        szmic: Size of MIC flag (0=32-bit, 1=64-bit).
-
-    Returns:
-        List of (sequence_number, transport_pdu) tuples, one per segment.
-    """
+    """Create segmented access message lower transport PDUs."""
     nonce = _make_app_nonce(akf, szmic, seq_start, src, dst, iv_index)
     mic_len = MIC_LEN_CONTROL if szmic else MIC_LEN_ACCESS
     upper_transport = mesh_aes_ccm_encrypt(key, nonce, access_payload, mic_len)
@@ -396,8 +324,7 @@ def make_access_segmented(
     segments: list[tuple[int, bytes]] = []
     for seg_o in range(n_segs):
         chunk = upper_transport[seg_o * SEG_DATA_SIZE : (seg_o + 1) * SEG_DATA_SIZE]
-        hdr = MESH_SEG_BIT | (akf << MESH_AKF_SHIFT) | (aid & MESH_AID_MASK)  # SEG=1
-        # SZMIC(1) | SeqZero(13) | SegO(5) | SegN(5) = 24 bits
+        hdr = MESH_SEG_BIT | (akf << MESH_AKF_SHIFT) | (aid & MESH_AID_MASK)
         info = (
             (szmic << MESH_SZMIC_SHIFT)
             | (seq_zero << MESH_SEQ_ZERO_SHIFT)
@@ -411,126 +338,14 @@ def make_access_segmented(
 
 
 @dataclass(frozen=True)
-class SegmentHeader:
-    """Parsed segmented access message header fields."""
-
-    akf: int
-    aid: int
-    szmic: int
-    seq_zero: int
-    seg_o: int
-    seg_n: int
-    segment_data: bytes
-
-
-def parse_segment_header(transport_pdu: bytes) -> SegmentHeader:
-    """Parse a segmented access message lower transport PDU header.
-
-    Extracts AKF, AID, SZMIC, SeqZero, SegO, SegN and segment data
-    from a segmented transport PDU (Mesh Profile 3.5.2.2).
-
-    Args:
-        transport_pdu: Lower transport PDU bytes (at least 4 bytes header).
-
-    Returns:
-        Parsed SegmentHeader.
-
-    Raises:
-        MalformedPacketError: If PDU is too short.
-    """
-    if len(transport_pdu) < 4:
-        msg = f"Segmented transport PDU too short: {len(transport_pdu)} bytes"
-        raise MalformedPacketError(msg)
-
-    hdr = transport_pdu[0]
-    if not (hdr & MESH_SEG_BIT):
-        msg = "Not a segmented PDU (SEG bit not set)"
-        raise MalformedPacketError(msg)
-
-    akf = (hdr >> MESH_AKF_SHIFT) & 1
-    aid = hdr & MESH_AID_MASK
-
-    # 3 bytes: SZMIC(1) | SeqZero(13) | SegO(5) | SegN(5) = 24 bits
-    info = (transport_pdu[1] << 16) | (transport_pdu[2] << 8) | transport_pdu[3]
-    szmic = (info >> MESH_SZMIC_SHIFT) & 1
-    seq_zero = (info >> MESH_SEQ_ZERO_SHIFT) & MESH_SEQ_ZERO_MASK
-    seg_o = (info >> MESH_SEG_O_SHIFT) & MESH_SEG_MASK
-    seg_n = info & MESH_SEG_MASK
-
-    return SegmentHeader(
-        akf=akf,
-        aid=aid,
-        szmic=szmic,
-        seq_zero=seq_zero,
-        seg_o=seg_o,
-        seg_n=seg_n,
-        segment_data=transport_pdu[4:],
-    )
-
-
-def reassemble_and_decrypt_segments(
-    keys: MeshKeys,
-    src: int,
-    dst: int,
-    segments: dict[int, bytes],
-    seg_n: int,
-    szmic: int,
-    seq_zero: int,
-    akf: int,
-) -> bytes | None:
-    """Reassemble segmented transport PDU chunks and decrypt.
-
-    Concatenates all segment data in order (0..seg_n), then decrypts
-    the upper transport PDU using the application or device nonce
-    with seq_zero as the sequence number.
-
-    Args:
-        keys: Mesh key set.
-        src: Source unicast address.
-        dst: Destination address.
-        segments: Dict mapping seg_o index to segment data bytes.
-        seg_n: Last segment index.
-        szmic: Size of MIC flag (0=32-bit, 1=64-bit).
-        seq_zero: 13-bit sequence number from segment header.
-        akf: Application Key Flag (0=device key, 1=app key).
-
-    Returns:
-        Decrypted access payload, or None if decryption fails.
-    """
-    # Snapshot segments to prevent TOCTOU race with BLE notification callbacks
-    segments_snapshot = dict(segments)
-
-    # Concatenate in order
-    upper_transport = b""
-    for i in range(seg_n + 1):
-        if i not in segments_snapshot:
-            return None
-        upper_transport += segments_snapshot[i]
-
-    key = keys.app_key if akf else keys.dev_key
-    if key is None:
-        _LOGGER.debug("No %s key for segmented decryption", "app" if akf else "dev")
-        return None
-
-    mic_len = MIC_LEN_CONTROL if szmic else MIC_LEN_ACCESS
-    nonce = _make_app_nonce(akf, szmic, seq_zero, src, dst, keys.iv_index)
-
-    try:
-        return mesh_aes_ccm_decrypt(key, nonce, upper_transport, mic_len)
-    except CryptoError:
-        _LOGGER.debug("Segmented upper transport decryption failed (akf=%d)", akf)
-        return None
-
-
-@dataclass(frozen=True)
 class AccessMessage:
     """Decoded access layer message."""
 
     seg: bool
     akf: int
     aid: int
-    access_payload: bytes | None  # None if segmented or decryption failed
-    raw: bytes  # Original transport PDU
+    access_payload: bytes | None
+    raw: bytes
 
 
 def decrypt_access_payload(
@@ -540,21 +355,7 @@ def decrypt_access_payload(
     seq: int,
     transport_pdu: bytes,
 ) -> AccessMessage | None:
-    """Decrypt upper transport from a received lower transport PDU.
-
-    Handles unsegmented messages only. Segmented messages are returned
-    with ``seg=True`` and ``access_payload=None`` for reassembly by caller.
-
-    Args:
-        keys: Mesh key set.
-        src: Source address of the message.
-        dst: Destination address.
-        seq: Network layer sequence number.
-        transport_pdu: Lower transport PDU from network layer.
-
-    Returns:
-        Decoded AccessMessage, or None if decryption fails.
-    """
+    """Decrypt upper transport from a received lower transport PDU."""
     if not transport_pdu:
         return None
 
@@ -580,485 +381,43 @@ def decrypt_access_payload(
         return None
 
     return AccessMessage(
-        seg=False, akf=akf, aid=aid, access_payload=access_payload, raw=transport_pdu
+        seg=False,
+        akf=akf,
+        aid=aid,
+        access_payload=access_payload,
+        raw=transport_pdu,
     )
 
 
-# ============================================================
-# Proxy PDU (Mesh Profile 6.3)
-# ============================================================
-
-
-def make_proxy_pdu(network_pdu: bytes) -> bytes:
-    """Wrap a network PDU in a Mesh Proxy PDU (SAR=complete, type=network).
-
-    Args:
-        network_pdu: Complete network PDU.
-
-    Returns:
-        Proxy PDU with SAR/type header byte prepended.
-    """
-    return bytes([(PROXY_SAR_COMPLETE << 6) | PROXY_TYPE_NETWORK]) + network_pdu
-
-
-@dataclass(frozen=True)
-class ProxyPDU:
-    """Parsed Mesh Proxy PDU."""
-
-    sar: int
-    pdu_type: int
-    payload: bytes
-
-
-def parse_proxy_pdu(data: bytes) -> ProxyPDU:
-    """Parse a Mesh Proxy PDU.
-
-    Args:
-        data: Raw proxy PDU bytes from GATT characteristic.
-
-    Returns:
-        Parsed ProxyPDU with SAR, type, and payload.
-
-    Raises:
-        MalformedPacketError: If data is empty.
-    """
-    if not data:
-        msg = "Empty proxy PDU"
-        raise MalformedPacketError(msg)
-    return ProxyPDU(
-        sar=(data[0] >> 6) & PROXY_SAR_MASK,
-        pdu_type=data[0] & PROXY_TYPE_MASK,
-        payload=data[1:],
-    )
-
-
-# ============================================================
-# Config Model Messages (Mesh Profile 4.3)
-# ============================================================
-
-
-def config_composition_get(page: int = 0) -> bytes:
-    """Config Composition Data Get (opcode 0x8008).
-
-    Args:
-        page: Composition data page number.
-
-    Returns:
-        Access layer payload.
-    """
-    if not 0 <= page <= 0xFF:
-        msg = f"Page must be 0..255, got {page}"
-        raise ProtocolError(msg)
-    return struct.pack(">H", OP_CONFIG_COMPOSITION_GET) + bytes([page])
-
-
-def config_appkey_add(
-    net_idx: int,
-    app_idx: int,
-    app_key: bytes,
-) -> bytes:
-    """Config AppKey Add (opcode 0x00).
-
-    20-byte payload — requires segmented transport.
-
-    Args:
-        net_idx: Network key index (12-bit).
-        app_idx: Application key index (12-bit).
-        app_key: 16-byte application key.
-
-    Returns:
-        Access layer payload.
-    """
-    if not 0 <= net_idx <= 0xFFF:
-        msg = f"net_idx must be 0..0xFFF, got {net_idx}"
-        raise ProtocolError(msg)
-    if not 0 <= app_idx <= 0xFFF:
-        msg = f"app_idx must be 0..0xFFF, got {app_idx}"
-        raise ProtocolError(msg)
-    if len(app_key) != 16:
-        msg = f"app_key must be 16 bytes, got {len(app_key)}"
-        raise ProtocolError(msg)
-    # NetKeyIndex(12) + AppKeyIndex(12) packed into 3 bytes LE
-    idx = (net_idx & 0xFFF) | ((app_idx & 0xFFF) << 12)
-    return bytes([OP_CONFIG_APPKEY_ADD]) + struct.pack("<I", idx)[:3] + app_key
-
-
-def config_model_app_bind(
-    element_addr: int,
-    app_idx: int,
-    model_id: int,
-) -> bytes:
-    """Config Model App Bind (opcode 0x803D).
-
-    8-byte payload — fits unsegmented transport.
-
-    Note: Only SIG Model IDs (16-bit, 0x0000-0xFFFF) are supported.
-    Vendor Model IDs (32-bit, company code + model ID) use a different
-    10-byte payload format and are not supported by this function.
-    Passing a value > 0xFFFF raises ProtocolError rather than truncating.
-
-    Args:
-        element_addr: Element unicast address.
-        app_idx: Application key index.
-        model_id: SIG Model ID (16-bit, 0x0000-0xFFFF).
-
-    Returns:
-        Access layer payload.
-    """
-    if not 0 <= element_addr <= 0xFFFF:
-        msg = f"element_addr must be 0..0xFFFF, got {element_addr}"
-        raise ProtocolError(msg)
-    if not 0 <= app_idx <= 0xFFF:
-        msg = f"app_idx must be 0..0xFFF, got {app_idx}"
-        raise ProtocolError(msg)
-    if not 0 <= model_id <= 0xFFFF:
-        msg = f"model_id must be 0..0xFFFF, got {model_id}"
-        raise ProtocolError(msg)
-    return struct.pack(">H", OP_CONFIG_MODEL_APP_BIND) + struct.pack(
-        "<HHH", element_addr, app_idx, model_id
-    )
-
-
-# ============================================================
-# Generic OnOff Model Messages (Mesh Model 3.2)
-# ============================================================
-
-
-def generic_onoff_set(on: bool, tid: int = 0) -> bytes:
-    """Generic OnOff Set (opcode 0x8202).
-
-    Args:
-        on: Target state (True=ON, False=OFF).
-        tid: Transaction identifier (0-255, should increment per command).
-
-    Returns:
-        Access layer payload.
-    """
-    return struct.pack(">H", OP_GENERIC_ONOFF_SET) + bytes([0x01 if on else 0x00, tid & 0xFF])
-
-
-def generic_onoff_get() -> bytes:
-    """Generic OnOff Get (opcode 0x8201).
-
-    Returns:
-        Access layer payload.
-    """
-    return struct.pack(">H", OP_GENERIC_ONOFF_GET)
-
-
-# ============================================================
-# Access Layer Opcode Parsing (Mesh Profile 3.7.3)
-# ============================================================
-
-
-def parse_access_opcode(data: bytes) -> tuple[int, bytes]:
-    """Parse a SIG Mesh access layer opcode.
-
-    Opcodes are 1, 2, or 3 bytes:
-    - 0xxxxxxx: 1-byte SIG opcode
-    - 10xxxxxx: 2-byte SIG opcode
-    - 11xxxxxx: 3-byte vendor opcode
-
-    Args:
-        data: Access layer payload starting with opcode.
-
-    Returns:
-        Tuple of (opcode, remaining parameters).
-
-    Raises:
-        MalformedPacketError: If data is too short.
-    """
-    if not data:
-        msg = "Empty access payload"
-        raise MalformedPacketError(msg)
-
-    if data[0] & MESH_OPCODE_1BYTE_MASK == 0:
-        # 1-byte opcode
-        return data[0], data[1:]
-    elif data[0] & MESH_OPCODE_2BYTE_MASK == MESH_OPCODE_2BYTE_VALUE:
-        # 2-byte opcode
-        if len(data) < 2:
-            msg = "2-byte opcode truncated"
-            raise MalformedPacketError(msg)
-        return (data[0] << 8) | data[1], data[2:]
-    else:
-        # 3-byte vendor opcode
-        if len(data) < 3:
-            msg = "3-byte vendor opcode truncated"
-            raise MalformedPacketError(msg)
-        return (data[0] << 16) | (data[1] << 8) | data[2], data[3:]
-
-
-# ============================================================
-# Tuya Vendor Model (CID 0x07D0)
-# ============================================================
-
-# Tuya vendor opcodes (3-byte: opcode_byte + D0 07 for CID 0x07D0)
-TUYA_VENDOR_OPCODE = 0xCDD007  # DATA: device → client status/report
-TUYA_VENDOR_WRITE_ACK = 0xC9D007  # WRITE: client → device with ACK
-TUYA_VENDOR_WRITE_UNACK = 0xCAD007  # WRITE: client → device no ACK
-
-# Tuya vendor frame command types
-TUYA_CMD_DP_DATA = 0x01
-TUYA_CMD_TIMESTAMP_SYNC = 0x02
-
-# Tuya DP IDs (tentative — log raw values for HW verification)
-DP_ID_SWITCH = 1
-DP_ID_ENERGY_KWH = 17
-DP_ID_POWER_W = 18
-DP_ID_CURRENT_MA = 19
-DP_ID_VOLTAGE_V = 20
-
-
-@dataclass(frozen=True)
-class TuyaVendorDP:
-    """A single Tuya vendor Data Point from a vendor message."""
-
-    dp_id: int
-    dp_type: int
-    value: bytes
-
-
-@dataclass(frozen=True)
-class TuyaVendorFrame:
-    """Parsed Tuya vendor message frame.
-
-    Tuya vendor messages use a frame header: ``[command 1B][data_length 1B][data NB]``
-    where command identifies the payload type (DP data, timestamp sync, etc.).
-
-    Attributes:
-        command: Frame command byte (0x01=DP data, 0x02=timestamp sync, 0=unknown/raw).
-        data: Raw data bytes after the frame header.
-        dps: Parsed data points (populated only when command is TUYA_CMD_DP_DATA).
-    """
-
-    command: int
-    data: bytes
-    dps: list[TuyaVendorDP]
-
-
-def parse_tuya_vendor_frame(params: bytes) -> TuyaVendorFrame:
-    """Parse a Tuya vendor message with frame header.
-
-    Tuya vendor format: ``[command 1B][data_length 1B][data NB]``
-    Falls back to raw DP parsing when the frame header looks invalid
-    (for compatibility with devices that omit the frame header).
-
-    Args:
-        params: Raw parameter bytes after the vendor opcode.
-
-    Returns:
-        Parsed TuyaVendorFrame with command type and extracted DPs.
-    """
-    if len(params) < 2:
-        _LOGGER.debug("Vendor frame too short (%d bytes)", len(params))
-        return TuyaVendorFrame(command=0, data=params, dps=[])
-
-    command = params[0]
-    data = params[2:]
-
-    if command == TUYA_CMD_TIMESTAMP_SYNC:
-        _LOGGER.debug(
-            "Tuya timestamp sync request (%d data bytes): %s",
-            len(data),
-            data.hex(),
-        )
-        return TuyaVendorFrame(command=command, data=data, dps=[])
-
-    if command == TUYA_CMD_DP_DATA:
-        dps = _parse_dp_bytes(data)
-        return TuyaVendorFrame(command=command, data=data, dps=dps)
-
-    # Unknown command or no frame header — try raw DP parse on full params
-    _LOGGER.debug(
-        "Unknown vendor command 0x%02X, trying raw DP parse on full params",
-        command,
-    )
-    dps = _parse_dp_bytes(params)
-    return TuyaVendorFrame(command=command, data=params, dps=dps)
-
-
-def tuya_vendor_timestamp_response() -> bytes:
-    """Build a Tuya vendor WRITE_UNACK payload with current UTC timestamp.
-
-    Format: 3-byte opcode (0xCA D0 07) + frame header + timestamp data.
-    Frame: ``[cmd=0x02][len=0x08][timestamp_utc 4B BE][tz_offset 1B signed][pad 3B]``
-
-    Returns:
-        Complete access layer payload for a timestamp sync response.
-    """
-    import time
-
-    now = int(time.time())
-    opcode_bytes = TUYA_VENDOR_WRITE_UNACK.to_bytes(3, "big")
-    ts_bytes = now.to_bytes(4, "big")
-
-    # Signed timezone offset in hours from UTC
-    tz_offset = time.timezone // -3600 if not time.daylight else time.altzone // -3600
-    tz_byte = tz_offset.to_bytes(1, "big", signed=True) if -12 <= tz_offset <= 14 else b"\x00"
-    # Pad to 8 data bytes (observed in Tuya app traces)
-    data = ts_bytes + tz_byte + b"\x00\x00\x00"
-    frame = bytes([TUYA_CMD_TIMESTAMP_SYNC, len(data)]) + data
-    return opcode_bytes + frame
-
-
-def parse_tuya_vendor_dps(params: bytes) -> list[TuyaVendorDP]:
-    """Parse Tuya vendor DP values from access layer parameters.
-
-    This is the **raw DP parser** — it expects bare DP TLV bytes without
-    a frame header.  For framed messages (with command+length prefix),
-    use :func:`parse_tuya_vendor_frame` instead.
-
-    Format: ``[dp_id 1B][dp_type 1B][dp_len 1B][value NB]...``
-
-    Args:
-        params: Raw parameter bytes after the vendor opcode.
-
-    Returns:
-        List of parsed TuyaVendorDP.
-    """
-    return _parse_dp_bytes(params)
-
-
-def _parse_dp_bytes(data: bytes) -> list[TuyaVendorDP]:
-    """Parse raw DP bytes: ``[dp_id 1B][dp_type 1B][dp_len 1B][value NB]...``
-
-    Args:
-        data: Raw bytes containing concatenated DP TLV entries.
-
-    Returns:
-        List of parsed TuyaVendorDP. Truncated entries are silently skipped.
-    """
-    dps: list[TuyaVendorDP] = []
-    offset = 0
-    while offset < len(data):
-        if offset + 3 > len(data):
-            _LOGGER.debug("Truncated DP header at offset %d", offset)
-            break
-        dp_id = data[offset]
-        dp_type = data[offset + 1]
-        dp_len = data[offset + 2]
-        offset += 3
-        if offset + dp_len > len(data):
-            _LOGGER.debug(
-                "Truncated DP value: dp_id=%d, need %d bytes, have %d",
-                dp_id,
-                dp_len,
-                len(data) - offset,
-            )
-            break
-        value = data[offset : offset + dp_len]
-        offset += dp_len
-        dps.append(TuyaVendorDP(dp_id=dp_id, dp_type=dp_type, value=value))
-    return dps
-
-
-# ============================================================
-# Composition Data (Mesh Profile 4.2.1)
-# ============================================================
-
-_OPCODE_COMPOSITION_STATUS = 0x02
-
-
-@dataclass(frozen=True)
-class CompositionData:
-    """Parsed Composition Data Page 0 header."""
-
-    cid: int  # Company ID
-    pid: int  # Product ID
-    vid: int  # Version ID
-    crpl: int  # Replay protection list size
-    features: int  # Features bitmask
-    raw_elements: bytes  # Unparsed element data
-
-
-def parse_composition_data(params: bytes) -> CompositionData:
-    """Parse Composition Data Status page 0 parameters.
-
-    Args:
-        params: Parameters after opcode 0x02 (page byte + data).
-
-    Returns:
-        Parsed CompositionData.
-
-    Raises:
-        MalformedPacketError: If data is too short.
-    """
-    # params[0] = page, params[1:] = composition data
-    if len(params) < 11:
-        msg = f"Composition Data too short: {len(params)} bytes (need >= 11)"
-        raise MalformedPacketError(msg)
-
-    data = params[1:]  # Skip page byte
-    cid = struct.unpack_from("<H", data, 0)[0]
-    pid = struct.unpack_from("<H", data, 2)[0]
-    vid = struct.unpack_from("<H", data, 4)[0]
-    crpl = struct.unpack_from("<H", data, 6)[0]
-    features = struct.unpack_from("<H", data, 8)[0]
-
-    return CompositionData(
-        cid=cid,
-        pid=pid,
-        vid=vid,
-        crpl=crpl,
-        features=features,
-        raw_elements=data[10:],
-    )
-
-
-# ============================================================
-# Status Response Formatting
-# ============================================================
-
-# Config status code names
-_CONFIG_STATUS_NAMES: dict[int, str] = {
-    0x00: "Success",
-    0x01: "InvalidAddress",
-    0x02: "InvalidModel",
-    0x03: "InvalidAppKeyIndex",
-    0x04: "InvalidNetKeyIndex",
-    0x05: "InsufficientResources",
-    0x06: "KeyIndexAlreadyStored",
-}
-
-
-def format_status_response(opcode: int, params: bytes) -> str:
-    """Format a mesh status response for display.
-
-    Args:
-        opcode: Access layer opcode.
-        params: Opcode parameters.
-
-    Returns:
-        Human-readable status string.
-    """
-    if opcode == OP_CONFIG_APPKEY_STATUS:  # Config AppKey Status
-        status = params[0] if params else 0xFF
-        name = _CONFIG_STATUS_NAMES.get(status, f"Unknown(0x{status:02X})")
-        return f"AppKey Status: {name}"
-
-    if opcode == OP_CONFIG_MODEL_APP_STATUS:  # Config Model App Status
-        status = params[0] if params else 0xFF
-        bind_status: dict[int, str] = {
-            0x00: "Success",
-            0x02: "InvalidModel",
-            0x03: "InvalidAppKeyIndex",
-            0x04: "InvalidNetKeyIndex",
-            0x06: "ModelAppAlreadyBound",
-        }
-        name = bind_status.get(status, f"Unknown(0x{status:02X})")
-        return f"Model App Status: {name}"
-
-    if opcode == OP_CONFIG_COMPOSITION_STATUS:  # Config Composition Data Status
-        page = params[0] if params else 0xFF
-        return f"Composition Data: page={page} ({len(params) - 1} bytes)"
-
-    if opcode == OP_GENERIC_ONOFF_STATUS:  # Generic OnOff Status
-        state = params[0] if params else 0xFF
-        msg = f"OnOff Status: {'ON' if state else 'OFF'}"
-        if len(params) >= 3:
-            target = "ON" if params[1] else "OFF"
-            msg += f" (target={target}, remaining={params[2]})"
-        return msg
-
-    return f"Opcode 0x{opcode:04X}: {len(params)} bytes"
+def reassemble_and_decrypt_segments(
+    keys: MeshKeys,
+    src: int,
+    dst: int,
+    segments: dict[int, bytes],
+    seg_n: int,
+    szmic: int,
+    seq_zero: int,
+    akf: int,
+) -> bytes | None:
+    """Reassemble segmented transport PDU chunks and decrypt."""
+    segments_snapshot = dict(segments)
+
+    upper_transport = b""
+    for i in range(seg_n + 1):
+        if i not in segments_snapshot:
+            return None
+        upper_transport += segments_snapshot[i]
+
+    key = keys.app_key if akf else keys.dev_key
+    if key is None:
+        _LOGGER.debug("No %s key for segmented decryption", "app" if akf else "dev")
+        return None
+
+    mic_len = MIC_LEN_CONTROL if szmic else MIC_LEN_ACCESS
+    nonce = _make_app_nonce(akf, szmic, seq_zero, src, dst, keys.iv_index)
+
+    try:
+        return mesh_aes_ccm_decrypt(key, nonce, upper_transport, mic_len)
+    except CryptoError:
+        _LOGGER.debug("Segmented upper transport decryption failed (akf=%d)", akf)
+        return None
