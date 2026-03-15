@@ -114,7 +114,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         return device
 
     if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
-        from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice  # type: ignore[import-not-found]
+        from tuya_ble_mesh.sig_mesh_bridge import (
+            SIGMeshBridgeDevice,  # type: ignore[import-not-found]
+        )
 
         target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
         bridge_host: str = entry.data[CONF_BRIDGE_HOST]
@@ -127,7 +129,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             bridge_port,
         )
     elif device_type == DEVICE_TYPE_TELINK_BRIDGE_LIGHT:
-        from tuya_ble_mesh.sig_mesh_bridge import TelinkBridgeDevice  # type: ignore[import-not-found]
+        from tuya_ble_mesh.sig_mesh_bridge import (
+            TelinkBridgeDevice,  # type: ignore[import-not-found]
+        )
 
         bridge_host = entry.data[CONF_BRIDGE_HOST]
         bridge_port = entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)

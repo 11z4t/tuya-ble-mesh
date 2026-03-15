@@ -19,7 +19,6 @@ import time
 import uuid
 from collections import deque
 from collections.abc import Awaitable, Callable
-from typing import TYPE_CHECKING
 
 from tuya_ble_mesh.const import QUEUE_POLL_INTERVAL
 from tuya_ble_mesh.exceptions import TuyaBLEMeshError

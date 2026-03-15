@@ -34,9 +34,7 @@ from tuya_ble_mesh.const import (
 )
 from tuya_ble_mesh.device_commands import DeviceCommandsMixin
 from tuya_ble_mesh.device_dispatcher import (
-    _COMMAND_TTL,
     _CommandDispatcher,
-    _QUEUE_MAX_SIZE,
 )
 from tuya_ble_mesh.exceptions import (
     ConnectionError,

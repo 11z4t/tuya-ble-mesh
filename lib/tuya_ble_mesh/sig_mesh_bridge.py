@@ -285,7 +285,7 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
                             callback(on_state)
                         except asyncio.CancelledError:
                             raise
-                        except Exception:  # noqa: BLE001 — callback protection: external code may raise anything
+                        except Exception:
                             _LOGGER.warning("OnOff callback error", exc_info=True)
                     return
 
@@ -347,7 +347,7 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
                 callback()
             except asyncio.CancelledError:
                 raise
-            except Exception:  # noqa: BLE001 — callback protection: external code may raise anything
+            except Exception:
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
         return {"success": False, "error": "Timed out waiting for bridge result"}
 
@@ -515,7 +515,7 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
                 callback()
             except asyncio.CancelledError:
                 raise
-            except Exception:  # noqa: BLE001 — callback protection: external code may raise anything
+            except Exception:
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
 
     def _fire_status(self) -> None:
@@ -537,7 +537,7 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
                 callback(status)
             except asyncio.CancelledError:
                 raise
-            except Exception:  # noqa: BLE001 — callback protection: external code may raise anything
+            except Exception:
                 _LOGGER.warning("Status callback error", exc_info=True)
 
     async def send_power(self, on: bool) -> None:

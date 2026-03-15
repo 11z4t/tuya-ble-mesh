@@ -460,7 +460,7 @@ class BLEConnection:
                 callback()
             except asyncio.CancelledError:
                 raise
-            except Exception:  # noqa: BLE001 — callback protection: external code may raise anything
+            except Exception:
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
 
     # --- Keep-alive ---

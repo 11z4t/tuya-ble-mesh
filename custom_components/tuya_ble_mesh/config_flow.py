@@ -705,7 +705,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                     for _entry in self.hass.config_entries.async_entries(DOMAIN):
                         if _entry.data.get(CONF_MAC_ADDRESS, "").upper() == mac.upper():
                             return self.async_abort(reason="already_configured")
-                except Exception:  # noqa: BLE001
+                except Exception:
                     # Config entries API failure - proceed with setup
                     _LOGGER.debug("Failed to check for duplicate MAC", exc_info=True)
 
@@ -789,7 +789,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             mac = self._discovery_info["address"]
             try:
                 net_key_hex, dev_key_hex, app_key_hex = await self._run_provision(mac)
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 _LOGGER.warning("Provisioning timed out for %s", mac)
                 errors["base"] = "timeout"
             except Exception as exc:
@@ -799,6 +799,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                     from tuya_ble_mesh.exceptions import (  # type: ignore[import-not-found]
                         DeviceNotFoundError,
                         ProvisioningError,
+                    )
+                    from tuya_ble_mesh.exceptions import (
                         TimeoutError as MeshTimeoutError,
                     )
 
@@ -878,7 +880,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         from homeassistant.components import bluetooth as ha_bluetooth
         from tuya_ble_mesh.secrets import DictSecretsManager  # type: ignore[import-not-found]
         from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
-        from tuya_ble_mesh.sig_mesh_provisioner import SIGMeshProvisioner  # type: ignore[import-not-found]
+        from tuya_ble_mesh.sig_mesh_provisioner import (
+            SIGMeshProvisioner,  # type: ignore[import-not-found]
+        )
 
         # Generate fresh random keys (SECURITY: never logged)
         net_key = os.urandom(16)
