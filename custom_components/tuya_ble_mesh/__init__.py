@@ -223,16 +223,14 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         registry=registry,
     )
 
-    await coordinator.async_start()
-
-    # Update registry with connection result
-    if coordinator.state.available:
-        registry.record_connection(mac_address)
-        if coordinator.state.firmware_version:
-            registry.update_firmware_version(mac_address, coordinator.state.firmware_version)
-        await registry.async_save()
-    else:
-        registry.record_error(mac_address, "initial_connection_failed")
+    # Start coordinator in background — do NOT block setup on BLE connection.
+    # Entities will show as "unavailable" until connection succeeds.
+    # This prevents config flow from hanging when device is unreachable.
+    entry.async_create_background_task(
+        hass,
+        coordinator.async_start(),
+        f"tuya_ble_mesh_connect_{mac_address}",
+    )
 
     # Forward platform setup even if device is unavailable —
     # entities will show as "unavailable" until connection succeeds
