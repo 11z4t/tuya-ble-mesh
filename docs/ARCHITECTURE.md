@@ -115,7 +115,7 @@ class PowerControlError(Exception):
 class BridgeUnreachableError(PowerControlError):
     """Shelly device is not reachable on the network."""
 
-raise ShellyUnreachableError(f"Cannot reach Shelly at {host}")
+raise BridgeUnreachableError(f"Cannot reach Shelly at {host}")
 ```
 
 Pattern: one base exception per module, specific subclasses per failure mode.
@@ -273,8 +273,8 @@ base exception). Each module adds its own subtree:
 ```
 TuyaBLEMeshError (project-wide base)
 ├── PowerControlError
-│   ├── ShellyUnreachableError
-│   └── ShellyCommandError
+│   ├── BridgeUnreachableError
+│   └── BridgeCommandError
 ├── SnifferError
 │   ├── SnifferNotFoundError
 │   ├── SnifferProtocolError

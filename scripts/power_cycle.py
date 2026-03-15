@@ -15,8 +15,8 @@ from bleak import BleakScanner
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent / "lib"))
 
 from tuya_ble_mesh.power import (
+    BridgePowerController,
     PowerControlError,
-    ShellyPowerController,
 )
 
 TUYA_MESH_NAMES = ["out_of_mesh", "tymesh"]
@@ -38,7 +38,7 @@ async def verify_ble_device(scan_duration: int = 15) -> bool:
 
 async def run(host: str, off_time: float, verify: bool) -> bool:
     """Execute power cycle."""
-    controller = ShellyPowerController(host)
+    controller = BridgePowerController(host)
 
     try:
         print(f"  Checking Shelly at {host}...")

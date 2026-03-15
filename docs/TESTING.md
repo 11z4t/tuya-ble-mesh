@@ -211,7 +211,7 @@ result = await ctrl.power_cycle(off_seconds=0.01)
 | TestPowerCycle | 2 | Full cycle success, off-fails-aborts |
 | TestFactoryReset | 1 | Rapid cycling (3 cycles) |
 | TestIsReachable | 2 | Reachable, unreachable |
-| TestErrorHandling | 2 | HTTP 500 → ShellyCommandError, connection error → ShellyUnreachableError |
+| TestErrorHandling | 2 | HTTP 500 → BridgeCommandError, connection error → BridgeUnreachableError |
 | TestClose | 2 | Close with session, close without session |
 | TestGetStatus | 3 | Gen1 status, is_on true, is_on false |
 | **Total** | **21** | |

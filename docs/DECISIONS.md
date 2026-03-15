@@ -201,7 +201,7 @@ errors. It also makes it impossible to handle specific failures differently
 
 ### Rationale
 
-- `ShellyUnreachableError` vs `ShellyCommandError` enables different
+- `BridgeUnreachableError` vs `BridgeCommandError` enables different
   recovery strategies (retry network vs report API error)
 - `pytest.raises(SpecificError)` makes tests precise
 - Pattern established in `power.py` and `sniff.py`, consistent across all

@@ -15,8 +15,8 @@ from bleak import BleakScanner
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parent.parent / "lib"))
 
 from tuya_ble_mesh.power import (
+    BridgePowerController,
     PowerControlError,
-    ShellyPowerController,
 )
 
 DEFAULT_HOST = "192.168.1.50"
@@ -36,7 +36,7 @@ async def scan_for_out_of_mesh(scan_duration: int = 20) -> bool:
 
 async def run(host: str, cycles: int, interval: float) -> bool:
     """Execute factory reset sequence."""
-    controller = ShellyPowerController(host)
+    controller = BridgePowerController(host)
 
     try:
         print(f"  Checking Shelly at {host}...")
