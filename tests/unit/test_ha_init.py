@@ -15,7 +15,7 @@ _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
 sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
-from custom_components.tuya_ble_mesh import async_setup_entry, async_unload_entry  # noqa: E402
+from custom_components.tuya_ble_mesh import async_remove_config_entry_device, async_setup_entry, async_unload_entry  # noqa: E402
 from custom_components.tuya_ble_mesh.const import PLATFORMS  # noqa: E402
 
 
@@ -832,5 +832,65 @@ class TestDeviceRegistryIntegration:
             patch(_PATCH_COORDINATOR, return_value=mock_coord),
         ):
             result = await async_setup_entry(hass, entry)
+
+        assert result is True
+
+
+@pytest.mark.requires_ha
+class TestAsyncRemoveConfigEntryDevice:
+    """PLAT-593: Test stale device removal.
+
+    Shelly comparison: Shelly implements async_remove_config_entry_device() to
+    allow removal of stale entries. We go further by also refusing removal of
+    active (connected) devices to prevent accidental data loss.
+    """
+
+    @pytest.mark.asyncio
+    async def test_allows_removal_when_not_connected(self) -> None:
+        """Stale (disconnected) device can be removed from HA registry."""
+        from custom_components.tuya_ble_mesh import TuyaBLEMeshRuntimeData
+        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshDeviceState
+
+        entry = make_mock_entry()
+        mock_coord = MagicMock()
+        mock_coord.state = TuyaBLEMeshDeviceState(available=False)
+        entry.runtime_data = TuyaBLEMeshRuntimeData(
+            coordinator=mock_coord,
+            device_info=MagicMock(),
+        )
+        device_entry = MagicMock()
+
+        result = await async_remove_config_entry_device(MagicMock(), entry, device_entry)
+
+        assert result is True
+
+    @pytest.mark.asyncio
+    async def test_refuses_removal_when_connected(self) -> None:
+        """Active (connected) device must NOT be removed — prevents accidental loss."""
+        from custom_components.tuya_ble_mesh import TuyaBLEMeshRuntimeData
+        from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshDeviceState
+
+        entry = make_mock_entry()
+        mock_coord = MagicMock()
+        mock_coord.state = TuyaBLEMeshDeviceState(available=True)
+        entry.runtime_data = TuyaBLEMeshRuntimeData(
+            coordinator=mock_coord,
+            device_info=MagicMock(),
+        )
+        device_entry = MagicMock()
+
+        result = await async_remove_config_entry_device(MagicMock(), entry, device_entry)
+
+        assert result is False
+
+    @pytest.mark.asyncio
+    async def test_allows_removal_when_no_runtime_data(self) -> None:
+        """Entry without runtime_data (not loaded) can always be removed."""
+        entry = make_mock_entry()
+        # No runtime_data — simulate partial or failed setup
+        del entry.runtime_data
+        device_entry = MagicMock()
+
+        result = await async_remove_config_entry_device(MagicMock(), entry, device_entry)
 
         assert result is True

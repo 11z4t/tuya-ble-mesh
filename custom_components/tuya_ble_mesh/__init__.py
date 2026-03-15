@@ -417,6 +417,49 @@ async def _async_update_listener(hass: HomeAssistant, entry: TuyaBLEMeshConfigEn
     await hass.config_entries.async_reload(entry.entry_id)
 
 
+async def async_remove_config_entry_device(
+    hass: HomeAssistant,
+    entry: TuyaBLEMeshConfigEntry,
+    device_entry: Any,
+) -> bool:
+    """Return True if the device can be removed from the HA device registry.
+
+    Allows removal of stale devices that are no longer connected to the mesh.
+    Active (connected) devices return False to prevent accidental removal.
+
+    This is called when the user clicks 'Delete' on a device in the HA UI.
+    Unlike reauth or unload, this permanently removes the device entry from
+    HA's device registry.
+
+    Args:
+        hass: Home Assistant instance.
+        entry: Config entry associated with the device.
+        device_entry: HA device registry entry to be removed.
+
+    Returns:
+        True if the device is not currently connected (safe to remove),
+        False if the device is active and should not be removed.
+    """
+    runtime: TuyaBLEMeshRuntimeData | None = getattr(entry, "runtime_data", None)
+    if runtime is None:
+        # Entry has no runtime data — not loaded, allow cleanup
+        return True
+
+    # Allow removal only when device is not currently connected.
+    # This prevents accidentally removing an active device while keeping
+    # the UI clean of stale entries that can never reconnect.
+    is_connected = runtime.coordinator.state.available
+    if is_connected:
+        _LOGGER.warning(
+            "Refusing removal of active device %s (still connected to mesh)",
+            entry.title,
+        )
+    else:
+        _LOGGER.info("Allowing removal of stale device %s (not connected)", entry.title)
+
+    return not is_connected
+
+
 async def async_unload_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) -> bool:
     """Unload a Tuya BLE Mesh config entry.
 
