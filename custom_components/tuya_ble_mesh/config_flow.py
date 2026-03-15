@@ -512,6 +512,23 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         # If device already has a config entry, signal reconnect and abort discovery
         self._abort_if_unique_id_configured()
 
+        # PLAT-661: Reject paired devices advertising Proxy Service
+        # Paired devices advertise tymesh* name and Proxy Service (0x1828) — NOT Provisioning.
+        # Unpaired devices advertise out_of_mesh* and Provisioning Service (0x1827).
+        # Only trigger discovery for unpaired devices (in pairing mode).
+        service_uuids = getattr(discovery_info, "service_uuids", [])
+        if not name.startswith("out_of_mesh"):
+            # Device name does not indicate pairing mode
+            if SIG_MESH_PROV_UUID not in service_uuids:
+                # No Provisioning Service — device is not in pairing mode
+                _LOGGER.debug(
+                    "Ignoring discovery for %s (not in pairing mode: name=%s, services=%s)",
+                    address,
+                    name,
+                    service_uuids,
+                )
+                return self.async_abort(reason="not_in_pairing_mode")
+
         #  Check if device is still advertising (stale flow protection)
         # If the device is not currently available in HA's bluetooth stack, ignore the discovery.
         # This prevents stale discovery flows from persisting after a device stops advertising.
@@ -528,13 +545,12 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
 
         # Detect human-readable device category from service UUIDs
         device_category = "Smart Plug" if any(
-            u in getattr(discovery_info, "service_uuids", [])
+            u in service_uuids
             for u in (SIG_MESH_PROV_UUID, SIG_MESH_PROXY_UUID)
         ) else "LED Light"
         rssi = getattr(discovery_info, "rssi", None)
 
         #  Auto-detect device type based on service UUIDs
-        service_uuids = getattr(discovery_info, "service_uuids", [])
         auto_device_type = None
 
         if SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids:
@@ -553,6 +569,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             "device_category": device_category,
             "auto_device_type": auto_device_type,
         }
+
+        # PLAT-660: Set title_placeholders so discovery card shows device name
+        self.context["title_placeholders"] = {"name": name or address}
 
         # Auto-detect SIG Mesh devices by service UUID.
         # 0x1827 = Provisioning Service (unprovisioned device)

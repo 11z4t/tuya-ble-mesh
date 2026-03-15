@@ -110,7 +110,8 @@
       "reauth_successful": "Settings updated. Reconnecting your device now.",
       "device_not_available": "Device is no longer nearby. Try adding it again when it's in range.",
       "reconfigure_successful": "Settings updated. The integration will restart now.",
-      "entry_not_found": "Integration entry not found."
+      "entry_not_found": "Integration entry not found.",
+      "not_in_pairing_mode": "Device is not in pairing mode. Reset the device to pairing mode and try again."
     }
   },
   "options": {
