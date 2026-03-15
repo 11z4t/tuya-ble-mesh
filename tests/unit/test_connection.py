@@ -150,6 +150,7 @@ class TestConnect:
         mock_client = AsyncMock()
         mock_client.connect = AsyncMock()
         mock_client.disconnect = AsyncMock()
+        mock_client.read_gatt_char = AsyncMock(return_value=b"1.0.0")
         mock_ble_device = MagicMock()
 
         with (
@@ -160,7 +161,7 @@ class TestConnect:
             patch("tuya_ble_mesh.connection.BleakClient", return_value=mock_client),
             patch(
                 "tuya_ble_mesh.connection.provision",
-                side_effect=Exception("pair failed"),
+                side_effect=OSError("pair failed"),
             ),
             pytest.raises(ConnectionError, match="Provisioning failed"),
         ):
@@ -176,6 +177,7 @@ class TestConnect:
         conn = _make_conn()
 
         mock_client = AsyncMock()
+        mock_client.read_gatt_char = AsyncMock(return_value=b"1.0.0")
 
         async def mock_scan(
             *args: object,
@@ -210,6 +212,7 @@ class TestConnect:
         mock_client.connect = AsyncMock(
             side_effect=[asyncio.CancelledError(), None],
         )
+        mock_client.read_gatt_char = AsyncMock(return_value=b"1.0.0")
         mock_ble_device = MagicMock()
 
         with (
