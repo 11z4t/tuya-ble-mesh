@@ -246,13 +246,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
     # Register BLE callback for auto-reconnect when configured device reappears
     try:
         from homeassistant.components.bluetooth import (
-            async_register_callback,
-            BluetoothChange,
             BluetoothCallbackMatcher,
+            BluetoothChange,
+            async_register_callback,
         )
 
         def _on_ble_device_found(
-            service_info: "BluetoothServiceInfoBleak",
+            service_info: BluetoothServiceInfoBleak,
             change: BluetoothChange,
         ) -> None:
             if not coordinator.is_connected:
