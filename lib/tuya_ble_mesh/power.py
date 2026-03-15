@@ -24,11 +24,11 @@ _LOGGER = logging.getLogger(__name__)
 # --- Custom exceptions ---
 
 
-class ShellyUnreachableError(PowerControlError):
+class BridgeUnreachableError(PowerControlError):
     """Shelly device is not reachable on the network."""
 
 
-class ShellyCommandError(PowerControlError):
+class BridgeCommandError(PowerControlError):
     """Shelly device returned an error for a command."""
 
 
@@ -79,10 +79,10 @@ class ShellyPowerController:
         try:
             async with session.get(url) as resp:
                 if resp.status != 200:
-                    raise ShellyCommandError(f"HTTP {resp.status} from {path}")
+                    raise BridgeCommandError(f"HTTP {resp.status} from {path}")
                 return await resp.json(content_type=None)  # type: ignore[no-any-return]
         except aiohttp.ClientError as exc:
-            raise ShellyUnreachableError(f"Cannot reach Shelly at {self._host}: {exc}") from exc
+            raise BridgeUnreachableError(f"Cannot reach Shelly at {self._host}: {exc}") from exc
 
     async def detect_generation(self) -> int:
         """Auto-detect Shelly generation (1 or 2) via /shelly endpoint."""
@@ -176,7 +176,7 @@ class ShellyPowerController:
         try:
             await self._request("/shelly")
             return True
-        except (ShellyUnreachableError, ShellyCommandError):
+        except (BridgeUnreachableError, BridgeCommandError):
             return False
 
     async def close(self) -> None:
