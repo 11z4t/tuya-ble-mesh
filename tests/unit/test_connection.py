@@ -123,7 +123,7 @@ class TestConnect:
         mock_client.connect.assert_called_once()
 
         # Clean up keep-alive
-        await await conn._stop_keep_alive()
+        await conn._stop_keep_alive()
 
     @pytest.mark.asyncio
     async def test_connect_already_ready(self) -> None:
@@ -202,7 +202,7 @@ class TestConnect:
             await conn.connect()
 
         mock_est.assert_called_once()
-        await await conn._stop_keep_alive()
+        await conn._stop_keep_alive()
 
     @pytest.mark.asyncio
     async def test_cancelled_error_retried(self) -> None:
@@ -228,7 +228,7 @@ class TestConnect:
             await conn.connect()
 
         assert conn.state == ConnectionState.READY
-        await await conn._stop_keep_alive()
+        await conn._stop_keep_alive()
 
     @pytest.mark.asyncio
     async def test_all_retries_cancelled_raises_connection_error(self) -> None:
@@ -410,7 +410,7 @@ class TestKeepAlive:
             await conn.connect()
 
         assert conn._keep_alive_task is not None
-        await await conn._stop_keep_alive()
+        await conn._stop_keep_alive()
 
     @pytest.mark.asyncio
     async def test_keep_alive_stopped_on_disconnect(self) -> None:
