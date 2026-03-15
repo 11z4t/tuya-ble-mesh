@@ -183,8 +183,6 @@ class TestCatchSemantics:
 
 class TestBackwardCompatibility:
 
-    def test_malmbergs_bt_error_is_tuya_ble_mesh_error(self) -> None:
-
     def test_ble_error_is_tuya_ble_mesh_error(self) -> None:
         assert BLEError is TuyaBLEMeshError
 

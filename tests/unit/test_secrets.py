@@ -22,7 +22,7 @@ class TestInit:
 
     def test_default_vault(self) -> None:
         sm = SecretsManager()
-        assert sm.vault == "malmbergs-bt"
+        assert sm.vault == "tuya-ble-mesh"
 
     def test_custom_vault(self) -> None:
         sm = SecretsManager(vault="test-vault")
@@ -58,7 +58,7 @@ class TestGet:
         mock_exec.assert_called_once_with(
             "op",
             "read",
-            "op://malmbergs-bt/mesh-key/password",
+            "op://tuya-ble-mesh/mesh-key/password",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
@@ -77,7 +77,7 @@ class TestGet:
         mock_exec.assert_called_once_with(
             "op",
             "read",
-            "op://malmbergs-bt/item-name/password",
+            "op://tuya-ble-mesh/item-name/password",
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
         )
