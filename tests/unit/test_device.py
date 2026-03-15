@@ -19,11 +19,13 @@ from tuya_ble_mesh.const import (
     TELINK_VENDOR_ID,
 )
 from tuya_ble_mesh.device import (
-    _COMMAND_TTL,
-    _QUEUE_MAX_SIZE,
     MESH_ADDRESS_ALL,
     MESH_ADDRESS_DEFAULT,
     MeshDevice,
+)
+from tuya_ble_mesh.device_dispatcher import (
+    _COMMAND_TTL,
+    _QUEUE_MAX_SIZE,
 )
 from tuya_ble_mesh.exceptions import (
     CommandQueueFullError,
@@ -641,7 +643,7 @@ class TestCommandQueue:
     async def test_queue_full_raises(self) -> None:
         """Exceeding the queue capacity raises CommandQueueFullError."""
 
-        from tuya_ble_mesh.device import _QueuedCommand
+        from tuya_ble_mesh.device_dispatcher import _QueuedCommand
 
         device = _make_device()
         # Fill the dispatcher queue to capacity using put_nowait
@@ -666,7 +668,7 @@ class TestCommandQueue:
         """Commands older than TTL are silently dropped by the dispatcher."""
         import asyncio
 
-        from tuya_ble_mesh.device import _QueuedCommand
+        from tuya_ble_mesh.device_dispatcher import _QueuedCommand
 
         device, client = _make_connected_device()
         # Enqueue a stale command directly into the dispatcher queue
