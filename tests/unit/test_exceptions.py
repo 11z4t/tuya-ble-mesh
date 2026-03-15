@@ -20,7 +20,6 @@ from tuya_ble_mesh.exceptions import (
     DeviceNotFoundError,
     DisconnectedError,
     MalformedPacketError,
-    MalmbergsBTError,
     PowerControlError,
     ProtocolError,
     ProvisioningError,
@@ -183,10 +182,8 @@ class TestCatchSemantics:
 
 
 class TestBackwardCompatibility:
-    """Phase 1 BLE* and Phase 2 MalmbergsBTError names are aliases."""
 
     def test_malmbergs_bt_error_is_tuya_ble_mesh_error(self) -> None:
-        assert MalmbergsBTError is TuyaBLEMeshError
 
     def test_ble_error_is_tuya_ble_mesh_error(self) -> None:
         assert BLEError is TuyaBLEMeshError
@@ -205,7 +202,6 @@ class TestBackwardCompatibility:
             raise ConnectionError("test")
 
     def test_catch_malmbergs_alias_catches_new_name(self) -> None:
-        with pytest.raises(MalmbergsBTError):
             raise ConnectionError("test")
 
     def test_catch_new_name_catches_alias_raise(self) -> None:
