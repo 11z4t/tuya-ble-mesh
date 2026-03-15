@@ -270,7 +270,7 @@ class BLEConnection:
 
         try:
             await self._connect_with_retry(timeout, max_retries)
-        except (TimeoutError, OSError):
+        except (TimeoutError, OSError, MeshConnectionError):
             self._state = ConnectionState.DISCONNECTED
             raise
 
