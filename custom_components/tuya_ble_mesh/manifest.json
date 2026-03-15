@@ -19,12 +19,6 @@
       "local_name": "out_of_mesh*"
     },
     {
-      "local_name": "tymesh*"
-    },
-    {
-      "service_uuid": "00001828-0000-1000-8000-00805f9b34fb"
-    },
-    {
       "service_uuid": "00001827-0000-1000-8000-00805f9b34fb"
     }
   ],
