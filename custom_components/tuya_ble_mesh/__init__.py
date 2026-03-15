@@ -261,7 +261,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             service_info: BluetoothServiceInfoBleak,
             change: BluetoothChange,
         ) -> None:
-            if not coordinator.is_connected:
+            if not coordinator.state.available:
                 _LOGGER.info(
                     "BLE device %s reappeared (RSSI: %s) — triggering reconnect",
                     service_info.address,
