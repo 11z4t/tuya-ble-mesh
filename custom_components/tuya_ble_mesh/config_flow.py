@@ -17,12 +17,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 # Ensure lib/tuya_ble_mesh is importable from config flow context
-_BUNDLED_LIB = str(Path(__file__).resolve().parent / "lib")
-_DEV_LIB = str(Path(__file__).resolve().parent.parent.parent / "lib")
-for _lib_dir in (_BUNDLED_LIB, _DEV_LIB):
-    if Path(_lib_dir).is_dir() and _lib_dir not in sys.path:
-        sys.path.insert(0, _lib_dir)
-        break
+_LIB_DIR = str(Path(__file__).resolve().parent.parent.parent / "lib")
+if _LIB_DIR not in sys.path:
+    sys.path.insert(0, _LIB_DIR)
 
 import voluptuous as vol  # noqa: E402
 from aiohttp import ClientTimeout  # noqa: E402
