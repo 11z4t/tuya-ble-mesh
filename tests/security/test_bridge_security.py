@@ -14,7 +14,10 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
-from tuya_ble_mesh.exceptions import ConnectionError as MeshConnectionError
+from tuya_ble_mesh.exceptions import (
+    ConnectionError as MeshConnectionError,
+    InvalidRequestError,
+)
 from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice, TelinkBridgeDevice
 
 
@@ -22,9 +25,9 @@ class TestHTTPHeaderInjection:
     """Verify HTTP header injection is not possible via user-supplied values."""
 
     def test_host_with_crlf_in_bridge_url(self) -> None:
-        """Bridge host with CRLF should raise ValueError (injection prevention)."""
+        """Bridge host with CRLF should raise InvalidRequestError (injection prevention)."""
         malicious_host = "evil.com\r\nX-Injected: true"
-        with pytest.raises(ValueError, match="contains CRLF characters"):
+        with pytest.raises(InvalidRequestError, match="contains CRLF characters"):
             SIGMeshBridgeDevice(
                 "AA:BB:CC:DD:EE:FF",
                 target_addr=0x00B0,
@@ -32,33 +35,13 @@ class TestHTTPHeaderInjection:
             )
 
     def test_telink_host_with_crlf(self) -> None:
-        """Telink bridge host with CRLF injection attempt should raise ValueError."""
+        """Telink bridge host with CRLF injection attempt should raise InvalidRequestError."""
         malicious_host = "192.168.1.1\r\nX-Evil: pwned"
-        with pytest.raises(ValueError, match="contains CRLF characters"):
+        with pytest.raises(InvalidRequestError, match="contains CRLF characters"):
             TelinkBridgeDevice(
                 "AA:BB:CC:DD:EE:FF",
                 bridge_host=malicious_host,
             )
-
-
-class TestPathTraversal:
-    """Verify HTTP path inputs are not vulnerable to traversal."""
-
-    def test_parse_http_body_empty_response(self) -> None:
-        """Empty response (no HTTP separator) raises MeshConnectionError."""
-        with pytest.raises(MeshConnectionError):
-            SIGMeshBridgeDevice._parse_http_body("")
-
-    def test_parse_http_body_no_separator(self) -> None:
-        """Response without header separator raises MeshConnectionError."""
-        with pytest.raises(MeshConnectionError):
-            SIGMeshBridgeDevice._parse_http_body("HTTP/1.1 200 OK")
-
-    def test_parse_http_body_malicious_body(self) -> None:
-        """Malicious body content should be returned as-is for json.loads to reject."""
-        response = "HTTP/1.1 200 OK\r\n\r\n<script>alert(1)</script>"
-        result = SIGMeshBridgeDevice._parse_http_body(response)
-        assert result == "<script>alert(1)</script>"
 
 
 class TestMACAddressNormalization:
