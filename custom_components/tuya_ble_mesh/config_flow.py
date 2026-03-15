@@ -590,6 +590,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         type default for convenience. This matches Shelly's behaviour where discovery
         proposes integration but never creates entities without user action.
         """
+        errors: dict[str, str] = {}
+
         # Use auto-detected device type as default if available
         default_device_type = DEVICE_TYPE_LIGHT
         if self._discovery_info:
@@ -599,29 +601,36 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
 
         # PLAT-659: User submitted the confirmation form — create entry
         if user_input is not None and self._discovery_info:
-            mac = self._discovery_info["address"]
-            device_type = user_input.get(CONF_DEVICE_TYPE, default_device_type)
-            mesh_name = user_input.get(CONF_MESH_NAME, "out_of_mesh")
-            mesh_password = user_input.get(CONF_MESH_PASSWORD, "123456")
-            mesh_address = user_input.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS)
+            # Validate vendor_id if provided
+            vendor_id_str = user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
+            vendor_id_error = _validate_vendor_id(str(vendor_id_str))
+            if vendor_id_error:
+                errors[CONF_VENDOR_ID] = vendor_id_error
 
-            short_mac = mac[-8:]
-            type_label = "Smart Plug" if device_type == DEVICE_TYPE_PLUG else "LED Light"
+            if not errors:
+                mac = self._discovery_info["address"]
+                device_type = user_input.get(CONF_DEVICE_TYPE, default_device_type)
+                mesh_name = user_input.get(CONF_MESH_NAME, "out_of_mesh")
+                mesh_password = user_input.get(CONF_MESH_PASSWORD, "123456")
+                mesh_address = user_input.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS)
 
-            await self.async_set_unique_id(mac)
-            self._abort_if_unique_id_configured()
+                short_mac = mac[-8:]
+                type_label = "Smart Plug" if device_type == DEVICE_TYPE_PLUG else "LED Light"
 
-            return self.async_create_entry(
-                title=f"{type_label} {short_mac}",
-                data={
-                    CONF_MAC_ADDRESS: mac,
-                    CONF_MESH_NAME: mesh_name,
-                    CONF_MESH_PASSWORD: mesh_password,
-                    CONF_VENDOR_ID: user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID),
-                    CONF_DEVICE_TYPE: device_type,
-                    CONF_MESH_ADDRESS: mesh_address,
-                },
-            )
+                await self.async_set_unique_id(mac)
+                self._abort_if_unique_id_configured()
+
+                return self.async_create_entry(
+                    title=f"{type_label} {short_mac}",
+                    data={
+                        CONF_MAC_ADDRESS: mac,
+                        CONF_MESH_NAME: mesh_name,
+                        CONF_MESH_PASSWORD: mesh_password,
+                        CONF_VENDOR_ID: vendor_id_str,
+                        CONF_DEVICE_TYPE: device_type,
+                        CONF_MESH_ADDRESS: mesh_address,
+                    },
+                )
 
         # UX: Hide internal credentials in normal mode -- only show in advanced options
         confirm_schema: dict[object, object] = {
@@ -632,6 +641,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         if self.show_advanced_options:
             confirm_schema[vol.Optional(CONF_MESH_NAME, default="out_of_mesh")] = str
             confirm_schema[vol.Optional(CONF_MESH_PASSWORD, default="123456")] = str
+            confirm_schema[vol.Optional(CONF_VENDOR_ID, default=DEFAULT_VENDOR_ID)] = str
             confirm_schema[vol.Optional(CONF_MESH_ADDRESS, default=DEFAULT_MESH_ADDRESS)] = int
 
         rssi_raw = self._discovery_info.get("rssi") if self._discovery_info else None
@@ -658,6 +668,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                     self._discovery_info.get("address", "") if self._discovery_info else ""
                 ),
             },
+            errors=errors,
         )
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> FlowResult:  # type: ignore[override]
