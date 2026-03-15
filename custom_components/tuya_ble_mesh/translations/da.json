@@ -21,29 +21,29 @@
         }
       },
       "sig_bridge": {
-        "title": "Opret forbindelse til enhedshub",
-        "description": "Angiv adressen på den hub, der forbinder til **{name}**.",
+        "title": "Opret forbindelse til enhedsbridge",
+        "description": "Angiv adressen på den bridge, der forbinder til **{name}**.",
         "data": {
-          "bridge_host": "Hubadresse",
-          "bridge_port": "Hub-port",
+          "bridge_host": "bridgeadresse",
+          "bridge_port": "bridge-port",
           "unicast_target": "Enheds-ID"
         },
         "data_description": {
-          "bridge_host": "IP-adressen eller værtsnavnet på din hub (f.eks. din Raspberry Pi).",
-          "bridge_port": "Porten som hubben lytter på. Standard er 8099.",
+          "bridge_host": "IP-adressen eller værtsnavnet på din bridge (f.eks. din Raspberry Pi).",
+          "bridge_port": "Porten som bridgeben lytter på. Standard er 8099.",
           "unicast_target": "Skift kun hvis du har fået besked om det."
         }
       },
       "telink_bridge": {
-        "title": "Opret forbindelse til enhedshub",
-        "description": "Angiv adressen på den hub, der forbinder til **{name}**.",
+        "title": "Opret forbindelse til enhedsbridge",
+        "description": "Angiv adressen på den bridge, der forbinder til **{name}**.",
         "data": {
-          "bridge_host": "Hubadresse",
-          "bridge_port": "Hub-port"
+          "bridge_host": "bridgeadresse",
+          "bridge_port": "bridge-port"
         },
         "data_description": {
-          "bridge_host": "IP-adressen eller værtsnavnet på din hub (f.eks. din Raspberry Pi).",
-          "bridge_port": "Porten som hubben lytter på. Standard er 8099."
+          "bridge_host": "IP-adressen eller værtsnavnet på din bridge (f.eks. din Raspberry Pi).",
+          "bridge_port": "Porten som bridgeben lytter på. Standard er 8099."
         }
       },
       "sig_plug": {
@@ -67,8 +67,8 @@
         "data": {
           "mesh_name": "Netværksnavn",
           "mesh_password": "Netværksadgangskode",
-          "bridge_host": "Hubadresse",
-          "bridge_port": "Hub-port"
+          "bridge_host": "bridgeadresse",
+          "bridge_port": "bridge-port"
         }
       }
     },
@@ -78,7 +78,7 @@
       "invalid_bridge_host": "Angiv en gyldig adresse, f.eks. 192.168.1.100 eller raspberrypi.local.",
       "invalid_credential_length": "Netværksnavn og adgangskode må have højst 16 tegn hver.",
       "invalid_vendor_id": "Ugyldig leverandørkode — brug 1 til 4 hex-cifre (f.eks. 0x1001).",
-      "cannot_connect": "Kunne ikke nå hubben. Tjek at den er tændt og tilsluttet dit netværk.",
+      "cannot_connect": "Kunne ikke nå bridgeben. Tjek at den er tændt og tilsluttet dit netværk.",
       "provisioning_failed": "Kunne ikke oprette forbindelse til enheden. Sørg for at den er tændt og tæt på din Bluetooth-adapter, og prøv derefter igen.",
       "timeout": "Forbindelsen fik timeout. Sørg for at enheden er tændt og i nærheden, og prøv derefter igen.",
       "device_not_found": "Enheden blev ikke fundet. Sørg for at den er tændt og inden for Bluetooth-rækkevidde, og prøv derefter igen.",
@@ -100,8 +100,8 @@
           "mesh_name": "Netværksnavn",
           "mesh_password": "Netværksadgangskode",
           "mesh_address": "Enhedsadresse",
-          "bridge_host": "Hubadresse",
-          "bridge_port": "Hub-port",
+          "bridge_host": "bridgeadresse",
+          "bridge_port": "bridge-port",
           "unicast_target": "Enheds-ID",
           "iv_index": "Sikkerhedstæller"
         },
@@ -109,8 +109,8 @@
           "mesh_name": "Netværksnavnet for din enhed.",
           "mesh_password": "Netværksadgangskoden for din enhed.",
           "mesh_address": "Intern adresse for denne enhed. Sæt til 0 for at bruge standard.",
-          "bridge_host": "IP-adressen eller værtsnavnet på din hub.",
-          "bridge_port": "Porten som hubben lytter på. Standard er 8099.",
+          "bridge_host": "IP-adressen eller værtsnavnet på din bridge.",
+          "bridge_port": "Porten som bridgeben lytter på. Standard er 8099.",
           "unicast_target": "Skift kun hvis du har fået besked om det.",
           "iv_index": "Skift kun hvis du har fået besked om det."
         }
@@ -236,8 +236,8 @@
       "description": "Kunne ikke opsætte {device}. Sluk og tænd enheden igen, og tilføj den derefter igen i Home Assistant."
     },
     "bridge_unreachable": {
-      "title": "Hubben svarer ikke",
-      "description": "Kan ikke nå enhedshubben på {host}:{port}. Kontroller at den er tændt og tilsluttet dit netværk."
+      "title": "bridgeben svarer ikke",
+      "description": "Kan ikke nå enhedsbridgeben på {host}:{port}. Kontroller at den er tændt og tilsluttet dit netværk."
     }
   }
 }
