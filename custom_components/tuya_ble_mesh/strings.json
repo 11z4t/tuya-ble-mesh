@@ -259,16 +259,16 @@
       "description": "Could not set up {device}. Power the device off and on again, then re-add it to Home Assistant."
     },
     "bridge_unreachable": {
-      "title": "Hub not responding",
-      "description": "Cannot reach the device hub at {host}:{port}. Check that it's powered on and connected to your network."
+      "title": "Cannot reach bridge at {host}:{port}",
+      "description": "The bridge daemon is not responding.\n\n**Try these steps:**\n1. Check that the bridge device (Raspberry Pi) is **powered on**\n2. Verify the bridge daemon is **running**: `systemctl status tuya-mesh-bridge`\n3. Check the **IP address** {host} is correct\n4. Test connectivity: `ping {host}`"
     },
     "connection_timeout": {
-      "title": "Device connection timeout",
-      "description": "The device {device} is not responding. Check that it is powered on and in range."
+      "title": "Cannot connect to {device}",
+      "description": "The device is not responding to Bluetooth connection attempts.\n\n**Try these steps:**\n1. **Factory reset** the device (power cycle 3-5 times quickly)\n2. **Close** the Tuya Smart / Smart Life app on your phone\n3. Make sure the device is **within 5 meters** of your Bluetooth adapter\n4. **Restart** Home Assistant\n\nThe integration will keep trying to connect automatically."
     },
     "reconnect_storm": {
-      "title": "Frequent reconnections detected",
-      "description": "The device {device} has reconnected {count} times recently. This may indicate interference or a weak signal."
+      "title": "Frequent disconnections for {device}",
+      "description": "The device has reconnected {count} times in the last few minutes. This usually indicates:\n\n- **Weak Bluetooth signal** — move device closer\n- **Interference** from other Bluetooth/WiFi devices\n- **Power supply issues** — check the device power\n\nThe integration will continue reconnecting automatically."
     }
   }
 }

@@ -236,8 +236,16 @@
       "description": "Kunde inte konfigurera {device}. Stäng av och slå på enheten igen och lägg sedan till den på nytt i Home Assistant."
     },
     "bridge_unreachable": {
-      "title": "Hubben svarar inte",
-      "description": "Kan inte nå enhetshubben på {host}:{port}. Kontrollera att den är påslagen och ansluten till nätverket."
+      "title": "Kan inte nå hubben på {host}:{port}",
+      "description": "Hubbens daemon svarar inte.\n\n**Prova dessa steg:**\n1. Kontrollera att hubbenheten (Raspberry Pi) är **påslagen**\n2. Verifiera att daemon körs: `systemctl status tuya-mesh-bridge`\n3. Kontrollera att **IP-adressen** {host} är korrekt\n4. Testa anslutning: `ping {host}`"
+    },
+    "connection_timeout": {
+      "title": "Kan inte ansluta till {device}",
+      "description": "Enheten svarar inte på Bluetooth-anslutningsförsök.\n\n**Prova dessa steg:**\n1. **Fabriksåterställ** enheten (strömcykla 3-5 gånger snabbt)\n2. **Stäng** Tuya Smart / Smart Life-appen på din telefon\n3. Se till att enheten är **inom 5 meter** från din Bluetooth-adapter\n4. **Starta om** Home Assistant\n\nIntegrationen fortsätter försöka ansluta automatiskt."
+    },
+    "reconnect_storm": {
+      "title": "Frekventa frånkopplingar för {device}",
+      "description": "Enheten har återanslutit {count} gånger de senaste minuterna. Det beror vanligtvis på:\n\n- **Svag Bluetooth-signal** — flytta enheten närmare\n- **Störningar** från andra Bluetooth/WiFi-enheter\n- **Strömförsörjningsproblem** — kontrollera enhetens ström\n\nIntegrationen fortsätter återansluta automatiskt."
     }
   }
 }
