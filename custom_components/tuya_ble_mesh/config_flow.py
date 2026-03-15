@@ -565,35 +565,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
     async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Confirm bluetooth discovery and choose device type.
 
-        PLAT-511: Zero-knowledge config flow — if device type is auto-detected
-        and user provides no custom values, create entry directly without showing form.
-
-        Args:
-            user_input: User confirmation input.
-
-        Returns:
-            Flow result dict.
-        """
-        if user_input is not None and self._discovery_info is not None:
-            mac = self._discovery_info["address"]
-            device_type = user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
-            short_mac = mac[-8:]
-            title = (
-                f"Smart Plug {short_mac}"
-                if device_type == DEVICE_TYPE_PLUG
-                else f"LED Light {short_mac}"
-            )
-            return self.async_create_entry(
-                title=title,
-                data={
-                    CONF_MAC_ADDRESS: mac,
-                    CONF_MESH_NAME: user_input.get(CONF_MESH_NAME, "out_of_mesh"),
-                    CONF_MESH_PASSWORD: user_input.get(CONF_MESH_PASSWORD, "123456"),
-                    CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
-                    CONF_DEVICE_TYPE: device_type,
-                    CONF_MESH_ADDRESS: user_input.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS),
-                },
-            )
+        # Discovery pre-fills defaults but ALWAYS shows confirmation form
+        # (removed PLAT-511 auto-creation - user must explicitly confirm)
 
         # PLAT-510: Use auto-detected device type as default if available
         # PLAT-511: If device type is confidently auto-detected, skip form and create entry directly
