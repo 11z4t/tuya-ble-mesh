@@ -12,6 +12,12 @@ from typing import Literal
 
 from tuya_ble_mesh.exceptions import InvalidResultError
 
+# Error messages
+_ERR_MISSING_ERROR = "status='error' requires error to be set"
+_ERR_UNEXPECTED_ERROR = "status='success' should not have error set"
+_ERR_NEGATIVE_LATENCY = "latency_ms must be >= 0, got {}"
+_ERR_NEGATIVE_RETRIES = "retries_used must be >= 0, got {}"
+
 
 @dataclass(frozen=True)
 class CommandResult:
@@ -36,13 +42,13 @@ class CommandResult:
     def __post_init__(self) -> None:
         """Validate result consistency."""
         if self.status == "error" and self.error is None:
-            raise InvalidResultError("status='error' requires error to be set")
+            raise InvalidResultError(_ERR_MISSING_ERROR)
         if self.status == "success" and self.error is not None:
-            raise InvalidResultError("status='success' should not have error set")
+            raise InvalidResultError(_ERR_UNEXPECTED_ERROR)
         if self.latency_ms < 0:
-            raise InvalidResultError(f"latency_ms must be >= 0, got {self.latency_ms}")
+            raise InvalidResultError(_ERR_NEGATIVE_LATENCY.format(self.latency_ms))
         if self.retries_used < 0:
-            raise InvalidResultError(f"retries_used must be >= 0, got {self.retries_used}")
+            raise InvalidResultError(_ERR_NEGATIVE_RETRIES.format(self.retries_used))
 
     def is_successful(self) -> bool:
         """Return True if command succeeded."""

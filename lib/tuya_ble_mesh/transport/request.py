@@ -13,6 +13,19 @@ from typing import Literal
 
 from tuya_ble_mesh.exceptions import InvalidRequestError
 
+# Error messages for RetryPolicy validation
+_ERR_NEGATIVE_MAX_RETRIES = "max_retries must be >= 0"
+_ERR_NONPOSITIVE_BACKOFF_BASE = "backoff_base must be > 0"
+_ERR_BACKOFF_MAX_TOO_SMALL = "backoff_max must be >= backoff_base"
+_ERR_JITTER_OUT_OF_RANGE = "jitter must be in [0, 1]"
+
+# Error messages for CommandRequest validation
+_ERR_TARGET_NODE_RANGE = "target_node must be 0..0xFFFF, got {}"
+_ERR_OPCODE_RANGE = "opcode must be 0..0xFFFF, got {}"
+_ERR_NONPOSITIVE_TTL = "ttl must be > 0, got {}"
+_ERR_NEGATIVE_PRIORITY = "priority must be >= 0, got {}"
+_ERR_INVALID_PROTOCOL = "protocol must be 'telink' or 'sig', got {}"
+
 
 @dataclass(frozen=True)
 class RetryPolicy:
@@ -33,13 +46,13 @@ class RetryPolicy:
     def __post_init__(self) -> None:
         """Validate retry policy parameters."""
         if self.max_retries < 0:
-            raise InvalidRequestError("max_retries must be >= 0")
+            raise InvalidRequestError(_ERR_NEGATIVE_MAX_RETRIES)
         if self.backoff_base <= 0:
-            raise InvalidRequestError("backoff_base must be > 0")
+            raise InvalidRequestError(_ERR_NONPOSITIVE_BACKOFF_BASE)
         if self.backoff_max < self.backoff_base:
-            raise InvalidRequestError("backoff_max must be >= backoff_base")
+            raise InvalidRequestError(_ERR_BACKOFF_MAX_TOO_SMALL)
         if not 0 <= self.jitter <= 1:
-            raise InvalidRequestError("jitter must be in [0, 1]")
+            raise InvalidRequestError(_ERR_JITTER_OUT_OF_RANGE)
 
 
 @dataclass(frozen=True)
@@ -84,15 +97,15 @@ class CommandRequest:
 
         # Validate parameters
         if not 0 <= self.target_node <= 0xFFFF:
-            raise InvalidRequestError(f"target_node must be 0..0xFFFF, got {self.target_node}")
+            raise InvalidRequestError(_ERR_TARGET_NODE_RANGE.format(self.target_node))
         if not 0 <= self.opcode <= 0xFFFF:
-            raise InvalidRequestError(f"opcode must be 0..0xFFFF, got {self.opcode}")
+            raise InvalidRequestError(_ERR_OPCODE_RANGE.format(self.opcode))
         if self.ttl <= 0:
-            raise InvalidRequestError(f"ttl must be > 0, got {self.ttl}")
+            raise InvalidRequestError(_ERR_NONPOSITIVE_TTL.format(self.ttl))
         if self.priority < 0:
-            raise InvalidRequestError(f"priority must be >= 0, got {self.priority}")
+            raise InvalidRequestError(_ERR_NEGATIVE_PRIORITY.format(self.priority))
         if self.protocol not in ("telink", "sig"):
-            raise InvalidRequestError(f"protocol must be 'telink' or 'sig', got {self.protocol}")
+            raise InvalidRequestError(_ERR_INVALID_PROTOCOL.format(self.protocol))
 
     def is_expired(self) -> bool:
         """Return True if request has exceeded its deadline."""
