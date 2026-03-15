@@ -18,9 +18,7 @@ Only operation names, lengths, and success/failure status are safe to log.
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
-import time
 from collections.abc import Callable
 from typing import Any
 
@@ -28,25 +26,19 @@ from bleak.backends.characteristic import BleakGATTCharacteristic
 
 from tuya_ble_mesh.connection import BLEConnection
 from tuya_ble_mesh.const import (
-    COMPACT_DP_BRIGHTNESS,
-    COMPACT_DP_POWER,
-    CONNECTION_EVENT_WAIT_TIMEOUT,
     DEFAULT_COMMAND_MAX_RETRIES,
     DEFAULT_CONNECTION_TIMEOUT,
     DEFAULT_MAX_RETRIES,
     DEFAULT_STATUS_WAIT_TIMEOUT,
-    DP_TYPE_VALUE,
-    TELINK_CMD_COLOR,
-    TELINK_CMD_COLOR_BRIGHTNESS,
-    TELINK_CMD_DP_WRITE,
-    TELINK_CMD_LIGHT_MODE,
-    TELINK_CMD_MESH_ADDRESS,
-    TELINK_CMD_MESH_RESET,
-    TELINK_CMD_WHITE_TEMP,
     TELINK_VENDOR_ID,
 )
+from tuya_ble_mesh.device_commands import DeviceCommandsMixin
+from tuya_ble_mesh.device_dispatcher import (
+    _COMMAND_TTL,
+    _CommandDispatcher,
+    _QUEUE_MAX_SIZE,
+)
 from tuya_ble_mesh.exceptions import (
-    CommandQueueFullError,
     ConnectionError,
     CryptoError,
     DisconnectedError,
@@ -58,7 +50,6 @@ from tuya_ble_mesh.protocol import (
     decode_status,
     decrypt_notification,
     encode_command_packet,
-    encode_compact_dp,
 )
 from tuya_ble_mesh.scanner import mac_to_bytes
 
@@ -69,11 +60,6 @@ MESH_ADDRESS_ALL = 0xFFFF
 
 # Default mesh address for unprovisioned devices (not yet assigned)
 MESH_ADDRESS_DEFAULT = 0
-
-# Command queue limits
-_QUEUE_MAX_SIZE = 32
-_COMMAND_TTL = 60.0  # seconds
-_QUEUE_POLL_INTERVAL = 1.0  # seconds between queue.get() polls (allows checking _running)
 
 # Command retry backoff parameters
 _COMMAND_RETRY_INITIAL_BACKOFF = 0.5
@@ -86,175 +72,7 @@ StatusCallback = Callable[[StatusResponse], Any]
 DisconnectCallback = Callable[[], Any]
 
 
-class _QueuedCommand:
-    """A command waiting in the queue."""
-
-    __slots__ = ("created_at", "dest_id", "opcode", "params")
-
-    def __init__(
-        self,
-        opcode: int,
-        params: bytes,
-        dest_id: int,
-    ) -> None:
-        self.opcode = opcode
-        self.params = params
-        self.dest_id = dest_id
-        self.created_at = time.monotonic()
-
-
-class _CommandDispatcher:
-    """Async command dispatcher with internal worker task.
-
-    Provides fire-and-forget enqueue-and-return semantics for HA callers.
-    The dispatcher runs a separate asyncio worker task that drains the internal
-    queue, respects TTL, and handles retry/cancellation/reconnect.
-    """
-
-    def __init__(
-        self,
-        device: MeshDevice,
-        max_size: int = _QUEUE_MAX_SIZE,
-        ttl: float = _COMMAND_TTL,
-    ) -> None:
-        """Initialize the command dispatcher.
-
-        Args:
-            device: Parent MeshDevice instance.
-            max_size: Maximum queue size.
-            ttl: Command time-to-live in seconds.
-        """
-        self._device = device
-        self._max_size = max_size
-        self._ttl = ttl
-        self._queue: asyncio.Queue[_QueuedCommand] = asyncio.Queue(maxsize=max_size)
-        self._worker_task: asyncio.Task[None] | None = None
-        self._running = False
-
-    def start(self) -> None:
-        """Start the dispatcher worker task."""
-        if self._running:
-            return
-        self._running = True
-        self._worker_task = asyncio.create_task(self._worker())
-        self._worker_task.add_done_callback(self._log_worker_exception)
-        _LOGGER.debug("Command dispatcher started")
-
-    @staticmethod
-    def _log_worker_exception(task: asyncio.Task[None]) -> None:
-        """Log unhandled exceptions from the worker task."""
-        if task.cancelled():
-            return
-        try:
-            exc = task.exception()
-            if exc is not None:
-                _LOGGER.error("Command dispatcher worker crashed: %s", exc, exc_info=exc)
-        except asyncio.CancelledError:
-            pass
-
-    async def stop(self) -> None:
-        """Stop the dispatcher worker task and cancel pending commands."""
-        if not self._running:
-            return
-        self._running = False
-        if self._worker_task is not None:
-            self._worker_task.cancel()
-            with contextlib.suppress(asyncio.CancelledError):
-                await self._worker_task
-        # Drain any remaining items from the queue
-        while not self._queue.empty():
-            try:
-                self._queue.get_nowait()
-                self._queue.task_done()
-            except asyncio.QueueEmpty:
-                break
-        _LOGGER.debug("Command dispatcher stopped")
-
-    async def enqueue(self, opcode: int, params: bytes, dest_id: int) -> None:
-        """Enqueue a command for async sending (fire-and-forget).
-
-        Args:
-            opcode: Telink command code.
-            params: Command parameters.
-            dest_id: Target mesh address.
-
-        Raises:
-            CommandQueueFullError: If queue is at capacity.
-        """
-        if self._queue.full():
-            msg = f"Command queue full ({self._max_size})"
-            raise CommandQueueFullError(msg)
-        cmd = _QueuedCommand(opcode, params, dest_id)
-        await self._queue.put(cmd)
-        _LOGGER.debug("Queued command 0x%02X (queue size: %d)", opcode, self._queue.qsize())
-
-    async def _worker(self) -> None:
-        """Worker task that drains the queue and sends commands."""
-        _LOGGER.debug("Command dispatcher worker started")
-        while self._running:
-            try:
-                # Wait for a command with a short timeout to allow checking _running
-                try:
-                    cmd = await asyncio.wait_for(self._queue.get(), timeout=_QUEUE_POLL_INTERVAL)
-                except TimeoutError:
-                    continue
-
-                # Check TTL
-                age = time.monotonic() - cmd.created_at
-                if age > self._ttl:
-                    _LOGGER.warning(
-                        "Command 0x%02X expired (age=%.1fs, TTL=%.1fs), dropping",
-                        cmd.opcode,
-                        age,
-                        self._ttl,
-                    )
-                    self._queue.task_done()
-                    continue
-
-                # Wait for device to be ready (event-driven, no busy-wait)
-                if not self._device.is_connected:
-                    try:
-                        # Wait for connection with periodic checks of _running flag
-                        while self._running and not self._device.is_connected:
-                            try:
-                                await asyncio.wait_for(
-                                    self._device._connected_event.wait(),
-                                    timeout=CONNECTION_EVENT_WAIT_TIMEOUT,
-                                )
-                            except TimeoutError:
-                                # Timeout allows checking _running flag periodically
-                                continue
-                    except asyncio.CancelledError:
-                        self._queue.task_done()
-                        raise
-
-                if not self._running:
-                    self._queue.task_done()
-                    break
-
-                # Send the command
-                try:
-                    await self._device._send_now(cmd.opcode, cmd.params, cmd.dest_id)
-                except (ConnectionError, DisconnectedError):
-                    _LOGGER.warning(
-                        "Command 0x%02X send failed, dropping",
-                        cmd.opcode,
-                        exc_info=True,
-                    )
-
-                self._queue.task_done()
-
-            except asyncio.CancelledError:
-                _LOGGER.debug("Command dispatcher worker cancelled")
-                raise
-            except Exception:  # noqa: BLE001 — worker loop must survive all non-cancellation errors
-                _LOGGER.error("Command dispatcher worker error", exc_info=True)
-                await asyncio.sleep(1)  # Backoff before retrying loop
-
-        _LOGGER.debug("Command dispatcher worker stopped")
-
-
-class MeshDevice:
+class MeshDevice(DeviceCommandsMixin):
     """High-level interface to a Telink BLE mesh device.
 
     Composes BLEConnection for transport. Provides command queue with
@@ -417,7 +235,7 @@ class MeshDevice:
                 callback(status)
             except asyncio.CancelledError:
                 raise
-            except Exception:  # noqa: BLE001 — callback protection: external code may raise anything
+            except Exception:
                 _LOGGER.warning("Status callback error", exc_info=True)
 
     def _on_disconnect(self) -> None:
@@ -429,7 +247,7 @@ class MeshDevice:
                 callback()
             except asyncio.CancelledError:
                 raise
-            except Exception:  # noqa: BLE001 — callback protection: external code may raise anything
+            except Exception:
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
 
     async def connect(
@@ -559,120 +377,6 @@ class MeshDevice:
         raise ConnectionError(msg)
 
     # --- High-level commands (0xD2 compact DP format) ---
-
-    async def send_power(self, on: bool) -> None:
-        """Turn the device on or off.
-
-        Uses 0xD2 compact DP with dp_id 121 (confirmed from HCI snoop).
-
-        Args:
-            on: True to turn on, False to turn off.
-        """
-        params = encode_compact_dp(COMPACT_DP_POWER, DP_TYPE_VALUE, 1 if on else 0)
-        await self.send_command(TELINK_CMD_DP_WRITE, params)
-        _LOGGER.info("Power %s sent to %s", "ON" if on else "OFF", self._address)
-
-    async def send_brightness(self, level: int) -> None:
-        """Set the white brightness level.
-
-        Uses 0xD2 compact DP with dp_id 122 (confirmed from HCI snoop).
-
-        Args:
-            level: Brightness percentage (1-100).
-
-        Raises:
-            ProtocolError: If level is out of range.
-        """
-        if not 1 <= level <= 100:
-            msg = f"Brightness must be 1..100, got {level}"
-            raise ProtocolError(msg)
-        params = encode_compact_dp(COMPACT_DP_BRIGHTNESS, DP_TYPE_VALUE, level)
-        await self.send_command(TELINK_CMD_DP_WRITE, params)
-        _LOGGER.info("Brightness %d%% sent to %s", level, self._address)
-
-    async def send_color_temp(self, temp: int) -> None:
-        """Set the white color temperature.
-
-        Args:
-            temp: Color temperature value (0-255).
-
-        Raises:
-            ProtocolError: If temp is out of range.
-        """
-        if not 0 <= temp <= 0xFF:
-            msg = f"Color temp must be 0..255, got {temp}"
-            raise ProtocolError(msg)
-        await self.send_command(TELINK_CMD_WHITE_TEMP, bytes([temp]))
-        _LOGGER.info("Color temp %d sent to %s", temp, self._address)
-
-    async def send_color(self, red: int, green: int, blue: int) -> None:
-        """Set the RGB color.
-
-        Args:
-            red: Red channel (0-255).
-            green: Green channel (0-255).
-            blue: Blue channel (0-255).
-
-        Raises:
-            ProtocolError: If any channel is out of range.
-        """
-        for name, val in [("red", red), ("green", green), ("blue", blue)]:
-            if not 0 <= val <= 0xFF:
-                msg = f"{name} must be 0..255, got {val}"
-                raise ProtocolError(msg)
-        await self.send_command(TELINK_CMD_COLOR, bytes([red, green, blue]))
-        _LOGGER.info("Color (%d,%d,%d) sent to %s", red, green, blue, self._address)
-
-    async def send_color_brightness(self, level: int) -> None:
-        """Set the color mode brightness level.
-
-        Args:
-            level: Brightness value (0-255).
-
-        Raises:
-            ProtocolError: If level is out of range.
-        """
-        if not 0 <= level <= 0xFF:
-            msg = f"Color brightness must be 0..255, got {level}"
-            raise ProtocolError(msg)
-        await self.send_command(TELINK_CMD_COLOR_BRIGHTNESS, bytes([level]))
-        _LOGGER.info("Color brightness %d sent to %s", level, self._address)
-
-    async def send_light_mode(self, mode: int) -> None:
-        """Set the light mode.
-
-        Args:
-            mode: Light mode (0=white, 1=color, etc.).
-
-        Raises:
-            ProtocolError: If mode is out of range.
-        """
-        if not 0 <= mode <= 0xFF:
-            msg = f"Light mode must be 0..255, got {mode}"
-            raise ProtocolError(msg)
-        await self.send_command(TELINK_CMD_LIGHT_MODE, bytes([mode]))
-        _LOGGER.info("Light mode %d sent to %s", mode, self._address)
-
-    async def send_mesh_address(self, new_address: int) -> None:
-        """Assign a new mesh address to the device.
-
-        Args:
-            new_address: New mesh unicast address (1-0x7FFF).
-
-        Raises:
-            ProtocolError: If address is out of range.
-        """
-        if not 1 <= new_address <= 0x7FFF:
-            msg = f"Mesh address must be 1..0x7FFF, got {new_address}"
-            raise ProtocolError(msg)
-        params = new_address.to_bytes(2, "little")
-        await self.send_command(TELINK_CMD_MESH_ADDRESS, params)
-        _LOGGER.info("Mesh address 0x%04X sent to %s", new_address, self._address)
-
-    async def send_mesh_reset(self) -> None:
-        """Reset the device mesh settings (remove from network)."""
-        await self.send_command(TELINK_CMD_MESH_RESET, b"")
-        _LOGGER.info("Mesh reset sent to %s", self._address)
 
     async def wait_for_status(
         self, timeout: float = DEFAULT_STATUS_WAIT_TIMEOUT
