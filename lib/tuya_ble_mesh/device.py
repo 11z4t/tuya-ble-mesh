@@ -30,6 +30,11 @@ from tuya_ble_mesh.connection import BLEConnection
 from tuya_ble_mesh.const import (
     COMPACT_DP_BRIGHTNESS,
     COMPACT_DP_POWER,
+    CONNECTION_EVENT_WAIT_TIMEOUT,
+    DEFAULT_COMMAND_MAX_RETRIES,
+    DEFAULT_CONNECTION_TIMEOUT,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_STATUS_WAIT_TIMEOUT,
     DP_TYPE_VALUE,
     TELINK_CMD_COLOR,
     TELINK_CMD_COLOR_BRIGHTNESS,
@@ -213,7 +218,8 @@ class _CommandDispatcher:
                         while self._running and not self._device.is_connected:
                             try:
                                 await asyncio.wait_for(
-                                    self._device._connected_event.wait(), timeout=1.0
+                                    self._device._connected_event.wait(),
+                                    timeout=CONNECTION_EVENT_WAIT_TIMEOUT,
                                 )
                             except TimeoutError:
                                 # Timeout allows checking _running flag periodically
@@ -423,8 +429,8 @@ class MeshDevice:
 
     async def connect(
         self,
-        timeout: float = 30.0,
-        max_retries: int = 5,
+        timeout: float = DEFAULT_CONNECTION_TIMEOUT,
+        max_retries: int = DEFAULT_MAX_RETRIES,
     ) -> None:
         """Connect to the BLE device and provision (pair).
 
@@ -470,7 +476,12 @@ class MeshDevice:
         await self._dispatcher.enqueue(opcode, params, target)
 
     async def _send_now(
-        self, opcode: int, params: bytes, dest_id: int, *, max_retries: int = 3
+        self,
+        opcode: int,
+        params: bytes,
+        dest_id: int,
+        *,
+        max_retries: int = DEFAULT_COMMAND_MAX_RETRIES,
     ) -> None:
         """Send a command immediately via BLEConnection with retry.
 
@@ -658,7 +669,9 @@ class MeshDevice:
         await self.send_command(TELINK_CMD_MESH_RESET, b"")
         _LOGGER.info("Mesh reset sent to %s", self._address)
 
-    async def wait_for_status(self, timeout: float = 5.0) -> StatusResponse:
+    async def wait_for_status(
+        self, timeout: float = DEFAULT_STATUS_WAIT_TIMEOUT
+    ) -> StatusResponse:
         """Wait for a single status notification.
 
         Args:

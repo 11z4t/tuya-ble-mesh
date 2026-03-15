@@ -21,7 +21,10 @@ from bleak import BleakClient, BleakError, BleakScanner
 from bleak_retry_connector import establish_connection
 
 from tuya_ble_mesh.const import (
+    DEFAULT_CONNECTION_TIMEOUT,
+    DEFAULT_MAX_RETRIES,
     DIS_FIRMWARE_REVISION,
+    DISCONNECT_PROCESS_TIMEOUT,
     TELINK_CHAR_COMMAND,
     TELINK_CHAR_STATUS,
     TELINK_CMD_STATUS_QUERY,
@@ -246,8 +249,8 @@ class BLEConnection:
 
     async def connect(
         self,
-        timeout: float = 30.0,
-        max_retries: int = _DEFAULT_MAX_RETRIES,
+        timeout: float = DEFAULT_CONNECTION_TIMEOUT,
+        max_retries: int = DEFAULT_MAX_RETRIES,
     ) -> None:
         """Connect to the BLE device and provision (pair).
 
@@ -385,7 +388,7 @@ class BLEConnection:
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )
-            await asyncio.wait_for(proc.wait(), timeout=5.0)
+            await asyncio.wait_for(proc.wait(), timeout=DISCONNECT_PROCESS_TIMEOUT)
         except (TimeoutError, OSError):
             _LOGGER.debug("bluetoothctl remove failed (ignored)", exc_info=True)
 

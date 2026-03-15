@@ -398,7 +398,12 @@ def make_access_segmented(
         chunk = upper_transport[seg_o * SEG_DATA_SIZE : (seg_o + 1) * SEG_DATA_SIZE]
         hdr = MESH_SEG_BIT | (akf << MESH_AKF_SHIFT) | (aid & MESH_AID_MASK)  # SEG=1
         # SZMIC(1) | SeqZero(13) | SegO(5) | SegN(5) = 24 bits
-        info = (szmic << MESH_SZMIC_SHIFT) | (seq_zero << MESH_SEQ_ZERO_SHIFT) | (seg_o << MESH_SEG_O_SHIFT) | seg_n
+        info = (
+            (szmic << MESH_SZMIC_SHIFT)
+            | (seq_zero << MESH_SEQ_ZERO_SHIFT)
+            | (seg_o << MESH_SEG_O_SHIFT)
+            | seg_n
+        )
         transport_pdu = bytes([hdr]) + struct.pack(">I", info)[1:] + chunk
         segments.append((seq_start + seg_o, transport_pdu))
 
@@ -709,7 +714,9 @@ def config_model_app_bind(
     if not 0 <= model_id <= 0xFFFF:
         msg = f"model_id must be 0..0xFFFF, got {model_id}"
         raise ProtocolError(msg)
-    return struct.pack(">H", OP_CONFIG_MODEL_APP_BIND) + struct.pack("<HHH", element_addr, app_idx, model_id)
+    return struct.pack(">H", OP_CONFIG_MODEL_APP_BIND) + struct.pack(
+        "<HHH", element_addr, app_idx, model_id
+    )
 
 
 # ============================================================

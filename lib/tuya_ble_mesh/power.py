@@ -15,6 +15,7 @@ from typing import Any
 
 import aiohttp
 
+from tuya_ble_mesh.const import DEFAULT_POWER_TIMEOUT
 from tuya_ble_mesh.exceptions import PowerControlError
 
 _LOGGER = logging.getLogger(__name__)
@@ -37,7 +38,7 @@ class ShellyPowerController:
     Supports Gen1 and Gen2 devices with auto-detection.
     """
 
-    def __init__(self, host: str, timeout: float = 10.0) -> None:
+    def __init__(self, host: str, timeout: float = DEFAULT_POWER_TIMEOUT) -> None:
         if timeout <= 0:
             msg = f"Timeout must be positive, got {timeout}"
             raise ValueError(msg)

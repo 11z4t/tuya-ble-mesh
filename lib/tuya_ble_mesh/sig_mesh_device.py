@@ -26,6 +26,14 @@ from bleak import BleakClient, BleakScanner
 from bleak.backends.characteristic import BleakGATTCharacteristic
 from bleak.exc import BleakDBusError, BleakError
 
+from tuya_ble_mesh.const import (
+    DEFAULT_CONNECTION_TIMEOUT,
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_SIG_MESH_MAX_RETRIES,
+    DEFAULT_SIG_MESH_RESPONSE_TIMEOUT,
+    SIG_MESH_ONOFF_RESPONSE_TIMEOUT,
+    STATUS_WAIT_POLL_INTERVAL,
+)
 from tuya_ble_mesh.exceptions import (
     ConnectionError as MeshConnectionError,
 )
@@ -334,8 +342,8 @@ class SIGMeshDevice:
 
     async def connect(
         self,
-        timeout: float = 30.0,
-        max_retries: int = 5,
+        timeout: float = DEFAULT_CONNECTION_TIMEOUT,
+        max_retries: int = DEFAULT_MAX_RETRIES,
     ) -> None:
         """Connect to the device, load keys, and subscribe to notifications.
 
@@ -352,8 +360,8 @@ class SIGMeshDevice:
 
     async def _connect_impl(
         self,
-        timeout: float = 30.0,
-        max_retries: int = 5,
+        timeout: float = DEFAULT_CONNECTION_TIMEOUT,
+        max_retries: int = DEFAULT_MAX_RETRIES,
     ) -> None:
         """Internal connect implementation (called within mesh_operation context).
 
@@ -496,7 +504,9 @@ class SIGMeshDevice:
         except asyncio.CancelledError:
             pass
 
-    async def send_power(self, on: bool, *, max_retries: int = 3) -> None:
+    async def send_power(
+        self, on: bool, *, max_retries: int = DEFAULT_SIG_MESH_MAX_RETRIES
+    ) -> None:
         """Send GenericOnOff Set command with retry.
 
         Retries on transient BLE write failures with exponential backoff.
@@ -738,7 +748,7 @@ class SIGMeshDevice:
         *,
         net_idx: int = 0,
         app_idx: int = 0,
-        response_timeout: float = 15.0,
+        response_timeout: float = DEFAULT_SIG_MESH_RESPONSE_TIMEOUT,
     ) -> bool:
         """Send Config AppKey Add (opcode 0x00) and wait for Status response.
 
@@ -807,7 +817,7 @@ class SIGMeshDevice:
                 await self._client.write_gatt_char(
                     SIG_MESH_PROXY_DATA_IN, proxy_pdu, response=False
                 )
-                await asyncio.sleep(0.1)
+                await asyncio.sleep(STATUS_WAIT_POLL_INTERVAL)
 
             _LOGGER.info(
                 "AppKey Add sent to 0x%04X (%d segments, seq_start=%d, corr_id=%d)",
@@ -841,7 +851,7 @@ class SIGMeshDevice:
         app_idx: int,
         model_id: int,
         *,
-        response_timeout: float = 10.0,
+        response_timeout: float = SIG_MESH_ONOFF_RESPONSE_TIMEOUT,
     ) -> bool:
         """Send Config Model App Bind (opcode 0x803D) and wait for Status.
 

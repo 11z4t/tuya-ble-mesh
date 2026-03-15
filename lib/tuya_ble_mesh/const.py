@@ -216,3 +216,91 @@ TARGET_DEVICE_MAC = "DC:23:4D:21:43:A5"
 TARGET_DEVICE_MODEL = "9952126"
 TARGET_DEVICE_NAME = "Malmbergs LED Driver"
 TARGET_DEVICE_CATEGORY = "dj"
+
+# --- Timeout Constants (seconds) ---
+
+# Default timeout for device connection operations
+DEFAULT_CONNECTION_TIMEOUT = 30.0
+
+# Default timeout for provisioning operations
+DEFAULT_PROVISIONING_TIMEOUT = 15.0
+
+# Default timeout for waiting for device status response
+DEFAULT_STATUS_WAIT_TIMEOUT = 5.0
+
+# Default timeout for HTTP bridge operations
+DEFAULT_HTTP_TIMEOUT = 5.0
+
+# Default timeout for bridge connection
+DEFAULT_BRIDGE_CONNECTION_TIMEOUT = 10.0
+
+# Default timeout for power switch operations
+DEFAULT_POWER_TIMEOUT = 10.0
+
+# Timeout for waiting for connection event
+CONNECTION_EVENT_WAIT_TIMEOUT = 1.0
+
+# Timeout for disconnection process
+DISCONNECT_PROCESS_TIMEOUT = 5.0
+
+# Timeout for provisioning receive operations
+PROVISIONING_RECV_TIMEOUT = 10.0
+
+# Timeout for capabilities PDU
+PROVISIONING_CAPABILITIES_TIMEOUT = 10.0
+
+# Timeout for public key exchange (longer due to ECDH computation)
+PROVISIONING_PUBLIC_KEY_TIMEOUT = 15.0
+
+# Timeout for confirmation PDU
+PROVISIONING_CONFIRMATION_TIMEOUT = 10.0
+
+# Timeout for random PDU
+PROVISIONING_RANDOM_TIMEOUT = 10.0
+
+# Timeout for complete/failed PDU
+PROVISIONING_COMPLETE_TIMEOUT = 15.0
+
+# Timeout for pairing operation
+PROVISIONING_PAIR_TIMEOUT = 10.0
+
+# Buffer time added to scan timeout for overhead
+SCAN_TIMEOUT_BUFFER = 5.0
+
+# Buffer time added to provisioning scan timeout
+PROVISIONING_SCAN_TIMEOUT_BUFFER = 10.0
+
+# Timeout for provisioning service discovery
+PROVISIONING_SERVICE_DISCOVERY_TIMEOUT = 5.0
+
+# --- Retry Constants ---
+
+# Default maximum retries for connection attempts
+DEFAULT_MAX_RETRIES = 5
+
+# Default maximum retries for command operations
+DEFAULT_COMMAND_MAX_RETRIES = 3
+
+# Default maximum retries for bridge operations
+DEFAULT_BRIDGE_MAX_RETRIES = 3
+
+# --- Delay Constants (seconds) ---
+
+# Polling interval for queue operations
+QUEUE_POLL_INTERVAL = 0.1
+
+# Polling interval during status wait
+STATUS_WAIT_POLL_INTERVAL = 0.1
+
+# --- SIG Mesh Specific Timeouts (seconds) ---
+
+# Default timeout for SIG Mesh response
+DEFAULT_SIG_MESH_RESPONSE_TIMEOUT = 15.0
+
+# Timeout for GenericOnOff status response
+SIG_MESH_ONOFF_RESPONSE_TIMEOUT = 10.0
+
+# --- SIG Mesh Retry Constants ---
+
+# Default maximum retries for SIG Mesh commands
+DEFAULT_SIG_MESH_MAX_RETRIES = 3

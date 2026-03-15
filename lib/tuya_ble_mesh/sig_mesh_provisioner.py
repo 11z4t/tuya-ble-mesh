@@ -43,6 +43,20 @@ from cryptography.hazmat.primitives.asymmetric.ec import (
     generate_private_key,
 )
 
+from tuya_ble_mesh.const import (
+    DEFAULT_MAX_RETRIES,
+    DEFAULT_PROVISIONING_TIMEOUT,
+    PROVISIONING_CAPABILITIES_TIMEOUT,
+    PROVISIONING_COMPLETE_TIMEOUT,
+    PROVISIONING_CONFIRMATION_TIMEOUT,
+    PROVISIONING_PAIR_TIMEOUT,
+    PROVISIONING_PUBLIC_KEY_TIMEOUT,
+    PROVISIONING_RANDOM_TIMEOUT,
+    PROVISIONING_RECV_TIMEOUT,
+    PROVISIONING_SCAN_TIMEOUT_BUFFER,
+    PROVISIONING_SERVICE_DISCOVERY_TIMEOUT,
+    SCAN_TIMEOUT_BUFFER,
+)
 from tuya_ble_mesh.exceptions import ProvisioningError
 from tuya_ble_mesh.logging_context import MeshLogAdapter, mesh_operation
 from tuya_ble_mesh.sig_mesh_crypto import aes_cmac, k1, mesh_aes_ccm_encrypt, s1
@@ -256,8 +270,8 @@ class SIGMeshProvisioner:
     async def provision(
         self,
         address: str,
-        timeout: float = 15.0,
-        max_retries: int = 5,
+        timeout: float = DEFAULT_PROVISIONING_TIMEOUT,
+        max_retries: int = DEFAULT_MAX_RETRIES,
     ) -> ProvisioningResult:
         """Execute full PB-GATT provisioning with a device.
 
@@ -397,7 +411,7 @@ class SIGMeshProvisioner:
                     )
                     device = await asyncio.wait_for(
                         BleakScanner.find_device_by_address(address, **scan_kwargs),
-                        timeout=timeout + 5.0,  # Add buffer for scan overhead
+                        timeout=timeout + SCAN_TIMEOUT_BUFFER,
                     )
 
                 if device is None:
@@ -423,7 +437,7 @@ class SIGMeshProvisioner:
                     # Use caller-supplied connector (e.g. bleak-retry-connector for HA)
                     client = await asyncio.wait_for(
                         self._ble_connect_callback(device),
-                        timeout=timeout + 10.0,
+                        timeout=timeout + PROVISIONING_SCAN_TIMEOUT_BUFFER,
                     )
                 else:
                     client_kwargs: dict[str, Any] = {"timeout": timeout}
@@ -447,7 +461,7 @@ class SIGMeshProvisioner:
                     if hasattr(client, "get_services"):
                         services = await asyncio.wait_for(
                             client.get_services(),
-                            timeout=5.0,
+                            timeout=PROVISIONING_SERVICE_DISCOVERY_TIMEOUT,
                         )
                     else:
                         services = client.services
@@ -490,7 +504,8 @@ class SIGMeshProvisioner:
                     client = None
                 # PLAT-506: Longer backoff to allow connection slot release
                 backoff = min(
-                    _CONNECT_RETRY_BACKOFF_BASE * (_CONNECT_RETRY_BACKOFF_EXPONENT ** (attempt - 1)),
+                    _CONNECT_RETRY_BACKOFF_BASE
+                    * (_CONNECT_RETRY_BACKOFF_EXPONENT ** (attempt - 1)),
                     _CONNECT_RETRY_MAX_BACKOFF,
                 )
                 await asyncio.sleep(backoff)
@@ -524,7 +539,8 @@ class SIGMeshProvisioner:
                     await self._cleanup_stale_connections(address)
                     # Longer backoff when slots are exhausted
                     backoff = min(
-                        _SLOTS_RETRY_BACKOFF_BASE * (_SLOTS_RETRY_BACKOFF_EXPONENT ** (attempt - 1)),
+                        _SLOTS_RETRY_BACKOFF_BASE
+                        * (_SLOTS_RETRY_BACKOFF_EXPONENT ** (attempt - 1)),
                         _SLOTS_RETRY_MAX_BACKOFF,
                     )
                     await asyncio.sleep(backoff)
@@ -538,7 +554,8 @@ class SIGMeshProvisioner:
                     )
                     # Standard backoff for other errors
                     backoff = min(
-                        _CONNECT_RETRY_BACKOFF_BASE * (_CONNECT_RETRY_BACKOFF_EXPONENT ** (attempt - 1)),
+                        _CONNECT_RETRY_BACKOFF_BASE
+                        * (_CONNECT_RETRY_BACKOFF_EXPONENT ** (attempt - 1)),
                         _CONNECT_RETRY_MAX_BACKOFF,
                     )
                     await asyncio.sleep(backoff)
@@ -598,7 +615,9 @@ class SIGMeshProvisioner:
             data_copy = bytes(data)
             try:
                 loop = asyncio.get_running_loop()
-                loop.create_task(_process_notify(data_copy))
+                task = loop.create_task(_process_notify(data_copy))
+                # Store task reference to prevent garbage collection
+                task.add_done_callback(lambda _: None)
             except RuntimeError:
                 # No running event loop (shutdown)
                 _LOGGER.debug("No running event loop for provisioning notify")
@@ -639,7 +658,9 @@ class SIGMeshProvisioner:
                 if len(segments) > 1:
                     await asyncio.sleep(_PROVISIONING_POLL_INTERVAL)
 
-        async def recv_prov(recv_timeout: float = 10.0, step_name: str = "PDU") -> bytes:
+        async def recv_prov(
+            recv_timeout: float = PROVISIONING_RECV_TIMEOUT, step_name: str = "PDU"
+        ) -> bytes:
             """Receive provisioning PDU with timeout and context.
 
             CF-2: Read rx_buffer with lock protection.
@@ -686,7 +707,7 @@ class SIGMeshProvisioner:
         try:
             if hasattr(client, "pair"):
                 _LOGGER.info("Provisioning: pairing (BlueZ bond) before GATT subscribe")
-                await asyncio.wait_for(client.pair(), timeout=10.0)
+                await asyncio.wait_for(client.pair(), timeout=PROVISIONING_PAIR_TIMEOUT)
         except (TimeoutError, OSError) as pair_exc:
             _LOGGER.warning(
                 "BlueZ pair() failed (%s: %s) — trying start_notify anyway",
@@ -702,7 +723,9 @@ class SIGMeshProvisioner:
         await send_prov(bytes([_PROV_INVITE]) + invite_params)
 
         # ---- Step 2: Capabilities ----
-        caps_pdu = await recv_prov(recv_timeout=10.0, step_name="Capabilities")
+        caps_pdu = await recv_prov(
+            recv_timeout=PROVISIONING_CAPABILITIES_TIMEOUT, step_name="Capabilities"
+        )
         check_pdu(caps_pdu, _PROV_CAPABILITIES, "Capabilities")
         device_caps = caps_pdu[1:]  # 11 bytes for ConfirmationInputs
         num_elements = caps_pdu[1] if len(caps_pdu) > 1 else 1
@@ -726,7 +749,9 @@ class SIGMeshProvisioner:
         _LOGGER.info("Provisioning: PublicKey exchange (%d bytes)", len(self._our_pub_key_bytes))
         await send_prov(bytes([_PROV_PUBLIC_KEY]) + self._our_pub_key_bytes)
 
-        dev_pub_pdu = await recv_prov(recv_timeout=15.0, step_name="PublicKey")
+        dev_pub_pdu = await recv_prov(
+            recv_timeout=PROVISIONING_PUBLIC_KEY_TIMEOUT, step_name="PublicKey"
+        )
         check_pdu(dev_pub_pdu, _PROV_PUBLIC_KEY, "PublicKey")
         device_pub_key_bytes = dev_pub_pdu[1:]
         if len(device_pub_key_bytes) != 64:
@@ -770,7 +795,9 @@ class SIGMeshProvisioner:
         conf_provisioner = aes_cmac(conf_key, random_provisioner + _NO_OOB_AUTH)
         await send_prov(bytes([_PROV_CONFIRMATION]) + conf_provisioner)
 
-        dev_conf_pdu = await recv_prov(recv_timeout=10.0, step_name="Confirmation")
+        dev_conf_pdu = await recv_prov(
+            recv_timeout=PROVISIONING_CONFIRMATION_TIMEOUT, step_name="Confirmation"
+        )
         check_pdu(dev_conf_pdu, _PROV_CONFIRMATION, "Confirmation")
         dev_confirmation = dev_conf_pdu[1:]
         _LOGGER.info("Provisioning: Device confirmation received (%d bytes)", len(dev_confirmation))
@@ -779,7 +806,9 @@ class SIGMeshProvisioner:
         _LOGGER.info("Provisioning: Random exchange")
         await send_prov(bytes([_PROV_RANDOM]) + random_provisioner)
 
-        dev_random_pdu = await recv_prov(recv_timeout=10.0, step_name="Random")
+        dev_random_pdu = await recv_prov(
+            recv_timeout=PROVISIONING_RANDOM_TIMEOUT, step_name="Random"
+        )
         check_pdu(dev_random_pdu, _PROV_RANDOM, "Random")
         random_device = dev_random_pdu[1:]
 
@@ -816,7 +845,9 @@ class SIGMeshProvisioner:
         await send_prov(bytes([_PROV_DATA]) + encrypted_data)
 
         # Wait for Complete or Failed
-        result_pdu = await recv_prov(recv_timeout=15.0, step_name="Complete/Failed")
+        result_pdu = await recv_prov(
+            recv_timeout=PROVISIONING_COMPLETE_TIMEOUT, step_name="Complete/Failed"
+        )
         if result_pdu[0] == _PROV_FAILED:
             code = result_pdu[1] if len(result_pdu) > 1 else 0xFF
             name = _PROV_ERROR_NAMES.get(code, f"0x{code:02X}")

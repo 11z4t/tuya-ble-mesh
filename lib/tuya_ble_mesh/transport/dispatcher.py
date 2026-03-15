@@ -21,6 +21,7 @@ from collections import deque
 from collections.abc import Awaitable, Callable
 from typing import TYPE_CHECKING
 
+from tuya_ble_mesh.const import QUEUE_POLL_INTERVAL
 from tuya_ble_mesh.exceptions import TuyaBLEMeshError
 from tuya_ble_mesh.transport.correlation import CorrelationEngine
 from tuya_ble_mesh.transport.metrics import TransportMetrics
@@ -239,7 +240,9 @@ class AsyncCommandDispatcher:
 
                 # Wait for a request (with timeout to check _running)
                 try:
-                    _, _, request = await asyncio.wait_for(self._queue.get(), timeout=1.0)
+                    _, _, request = await asyncio.wait_for(
+                        self._queue.get(), timeout=QUEUE_POLL_INTERVAL * 10
+                    )
                 except TimeoutError:
                     continue
 
@@ -263,7 +266,7 @@ class AsyncCommandDispatcher:
                 # Check in-flight limits
                 while not self._can_send(request):
                     # Wait a bit for in-flight capacity
-                    await asyncio.sleep(0.1)
+                    await asyncio.sleep(QUEUE_POLL_INTERVAL)
                     if not self._running or request.is_expired():
                         break
 
@@ -293,7 +296,9 @@ class AsyncCommandDispatcher:
                 self._metrics.record_in_flight(len(self._in_flight))
 
                 # Send the request
-                asyncio.create_task(self._send_with_retry(request))
+                task = asyncio.create_task(self._send_with_retry(request))
+                # Store task reference to prevent garbage collection
+                task.add_done_callback(lambda _: None)
 
             except asyncio.CancelledError:
                 _LOGGER.debug("AsyncCommandDispatcher worker cancelled")
@@ -317,13 +322,8 @@ class AsyncCommandDispatcher:
             return False
 
         device_in_flight = self._in_flight_per_device.get(request.target_node, 0)
-        if device_in_flight >= self.per_device_limit:
-            return False
-
-        # TODO: per_bridge_limit requires bridge identifier in request
-        # For now, only enforce total and per-device limits
-
-        return True
+        # Return negated condition directly
+        return device_in_flight < self.per_device_limit
 
     async def _send_with_retry(self, request: CommandRequest) -> None:
         """Send a request with retry logic.
@@ -373,7 +373,7 @@ class AsyncCommandDispatcher:
                     self._complete_request(request, result)
                     return
 
-                except Exception as exc:  # noqa: BLE001 — transport must absorb all send errors
+                except Exception as exc:  # Transport must absorb all send errors
                     last_error = exc
                     retries_used += 1
 

@@ -17,6 +17,11 @@ from typing import Any
 
 import aiohttp
 
+from tuya_ble_mesh.const import (
+    DEFAULT_BRIDGE_CONNECTION_TIMEOUT,
+    DEFAULT_BRIDGE_MAX_RETRIES,
+    DEFAULT_HTTP_TIMEOUT,
+)
 from tuya_ble_mesh.exceptions import (
     InvalidRequestError,
     MeshConnectionError,
@@ -67,7 +72,9 @@ class BridgeHTTPMixin:
             await self._session.close()
             self._session = None
 
-    async def _http_get(self, path: str, timeout: float = 5.0) -> dict[str, Any]:
+    async def _http_get(
+        self, path: str, timeout: float = DEFAULT_HTTP_TIMEOUT
+    ) -> dict[str, Any]:
         """Make an HTTP GET request to the bridge daemon."""
         url = f"{self._bridge_url}{path}"
         try:
@@ -83,7 +90,7 @@ class BridgeHTTPMixin:
         self,
         path: str,
         data: dict[str, Any],
-        timeout: float = 5.0,
+        timeout: float = DEFAULT_HTTP_TIMEOUT,
     ) -> dict[str, Any]:
         """Make an HTTP POST request to the bridge daemon."""
         url = f"{self._bridge_url}{path}"
@@ -185,7 +192,11 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
         """Remove a disconnect callback."""
         self._disconnect_callbacks.remove(callback)
 
-    async def connect(self, timeout: float = 10.0, max_retries: int = 3) -> None:
+    async def connect(
+        self,
+        timeout: float = DEFAULT_BRIDGE_CONNECTION_TIMEOUT,
+        max_retries: int = DEFAULT_BRIDGE_MAX_RETRIES,
+    ) -> None:
         """Verify bridge daemon is reachable.
 
         Args:
@@ -272,7 +283,8 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
                     for callback in list(self._onoff_callbacks):
                         try:
                             callback(on_state)
-                        except Exception:  # Callback protection: catch all errors but allow system exits
+                        except Exception:
+                            # Callback protection: catch all errors but allow system exits
                             _LOGGER.warning("OnOff callback error", exc_info=True)
                     return
 
@@ -457,7 +469,11 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
         """
         self._disconnect_callbacks.remove(callback)
 
-    async def connect(self, timeout: float = 10.0, max_retries: int = 3) -> None:
+    async def connect(
+        self,
+        timeout: float = DEFAULT_BRIDGE_CONNECTION_TIMEOUT,
+        max_retries: int = DEFAULT_BRIDGE_MAX_RETRIES,
+    ) -> None:
         """Verify bridge daemon is reachable."""
         for attempt in range(1, max_retries + 1):
             try:
