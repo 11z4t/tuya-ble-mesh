@@ -2229,3 +2229,220 @@ class TestSigPlugErrorHandling:
         assert result["type"] == "form"
         # Should default to provisioning_failed
         assert result["errors"]["base"] == "provisioning_failed"
+
+
+def _make_reconfigure_flow(
+    device_type: str = DEVICE_TYPE_LIGHT,
+    entry_data: dict[str, Any] | None = None,
+) -> TuyaBLEMeshConfigFlow:
+    """Create a config flow in reconfigure context with an existing entry."""
+    flow = TuyaBLEMeshConfigFlow()
+    mock_entry = MagicMock()
+    mock_entry.data = entry_data or {
+        CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF",
+        CONF_DEVICE_TYPE: device_type,
+        CONF_MESH_NAME: "out_of_mesh",
+        CONF_MESH_PASSWORD: "123456",  # pragma: allowlist secret
+    }
+    mock_entry.title = "Test Device"
+
+    hass = MagicMock()
+    hass.config_entries = MagicMock()
+    hass.config_entries.async_get_entry = MagicMock(return_value=mock_entry)
+    hass.config_entries.async_update_entry = MagicMock()
+    hass.config_entries.async_reload = AsyncMock()
+
+    flow.hass = hass
+    flow.context = {"source": "reconfigure", "entry_id": "test_entry_id"}
+    return flow
+
+
+@pytest.mark.requires_ha
+class TestReconfigureFlow:
+    """PLAT-594: Test async_step_reconfigure() — reconfigure existing entry.
+
+    Shelly comparison: Shelly implements reconfigure with host/port only.
+    We go further with device-type-aware forms, live bridge connectivity tests,
+    and full input validation — all with the same code quality standards.
+    """
+
+    @pytest.mark.asyncio
+    async def test_reconfigure_shows_form_for_direct_ble(self) -> None:
+        """Reconfigure shows mesh credential form for direct BLE devices."""
+        flow = _make_reconfigure_flow(DEVICE_TYPE_LIGHT)
+        result = await flow.async_step_reconfigure(None)
+        assert result["type"] == "form"
+        assert result["step_id"] == "reconfigure"
+
+    @pytest.mark.asyncio
+    async def test_reconfigure_shows_form_for_bridge(self) -> None:
+        """Reconfigure shows host/port form for bridge devices."""
+        flow = _make_reconfigure_flow(
+            DEVICE_TYPE_SIG_BRIDGE_PLUG,
+            entry_data={
+                CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF",
+                CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_BRIDGE_PLUG,
+                CONF_BRIDGE_HOST: "192.168.1.100",
+                CONF_BRIDGE_PORT: 8099,
+            },
+        )
+        result = await flow.async_step_reconfigure(None)
+        assert result["type"] == "form"
+        assert result["step_id"] == "reconfigure"
+
+    @pytest.mark.asyncio
+    async def test_reconfigure_shows_form_for_sig_plug(self) -> None:
+        """Reconfigure shows unicast/iv_index form for SIG Mesh plug."""
+        flow = _make_reconfigure_flow(
+            DEVICE_TYPE_SIG_PLUG,
+            entry_data={
+                CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF",
+                CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG,
+                CONF_UNICAST_TARGET: "00B0",
+                CONF_IV_INDEX: 0,
+            },
+        )
+        result = await flow.async_step_reconfigure(None)
+        assert result["type"] == "form"
+        assert result["step_id"] == "reconfigure"
+
+    @pytest.mark.asyncio
+    async def test_reconfigure_direct_ble_success(self) -> None:
+        """Valid mesh credentials update the config entry and trigger reload."""
+        flow = _make_reconfigure_flow(DEVICE_TYPE_LIGHT)
+        result = await flow.async_step_reconfigure({
+            CONF_MESH_NAME: "new_mesh",
+            CONF_MESH_PASSWORD: "newpass",  # pragma: allowlist secret
+        })
+        assert result["type"] == "abort"
+        assert result["reason"] == "reconfigure_successful"
+        flow.hass.config_entries.async_update_entry.assert_called_once()
+        flow.hass.config_entries.async_reload.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_reconfigure_bridge_success(self) -> None:
+        """Valid bridge host/port updates entry after connectivity check."""
+        flow = _make_reconfigure_flow(
+            DEVICE_TYPE_SIG_BRIDGE_PLUG,
+            entry_data={
+                CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF",
+                CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_BRIDGE_PLUG,
+                CONF_BRIDGE_HOST: "192.168.1.100",
+                CONF_BRIDGE_PORT: 8099,
+            },
+        )
+        with patch(
+            "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
+            new=AsyncMock(return_value=True),
+        ):
+            result = await flow.async_step_reconfigure({
+                CONF_BRIDGE_HOST: "192.168.1.200",
+                CONF_BRIDGE_PORT: 9000,
+            })
+        assert result["type"] == "abort"
+        assert result["reason"] == "reconfigure_successful"
+
+    @pytest.mark.asyncio
+    async def test_reconfigure_bridge_connection_failure(self) -> None:
+        """Bridge connectivity test failure shows cannot_connect error."""
+        flow = _make_reconfigure_flow(
+            DEVICE_TYPE_SIG_BRIDGE_PLUG,
+            entry_data={
+                CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF",
+                CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_BRIDGE_PLUG,
+                CONF_BRIDGE_HOST: "192.168.1.100",
+                CONF_BRIDGE_PORT: 8099,
+            },
+        )
+        with patch(
+            "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
+            new=AsyncMock(return_value=False),
+        ):
+            result = await flow.async_step_reconfigure({
+                CONF_BRIDGE_HOST: "192.168.1.200",
+                CONF_BRIDGE_PORT: 9000,
+            })
+        assert result["type"] == "form"
+        assert result["errors"]["base"] == "cannot_connect"
+
+    @pytest.mark.asyncio
+    async def test_reconfigure_invalid_bridge_host(self) -> None:
+        """Invalid bridge host shows validation error."""
+        flow = _make_reconfigure_flow(
+            DEVICE_TYPE_SIG_BRIDGE_PLUG,
+            entry_data={
+                CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF",
+                CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_BRIDGE_PLUG,
+                CONF_BRIDGE_HOST: "192.168.1.100",
+                CONF_BRIDGE_PORT: 8099,
+            },
+        )
+        result = await flow.async_step_reconfigure({
+            CONF_BRIDGE_HOST: "not a valid host!!",
+            CONF_BRIDGE_PORT: 8099,
+        })
+        assert result["type"] == "form"
+        assert CONF_BRIDGE_HOST in result["errors"]
+
+    @pytest.mark.asyncio
+    async def test_reconfigure_mesh_credential_too_long(self) -> None:
+        """Mesh credential exceeding 16 bytes shows validation error."""
+        flow = _make_reconfigure_flow(DEVICE_TYPE_LIGHT)
+        result = await flow.async_step_reconfigure({
+            CONF_MESH_NAME: "this_is_way_too_long_for_mesh",
+            CONF_MESH_PASSWORD: "short",  # pragma: allowlist secret
+        })
+        assert result["type"] == "form"
+        assert CONF_MESH_NAME in result["errors"]
+
+    @pytest.mark.asyncio
+    async def test_reconfigure_missing_entry_aborts(self) -> None:
+        """Flow aborts gracefully when config entry is not found."""
+        flow = TuyaBLEMeshConfigFlow()
+        hass = MagicMock()
+        hass.config_entries = MagicMock()
+        hass.config_entries.async_get_entry = MagicMock(return_value=None)
+        flow.hass = hass
+        flow.context = {"source": "reconfigure", "entry_id": "nonexistent"}
+
+        result = await flow.async_step_reconfigure(None)
+        assert result["type"] == "abort"
+        assert result["reason"] == "entry_not_found"
+
+    @pytest.mark.asyncio
+    async def test_reconfigure_sig_plug_updates_unicast(self) -> None:
+        """SIG Mesh plug reconfigure allows updating unicast address."""
+        flow = _make_reconfigure_flow(
+            DEVICE_TYPE_SIG_PLUG,
+            entry_data={
+                CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF",
+                CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG,
+                CONF_UNICAST_TARGET: "00B0",
+                CONF_IV_INDEX: 0,
+            },
+        )
+        result = await flow.async_step_reconfigure({
+            CONF_UNICAST_TARGET: "00C0",
+            CONF_IV_INDEX: 1,
+        })
+        assert result["type"] == "abort"
+        assert result["reason"] == "reconfigure_successful"
+
+    @pytest.mark.asyncio
+    async def test_reconfigure_sig_plug_invalid_unicast(self) -> None:
+        """Invalid unicast address shows validation error."""
+        flow = _make_reconfigure_flow(
+            DEVICE_TYPE_SIG_PLUG,
+            entry_data={
+                CONF_MAC_ADDRESS: "AA:BB:CC:DD:EE:FF",
+                CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG,
+                CONF_UNICAST_TARGET: "00B0",
+                CONF_IV_INDEX: 0,
+            },
+        )
+        result = await flow.async_step_reconfigure({
+            CONF_UNICAST_TARGET: "FFFF",  # out of valid unicast range
+            CONF_IV_INDEX: 0,
+        })
+        assert result["type"] == "form"
+        assert CONF_UNICAST_TARGET in result["errors"]

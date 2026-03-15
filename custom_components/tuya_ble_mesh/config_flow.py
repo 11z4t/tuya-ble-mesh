@@ -1124,6 +1124,117 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             errors=errors,
         )
 
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Handle reconfiguration of an existing entry.
+
+        Called from the HA device page → 'Reconfigure' menu item.
+        Allows updating connection settings (host, port, mesh credentials)
+        without removing and re-adding the device.
+
+        Device-type-aware: bridge devices show host/port (with live connectivity
+        test), direct BLE devices show mesh credentials, SIG Mesh plugs allow
+        updating unicast address and IV index.
+
+        Args:
+            user_input: Updated connection settings from the user.
+
+        Returns:
+            Flow result dict.
+        """
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        if entry is None:
+            return self.async_abort(reason="entry_not_found")
+
+        device_type = entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
+        errors: dict[str, str] = {}
+
+        if user_input is not None:
+            if device_type in (DEVICE_TYPE_SIG_BRIDGE_PLUG, DEVICE_TYPE_TELINK_BRIDGE_LIGHT):
+                host = user_input.get(CONF_BRIDGE_HOST, "")
+                port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+                host_error = _validate_bridge_host(host)
+                if host_error:
+                    errors[CONF_BRIDGE_HOST] = host_error
+                elif not await _test_bridge_with_session(self.hass, host, port):
+                    errors["base"] = "cannot_connect"
+            elif device_type == DEVICE_TYPE_SIG_PLUG:
+                unicast_val = str(user_input.get(CONF_UNICAST_TARGET, "00B0"))
+                unicast_error = _validate_unicast_address(unicast_val)
+                if unicast_error:
+                    errors[CONF_UNICAST_TARGET] = unicast_error
+                iv_val = user_input.get(CONF_IV_INDEX, 0)
+                iv_error = _validate_iv_index(iv_val)
+                if iv_error:
+                    errors[CONF_IV_INDEX] = iv_error
+            else:
+                name_val = user_input.get(CONF_MESH_NAME, "")
+                if name_val:
+                    name_error = _validate_mesh_credential(str(name_val))
+                    if name_error:
+                        errors[CONF_MESH_NAME] = name_error
+                pass_val = user_input.get(CONF_MESH_PASSWORD, "")
+                if pass_val:
+                    pass_error = _validate_mesh_credential(str(pass_val))
+                    if pass_error:
+                        errors[CONF_MESH_PASSWORD] = pass_error
+
+            if not errors:
+                self.hass.config_entries.async_update_entry(
+                    entry, data={**entry.data, **user_input}
+                )
+                await self.hass.config_entries.async_reload(entry.entry_id)
+                return self.async_abort(reason="reconfigure_successful")
+
+        # Build schema based on device type
+        if device_type in (DEVICE_TYPE_SIG_BRIDGE_PLUG, DEVICE_TYPE_TELINK_BRIDGE_LIGHT):
+            schema = vol.Schema(
+                {
+                    vol.Required(
+                        CONF_BRIDGE_HOST,
+                        default=entry.data.get(CONF_BRIDGE_HOST, ""),
+                    ): str,
+                    vol.Optional(
+                        CONF_BRIDGE_PORT,
+                        default=entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT),
+                    ): int,
+                }
+            )
+        elif device_type == DEVICE_TYPE_SIG_PLUG:
+            schema = vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_UNICAST_TARGET,
+                        default=entry.data.get(CONF_UNICAST_TARGET, "00B0"),
+                    ): str,
+                    vol.Optional(
+                        CONF_IV_INDEX,
+                        default=entry.data.get(CONF_IV_INDEX, DEFAULT_IV_INDEX),
+                    ): int,
+                }
+            )
+        else:
+            schema = vol.Schema(
+                {
+                    vol.Optional(
+                        CONF_MESH_NAME,
+                        default=entry.data.get(CONF_MESH_NAME, "out_of_mesh"),
+                    ): str,
+                    vol.Optional(
+                        CONF_MESH_PASSWORD,
+                        default=entry.data.get(CONF_MESH_PASSWORD, ""),
+                    ): str,
+                }
+            )
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=schema,
+            description_placeholders={"name": entry.title},
+            errors=errors,
+        )
+
     async def async_step_reauth(self, entry_data: dict[str, Any]) -> FlowResult:
         """Handle reauth when mesh credentials fail.
 

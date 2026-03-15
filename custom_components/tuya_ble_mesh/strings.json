@@ -70,6 +70,26 @@
           "bridge_host": "Hub Address",
           "bridge_port": "Hub Port"
         }
+      },
+      "reconfigure": {
+        "title": "Reconfigure {name}",
+        "description": "Update the connection settings for **{name}**. Changes will take effect after the integration restarts.",
+        "data": {
+          "mesh_name": "Network Name",
+          "mesh_password": "Network Password",
+          "bridge_host": "Hub Address",
+          "bridge_port": "Hub Port",
+          "unicast_target": "Device ID",
+          "iv_index": "Security Counter"
+        },
+        "data_description": {
+          "mesh_name": "The network name your device is paired to.",
+          "mesh_password": "The network password your device is paired to.",
+          "bridge_host": "The IP address or hostname of your hub (e.g. 192.168.1.100).",
+          "bridge_port": "Port the hub is listening on. Default is 8099.",
+          "unicast_target": "Only change if instructed.",
+          "iv_index": "Only change if instructed."
+        }
       }
     },
     "error": {
@@ -88,7 +108,9 @@
     "abort": {
       "already_configured": "This device is already set up in Home Assistant.",
       "reauth_successful": "Settings updated. Reconnecting your device now.",
-      "device_not_available": "Device is no longer nearby. Try adding it again when it's in range."
+      "device_not_available": "Device is no longer nearby. Try adding it again when it's in range.",
+      "reconfigure_successful": "Settings updated. The integration will restart now.",
+      "entry_not_found": "Integration entry not found."
     }
   },
   "options": {
