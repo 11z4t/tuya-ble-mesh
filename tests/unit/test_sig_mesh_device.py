@@ -322,7 +322,7 @@ class TestSegmentReassembly:
         assert 0 in buf.segments
         assert buf.seg_n == 1
 
-    def test_handle_segment_completes_on_last(self) -> None:
+    async def test_handle_segment_completes_on_last(self) -> None:
         """When all segments arrive, buffer should be consumed."""
         from tuya_ble_mesh.sig_mesh_protocol import make_access_segmented
 
@@ -342,7 +342,7 @@ class TestSegmentReassembly:
 
         # Feed each segment through _handle_segment
         for _seq, transport_pdu in segments:
-            dev._handle_segment(0x00AA, 0x0001, transport_pdu)
+            await dev._handle_segment(0x00AA, 0x0001, transport_pdu)
 
         # Buffer should be consumed after complete reassembly
         assert (0x00AA, 100 & 0x1FFF) not in dev._segment_buffers
@@ -385,14 +385,14 @@ class TestSegmentReassembly:
 
         cb.assert_called_once_with(True)
 
-    def test_dispatch_access_payload_unknown_opcode(self) -> None:
+    async def test_dispatch_access_payload_unknown_opcode(self) -> None:
         """Unknown opcode should not crash."""
         dev = self._make_device_with_keys()
         cb = MagicMock()
         dev.register_onoff_callback(cb)
 
         # Unknown 2-byte opcode
-        dev._dispatch_access_payload(0x00AA, b"\x80\xff\x42")
+        await dev._dispatch_access_payload(0x00AA, b"\x80\xff\x42")
 
         cb.assert_not_called()
 
@@ -440,14 +440,14 @@ class TestVendorCallbacks:
         assert call_args[0] == 0xCDD007
         assert call_args[1] == b"\x01\x02\x03"
 
-    def test_dispatch_2byte_opcode_does_not_invoke_vendor(self) -> None:
+    async def test_dispatch_2byte_opcode_does_not_invoke_vendor(self) -> None:
         """2-byte opcodes should NOT invoke vendor callbacks."""
         dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
         cb = MagicMock()
         dev.register_vendor_callback(cb)
 
         # 2-byte opcode (OnOff Status)
-        dev._dispatch_access_payload(0x00AA, b"\x82\x04\x01")
+        await dev._dispatch_access_payload(0x00AA, b"\x82\x04\x01")
 
         cb.assert_not_called()
 
