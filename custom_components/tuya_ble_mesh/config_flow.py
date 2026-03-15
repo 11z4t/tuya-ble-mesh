@@ -260,7 +260,7 @@ def _validate_vendor_id(value: str) -> str | None:
 def _validate_iv_index(value: int) -> str | None:
     """Validate a SIG Mesh IV index value.
 
-    IV index must be a non-negative 32-bit unsigned integer (0–4294967295).
+    IV index must be a non-negative 32-bit unsigned integer (0-4294967295).
 
     Args:
         value: IV index to validate.
@@ -281,8 +281,8 @@ _UNICAST_ADDR_PATTERN = re.compile(r"^[0-9A-Fa-f]{4}$")
 def _validate_unicast_address(value: str) -> str | None:
     """Validate a 4-character hex unicast address for SIG Mesh.
 
-    Unicast addresses must be in range 0x0001–0x7FFF (SIG Mesh spec).
-    Address 0x0000 is unassigned; 0x8000–0xFFFF are group addresses.
+    Unicast addresses must be in range 0x0001-0x7FFF (SIG Mesh spec).
+    Address 0x0000 is unassigned; 0x8000-0xFFFF are group addresses.
 
     Args:
         value: Unicast address string (e.g. ``"00B0"``).
@@ -448,7 +448,7 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):
                     CONF_MESH_PASSWORD,
                     default=self._config_entry.data.get(
                         CONF_MESH_PASSWORD,
-                        "123456",  # pragma: allowlist secret
+                        "123456",
                     ),
                 )
             ] = str
@@ -638,7 +638,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         }
         if self.show_advanced_options:
             confirm_schema[vol.Optional(CONF_MESH_NAME, default="out_of_mesh")] = str
-            confirm_schema[vol.Optional(CONF_MESH_PASSWORD, default="123456")] = str  # pragma: allowlist secret
+            confirm_schema[vol.Optional(CONF_MESH_PASSWORD, default="123456")] = str
             confirm_schema[vol.Optional(CONF_MESH_ADDRESS, default=DEFAULT_MESH_ADDRESS)] = int
 
         rssi_raw = self._discovery_info.get("rssi") if self._discovery_info else None
@@ -758,7 +758,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         }
         if self.show_advanced_options:
             schema_dict[vol.Optional(CONF_MESH_NAME, default="out_of_mesh")] = str
-            schema_dict[vol.Optional(CONF_MESH_PASSWORD, default="123456")] = str  # pragma: allowlist secret
+            schema_dict[vol.Optional(CONF_MESH_PASSWORD, default="123456")] = str
             schema_dict[vol.Optional(CONF_VENDOR_ID, default=DEFAULT_VENDOR_ID)] = str
             schema_dict[vol.Optional(CONF_MESH_ADDRESS, default=DEFAULT_MESH_ADDRESS)] = int
 
@@ -957,9 +957,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         target_hex = f"{_UNICAST_DEVICE_DEFAULT:04x}"
         dev_key_name = f"{op_prefix}-dev-key-{target_hex}/password"
         secrets_dict = {
-            f"{op_prefix}-net-key/password": net_key.hex(),  # pragma: allowlist secret
-            dev_key_name: result.dev_key.hex(),  # pragma: allowlist secret
-            f"{op_prefix}-app-key/password": app_key.hex(),  # pragma: allowlist secret
+            f"{op_prefix}-net-key/password": net_key.hex(),
+            dev_key_name: result.dev_key.hex(),
+            f"{op_prefix}-app-key/password": app_key.hex(),
         }
         device = SIGMeshDevice(
             mac,
@@ -986,7 +986,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 )
         except Exception:
             _LOGGER.warning(
-                "Post-provisioning config failed for %s (device provisioned but application key not bound)",
+                "Post-provisioning config failed for %s",
                 mac,
                 exc_info=True,
             )
@@ -1110,7 +1110,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         errors: dict[str, str] = {}
         if user_input is not None:
             host = user_input.get(CONF_BRIDGE_HOST, "")
-            port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+            user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
             host_error = _validate_bridge_host(host)
             if host_error:
                 errors[CONF_BRIDGE_HOST] = host_error

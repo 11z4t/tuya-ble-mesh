@@ -120,7 +120,7 @@ class DeviceMetadata:
         """Return fraction of time device was connected (connections / (connections + errors)).
 
         Returns:
-            Float 0.0–1.0. Returns 1.0 if no events recorded.
+            Float 0.0-1.0. Returns 1.0 if no events recorded.
         """
         total = self.connection_count + self.error_count
         if total == 0:

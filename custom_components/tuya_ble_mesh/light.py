@@ -185,10 +185,7 @@ def _build_turn_on_command(
 
     dev_brightness: int | None = None
     if brightness is not None:
-        if use_color:
-            dev_brightness = brightness  # 0-255 identity
-        else:
-            dev_brightness = brightness_to_device(brightness)
+            dev_brightness = brightness if use_color else brightness_to_device(brightness)
 
     dev_color_temp: int | None = None
     if color_temp is not None:

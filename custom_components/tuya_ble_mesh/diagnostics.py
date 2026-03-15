@@ -169,7 +169,7 @@ def _rssi_trend(history: list[tuple[float, int]]) -> str:
     x_mean = sum(xs) / n
     y_mean = sum(ys) / n
 
-    numerator = sum((x - x_mean) * (y - y_mean) for x, y in zip(xs, ys))
+    numerator = sum((x - x_mean) * (y - y_mean) for x, y in zip(xs, ys, strict=False))
     denominator = sum((x - x_mean) ** 2 for x in xs)
 
     if denominator == 0:

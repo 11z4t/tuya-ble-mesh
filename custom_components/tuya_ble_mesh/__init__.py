@@ -7,6 +7,7 @@ Provides local BLE mesh control of Tuya/Telink-based devices
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 import sys
 from dataclasses import dataclass, field
@@ -324,7 +325,11 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             "total_errors": stats.total_errors,
             "connection_errors": stats.connection_errors,
             "command_errors": stats.command_errors,
-            "avg_response_time": f"{stats.avg_response_time:.3f}s" if stats.response_times else "N/A",
+            "avg_response_time": (
+                f"{stats.avg_response_time:.3f}s"
+                if stats.response_times
+                else "N/A"
+            ),
             "rssi_dbm": coordinator.state.rssi,
             "firmware_version": coordinator.state.firmware_version,
             "last_error": stats.last_error,
@@ -364,10 +369,8 @@ async def _async_register_services(hass: HomeAssistant) -> None:
                 translation_placeholders={"device_id": device_id},
             )
 
-        try:
+        with contextlib.suppress(OSError):
             await coordinator.device.disconnect()
-        except OSError:
-            pass
         coordinator.schedule_reconnect()
         _LOGGER.info("Reconnect scheduled for %s", device_id)
 

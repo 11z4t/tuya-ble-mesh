@@ -84,7 +84,7 @@ async def async_create_issue_auth_or_mesh_mismatch(
     """Create a repair issue when mesh authentication fails."""
     from homeassistant.helpers import issue_registry as ir
 
-    issue_id = f"{ISSUE_AUTH_OR_MESH_MISMATCH}_{entry_id}" if entry_id else ISSUE_AUTH_OR_MESH_MISMATCH
+    issue_id = f"{ISSUE_AUTH_OR_MESH_MISMATCH}_{entry_id}" if entry_id else ISSUE_AUTH_OR_MESH_MISMATCH  # noqa: E501
     ir.async_create_issue(
         hass,
         DOMAIN,
