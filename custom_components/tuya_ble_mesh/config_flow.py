@@ -646,12 +646,13 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                     },
                 )
 
-        # UX: Hide internal credentials in normal mode -- only show in advanced options
-        confirm_schema: dict[object, object] = {
-            vol.Required(CONF_DEVICE_TYPE, default=default_device_type): vol.In(
+        # UX: If device type was auto-detected, skip the dropdown
+        auto_detected = self._discovery_info and self._discovery_info.get("auto_device_type")
+        confirm_schema: dict[object, object] = {}
+        if not auto_detected:
+            confirm_schema[vol.Required(CONF_DEVICE_TYPE, default=default_device_type)] = vol.In(
                 {DEVICE_TYPE_LIGHT: "Light", DEVICE_TYPE_PLUG: "Plug"}
-            ),
-        }
+            )
         if self.show_advanced_options:
             confirm_schema[vol.Optional(CONF_MESH_NAME, default="out_of_mesh")] = str
             confirm_schema[vol.Optional(CONF_MESH_PASSWORD, default="123456")] = str
