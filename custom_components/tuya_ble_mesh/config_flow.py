@@ -182,7 +182,7 @@ def _is_ssrf_risk(host: str) -> bool:
         addr = ipaddress.ip_address(host)
         return any(addr in net for net in _PRIVATE_IP_NETS)
     except ValueError:
-        return False  # Not a numeric IP — hostname is allowed (RFC allows LAN hosts)
+        return False  # Not a numeric IP -- hostname is allowed (RFC allows LAN hosts)
 
 
 def _validate_bridge_host(host: str) -> str | None:
@@ -522,7 +522,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 )
                 return self.async_abort(reason="device_not_available")
         except RuntimeError:
-            # BluetoothManager not initialized (e.g. in tests) — skip stale check
+            # BluetoothManager not initialized (e.g. in tests) -- skip stale check
             _LOGGER.debug("BluetoothManager not available, skipping stale check for %s", address)
 
         # Detect human-readable device category from service UUIDs
@@ -537,12 +537,12 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         auto_device_type = None
 
         if SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids:
-            # SIG Mesh device → Plug
+            # SIG Mesh device -> Plug
             auto_device_type = DEVICE_TYPE_SIG_PLUG
         elif any(
             uuid.startswith("00010203-0405-0607-0809-0a0b0c0d") for uuid in service_uuids
         ):
-            # Telink mesh UUID prefix → Light
+            # Telink mesh UUID prefix -> Light
             auto_device_type = DEVICE_TYPE_LIGHT
 
         self._discovery_info = {
@@ -563,8 +563,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         return await self.async_step_confirm()
 
     async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Confirm bluetooth discovery and choose device type.
-
+        """Confirm bluetooth discovery and choose device type."""
         # Discovery pre-fills defaults but ALWAYS shows confirmation form
         # (removed PLAT-511 auto-creation - user must explicitly confirm)
 
@@ -578,7 +577,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 default_device_type = auto_type
                 auto_detected = True
 
-        # PLAT-511: Zero-knowledge flow — if type is auto-detected, create entry with defaults
+        # PLAT-511: Zero-knowledge flow -- if type is auto-detected, create entry with defaults
         if auto_detected and self._discovery_info:
             mac = self._discovery_info["address"]
             short_mac = mac[-8:]
@@ -603,7 +602,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 },
             )
 
-        # UX: Hide internal credentials in normal mode — only show in advanced options
+        # UX: Hide internal credentials in normal mode -- only show in advanced options
         confirm_schema: dict[object, object] = {
             vol.Required(CONF_DEVICE_TYPE, default=default_device_type): vol.In(
                 {DEVICE_TYPE_LIGHT: "Light", DEVICE_TYPE_PLUG: "Plug"}
@@ -718,7 +717,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 )
 
         # UX-1.4: 3 user-facing device types (SIG types auto-detected via Bluetooth discovery)
-        # UX-1.5: Progressive disclosure — advanced fields shown only in HA advanced mode
+        # UX-1.5: Progressive disclosure -- advanced fields shown only in HA advanced mode
         schema_dict: dict[object, object] = {
             vol.Required(CONF_MAC_ADDRESS): str,
             vol.Required(CONF_DEVICE_TYPE, default=DEVICE_TYPE_LIGHT): vol.In(
@@ -743,7 +742,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         )
 
     async def async_step_sig_plug(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Handle SIG Mesh plug — auto-provisions and generates all keys.
+        """Handle SIG Mesh plug -- auto-provisions and generates all keys.
 
         The device is provisioned via PB-GATT (Service UUID 0x1827).
         A random network key and device key are established via a secure key exchange.
@@ -867,7 +866,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             _UNICAST_DEVICE_DEFAULT,
         )
 
-        # HA Bluetooth callbacks — use retry-connector to avoid HA warning
+        # HA Bluetooth callbacks -- use retry-connector to avoid HA warning
         # NOTE: Works with ESPHome BLE proxies. If HA has no local adapter but has
         # ESPHome BLE proxies, devices discovered by proxies will be in HA's bluetooth
         # registry and establish_connection will route traffic via the proxy.
@@ -1104,7 +1103,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
     ) -> FlowResult:
         """Handle reconfiguration of an existing entry.
 
-        Called from the HA device page → 'Reconfigure' menu item.
+        Called from the HA device page -> 'Reconfigure' menu item.
         Allows updating connection settings (host, port, mesh credentials)
         without removing and re-adding the device.
 
@@ -1217,7 +1216,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         password after credentials are rotated on the device).
 
         Args:
-            entry_data: Existing config entry data (unused — shown for context).
+            entry_data: Existing config entry data (unused -- shown for context).
 
         Returns:
             Flow result dict.
