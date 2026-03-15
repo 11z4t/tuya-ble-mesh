@@ -577,8 +577,38 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 default_device_type = auto_type
                 auto_detected = True
 
-        # PLAT-511: Zero-knowledge flow -- if type is auto-detected, create entry with defaults
-        if auto_detected and self._discovery_info:
+        # Handle user submission
+        if user_input is not None and self._discovery_info:
+            mac = self._discovery_info["address"]
+            device_type = user_input.get(CONF_DEVICE_TYPE, default_device_type)
+            mesh_name = user_input.get(CONF_MESH_NAME, "out_of_mesh")
+            mesh_password = user_input.get(CONF_MESH_PASSWORD, "123456")
+            mesh_address = user_input.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS)
+
+            short_mac = mac[-8:]
+            title = (
+                f"Smart Plug {short_mac}"
+                if device_type == DEVICE_TYPE_PLUG
+                else f"LED Light {short_mac}"
+            )
+
+            await self.async_set_unique_id(mac)
+            self._abort_if_unique_id_configured()
+
+            return self.async_create_entry(
+                title=title,
+                data={
+                    CONF_MAC_ADDRESS: mac,
+                    CONF_MESH_NAME: mesh_name,
+                    CONF_MESH_PASSWORD: mesh_password,
+                    CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
+                    CONF_DEVICE_TYPE: device_type,
+                    CONF_MESH_ADDRESS: mesh_address,
+                },
+            )
+
+        # PLAT-511: Zero-knowledge flow -- if type is auto-detected and NO user_input, create entry with defaults
+        if user_input is None and auto_detected and self._discovery_info:
             mac = self._discovery_info["address"]
             short_mac = mac[-8:]
             title = (

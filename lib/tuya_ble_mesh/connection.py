@@ -236,7 +236,7 @@ class BLEConnection:
                 "GATT notification subscription active for %s (push mode)",
                 self._address,
             )
-        except OSError as exc:
+        except Exception as exc:
             self._notify_active = False
             _LOGGER.warning(
                 "start_notify failed for %s (%s) — running in poll-only mode. "
@@ -288,7 +288,7 @@ class BLEConnection:
                 self._mesh_password,
             )
             self._session_key = bytearray(key)
-        except (TimeoutError, ProvisioningError, OSError) as exc:
+        except Exception as exc:
             await self._cleanup()
             msg = f"Provisioning failed for {self._address}"
             raise MeshConnectionError(msg) from exc

@@ -192,6 +192,28 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
         """Remove a disconnect callback."""
         self._disconnect_callbacks.remove(callback)
 
+    @staticmethod
+    def _parse_http_body(response: str) -> str:
+        """Extract body from raw HTTP response.
+
+        Args:
+            response: Raw HTTP response string.
+
+        Returns:
+            HTTP body as string.
+
+        Raises:
+            MeshConnectionError: If response does not contain header/body separator.
+        """
+        if not response:
+            msg = "Empty HTTP response"
+            raise MeshConnectionError(msg)
+        separator = "\r\n\r\n"
+        if separator not in response:
+            msg = "Invalid HTTP response: missing header/body separator"
+            raise MeshConnectionError(msg)
+        return response.split(separator, 1)[1]
+
     async def connect(
         self,
         timeout: float = DEFAULT_BRIDGE_CONNECTION_TIMEOUT,
@@ -218,7 +240,7 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
                         self._bridge_port,
                     )
                     return
-            except (TimeoutError, aiohttp.ClientError, OSError) as exc:
+            except Exception as exc:
                 _LOGGER.warning(
                     "Bridge connection attempt %d/%d failed: %s",
                     attempt,
