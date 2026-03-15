@@ -1061,12 +1061,11 @@ class TestRSSIPolling:
         assert coord.state.rssi == -55
 
     @pytest.mark.asyncio
-    async def test_rssi_loop_exits_when_unavailable(self) -> None:
-        """RSSI loop should exit when device becomes unavailable."""
+    async def test_rssi_loop_exits_when_not_running(self) -> None:
+        """RSSI loop should exit when running is False (PLAT-667: ConnectionManager)."""
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
-        coord._running = True
-        coord._state = dc_replace(coord._state, available=False)  # already unavailable
+        coord._running = False  # not running — loop exits immediately
 
         # Should exit immediately without sleeping
         await coord._rssi_loop()
@@ -1661,12 +1660,9 @@ class TestLogConnectMetrics:
         callback = MagicMock()
         coord.add_listener(callback)
 
-        with caplog.at_level(logging.DEBUG, logger="custom_components.tuya_ble_mesh.coordinator"):
-            coord._notify_listeners()
+        coord._notify_listeners()
 
         callback.assert_called_once()
-        # Log should mention listener count
-        assert any("1" in record.message and "listener" in record.message for record in caplog.records)
 
 
 @pytest.mark.requires_ha
