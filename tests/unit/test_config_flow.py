@@ -378,3 +378,69 @@ class TestReauthFlow:
         # Should show reauth form
         assert result["type"] == "form"
         assert result["step_id"] == "reauth_confirm"
+
+
+class TestPLAT659DiscoveryDoesNotAutoCreate:
+    """PLAT-659: BLE discovery must NOT auto-create entities.
+
+    Devices discovered via BLE advertising must require explicit user
+    confirmation before config entries (and thus entities) are created.
+    This matches Shelly's behaviour.
+    """
+
+    @pytest.mark.asyncio
+    async def test_confirm_step_with_auto_detected_type_shows_form(self) -> None:
+        """Auto-detected Telink light must show confirmation form, NOT auto-create."""
+        flow = TuyaBLEMeshConfigFlow()
+        flow.hass = MagicMock()
+        flow._discovery_info = {
+            "address": "DC:23:4D:21:43:A5",
+            "name": "out_of_mesh_test",
+            "rssi": -70,
+            "device_category": "LED Light",
+            "auto_device_type": DEVICE_TYPE_LIGHT,
+        }
+
+        # Call confirm step WITHOUT user_input (first load)
+        result = await flow.async_step_confirm(user_input=None)
+
+        # Must show form — NOT create_entry
+        assert result["type"] == "form", (
+            "PLAT-659: Discovery must show confirmation form, not auto-create entry"
+        )
+        assert result["step_id"] == "confirm"
+
+    @pytest.mark.asyncio
+    async def test_confirm_step_with_user_input_creates_entry(self) -> None:
+        """After user confirms, entry should be created."""
+        flow = TuyaBLEMeshConfigFlow()
+        flow.hass = MagicMock()
+        flow._discovery_info = {
+            "address": "DC:23:4D:21:43:A5",
+            "name": "out_of_mesh_test",
+            "rssi": -70,
+            "device_category": "LED Light",
+            "auto_device_type": DEVICE_TYPE_LIGHT,
+        }
+
+        # Call confirm step WITH user_input (user submitted form)
+        result = await flow.async_step_confirm(
+            user_input={CONF_DEVICE_TYPE: DEVICE_TYPE_LIGHT}
+        )
+
+        # Should create entry
+        assert result["type"] == "create_entry"
+        assert result["data"][CONF_MAC_ADDRESS] == "DC:23:4D:21:43:A5"
+        assert result["data"][CONF_DEVICE_TYPE] == DEVICE_TYPE_LIGHT
+
+    @pytest.mark.asyncio
+    async def test_confirm_step_no_discovery_info_shows_form(self) -> None:
+        """Without discovery info, confirm step must show form."""
+        flow = TuyaBLEMeshConfigFlow()
+        flow.hass = MagicMock()
+        flow._discovery_info = None
+
+        result = await flow.async_step_confirm(user_input=None)
+
+        assert result["type"] == "form"
+        assert result["step_id"] == "confirm"

@@ -1745,7 +1745,7 @@ class TestTelinkDiscovery:
 
     @pytest.mark.asyncio
     async def test_telink_uuid_sets_device_type_light(self) -> None:
-        """Telink UUID prefix auto-detects Light → zero-knowledge entry creation."""
+        """Telink UUID prefix auto-detects Light → shows confirmation form (PLAT-659)."""
         flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
         flow._abort_if_unique_id_configured = lambda: None
@@ -1763,50 +1763,66 @@ class TestTelinkDiscovery:
         ):
             result = await flow.async_step_bluetooth(service_info)
 
-        # Telink auto-detected → zero-knowledge flow → creates entry directly (line 423)
-        assert result["type"] == "create_entry"
-        assert result["data"][CONF_DEVICE_TYPE] == DEVICE_TYPE_LIGHT
+        # PLAT-659: Discovery must show confirmation form, NOT auto-create entry
+        assert result["type"] == "form"
+        assert result["step_id"] == "confirm"
 
 
 @pytest.mark.requires_ha
-class TestZeroKnowledgeFlow:
-    """Test zero-knowledge flow — covers config_flow.py:482-498."""
+class TestDiscoveryRequiresConfirmation:
+    """PLAT-659: Discovery must require user confirmation — no auto-creation."""
 
     @pytest.mark.asyncio
-    async def test_auto_detected_light_creates_entry_directly(self) -> None:
-        """Auto-detected Light → create entry without user form."""
+    async def test_auto_detected_light_shows_form(self) -> None:
+        """Auto-detected Light → show confirmation form, NOT auto-create."""
         flow = _make_flow()
         flow._discovery_info = {
             "address": "DC:23:4D:21:43:A5",
             "name": "telink_mesh_a5",
             "rssi": -60,
             "device_category": "Telink Mesh",
-            "auto_device_type": DEVICE_TYPE_LIGHT,  # auto-detected
+            "auto_device_type": DEVICE_TYPE_LIGHT,
         }
 
         result = await flow.async_step_confirm(None)
 
-        assert result["type"] == "create_entry"
-        assert result["data"][CONF_DEVICE_TYPE] == DEVICE_TYPE_LIGHT
-        assert result["data"][CONF_MAC_ADDRESS] == "DC:23:4D:21:43:A5"
+        assert result["type"] == "form"
+        assert result["step_id"] == "confirm"
 
     @pytest.mark.asyncio
-    async def test_auto_detected_plug_creates_entry_directly(self) -> None:
-        """Auto-detected Plug → create entry with plug title."""
+    async def test_auto_detected_plug_shows_form(self) -> None:
+        """Auto-detected Plug → show confirmation form, NOT auto-create."""
         flow = _make_flow()
         flow._discovery_info = {
             "address": "AA:BB:CC:DD:EE:FF",
             "name": "mesh_plug_ff",
             "rssi": -55,
             "device_category": "Telink Mesh",
-            "auto_device_type": DEVICE_TYPE_PLUG,  # auto-detected
+            "auto_device_type": DEVICE_TYPE_PLUG,
         }
 
         result = await flow.async_step_confirm(None)
 
+        assert result["type"] == "form"
+        assert result["step_id"] == "confirm"
+
+    @pytest.mark.asyncio
+    async def test_user_confirm_creates_entry(self) -> None:
+        """After user confirms form, entry is created."""
+        flow = _make_flow()
+        flow._discovery_info = {
+            "address": "DC:23:4D:21:43:A5",
+            "name": "telink_mesh_a5",
+            "rssi": -60,
+            "device_category": "Telink Mesh",
+            "auto_device_type": DEVICE_TYPE_LIGHT,
+        }
+
+        result = await flow.async_step_confirm({CONF_DEVICE_TYPE: DEVICE_TYPE_LIGHT})
+
         assert result["type"] == "create_entry"
-        assert result["data"][CONF_DEVICE_TYPE] == DEVICE_TYPE_PLUG
-        assert "Plug" in result["title"]
+        assert result["data"][CONF_DEVICE_TYPE] == DEVICE_TYPE_LIGHT
+        assert result["data"][CONF_MAC_ADDRESS] == "DC:23:4D:21:43:A5"
 
 
 @pytest.mark.requires_ha

@@ -564,21 +564,21 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         return await self.async_step_confirm()
 
     async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
-        """Confirm bluetooth discovery and choose device type."""
-        # Discovery pre-fills defaults but ALWAYS shows confirmation form
-        # (removed auto-creation - user must explicitly confirm)
+        """Confirm bluetooth discovery and choose device type.
 
-        #  Use auto-detected device type as default if available
-        #  If device type is confidently auto-detected, skip form and create entry directly
+        PLAT-659: Discovery NEVER auto-creates entities. The user must explicitly
+        confirm the device via this form. Auto-detection only pre-fills the device
+        type default for convenience. This matches Shelly's behaviour where discovery
+        proposes integration but never creates entities without user action.
+        """
+        # Use auto-detected device type as default if available
         default_device_type = DEVICE_TYPE_LIGHT
-        auto_detected = False
         if self._discovery_info:
             auto_type = self._discovery_info.get("auto_device_type")
             if auto_type in (DEVICE_TYPE_LIGHT, DEVICE_TYPE_PLUG):
                 default_device_type = auto_type
-                auto_detected = True
 
-        # Handle user submission
+        # PLAT-659: User submitted the confirmation form — create entry
         if user_input is not None and self._discovery_info:
             mac = self._discovery_info["address"]
             device_type = user_input.get(CONF_DEVICE_TYPE, default_device_type)
@@ -587,49 +587,20 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             mesh_address = user_input.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS)
 
             short_mac = mac[-8:]
-            title = (
-                f"Smart Plug {short_mac}"
-                if device_type == DEVICE_TYPE_PLUG
-                else f"LED Light {short_mac}"
-            )
+            type_label = "Smart Plug" if device_type == DEVICE_TYPE_PLUG else "LED Light"
 
             await self.async_set_unique_id(mac)
             self._abort_if_unique_id_configured()
 
             return self.async_create_entry(
-                title=title,
+                title=f"{type_label} {short_mac}",
                 data={
                     CONF_MAC_ADDRESS: mac,
                     CONF_MESH_NAME: mesh_name,
                     CONF_MESH_PASSWORD: mesh_password,
-                    CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
+                    CONF_VENDOR_ID: user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID),
                     CONF_DEVICE_TYPE: device_type,
                     CONF_MESH_ADDRESS: mesh_address,
-                },
-            )
-
-        #  Zero-knowledge flow -- if type is auto-detected and NO user_input, create entry with defaults
-        if user_input is None and auto_detected and self._discovery_info:
-            mac = self._discovery_info["address"]
-            short_mac = mac[-8:]
-            title = (
-                f"Smart Plug {short_mac}"
-                if default_device_type == DEVICE_TYPE_PLUG
-                else f"LED Light {short_mac}"
-            )
-            _LOGGER.info(
-                "Zero-knowledge config: auto-detected %s, creating entry with defaults",
-                default_device_type,
-            )
-            return self.async_create_entry(
-                title=title,
-                data={
-                    CONF_MAC_ADDRESS: mac,
-                    CONF_MESH_NAME: "out_of_mesh",
-                    CONF_MESH_PASSWORD: "123456",
-                    CONF_VENDOR_ID: DEFAULT_VENDOR_ID,
-                    CONF_DEVICE_TYPE: default_device_type,
-                    CONF_MESH_ADDRESS: DEFAULT_MESH_ADDRESS,
                 },
             )
 
