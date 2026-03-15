@@ -8,11 +8,12 @@ These tests verify that concurrent notify callbacks do not corrupt state.
 """
 
 import asyncio
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
+from tuya_ble_mesh.secrets import SecretsManager
 from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
 from tuya_ble_mesh.sig_mesh_provisioner import SIGMeshProvisioner
-from tuya_ble_mesh.secrets import SecretsManager
 
 
 @pytest.mark.asyncio

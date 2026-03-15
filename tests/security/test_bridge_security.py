@@ -15,7 +15,6 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
 from tuya_ble_mesh.exceptions import (
-    ConnectionError as MeshConnectionError,
     InvalidRequestError,
 )
 from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice, TelinkBridgeDevice

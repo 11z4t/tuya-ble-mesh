@@ -377,7 +377,7 @@ class TestProvisionerConnect:
         mock_client.is_connected = True
         mock_client.connect = AsyncMock()
         mock_client.mtu_size = 23
-        mock_client.get_services = AsyncMock(side_effect=asyncio.TimeoutError())
+        mock_client.get_services = AsyncMock(side_effect=TimeoutError())
 
         with patch(
             "tuya_ble_mesh.sig_mesh_provisioner.BleakScanner.find_device_by_address",
@@ -401,7 +401,7 @@ class TestProvisionerConnect:
             return_value=mock_device,
         ), patch(
             "tuya_ble_mesh.sig_mesh_provisioner.BleakClient",
-            side_effect=asyncio.TimeoutError(),
+            side_effect=TimeoutError(),
         ), patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
             with pytest.raises(ProvisioningError, match="Failed to connect"):
                 await prov._connect("AA:BB:CC:DD:EE:FF", timeout=1.0, max_retries=2)

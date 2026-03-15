@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import sys
 from pathlib import Path
 from typing import Any
@@ -50,7 +49,6 @@ from custom_components.tuya_ble_mesh.const import (
     DEVICE_TYPE_SIG_PLUG,
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
     DOMAIN,
-    SIG_MESH_PROV_UUID,
     SIG_MESH_PROXY_UUID,
 )
 
@@ -2133,7 +2131,7 @@ class TestSigPlugErrorHandling:
         with patch.object(
             flow,
             "_run_provision",
-            new=AsyncMock(side_effect=asyncio.TimeoutError()),
+            new=AsyncMock(side_effect=TimeoutError()),
         ):
             result = await flow.async_step_sig_plug({})
         assert result["type"] == "form"
@@ -2200,7 +2198,6 @@ class TestSigPlugErrorHandling:
     @pytest.mark.asyncio
     async def test_import_error_fallback(self) -> None:
         """ImportError on exceptions import falls back to generic message (line 763-770)."""
-        import asyncio as _asyncio
 
         flow = self._make_sig_plug_flow()
 

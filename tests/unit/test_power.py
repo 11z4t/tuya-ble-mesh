@@ -12,8 +12,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
 from tuya_ble_mesh.power import (
     BridgeCommandError,
-    ShellyPowerController,
     BridgeUnreachableError,
+    ShellyPowerController,
 )
 
 # --- Helpers ---

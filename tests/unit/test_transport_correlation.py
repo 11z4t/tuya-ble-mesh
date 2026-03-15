@@ -3,7 +3,6 @@
 import uuid
 
 import pytest
-
 from tuya_ble_mesh.exceptions import CorrelationConflictError
 from tuya_ble_mesh.transport import CommandRequest, CorrelationEngine
 

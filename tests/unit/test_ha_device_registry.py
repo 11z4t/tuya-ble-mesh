@@ -5,7 +5,6 @@ from __future__ import annotations
 import sys
 import time
 from pathlib import Path
-from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -14,9 +13,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from custom_components.tuya_ble_mesh.device_registry import (
+    _RSSI_HISTORY_MAXLEN,
     DeviceMetadata,
     TuyaBLEMeshDeviceRegistry,
-    _RSSI_HISTORY_MAXLEN,
 )
 
 
