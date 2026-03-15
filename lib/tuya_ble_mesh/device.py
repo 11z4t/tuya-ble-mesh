@@ -241,7 +241,7 @@ class _CommandDispatcher:
             except asyncio.CancelledError:
                 _LOGGER.debug("Command dispatcher worker cancelled")
                 raise
-            except Exception:
+            except Exception:  # Broad catch: worker loop must survive all non-cancellation errors
                 _LOGGER.error("Command dispatcher worker error", exc_info=True)
 
         _LOGGER.debug("Command dispatcher worker stopped")
@@ -408,7 +408,7 @@ class MeshDevice:
         for callback in list(self._status_callbacks):
             try:
                 callback(status)
-            except Exception:
+            except Exception:  # Callback protection: catch all errors but allow system exits
                 _LOGGER.warning("Status callback error", exc_info=True)
 
     def _on_disconnect(self) -> None:
@@ -418,7 +418,7 @@ class MeshDevice:
         for callback in list(self._disconnect_callbacks):
             try:
                 callback()
-            except Exception:
+            except Exception:  # Callback protection: catch all errors but allow system exits
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
 
     async def connect(

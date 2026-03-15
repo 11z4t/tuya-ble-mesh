@@ -169,7 +169,7 @@ class TestConnect:
         mock_client.connect.assert_called_once()
 
         # Clean up keep-alive
-        device._conn._stop_keep_alive()
+        await device._conn._stop_keep_alive()
 
     @pytest.mark.asyncio
     async def test_connect_already_connected(self) -> None:
@@ -260,7 +260,7 @@ class TestContextManager:
             device = _make_device()
             async with device:
                 assert device.is_connected is True
-                device._conn._stop_keep_alive()
+                await device._conn._stop_keep_alive()
             assert device.is_connected is False
 
 
