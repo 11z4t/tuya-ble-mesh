@@ -11,9 +11,9 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
 from tuya_ble_mesh.power import (
-    ShellyCommandError,
+    BridgeCommandError,
     ShellyPowerController,
-    ShellyUnreachableError,
+    BridgeUnreachableError,
 )
 
 # --- Helpers ---
@@ -272,7 +272,7 @@ class TestErrorHandling:
         mock_session = make_mock_session([mock_resp])
         ctrl._session = mock_session
 
-        with pytest.raises(ShellyCommandError):
+        with pytest.raises(BridgeCommandError):
             await ctrl.power_on()
 
     @pytest.mark.asyncio
@@ -289,7 +289,7 @@ class TestErrorHandling:
         mock_session.closed = False
         ctrl._session = mock_session
 
-        with pytest.raises(ShellyUnreachableError):
+        with pytest.raises(BridgeUnreachableError):
             await ctrl.power_on()
 
 
