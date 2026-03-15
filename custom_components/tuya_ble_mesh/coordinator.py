@@ -866,8 +866,8 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                     exc_info=exc,
                 )
         except Exception:
-            # Task is not done or other edge cases
-            pass
+            # Task is not done or other edge cases - no action needed
+            _LOGGER.debug("Failed to cancel reconnect task", exc_info=True)
 
     def _classify_error(self, err: Exception) -> ErrorClass:
         """Classify a connection error into a category for repair creation.

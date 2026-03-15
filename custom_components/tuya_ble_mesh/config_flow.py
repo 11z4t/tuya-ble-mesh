@@ -706,7 +706,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                         if _entry.data.get(CONF_MAC_ADDRESS, "").upper() == mac.upper():
                             return self.async_abort(reason="already_configured")
                 except Exception:  # noqa: BLE001
-                    pass
+                    # Config entries API failure - proceed with setup
+                    _LOGGER.debug("Failed to check for duplicate MAC", exc_info=True)
 
                 device_type = user_input.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
                 if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:

@@ -28,9 +28,6 @@ from tuya_ble_mesh.transport.metrics import TransportMetrics
 from tuya_ble_mesh.transport.request import CommandRequest
 from tuya_ble_mesh.transport.result import CommandResult
 
-if TYPE_CHECKING:
-    pass
-
 _LOGGER = logging.getLogger(__name__)
 
 
