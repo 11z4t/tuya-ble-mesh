@@ -15,6 +15,14 @@ Error classification:
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# Ensure lib/ is importable (HACS installs only custom_components/)
+_lib_path = str(Path(__file__).parent / "lib")
+if _lib_path not in sys.path:
+    sys.path.insert(0, _lib_path)
+
 import asyncio
 import contextlib
 import logging
