@@ -236,6 +236,7 @@ class TestConnect:
         conn = _make_conn()
         mock_client = AsyncMock()
         mock_client.connect = AsyncMock(side_effect=asyncio.CancelledError())
+        mock_client.read_gatt_char = AsyncMock(return_value=b"1.0.0")
         mock_ble_device = MagicMock()
 
         with (
@@ -394,6 +395,7 @@ class TestKeepAlive:
         conn = _make_conn()
         mock_client = AsyncMock()
         mock_client.connect = AsyncMock()
+        mock_client.read_gatt_char = AsyncMock(return_value=b"1.0.0")
         mock_ble_device = MagicMock()
 
         with (
