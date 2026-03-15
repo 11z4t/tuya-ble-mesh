@@ -509,6 +509,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
 
         # Check if already configured
         await self.async_set_unique_id(address)
+        # If device already has a config entry, signal reconnect and abort discovery
         self._abort_if_unique_id_configured()
 
         # PLAT-509: Check if device is still advertising (stale flow protection)
