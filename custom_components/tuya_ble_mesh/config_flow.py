@@ -512,6 +512,13 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         # If device already has a config entry, signal reconnect and abort discovery
         self._abort_if_unique_id_configured()
 
+        # DEBUG: Log exactly what the device advertises
+        _LOGGER.warning(
+            "BLE Discovery: name=%s addr=%s uuids=%s rssi=%s",
+            name, address, getattr(discovery_info, "service_uuids", []),
+            getattr(discovery_info, "rssi", None),
+        )
+
         # PLAT-661: Reject paired devices advertising Proxy Service
         # Paired devices advertise tymesh* name and Proxy Service (0x1828) — NOT Provisioning.
         # Unpaired devices advertise out_of_mesh* and Provisioning Service (0x1827).
