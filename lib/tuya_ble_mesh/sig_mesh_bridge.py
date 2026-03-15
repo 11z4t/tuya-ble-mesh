@@ -272,7 +272,7 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
                     for callback in list(self._onoff_callbacks):
                         try:
                             callback(on_state)
-                        except BaseException:
+                        except Exception:  # Callback protection: catch all errors but allow system exits
                             _LOGGER.warning("OnOff callback error", exc_info=True)
                     return
 
@@ -332,7 +332,7 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
         for callback in list(self._disconnect_callbacks):
             try:
                 callback()
-            except BaseException:
+            except Exception:  # Callback protection: catch all errors but allow system exits
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
         return {"success": False, "error": "Timed out waiting for bridge result"}
 
@@ -494,7 +494,7 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
         for callback in list(self._disconnect_callbacks):
             try:
                 callback()
-            except BaseException:
+            except Exception:  # Callback protection: catch all errors but allow system exits
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
 
     def _fire_status(self) -> None:
@@ -514,7 +514,7 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
         for callback in list(self._status_callbacks):
             try:
                 callback(status)
-            except BaseException:
+            except Exception:  # Callback protection: catch all errors but allow system exits
                 _LOGGER.warning("Status callback error", exc_info=True)
 
     async def send_power(self, on: bool) -> None:
