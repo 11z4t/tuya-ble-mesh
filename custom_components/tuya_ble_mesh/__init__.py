@@ -26,31 +26,13 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.tuya_ble_mesh.const import (
-    CONF_APP_KEY,
-    CONF_BRIDGE_HOST,
-    CONF_BRIDGE_PORT,
-    CONF_DEV_KEY,
     CONF_DEVICE_TYPE,
-    CONF_IV_INDEX,
     CONF_MAC_ADDRESS,
-    CONF_MESH_ADDRESS,
-    CONF_MESH_NAME,
-    CONF_MESH_PASSWORD,
-    CONF_NET_KEY,
-    CONF_UNICAST_OUR,
-    CONF_UNICAST_TARGET,
-    CONF_VENDOR_ID,
-    DEFAULT_BRIDGE_PORT,
-    DEFAULT_IV_INDEX,
-    DEFAULT_MESH_ADDRESS,
-    DEFAULT_VENDOR_ID,
     DEVICE_MODEL_NAMES,
-    DEVICE_TYPE_SIG_BRIDGE_PLUG,
-    DEVICE_TYPE_SIG_PLUG,
-    DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
     DOMAIN,
     PLATFORMS,
 )
+from custom_components.tuya_ble_mesh.device_factory import create_device
 from custom_components.tuya_ble_mesh.device_registry import TuyaBLEMeshDeviceRegistry
 
 if TYPE_CHECKING:
@@ -122,79 +104,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             _LOGGER.debug("BLE device %s resolved via HA bluetooth stack", address)
         return device
 
-    if device_type == DEVICE_TYPE_SIG_BRIDGE_PLUG:
-        from tuya_ble_mesh.sig_mesh_bridge import (
-            SIGMeshBridgeDevice,  # type: ignore[import-not-found]
-        )
-
-        target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
-        bridge_host: str = entry.data[CONF_BRIDGE_HOST]
-        bridge_port: int = entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
-
-        device = SIGMeshBridgeDevice(
-            mac_address,
-            target_addr,
-            bridge_host,
-            bridge_port,
-        )
-    elif device_type == DEVICE_TYPE_TELINK_BRIDGE_LIGHT:
-        from tuya_ble_mesh.sig_mesh_bridge import (
-            TelinkBridgeDevice,  # type: ignore[import-not-found]
-        )
-
-        bridge_host = entry.data[CONF_BRIDGE_HOST]
-        bridge_port = entry.data.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
-
-        device = TelinkBridgeDevice(
-            mac_address,
-            bridge_host,
-            bridge_port,
-        )
-    elif device_type == DEVICE_TYPE_SIG_PLUG:
-        from tuya_ble_mesh.secrets import DictSecretsManager  # type: ignore[import-not-found]
-        from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
-
-        target_addr = int(entry.data.get(CONF_UNICAST_TARGET, "00B0"), 16)
-        our_addr = int(entry.data.get(CONF_UNICAST_OUR, "0001"), 16)
-        iv_index: int = entry.data.get(CONF_IV_INDEX, DEFAULT_IV_INDEX)
-
-        # Build secrets dict from config entry keys
-        target_hex = f"{target_addr:04x}"
-        op_prefix = "cfg"
-        secrets_dict = {
-            f"{op_prefix}-net-key/password": entry.data.get(CONF_NET_KEY, ""),
-            f"{op_prefix}-dev-key-{target_hex}/password": entry.data.get(CONF_DEV_KEY, ""),
-            f"{op_prefix}-app-key/password": entry.data.get(CONF_APP_KEY, ""),
-        }
-
-        device = SIGMeshDevice(
-            mac_address,
-            target_addr,
-            our_addr,
-            DictSecretsManager(secrets_dict),
-            op_item_prefix=op_prefix,
-            iv_index=iv_index,
-            ble_device_callback=_ble_device_from_ha,
-        )
-    else:
-        from tuya_ble_mesh.device import MeshDevice  # type: ignore[import-not-found]
-
-        mesh_name: str = entry.data[CONF_MESH_NAME]
-        mesh_password: str = entry.data[CONF_MESH_PASSWORD]
-        vendor_id_hex: str = entry.data.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
-        vendor_id_int = int(vendor_id_hex, 16)
-        vendor_id_bytes = vendor_id_int.to_bytes(2, "little")
-
-        mesh_addr: int = entry.data.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS)
-
-        device = MeshDevice(
-            mac_address,
-            mesh_name.encode(),
-            mesh_password.encode(),
-            mesh_id=mesh_addr,
-            vendor_id=vendor_id_bytes,
-            ble_device_callback=_ble_device_from_ha,
-        )
+    device = create_device(
+        device_type,
+        mac_address,
+        entry.data,
+        ble_device_callback=_ble_device_from_ha,
+    )
 
     coordinator = TuyaBLEMeshCoordinator(device, hass=hass, entry_id=entry.entry_id)
 
