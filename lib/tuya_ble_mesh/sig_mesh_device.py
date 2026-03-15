@@ -231,7 +231,7 @@ class SIGMeshDevice:
         self._pending_responses: dict[tuple[int, int], asyncio.Future[bytes]] = {}
 
         # Pending notify processing tasks (for lifecycle management)
-        self._pending_notify_tasks: set[asyncio.Task] = set()
+        self._pending_notify_tasks: set[asyncio.Task[None]] = set()
 
     @property
     def address(self) -> str:
@@ -477,7 +477,7 @@ class SIGMeshDevice:
 
         _LOGGER.info("Disconnected from %s", self._address)
 
-    def _log_notify_exception(self, task: asyncio.Task) -> None:
+    def _log_notify_exception(self, task: asyncio.Task[None]) -> None:
         """Log exceptions from notify processing tasks.
 
         Args:
@@ -952,7 +952,7 @@ class SIGMeshDevice:
                 f"{prefix}-app-key",
                 "password",  # pragma: allowlist secret
             )
-        except (SecretAccessError, OSError, ValueError) as exc:
+        except (SecretAccessError, OSError, ValueError, RuntimeError) as exc:
             msg = f"Failed to load SIG Mesh keys for prefix '{prefix}'"
             raise SIGMeshKeyError(msg) from exc
 
@@ -1133,7 +1133,14 @@ class SIGMeshDevice:
             len(access_payload),
         )
 
-        await self._dispatch_access_payload(buf.src, access_payload)
+        # CF-1: Parse opcode and call unlocked version since we already hold _segment_lock
+        try:
+            opcode, params = parse_access_opcode(access_payload)
+        except MalformedPacketError:
+            _LOGGER.debug("Failed to parse access opcode", exc_info=True)
+            return
+
+        await self._dispatch_access_payload_unlocked(buf.src, opcode, params)
 
     async def _clean_stale_buffers(self) -> None:
         """Remove reassembly buffers older than _REASSEMBLY_TIMEOUT.
@@ -1172,18 +1179,32 @@ class SIGMeshDevice:
 
         # CF-1: Lock access to _pending_responses to prevent race conditions
         async with self._segment_lock:
-            # Resolve pending config response futures (AppKey Status, Model App Status)
-            # Match first pending response with matching opcode (FIFO order by correlation_id)
-            matched_key = None
-            for key in self._pending_responses:
-                if key[0] == opcode:
-                    matched_key = key
-                    break
-            if matched_key is not None:
-                future = self._pending_responses.pop(matched_key)
-                if not future.done():
-                    future.set_result(params)
-                return
+            await self._dispatch_access_payload_unlocked(src, opcode, params)
+
+    async def _dispatch_access_payload_unlocked(
+        self, src: int, opcode: int, params: bytes
+    ) -> None:
+        """Dispatch access payload without acquiring lock (lock must be held by caller).
+
+        CF-1: Called while holding _segment_lock. Do not call directly unless lock is held.
+
+        Args:
+            src: Source unicast address.
+            opcode: Parsed opcode.
+            params: Opcode parameters.
+        """
+        # Resolve pending config response futures (AppKey Status, Model App Status)
+        # Match first pending response with matching opcode (FIFO order by correlation_id)
+        matched_key = None
+        for key in self._pending_responses:
+            if key[0] == opcode:
+                matched_key = key
+                break
+        if matched_key is not None:
+            future = self._pending_responses.pop(matched_key)
+            if not future.done():
+                future.set_result(params)
+            return
 
         if opcode == _OPCODE_ONOFF_STATUS and params:
             on_state = bool(params[0])
