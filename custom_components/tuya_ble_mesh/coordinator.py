@@ -368,7 +368,9 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         notifies any listeners registered via add_listener() directly.
         """
         if self._hass is not None:
-            self._hass.loop.call_soon_threadsafe(self.async_set_updated_data, None)
+            self._hass.loop.call_soon_threadsafe(
+                lambda: asyncio.create_task(self.async_set_updated_data(None))
+            )
         else:
             # Standalone / test — notify registered listeners directly
             self._notify_listeners()

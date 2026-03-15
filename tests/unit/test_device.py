@@ -56,6 +56,7 @@ def _make_connected_device() -> tuple[MeshDevice, AsyncMock]:
     conn._client = AsyncMock()
     conn._client.write_gatt_char = AsyncMock()
     conn._client.disconnect = AsyncMock()
+    conn._client.read_gatt_char = AsyncMock(side_effect=OSError("Not available"))
     # Start dispatcher only when called from an async context (event loop running).
     # Sync tests have no event loop — they don't need the worker anyway.
     try:
@@ -155,6 +156,7 @@ class TestConnect:
 
         mock_client = AsyncMock()
         mock_client.connect = AsyncMock()
+        mock_client.read_gatt_char = AsyncMock(side_effect=OSError("Not available"))
         mock_ble_device = MagicMock()
 
         with (
@@ -171,7 +173,7 @@ class TestConnect:
         mock_client.connect.assert_called_once()
 
         # Clean up keep-alive
-        await device._conn._stop_keep_alive()
+        await await device._conn._stop_keep_alive()
 
     @pytest.mark.asyncio
     async def test_connect_already_connected(self) -> None:
@@ -205,6 +207,7 @@ class TestConnect:
         mock_client = AsyncMock()
         mock_client.connect = AsyncMock()
         mock_client.disconnect = AsyncMock()
+        mock_client.read_gatt_char = AsyncMock(side_effect=OSError("Not available"))
         mock_ble_device = MagicMock()
 
         with (
@@ -249,6 +252,7 @@ class TestContextManager:
         mock_client = AsyncMock()
         mock_client.connect = AsyncMock()
         mock_client.disconnect = AsyncMock()
+        mock_client.read_gatt_char = AsyncMock(side_effect=OSError("Not available"))
         mock_ble_device = MagicMock()
 
         with (
@@ -262,7 +266,7 @@ class TestContextManager:
             device = _make_device()
             async with device:
                 assert device.is_connected is True
-                await device._conn._stop_keep_alive()
+                await await device._conn._stop_keep_alive()
             assert device.is_connected is False
 
 

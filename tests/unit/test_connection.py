@@ -123,7 +123,7 @@ class TestConnect:
         mock_client.connect.assert_called_once()
 
         # Clean up keep-alive
-        await conn._stop_keep_alive()
+        await await conn._stop_keep_alive()
 
     @pytest.mark.asyncio
     async def test_connect_already_ready(self) -> None:
@@ -202,7 +202,7 @@ class TestConnect:
             await conn.connect()
 
         mock_est.assert_called_once()
-        await conn._stop_keep_alive()
+        await await conn._stop_keep_alive()
 
     @pytest.mark.asyncio
     async def test_cancelled_error_retried(self) -> None:
@@ -228,7 +228,7 @@ class TestConnect:
             await conn.connect()
 
         assert conn.state == ConnectionState.READY
-        await conn._stop_keep_alive()
+        await await conn._stop_keep_alive()
 
     @pytest.mark.asyncio
     async def test_all_retries_cancelled_raises_connection_error(self) -> None:
@@ -395,6 +395,7 @@ class TestKeepAlive:
         conn = _make_conn()
         mock_client = AsyncMock()
         mock_client.connect = AsyncMock()
+        mock_client.read_gatt_char = AsyncMock(side_effect=OSError("Not available"))
         mock_client.read_gatt_char = AsyncMock(return_value=b"1.0.0")
         mock_ble_device = MagicMock()
 
@@ -409,7 +410,7 @@ class TestKeepAlive:
             await conn.connect()
 
         assert conn._keep_alive_task is not None
-        await conn._stop_keep_alive()
+        await await conn._stop_keep_alive()
 
     @pytest.mark.asyncio
     async def test_keep_alive_stopped_on_disconnect(self) -> None:

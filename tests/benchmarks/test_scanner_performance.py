@@ -169,7 +169,7 @@ class TestSequenceNumberPerformance:
                 count += 1
             return count
 
-        result = await benchmark(generate_sequences)
+        result = await benchmark.pedantic(generate_sequences, rounds=1, iterations=1)
         assert result == 100
 
 
