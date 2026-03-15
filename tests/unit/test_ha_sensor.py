@@ -433,3 +433,57 @@ class TestSensorHasEntityName:
         desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
         sensor = TuyaBLEMeshSensor(coord, "entry1", desc)
         assert sensor.has_entity_name is True
+
+
+class TestDiagnosticSensorsDisabledByDefault:
+    """PLAT-595: All DIAGNOSTIC sensors must be disabled by default.
+
+    Shelly comparison: Shelly disables all diagnostic sensors by default so
+    users only see primary operational entities. We match and exceed this by
+    applying the rule consistently to every EntityCategory.DIAGNOSTIC sensor.
+    """
+
+    def test_rssi_disabled_by_default(self) -> None:
+        """RSSI is diagnostic — must be disabled by default."""
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "rssi")
+        assert desc.entity_category == EntityCategory.DIAGNOSTIC
+        assert desc.entity_registry_enabled_default is False
+
+    def test_firmware_disabled_by_default(self) -> None:
+        """Firmware version is diagnostic — must be disabled by default."""
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "firmware")
+        assert desc.entity_category == EntityCategory.DIAGNOSTIC
+        assert desc.entity_registry_enabled_default is False
+
+    def test_connection_quality_disabled_by_default(self) -> None:
+        """Connection quality is diagnostic — must be disabled by default."""
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "connection_quality")
+        assert desc.entity_category == EntityCategory.DIAGNOSTIC
+        assert desc.entity_registry_enabled_default is False
+
+    def test_last_seen_disabled_by_default(self) -> None:
+        """Last seen timestamp is diagnostic — must be disabled by default."""
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "last_seen")
+        assert desc.entity_category == EntityCategory.DIAGNOSTIC
+        assert desc.entity_registry_enabled_default is False
+
+    def test_power_enabled_by_default(self) -> None:
+        """Power sensor is primary — must be enabled by default."""
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "power")
+        assert desc.entity_category is None
+        # entity_registry_enabled_default defaults to True when not set
+        assert desc.entity_registry_enabled_default is not False
+
+    def test_energy_enabled_by_default(self) -> None:
+        """Energy sensor is primary — must be enabled by default."""
+        desc = next(d for d in SENSOR_DESCRIPTIONS if d.key == "energy")
+        assert desc.entity_category is None
+        assert desc.entity_registry_enabled_default is not False
+
+    def test_all_diagnostic_sensors_disabled(self) -> None:
+        """Exhaustive check: every DIAGNOSTIC sensor is disabled by default."""
+        for desc in SENSOR_DESCRIPTIONS:
+            if desc.entity_category == EntityCategory.DIAGNOSTIC:
+                assert desc.entity_registry_enabled_default is False, (
+                    f"Sensor '{desc.key}' is DIAGNOSTIC but not disabled by default"
+                )

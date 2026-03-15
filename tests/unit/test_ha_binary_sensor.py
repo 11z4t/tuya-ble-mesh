@@ -157,3 +157,20 @@ class TestBinarySensorSetupEntry:
         sensor = added[0]
         assert isinstance(sensor, TuyaBLEMeshConnectivitySensor)
         assert sensor.unique_id == "DC:23:4D:21:43:A5_connectivity"
+
+
+class TestConnectivitySensorDisabledByDefault:
+    """PLAT-595: Connectivity sensor is DIAGNOSTIC — must be disabled by default."""
+
+    def test_entity_category_is_diagnostic(self) -> None:
+        coord = make_mock_coordinator()
+        sensor = TuyaBLEMeshConnectivitySensor(coord, "entry1")
+        assert sensor.entity_category == EntityCategory.DIAGNOSTIC
+
+    def test_disabled_by_default(self) -> None:
+        """DIAGNOSTIC binary sensor must be disabled by default (PLAT-595)."""
+        coord = make_mock_coordinator()
+        sensor = TuyaBLEMeshConnectivitySensor(coord, "entry1")
+        # Check the HA entity attribute directly (entity_registry_enabled_default
+        # property delegates to _attr_entity_registry_enabled_default)
+        assert sensor._attr_entity_registry_enabled_default is False

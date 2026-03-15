@@ -56,6 +56,7 @@ class TuyaBLEMeshConnectivitySensor(TuyaBLEMeshEntity, BinarySensorEntity):
 
     _attr_device_class = BinarySensorDeviceClass.CONNECTIVITY
     _attr_entity_category = EntityCategory.DIAGNOSTIC
+    _attr_entity_registry_enabled_default = False
     _attr_translation_key = "connectivity"
 
     def __init__(
