@@ -495,6 +495,49 @@ class TuyaBLEMeshLight(LightEntity):
             self._transition_task.cancel()
         self._transition_task = None
 
+    async def _apply_transition_step(
+        self,
+        fraction: float,
+        target_brightness: int | None,
+        start_bright: int | None,
+        target_color_temp: int | None,
+        start_temp: int | None,
+        target_rgb: tuple[int, int, int] | None,
+        start_rgb: tuple[int, int, int] | None,
+    ) -> None:
+        """Apply a single transition step with interpolated values.
+
+        Args:
+            fraction: Progress fraction (0.0 to 1.0).
+            target_brightness: Target device brightness, or None.
+            start_bright: Starting brightness, or None.
+            target_color_temp: Target color temperature, or None.
+            start_temp: Starting color temperature, or None.
+            target_rgb: Target RGB tuple, or None.
+            start_rgb: Starting RGB tuple, or None.
+        """
+        device = self._coordinator.device
+
+        if target_brightness is not None and start_bright is not None:
+            val = round(start_bright + (target_brightness - start_bright) * fraction)
+            val = max(DEVICE_BRIGHTNESS_MIN, min(val, DEVICE_BRIGHTNESS_MAX))
+            await device.send_brightness(val)
+
+        if target_color_temp is not None and start_temp is not None:
+            val = round(start_temp + (target_color_temp - start_temp) * fraction)
+            val = max(DEVICE_COLOR_TEMP_MIN, min(val, DEVICE_COLOR_TEMP_MAX))
+            await device.send_color_temp(val)
+
+        if target_rgb is not None and start_rgb is not None:
+            r = round(start_rgb[0] + (target_rgb[0] - start_rgb[0]) * fraction)
+            g = round(start_rgb[1] + (target_rgb[1] - start_rgb[1]) * fraction)
+            b = round(start_rgb[2] + (target_rgb[2] - start_rgb[2]) * fraction)
+            await device.send_color(
+                max(0, min(r, 255)),
+                max(0, min(g, 255)),
+                max(0, min(b, 255)),
+            )
+
     async def _run_transition(
         self,
         target_brightness: int | None,
@@ -529,26 +572,15 @@ class TuyaBLEMeshLight(LightEntity):
 
         for i in range(1, steps + 1):
             fraction = i / steps
-
-            if target_brightness is not None and start_bright is not None:
-                val = round(start_bright + (target_brightness - start_bright) * fraction)
-                val = max(DEVICE_BRIGHTNESS_MIN, min(val, DEVICE_BRIGHTNESS_MAX))
-                await device.send_brightness(val)
-
-            if target_color_temp is not None and start_temp is not None:
-                val = round(start_temp + (target_color_temp - start_temp) * fraction)
-                val = max(DEVICE_COLOR_TEMP_MIN, min(val, DEVICE_COLOR_TEMP_MAX))
-                await device.send_color_temp(val)
-
-            if target_rgb is not None and start_rgb is not None:
-                r = round(start_rgb[0] + (target_rgb[0] - start_rgb[0]) * fraction)
-                g = round(start_rgb[1] + (target_rgb[1] - start_rgb[1]) * fraction)
-                b = round(start_rgb[2] + (target_rgb[2] - start_rgb[2]) * fraction)
-                await device.send_color(
-                    max(0, min(r, 255)),
-                    max(0, min(g, 255)),
-                    max(0, min(b, 255)),
-                )
+            await self._apply_transition_step(
+                fraction,
+                target_brightness,
+                start_bright,
+                target_color_temp,
+                start_temp,
+                target_rgb,
+                start_rgb,
+            )
 
             if i < steps:
                 await asyncio.sleep(interval)

@@ -107,6 +107,46 @@ _VENDOR_NAMES: dict[str, str] = {
 }
 
 
+def _build_connection_quality(rssi: int | float | None) -> str:
+    """Determine connection quality from RSSI value.
+
+    Args:
+        rssi: RSSI value in dBm, or None.
+
+    Returns:
+        Quality classification: "good", "marginal", "poor", or "unknown".
+    """
+    if not isinstance(rssi, (int, float)) or rssi == 0:
+        return "unknown"
+    if rssi >= -60:
+        return "good"
+    if rssi >= -80:
+        return "marginal"
+    return "poor"
+
+
+def _build_protocol_health(
+    total_errors: int | Any, consecutive_failures: int | Any, storm_detected: bool | Any
+) -> dict[str, Any]:
+    """Build protocol health summary.
+
+    Args:
+        total_errors: Total error count (or MagicMock in tests).
+        consecutive_failures: Consecutive failure count (or MagicMock in tests).
+        storm_detected: Whether error storm was detected (or MagicMock in tests).
+
+    Returns:
+        Protocol health dict with error rate classification.
+    """
+    # Handle non-int types gracefully (e.g., MagicMock in tests)
+    errors_int = int(total_errors) if isinstance(total_errors, (int, float)) else 0
+    return {
+        "consecutive_failures": consecutive_failures,
+        "storm_detected": bool(storm_detected),
+        "error_rate": "high" if errors_int > 10 else "normal",
+    }
+
+
 def _get_vendor_name(vendor_id: str) -> str:
     """Map a vendor ID (hex string) to a human-readable vendor name."""
     normalized = vendor_id.strip().lower().lstrip("0x")
@@ -256,25 +296,14 @@ async def async_get_config_entry_diagnostics(
         }
 
         # Connection quality based on current RSSI
-        rssi = state.rssi
-        if isinstance(rssi, (int, float)) and rssi != 0:
-            if rssi >= -60:
-                quality = "good"
-            elif rssi >= -80:
-                quality = "marginal"
-            else:
-                quality = "poor"
-        else:
-            quality = "unknown"
-        diag["connection_quality"] = quality
+        diag["connection_quality"] = _build_connection_quality(state.rssi)
 
         # Protocol health summary
         total_errors = getattr(stats, "total_errors", 0)
         consecutive_failures = getattr(coordinator, "consecutive_failures", 0)
-        diag["protocol_health"] = {
-            "consecutive_failures": consecutive_failures,
-            "storm_detected": bool(getattr(stats, "storm_detected", False)),
-            "error_rate": "high" if isinstance(total_errors, (int, float)) and total_errors > 10 else "normal",
-        }
+        storm_detected = getattr(stats, "storm_detected", False)
+        diag["protocol_health"] = _build_protocol_health(
+            total_errors, consecutive_failures, storm_detected
+        )
 
     return diag
