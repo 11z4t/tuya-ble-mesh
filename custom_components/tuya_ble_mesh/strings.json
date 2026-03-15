@@ -21,29 +21,29 @@
         }
       },
       "sig_bridge": {
-        "title": "Connect to Bridge",
-        "description": "Enter the address of the bridge that connects to **{name}**.",
+        "title": "Connect to Device",
+        "description": "Enter the address of the device that connects to **{name}**.",
         "data": {
-          "bridge_host": "Bridge Address",
-          "bridge_port": "Bridge Port",
+          "bridge_host": "Device Address",
+          "bridge_port": "Device Port",
           "unicast_target": "Device ID"
         },
         "data_description": {
-          "bridge_host": "The IP address or hostname of your bridge (e.g. your Raspberry Pi).",
-          "bridge_port": "Port the bridge is listening on. Default is 8099.",
+          "bridge_host": "The IP address or hostname of your device (e.g. your Raspberry Pi).",
+          "bridge_port": "Port the device is listening on. Default is 8099.",
           "unicast_target": "Only change if instructed."
         }
       },
       "telink_bridge": {
-        "title": "Connect to Bridge",
-        "description": "Enter the address of the bridge that connects to **{name}**.",
+        "title": "Connect to Device",
+        "description": "Enter the address of the device that connects to **{name}**.",
         "data": {
-          "bridge_host": "Bridge Address",
-          "bridge_port": "Bridge Port"
+          "bridge_host": "Device Address",
+          "bridge_port": "Device Port"
         },
         "data_description": {
-          "bridge_host": "The IP address or hostname of your bridge (e.g. your Raspberry Pi).",
-          "bridge_port": "Port the bridge is listening on. Default is 8099."
+          "bridge_host": "The IP address or hostname of your device (e.g. your Raspberry Pi).",
+          "bridge_port": "Port the device is listening on. Default is 8099."
         }
       },
       "sig_plug": {
@@ -67,8 +67,8 @@
         "data": {
           "mesh_name": "Network Name",
           "mesh_password": "Network Password",
-          "bridge_host": "Bridge Address",
-          "bridge_port": "Bridge Port"
+          "bridge_host": "Device Address",
+          "bridge_port": "Device Port"
         }
       },
       "reconfigure": {
@@ -77,16 +77,16 @@
         "data": {
           "mesh_name": "Network Name",
           "mesh_password": "Network Password",
-          "bridge_host": "Bridge Address",
-          "bridge_port": "Bridge Port",
+          "bridge_host": "Device Address",
+          "bridge_port": "Device Port",
           "unicast_target": "Device ID",
           "iv_index": "Security Counter"
         },
         "data_description": {
           "mesh_name": "The network name your device is paired to.",
           "mesh_password": "The network password your device is paired to.",
-          "bridge_host": "The IP address or hostname of your bridge (e.g. 192.168.1.100).",
-          "bridge_port": "Port the bridge is listening on. Default is 8099.",
+          "bridge_host": "The IP address or hostname of your device (e.g. 192.168.1.100).",
+          "bridge_port": "Port the device is listening on. Default is 8099.",
           "unicast_target": "Only change if instructed.",
           "iv_index": "Only change if instructed."
         }
@@ -98,7 +98,7 @@
       "invalid_bridge_host": "Please enter a valid address, like 192.168.1.100 or raspberrypi.local.",
       "invalid_credential_length": "Network name and password must each be 16 characters or fewer.",
       "invalid_vendor_id": "Invalid vendor code — use 1 to 4 hex digits (e.g. 0x1001).",
-      "cannot_connect": "Could not reach the bridge. Check that it's powered on and connected to your network.",
+      "cannot_connect": "Could not reach the device. Check that it's powered on and connected to your network.",
       "provisioning_failed": "Could not connect to the device. Make sure it's powered on and close to your Bluetooth adapter, then try again.",
       "timeout": "Connection timed out. Make sure the device is powered on and close by, then try again.",
       "device_not_found": "Device not found. Make sure it's powered on and within Bluetooth range, then try again.",
@@ -123,8 +123,8 @@
           "mesh_name": "Network Name",
           "mesh_password": "Network Password",
           "mesh_address": "Device Address",
-          "bridge_host": "Bridge Address",
-          "bridge_port": "Bridge Port",
+          "bridge_host": "Device Address",
+          "bridge_port": "Device Port",
           "unicast_target": "Device ID",
           "iv_index": "Security Counter"
         },
@@ -132,8 +132,8 @@
           "mesh_name": "The network name for your device.",
           "mesh_password": "The network password for your device.",
           "mesh_address": "Internal address of this device. Set to 0 to use the default.",
-          "bridge_host": "The IP address or hostname of your bridge.",
-          "bridge_port": "Port the bridge is listening on. Default is 8099.",
+          "bridge_host": "The IP address or hostname of your device.",
+          "bridge_port": "Port the device is listening on. Default is 8099.",
           "unicast_target": "Only change if instructed.",
           "iv_index": "Only change if instructed."
         }
@@ -260,7 +260,7 @@
     },
     "bridge_unreachable": {
       "title": "Cannot reach bridge at {host}:{port}",
-      "description": "The bridge daemon is not responding.\n\n**Try these steps:**\n1. Check that the bridge device (Raspberry Pi) is **powered on**\n2. Verify the bridge daemon is **running**: `systemctl status tuya-mesh-bridge`\n3. Check the **IP address** {host} is correct\n4. Test connectivity: `ping {host}`"
+      "description": "The bridge daemon is not responding.\n\n**Try these steps:**\n1. Check that the device device (Raspberry Pi) is **powered on**\n2. Verify the device daemon is **running**: `systemctl status tuya-mesh-bridge`\n3. Check the **IP address** {host} is correct\n4. Test connectivity: `ping {host}`"
     },
     "connection_timeout": {
       "title": "Cannot connect to {device}",

@@ -20,30 +20,30 @@
           "mesh_address": "0-mik atoruk, siunnersuisimaneq alla pillugu kisiat."
         }
       },
-      "sig_bridge": {
-        "title": "bridge-imut attavissiisoq",
-        "description": "bridge-ip adressea allaguk, **{name}**-mut attaviusartup.",
+      "sig_device": {
+        "title": "device-imut attavissiisoq",
+        "description": "device-ip adressea allaguk, **{name}**-mut attaviusartup.",
         "data": {
-          "bridge_host": "bridge-ip adressea",
-          "bridge_port": "bridge-ip port-ia",
+          "device_host": "device-ip adressea",
+          "device_port": "device-ip port-ia",
           "unicast_target": "Peqataatip ID-a"
         },
         "data_description": {
-          "bridge_host": "bridge-ip IP-adressea imaluunniit hostname-a (soorlu Raspberry Pi-p).",
-          "bridge_port": "Port bridge-ip nipilinnaatissaa. Atuuffissaq 8099-iuvoq.",
+          "device_host": "device-ip IP-adressea imaluunniit hostname-a (soorlu Raspberry Pi-p).",
+          "device_port": "Port device-ip nipilinnaatissaa. Atuuffissaq 8099-iuvoq.",
           "unicast_target": "Allanngortinnagu, siunnersuisimaneq pillugu kisiat."
         }
       },
-      "telink_bridge": {
-        "title": "bridge-imut attavissiisoq",
-        "description": "bridge-ip adressea allaguk, **{name}**-mut attaviusartup.",
+      "telink_device": {
+        "title": "device-imut attavissiisoq",
+        "description": "device-ip adressea allaguk, **{name}**-mut attaviusartup.",
         "data": {
-          "bridge_host": "bridge-ip adressea",
-          "bridge_port": "bridge-ip port-ia"
+          "device_host": "device-ip adressea",
+          "device_port": "device-ip port-ia"
         },
         "data_description": {
-          "bridge_host": "bridge-ip IP-adressea imaluunniit hostname-a (soorlu Raspberry Pi-p).",
-          "bridge_port": "Port bridge-ip nipilinnaatissaa. Atuuffissaq 8099-iuvoq."
+          "device_host": "device-ip IP-adressea imaluunniit hostname-a (soorlu Raspberry Pi-p).",
+          "device_port": "Port device-ip nipilinnaatissaa. Atuuffissaq 8099-iuvoq."
         }
       },
       "sig_plug": {
@@ -67,18 +67,18 @@
         "data": {
           "mesh_name": "Netværkip aqqa",
           "mesh_password": "Netværkip isissutissaa",
-          "bridge_host": "bridge-ip adressea",
-          "bridge_port": "bridge-ip port-ia"
+          "device_host": "device-ip adressea",
+          "device_port": "device-ip port-ia"
         }
       }
     },
     "error": {
       "invalid_mac": "Taamaasiornissaq Bluetooth-adressitut isumaqarsinnaanngilaq. Aaqqissuusseq tassaavoq: XX:XX:XX:XX:XX:XX.",
       "invalid_key": "Isissutissaq oqimaanaq — hex-talut 32-t kissaatigineqassapput.",
-      "invalid_bridge_host": "Adresse oqimaanaq allaguk, soorlu 192.168.1.100 imaluunniit raspberrypi.local.",
+      "invalid_device_host": "Adresse oqimaanaq allaguk, soorlu 192.168.1.100 imaluunniit raspberrypi.local.",
       "invalid_credential_length": "Netværkip aqqa isissutissaalu naapertoqqussiissillutik 16-inik nakkutillutik.",
       "invalid_vendor_id": "Nioqqutissiursortip kode-a oqimaanaq — 1-4 hex-talut atorsinnaapput (soorlu 0x1001).",
-      "cannot_connect": "bridge-imut attaveqarsinnaanngitsoorpoq. bridge iluarsitaasoq netværkimuullu attavissimasoq misissoruk.",
+      "cannot_connect": "device-imut attaveqarsinnaanngitsoorpoq. device iluarsitaasoq netværkimuullu attavissimasoq misissoruk.",
       "provisioning_failed": "Peqataatimut attaveqarsinnaanngitsoorpoq. Peqataatit iluarsitaasoq Bluetooth-adapterimullu qanittumik itillugu, utissalluaruk.",
       "timeout": "Attaveqarneq uninngasiurpoq. Peqataatit iluarsitaasoq qanittumillu itillugu, utissalluaruk.",
       "device_not_found": "Peqataatit nassaarineqanngilaq. Iluarsitaasoq Bluetooth-ilaasorissimalersinnaasullu misissoruk, utissalluaruk.",
@@ -100,8 +100,8 @@
           "mesh_name": "Netværkip aqqa",
           "mesh_password": "Netværkip isissutissaa",
           "mesh_address": "Peqataatip adressea",
-          "bridge_host": "bridge-ip adressea",
-          "bridge_port": "bridge-ip port-ia",
+          "device_host": "device-ip adressea",
+          "device_port": "device-ip port-ia",
           "unicast_target": "Peqataatip ID-a",
           "iv_index": "Annertuumik illersornermi kisitsit"
         },
@@ -109,8 +109,8 @@
           "mesh_name": "Peqataatip netværkianut aqqa.",
           "mesh_password": "Peqataatip netværkianut isissutissaa.",
           "mesh_address": "Peqataatip iluani adressea. 0-mik atoruk atuuffissaq atorumassiuk.",
-          "bridge_host": "bridge-ip IP-adressea imaluunniit hostname-a.",
-          "bridge_port": "Port bridge-ip nipilinnaatissaa. Atuuffissaq 8099-iuvoq.",
+          "device_host": "device-ip IP-adressea imaluunniit hostname-a.",
+          "device_port": "Port device-ip nipilinnaatissaa. Atuuffissaq 8099-iuvoq.",
           "unicast_target": "Allanngortinnagu, siunnersuisimaneq pillugu kisiat.",
           "iv_index": "Allanngortinnagu, siunnersuisimaneq pillugu kisiat."
         }
@@ -235,9 +235,9 @@
       "title": "Peqataatit aaqqissuusserneqarsinnaanngilaq",
       "description": "{device} aaqqissuusserneqarsinnaanngilaq. Peqataatit matussiarlugu aamma iluarsillugu, Home Assistantimut nutaamik ilanngunniassuk."
     },
-    "bridge_unreachable": {
-      "title": "bridge akissuteqanngilaq",
-      "description": "bridge-imut {host}:{port}-mi attaveqarsinnaanngitsoorpoq. bridge iluarsitaasoq netværkimuullu attavissimasoq misissoruk."
+    "device_unreachable": {
+      "title": "device akissuteqanngilaq",
+      "description": "device-imut {host}:{port}-mi attaveqarsinnaanngitsoorpoq. device iluarsitaasoq netværkimuullu attavissimasoq misissoruk."
     }
   }
 }

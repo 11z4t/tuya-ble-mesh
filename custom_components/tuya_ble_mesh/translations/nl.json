@@ -20,30 +20,30 @@
           "mesh_address": "Laat op 0 staan, tenzij anders geïnstrueerd."
         }
       },
-      "sig_bridge": {
-        "title": "Verbinding maken met apparaat-bridge",
-        "description": "Voer het adres in van de bridge die verbinding maakt met **{name}**.",
+      "sig_device": {
+        "title": "Verbinding maken met apparaat-device",
+        "description": "Voer het adres in van de device die verbinding maakt met **{name}**.",
         "data": {
-          "bridge_host": "bridge-adres",
-          "bridge_port": "bridge-poort",
+          "device_host": "device-adres",
+          "device_port": "device-poort",
           "unicast_target": "Apparaat-ID"
         },
         "data_description": {
-          "bridge_host": "Het IP-adres of de hostnaam van uw bridge (bijv. uw Raspberry Pi).",
-          "bridge_port": "Poort waarop de bridge luistert. Standaard is 8099.",
+          "device_host": "Het IP-adres of de hostnaam van uw device (bijv. uw Raspberry Pi).",
+          "device_port": "Poort waarop de device luistert. Standaard is 8099.",
           "unicast_target": "Alleen wijzigen indien geïnstrueerd."
         }
       },
-      "telink_bridge": {
-        "title": "Verbinding maken met apparaat-bridge",
-        "description": "Voer het adres in van de bridge die verbinding maakt met **{name}**.",
+      "telink_device": {
+        "title": "Verbinding maken met apparaat-device",
+        "description": "Voer het adres in van de device die verbinding maakt met **{name}**.",
         "data": {
-          "bridge_host": "bridge-adres",
-          "bridge_port": "bridge-poort"
+          "device_host": "device-adres",
+          "device_port": "device-poort"
         },
         "data_description": {
-          "bridge_host": "Het IP-adres of de hostnaam van uw bridge (bijv. uw Raspberry Pi).",
-          "bridge_port": "Poort waarop de bridge luistert. Standaard is 8099."
+          "device_host": "Het IP-adres of de hostnaam van uw device (bijv. uw Raspberry Pi).",
+          "device_port": "Poort waarop de device luistert. Standaard is 8099."
         }
       },
       "sig_plug": {
@@ -67,18 +67,18 @@
         "data": {
           "mesh_name": "Netwerknaam",
           "mesh_password": "Netwerkwachtwoord",
-          "bridge_host": "bridge-adres",
-          "bridge_port": "bridge-poort"
+          "device_host": "device-adres",
+          "device_port": "device-poort"
         }
       }
     },
     "error": {
       "invalid_mac": "Dat ziet er niet uit als een geldig Bluetooth-adres. Verwacht formaat: XX:XX:XX:XX:XX:XX.",
       "invalid_key": "Ongeldige sleutel — we hebben precies 32 hexadecimale tekens nodig.",
-      "invalid_bridge_host": "Voer een geldig adres in, zoals 192.168.1.100 of raspberrypi.local.",
+      "invalid_device_host": "Voer een geldig adres in, zoals 192.168.1.100 of raspberrypi.local.",
       "invalid_credential_length": "Netwerknaam en wachtwoord mogen elk maximaal 16 tekens hebben.",
       "invalid_vendor_id": "Ongeldige fabrikantcode — gebruik 1 tot 4 hexadecimale cijfers (bijv. 0x1001).",
-      "cannot_connect": "Kan de bridge niet bereiken. Controleer of deze aan staat en verbonden is met uw netwerk.",
+      "cannot_connect": "Kan de device niet bereiken. Controleer of deze aan staat en verbonden is met uw netwerk.",
       "provisioning_failed": "Kan geen verbinding maken met het apparaat. Zorg dat het aan staat en dicht bij uw Bluetooth-adapter, en probeer opnieuw.",
       "timeout": "Verbinding verlopen. Zorg dat het apparaat aan staat en dichtbij is, en probeer opnieuw.",
       "device_not_found": "Apparaat niet gevonden. Zorg dat het aan staat en binnen Bluetooth-bereik is, en probeer opnieuw.",
@@ -100,8 +100,8 @@
           "mesh_name": "Netwerknaam",
           "mesh_password": "Netwerkwachtwoord",
           "mesh_address": "Apparaatadres",
-          "bridge_host": "bridge-adres",
-          "bridge_port": "bridge-poort",
+          "device_host": "device-adres",
+          "device_port": "device-poort",
           "unicast_target": "Apparaat-ID",
           "iv_index": "Beveiligingsteller"
         },
@@ -109,8 +109,8 @@
           "mesh_name": "De netwerknaam voor uw apparaat.",
           "mesh_password": "Het netwerkwachtwoord voor uw apparaat.",
           "mesh_address": "Intern adres van dit apparaat. Stel in op 0 om de standaard te gebruiken.",
-          "bridge_host": "Het IP-adres of de hostnaam van uw bridge.",
-          "bridge_port": "Poort waarop de bridge luistert. Standaard is 8099.",
+          "device_host": "Het IP-adres of de hostnaam van uw device.",
+          "device_port": "Poort waarop de device luistert. Standaard is 8099.",
           "unicast_target": "Alleen wijzigen indien geïnstrueerd.",
           "iv_index": "Alleen wijzigen indien geïnstrueerd."
         }
@@ -235,9 +235,9 @@
       "title": "Apparaatinstelling mislukt",
       "description": "Kan {device} niet instellen. Zet het apparaat uit en weer aan, en voeg het dan opnieuw toe aan Home Assistant."
     },
-    "bridge_unreachable": {
-      "title": "bridge reageert niet",
-      "description": "Kan de apparaat-bridge op {host}:{port} niet bereiken. Controleer of deze aan staat en verbonden is met uw netwerk."
+    "device_unreachable": {
+      "title": "device reageert niet",
+      "description": "Kan de apparaat-device op {host}:{port} niet bereiken. Controleer of deze aan staat en verbonden is met uw netwerk."
     }
   }
 }

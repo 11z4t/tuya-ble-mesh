@@ -20,30 +20,30 @@
           "mesh_address": "Jätä arvoon 0, ellei toisin ohjeisteta."
         }
       },
-      "sig_bridge": {
-        "title": "Yhdistä laitteen bridgeiin",
-        "description": "Syötä bridgein osoite, joka yhdistää laitteeseen **{name}**.",
+      "sig_device": {
+        "title": "Yhdistä laitteen deviceiin",
+        "description": "Syötä devicein osoite, joka yhdistää laitteeseen **{name}**.",
         "data": {
-          "bridge_host": "bridgein osoite",
-          "bridge_port": "bridgein portti",
+          "device_host": "devicein osoite",
+          "device_port": "devicein portti",
           "unicast_target": "Laitteen tunnus"
         },
         "data_description": {
-          "bridge_host": "bridgeisi IP-osoite tai palvelinnimi (esim. Raspberry Pi).",
-          "bridge_port": "Portti, jolla bridgei kuuntelee. Oletus on 8099.",
+          "device_host": "deviceisi IP-osoite tai palvelinnimi (esim. Raspberry Pi).",
+          "device_port": "Portti, jolla devicei kuuntelee. Oletus on 8099.",
           "unicast_target": "Muuta vain, jos sinulle on annettu ohjeet."
         }
       },
-      "telink_bridge": {
-        "title": "Yhdistä laitteen bridgeiin",
-        "description": "Syötä bridgein osoite, joka yhdistää laitteeseen **{name}**.",
+      "telink_device": {
+        "title": "Yhdistä laitteen deviceiin",
+        "description": "Syötä devicein osoite, joka yhdistää laitteeseen **{name}**.",
         "data": {
-          "bridge_host": "bridgein osoite",
-          "bridge_port": "bridgein portti"
+          "device_host": "devicein osoite",
+          "device_port": "devicein portti"
         },
         "data_description": {
-          "bridge_host": "bridgeisi IP-osoite tai palvelinnimi (esim. Raspberry Pi).",
-          "bridge_port": "Portti, jolla bridgei kuuntelee. Oletus on 8099."
+          "device_host": "deviceisi IP-osoite tai palvelinnimi (esim. Raspberry Pi).",
+          "device_port": "Portti, jolla devicei kuuntelee. Oletus on 8099."
         }
       },
       "sig_plug": {
@@ -67,18 +67,18 @@
         "data": {
           "mesh_name": "Verkkonimi",
           "mesh_password": "Verkkosalasana",
-          "bridge_host": "bridgein osoite",
-          "bridge_port": "bridgein portti"
+          "device_host": "devicein osoite",
+          "device_port": "devicein portti"
         }
       }
     },
     "error": {
       "invalid_mac": "Tämä ei näytä kelvolliselta Bluetooth-osoitteelta. Odotettu muoto: XX:XX:XX:XX:XX:XX.",
       "invalid_key": "Virheellinen avain — tarvitaan täsmälleen 32 heksadesimaalimerkkeiä.",
-      "invalid_bridge_host": "Syötä kelvollinen osoite, esim. 192.168.1.100 tai raspberrypi.local.",
+      "invalid_device_host": "Syötä kelvollinen osoite, esim. 192.168.1.100 tai raspberrypi.local.",
       "invalid_credential_length": "Verkkonimi ja salasana saavat olla enintään 16 merkkiä kumpikin.",
       "invalid_vendor_id": "Virheellinen valmistajan koodi — käytä 1–4 heksadesimaalimerkkeiä (esim. 0x1001).",
-      "cannot_connect": "bridgeiin ei saatu yhteyttä. Tarkista, että se on päällä ja yhteydessä verkkoon.",
+      "cannot_connect": "deviceiin ei saatu yhteyttä. Tarkista, että se on päällä ja yhteydessä verkkoon.",
       "provisioning_failed": "Laitteeseen ei voitu muodostaa yhteyttä. Varmista, että se on päällä ja lähellä Bluetooth-sovitintasi, ja yritä uudelleen.",
       "timeout": "Yhteys aikakatkaistiin. Varmista, että laite on päällä ja lähellä, ja yritä uudelleen.",
       "device_not_found": "Laitetta ei löydy. Varmista, että se on päällä ja Bluetooth-kantaman sisällä, ja yritä uudelleen.",
@@ -100,8 +100,8 @@
           "mesh_name": "Verkkonimi",
           "mesh_password": "Verkkosalasana",
           "mesh_address": "Laitteen osoite",
-          "bridge_host": "bridgein osoite",
-          "bridge_port": "bridgein portti",
+          "device_host": "devicein osoite",
+          "device_port": "devicein portti",
           "unicast_target": "Laitteen tunnus",
           "iv_index": "Turvalaskuri"
         },
@@ -109,8 +109,8 @@
           "mesh_name": "Laitteesi verkkonimi.",
           "mesh_password": "Laitteesi verkkosalasana.",
           "mesh_address": "Tämän laitteen sisäinen osoite. Aseta arvoon 0 käyttääksesi oletusta.",
-          "bridge_host": "bridgeisi IP-osoite tai palvelinnimi.",
-          "bridge_port": "Portti, jolla bridgei kuuntelee. Oletus on 8099.",
+          "device_host": "deviceisi IP-osoite tai palvelinnimi.",
+          "device_port": "Portti, jolla devicei kuuntelee. Oletus on 8099.",
           "unicast_target": "Muuta vain, jos sinulle on annettu ohjeet.",
           "iv_index": "Muuta vain, jos sinulle on annettu ohjeet."
         }
@@ -235,9 +235,9 @@
       "title": "Laitteen määritys epäonnistui",
       "description": "{device}-laitteen määritys epäonnistui. Katkaise laitteen virta ja kytke se uudelleen, ja lisää se sitten uudelleen Home Assistantiin."
     },
-    "bridge_unreachable": {
-      "title": "bridgei ei vastaa",
-      "description": "Laitteen bridgeiin osoitteessa {host}:{port} ei saada yhteyttä. Tarkista, että se on päällä ja yhteydessä verkkoon."
+    "device_unreachable": {
+      "title": "devicei ei vastaa",
+      "description": "Laitteen deviceiin osoitteessa {host}:{port} ei saada yhteyttä. Tarkista, että se on päällä ja yhteydessä verkkoon."
     }
   }
 }

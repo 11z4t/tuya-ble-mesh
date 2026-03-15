@@ -20,30 +20,30 @@
           "mesh_address": "La stå som 0 med mindre du har fått andre instruksjoner."
         }
       },
-      "sig_bridge": {
-        "title": "Koble til enhetens bridge",
-        "description": "Skriv inn adressen til bridgeben som kobler til **{name}**.",
+      "sig_device": {
+        "title": "Koble til enhetens device",
+        "description": "Skriv inn adressen til deviceben som kobler til **{name}**.",
         "data": {
-          "bridge_host": "bridge-adresse",
-          "bridge_port": "bridge-port",
+          "device_host": "device-adresse",
+          "device_port": "device-port",
           "unicast_target": "Enhets-ID"
         },
         "data_description": {
-          "bridge_host": "IP-adressen eller vertsnavnet til bridgeben din (f.eks. din Raspberry Pi).",
-          "bridge_port": "Porten bridgeben lytter på. Standard er 8099.",
+          "device_host": "IP-adressen eller vertsnavnet til deviceben din (f.eks. din Raspberry Pi).",
+          "device_port": "Porten deviceben lytter på. Standard er 8099.",
           "unicast_target": "Endre bare hvis du har fått instruksjoner om det."
         }
       },
-      "telink_bridge": {
-        "title": "Koble til enhetens bridge",
-        "description": "Skriv inn adressen til bridgeben som kobler til **{name}**.",
+      "telink_device": {
+        "title": "Koble til enhetens device",
+        "description": "Skriv inn adressen til deviceben som kobler til **{name}**.",
         "data": {
-          "bridge_host": "bridge-adresse",
-          "bridge_port": "bridge-port"
+          "device_host": "device-adresse",
+          "device_port": "device-port"
         },
         "data_description": {
-          "bridge_host": "IP-adressen eller vertsnavnet til bridgeben din (f.eks. din Raspberry Pi).",
-          "bridge_port": "Porten bridgeben lytter på. Standard er 8099."
+          "device_host": "IP-adressen eller vertsnavnet til deviceben din (f.eks. din Raspberry Pi).",
+          "device_port": "Porten deviceben lytter på. Standard er 8099."
         }
       },
       "sig_plug": {
@@ -67,18 +67,18 @@
         "data": {
           "mesh_name": "Nettverksnavn",
           "mesh_password": "Nettverkspassord",
-          "bridge_host": "bridge-adresse",
-          "bridge_port": "bridge-port"
+          "device_host": "device-adresse",
+          "device_port": "device-port"
         }
       }
     },
     "error": {
       "invalid_mac": "Det ser ikke ut til å være en gyldig Bluetooth-adresse. Forventet format: XX:XX:XX:XX:XX:XX.",
       "invalid_key": "Ugyldig nøkkel — vi trenger nøyaktig 32 hex-tegn.",
-      "invalid_bridge_host": "Skriv inn en gyldig adresse, f.eks. 192.168.1.100 eller raspberrypi.local.",
+      "invalid_device_host": "Skriv inn en gyldig adresse, f.eks. 192.168.1.100 eller raspberrypi.local.",
       "invalid_credential_length": "Nettverksnavn og passord må ha høyst 16 tegn hver.",
       "invalid_vendor_id": "Ugyldig leverandørkode — bruk 1 til 4 hex-sifre (f.eks. 0x1001).",
-      "cannot_connect": "Kunne ikke nå bridgeben. Kontroller at den er slått på og koblet til nettverket.",
+      "cannot_connect": "Kunne ikke nå deviceben. Kontroller at den er slått på og koblet til nettverket.",
       "provisioning_failed": "Kunne ikke koble til enheten. Kontroller at den er slått på og nær Bluetooth-adapteren, og prøv igjen.",
       "timeout": "Tilkoblingen fikk tidsavbrudd. Kontroller at enheten er slått på og i nærheten, og prøv igjen.",
       "device_not_found": "Enheten er ikke tilgjengelig. Kontroller at den er slått på og innenfor Bluetooth-rekkevidde, og prøv igjen.",
@@ -100,8 +100,8 @@
           "mesh_name": "Nettverksnavn",
           "mesh_password": "Nettverkspassord",
           "mesh_address": "Enhetsadresse",
-          "bridge_host": "bridge-adresse",
-          "bridge_port": "bridge-port",
+          "device_host": "device-adresse",
+          "device_port": "device-port",
           "unicast_target": "Enhets-ID",
           "iv_index": "Sikkerhetsteller"
         },
@@ -109,8 +109,8 @@
           "mesh_name": "Nettverksnavnet for enheten din.",
           "mesh_password": "Nettverkspassordet for enheten din.",
           "mesh_address": "Intern adresse for denne enheten. Sett til 0 for å bruke standarden.",
-          "bridge_host": "IP-adressen eller vertsnavnet til bridgeben din.",
-          "bridge_port": "Porten bridgeben lytter på. Standard er 8099.",
+          "device_host": "IP-adressen eller vertsnavnet til deviceben din.",
+          "device_port": "Porten deviceben lytter på. Standard er 8099.",
           "unicast_target": "Endre bare hvis du har fått instruksjoner om det.",
           "iv_index": "Endre bare hvis du har fått instruksjoner om det."
         }
@@ -235,9 +235,9 @@
       "title": "Enhetskonfigurasjon mislyktes",
       "description": "Kunne ikke konfigurere {device}. Slå av og på enheten, og legg den til i Home Assistant igjen."
     },
-    "bridge_unreachable": {
-      "title": "bridgeben svarer ikke",
-      "description": "Kan ikke nå enhetens bridge på {host}:{port}. Kontroller at den er slått på og koblet til nettverket."
+    "device_unreachable": {
+      "title": "deviceben svarer ikke",
+      "description": "Kan ikke nå enhetens device på {host}:{port}. Kontroller at den er slått på og koblet til nettverket."
     }
   }
 }

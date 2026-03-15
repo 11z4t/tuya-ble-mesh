@@ -20,30 +20,30 @@
           "mesh_address": "Als 0 lassen, sofern Sie keine anderen Anweisungen erhalten haben."
         }
       },
-      "sig_bridge": {
-        "title": "Mit Geräte-bridge verbinden",
-        "description": "Geben Sie die Adresse des bridges ein, der mit **{name}** verbunden ist.",
+      "sig_device": {
+        "title": "Mit Geräte-device verbinden",
+        "description": "Geben Sie die Adresse des devices ein, der mit **{name}** verbunden ist.",
         "data": {
-          "bridge_host": "bridge-Adresse",
-          "bridge_port": "bridge-Port",
+          "device_host": "device-Adresse",
+          "device_port": "device-Port",
           "unicast_target": "Geräte-ID"
         },
         "data_description": {
-          "bridge_host": "Die IP-Adresse oder der Hostname Ihres bridges (z.B. Ihr Raspberry Pi).",
-          "bridge_port": "Port, auf dem der bridge lauscht. Standard ist 8099.",
+          "device_host": "Die IP-Adresse oder der Hostname Ihres devices (z.B. Ihr Raspberry Pi).",
+          "device_port": "Port, auf dem der device lauscht. Standard ist 8099.",
           "unicast_target": "Nur ändern, wenn Sie eine Anweisung dazu erhalten haben."
         }
       },
-      "telink_bridge": {
-        "title": "Mit Geräte-bridge verbinden",
-        "description": "Geben Sie die Adresse des bridges ein, der mit **{name}** verbunden ist.",
+      "telink_device": {
+        "title": "Mit Geräte-device verbinden",
+        "description": "Geben Sie die Adresse des devices ein, der mit **{name}** verbunden ist.",
         "data": {
-          "bridge_host": "bridge-Adresse",
-          "bridge_port": "bridge-Port"
+          "device_host": "device-Adresse",
+          "device_port": "device-Port"
         },
         "data_description": {
-          "bridge_host": "Die IP-Adresse oder der Hostname Ihres bridges (z.B. Ihr Raspberry Pi).",
-          "bridge_port": "Port, auf dem der bridge lauscht. Standard ist 8099."
+          "device_host": "Die IP-Adresse oder der Hostname Ihres devices (z.B. Ihr Raspberry Pi).",
+          "device_port": "Port, auf dem der device lauscht. Standard ist 8099."
         }
       },
       "sig_plug": {
@@ -67,18 +67,18 @@
         "data": {
           "mesh_name": "Netzwerkname",
           "mesh_password": "Netzwerkpasswort",
-          "bridge_host": "bridge-Adresse",
-          "bridge_port": "bridge-Port"
+          "device_host": "device-Adresse",
+          "device_port": "device-Port"
         }
       }
     },
     "error": {
       "invalid_mac": "Das sieht nicht wie eine gültige Bluetooth-Adresse aus. Erwartetes Format: XX:XX:XX:XX:XX:XX.",
       "invalid_key": "Ungültiger Schlüssel — wir benötigen genau 32 Hex-Zeichen.",
-      "invalid_bridge_host": "Bitte geben Sie eine gültige Adresse ein, z.B. 192.168.1.100 oder raspberrypi.local.",
+      "invalid_device_host": "Bitte geben Sie eine gültige Adresse ein, z.B. 192.168.1.100 oder raspberrypi.local.",
       "invalid_credential_length": "Netzwerkname und Passwort dürfen jeweils maximal 16 Zeichen haben.",
       "invalid_vendor_id": "Ungültiger Herstellercode — verwenden Sie 1 bis 4 Hex-Ziffern (z.B. 0x1001).",
-      "cannot_connect": "bridge konnte nicht erreicht werden. Überprüfen Sie, ob er eingeschaltet und mit Ihrem Netzwerk verbunden ist.",
+      "cannot_connect": "device konnte nicht erreicht werden. Überprüfen Sie, ob er eingeschaltet und mit Ihrem Netzwerk verbunden ist.",
       "provisioning_failed": "Verbindung zum Gerät konnte nicht hergestellt werden. Stellen Sie sicher, dass es eingeschaltet und in der Nähe Ihres Bluetooth-Adapters ist, und versuchen Sie es erneut.",
       "timeout": "Verbindungsversuch abgebrochen. Stellen Sie sicher, dass das Gerät eingeschaltet und in der Nähe ist, und versuchen Sie es erneut.",
       "device_not_found": "Gerät nicht gefunden. Stellen Sie sicher, dass es eingeschaltet und in Bluetooth-Reichweite ist, und versuchen Sie es erneut.",
@@ -100,8 +100,8 @@
           "mesh_name": "Netzwerkname",
           "mesh_password": "Netzwerkpasswort",
           "mesh_address": "Geräteadresse",
-          "bridge_host": "bridge-Adresse",
-          "bridge_port": "bridge-Port",
+          "device_host": "device-Adresse",
+          "device_port": "device-Port",
           "unicast_target": "Geräte-ID",
           "iv_index": "Sicherheitszähler"
         },
@@ -109,8 +109,8 @@
           "mesh_name": "Der Netzwerkname für Ihr Gerät.",
           "mesh_password": "Das Netzwerkpasswort für Ihr Gerät.",
           "mesh_address": "Interne Adresse dieses Geräts. Auf 0 setzen, um den Standard zu verwenden.",
-          "bridge_host": "Die IP-Adresse oder der Hostname Ihres bridges.",
-          "bridge_port": "Port, auf dem der bridge lauscht. Standard ist 8099.",
+          "device_host": "Die IP-Adresse oder der Hostname Ihres devices.",
+          "device_port": "Port, auf dem der device lauscht. Standard ist 8099.",
           "unicast_target": "Nur ändern, wenn Sie eine Anweisung dazu erhalten haben.",
           "iv_index": "Nur ändern, wenn Sie eine Anweisung dazu erhalten haben."
         }
@@ -235,9 +235,9 @@
       "title": "Geräteeinrichtung fehlgeschlagen",
       "description": "{device} konnte nicht eingerichtet werden. Schalten Sie das Gerät aus und wieder ein, und fügen Sie es dann erneut zu Home Assistant hinzu."
     },
-    "bridge_unreachable": {
-      "title": "bridge antwortet nicht",
-      "description": "Geräte-bridge unter {host}:{port} nicht erreichbar. Überprüfen Sie, ob er eingeschaltet und mit Ihrem Netzwerk verbunden ist."
+    "device_unreachable": {
+      "title": "device antwortet nicht",
+      "description": "Geräte-device unter {host}:{port} nicht erreichbar. Überprüfen Sie, ob er eingeschaltet und mit Ihrem Netzwerk verbunden ist."
     }
   }
 }
