@@ -10,11 +10,14 @@ Provides:
 
 Example usage:
 
+    import logging
     from tuya_ble_mesh.transport import (
         AsyncCommandDispatcher,
         CommandRequest,
         RetryPolicy,
     )
+
+    _LOGGER = logging.getLogger(__name__)
 
     # Create dispatcher
     dispatcher = AsyncCommandDispatcher(
@@ -42,14 +45,14 @@ Example usage:
     result = await result_future
 
     if result.is_successful():
-        print(f"Success in {result.latency_ms}ms")
+        _LOGGER.debug("Command succeeded in %dms", result.latency_ms)
     else:
-        print(f"Failed: {result.status}")
+        _LOGGER.warning("Command failed: %s", result.status)
 
     # Check metrics
     metrics = dispatcher.metrics
-    print(f"Success rate: {metrics.success_rate():.1%}")
-    print(f"p50 latency: {metrics.p50:.1f}ms")
+    _LOGGER.info("Success rate: %.1f%%", metrics.success_rate() * 100)
+    _LOGGER.info("p50 latency: %.1fms", metrics.p50)
 """
 
 from tuya_ble_mesh.transport.correlation import CorrelationEngine, CorrelationKey
