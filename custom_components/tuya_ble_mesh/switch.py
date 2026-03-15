@@ -11,6 +11,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 
 from custom_components.tuya_ble_mesh.const import (
     CONF_DEVICE_TYPE,
+    DOMAIN,
     PLUG_DEVICE_TYPES,
 )
 from custom_components.tuya_ble_mesh.entity import TuyaBLEMeshEntity
@@ -85,7 +86,10 @@ class TuyaBLEMeshSwitch(TuyaBLEMeshEntity, SwitchEntity):
                 description="send_power(True)",
             )
         except (OSError, ConnectionError, TimeoutError) as exc:
-            raise HomeAssistantError("Failed to turn on switch") from exc
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="switch_on_failed",
+            ) from exc
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Turn the switch off.
@@ -99,4 +103,7 @@ class TuyaBLEMeshSwitch(TuyaBLEMeshEntity, SwitchEntity):
                 description="send_power(False)",
             )
         except (OSError, ConnectionError, TimeoutError) as exc:
-            raise HomeAssistantError("Failed to turn off switch") from exc
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="switch_off_failed",
+            ) from exc

@@ -631,8 +631,9 @@ class TestServiceHandlers:
             mock_dev_reg.async_get = MagicMock(return_value=None)
             mock_reg_getter.return_value = mock_dev_reg
 
-            with pytest.raises(HomeAssistantError, match="Device not found"):
+            with pytest.raises(HomeAssistantError) as exc_info:
                 await identify_handler(call)
+            assert exc_info.value.translation_key == "device_not_found"
 
     @pytest.mark.asyncio
     async def test_set_log_level_service(self) -> None:
@@ -720,8 +721,9 @@ class TestServiceHandlers:
 
             hass.config_entries.async_get_entry = MagicMock(return_value=entry)
 
-            with pytest.raises(HomeAssistantError, match="Failed to identify device"):
+            with pytest.raises(HomeAssistantError) as exc_info:
                 await identify_handler(call)
+            assert exc_info.value.translation_key == "identify_failed"
 
     @pytest.mark.asyncio
     async def test_identify_service_no_coordinator_found(self) -> None:
@@ -767,8 +769,9 @@ class TestServiceHandlers:
             del entry_no_runtime.runtime_data
             hass.config_entries.async_get_entry = MagicMock(return_value=entry_no_runtime)
 
-            with pytest.raises(HomeAssistantError, match="Device not found"):
+            with pytest.raises(HomeAssistantError) as exc_info:
                 await identify_handler(call)
+            assert exc_info.value.translation_key == "device_not_found"
 
 
 @pytest.mark.requires_ha

@@ -120,8 +120,9 @@ class TestIdentifyService:
             "custom_components.tuya_ble_mesh._get_coordinator_for_device",
             return_value=None,
         ):
-            with pytest.raises(HomeAssistantError, match="Device not found"):
+            with pytest.raises(HomeAssistantError) as exc_info:
                 await identify_handler(call)
+            assert exc_info.value.translation_key == "device_not_found"
 
 
 class TestSetLogLevelService:
@@ -281,8 +282,9 @@ class TestGetDiagnosticsService:
             "custom_components.tuya_ble_mesh._get_coordinator_for_device",
             return_value=None,
         ):
-            with pytest.raises(HomeAssistantError, match="Device not found"):
+            with pytest.raises(HomeAssistantError) as exc_info:
                 await get_diagnostics_handler(call)
+            assert exc_info.value.translation_key == "device_not_found"
 
 
 class TestReconnectService:
@@ -382,8 +384,9 @@ class TestReconnectService:
             "custom_components.tuya_ble_mesh._get_coordinator_for_device",
             return_value=None,
         ):
-            with pytest.raises(HomeAssistantError, match="Device not found"):
+            with pytest.raises(HomeAssistantError) as exc_info:
                 await reconnect_handler(call)
+            assert exc_info.value.translation_key == "device_not_found"
 
 
 # Note: _get_coordinator_for_device tests removed as they require complex HA device registry mocking

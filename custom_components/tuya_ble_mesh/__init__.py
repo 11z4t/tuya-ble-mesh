@@ -265,7 +265,11 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         device_id: str = call.data.get("device_id", "")
         coordinator = _get_coordinator_for_device(hass, device_id)
         if coordinator is None:
-            raise HomeAssistantError(f"Device not found: {device_id}")
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="device_not_found",
+                translation_placeholders={"device_id": device_id},
+            )
         try:
             device = coordinator.device
             if hasattr(device, "send_power"):
@@ -276,7 +280,11 @@ async def _async_register_services(hass: HomeAssistant) -> None:
                     await device.send_power(True)
                     await asyncio.sleep(0.5)
         except Exception as exc:
-            raise HomeAssistantError(f"Failed to identify device: {exc}") from exc
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="identify_failed",
+                translation_placeholders={"error": str(exc)},
+            ) from exc
 
     async def handle_set_log_level(call: ServiceCall) -> None:
         """Change BLE mesh logging verbosity without HA restart.
@@ -300,7 +308,11 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         device_id: str = call.data.get("device_id", "")
         coordinator = _get_coordinator_for_device(hass, device_id)
         if coordinator is None:
-            raise HomeAssistantError(f"Device not found: {device_id}")
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="device_not_found",
+                translation_placeholders={"device_id": device_id},
+            )
 
         stats = coordinator.statistics
         diagnostics = {
@@ -345,7 +357,11 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         device_id: str = call.data.get("device_id", "")
         coordinator = _get_coordinator_for_device(hass, device_id)
         if coordinator is None:
-            raise HomeAssistantError(f"Device not found: {device_id}")
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="device_not_found",
+                translation_placeholders={"device_id": device_id},
+            )
 
         try:
             await coordinator.device.disconnect()
