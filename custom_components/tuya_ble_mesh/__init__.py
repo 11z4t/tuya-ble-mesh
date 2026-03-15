@@ -196,7 +196,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
     device_info = DeviceInfo(
         identifiers={(DOMAIN, mac_address)},
         name=entry.title,
-        manufacturer="Malmbergs / Tuya",
+        manufacturer="Tuya",
         model=DEVICE_MODEL_NAMES.get(device_type, "BLE Mesh Device"),
         sw_version=None,  # Will be populated by coordinator after connection
         connections={("mac", mac_address)},

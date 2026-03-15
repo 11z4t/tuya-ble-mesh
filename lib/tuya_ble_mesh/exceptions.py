@@ -96,9 +96,6 @@ class CorrelationConflictError(TuyaBLEMeshError):
 
 # --- Backward-compatible aliases ---
 
-# Phase 2 → Phase 3 rename
-MalmbergsBTError = TuyaBLEMeshError
-
 # Phase 1 legacy aliases
 BLEError = TuyaBLEMeshError
 BLEConnectionError = MeshConnectionError

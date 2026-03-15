@@ -939,7 +939,10 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             ble_device_callback=_ble_device_cb,
             ble_connect_callback=_ble_connect_cb,
         )
-        result = await provisioner.provision(mac)
+        try:
+            result = await asyncio.wait_for(provisioner.provision(mac), timeout=20.0)
+        except asyncio.TimeoutError:
+            raise TimeoutError("Provisioning timed out after 20s")
 
         _LOGGER.info(
             "PB-GATT provisioning succeeded for %s (%d elements)",

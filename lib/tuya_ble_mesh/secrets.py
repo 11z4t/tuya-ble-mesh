@@ -21,7 +21,7 @@ from tuya_ble_mesh.exceptions import SecretAccessError
 
 _LOGGER = logging.getLogger(__name__)
 
-_DEFAULT_VAULT = "malmbergs-bt"
+_DEFAULT_VAULT = "tuya-ble-mesh"
 _OP_TIMEOUT_SECONDS = 10
 
 
@@ -33,7 +33,7 @@ class SecretsManager:
     for non-interactive access.
 
     Args:
-        vault: 1Password vault name. Defaults to ``malmbergs-bt``.
+        vault: 1Password vault name. Defaults to ``tuya-ble-mesh``.
     """
 
     def __init__(self, vault: str = _DEFAULT_VAULT) -> None:

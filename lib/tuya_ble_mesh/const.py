@@ -56,7 +56,7 @@ TUYA_CHAR_COMMAND_RX = "00001912-0000-1000-8000-00805f9b34fb"
 TUYA_CHAR_PAIRING = "00001913-0000-1000-8000-00805f9b34fb"
 TUYA_CHAR_OTA = "00001914-0000-1000-8000-00805f9b34fb"
 
-# --- Telink-based Tuya GATT Service (Confirmed on Malmbergs 9952126) ---
+# --- Telink-based Tuya GATT Service (e.g., Malmbergs 9952126) ---
 # Telink BLE mesh uses a custom base UUID: 00010203-0405-0607-0809-0a0b0c0dXXXX
 # Same suffix pattern (1910-1914), different base from BT SIG standard.
 # Role mapping confirmed via python-awox-mesh-light reference analysis.
@@ -104,7 +104,7 @@ TELINK_CMD_DP_WRITE = 0xD2  # Compact DP write (confirmed from HCI snoop)
 TELINK_CMD_STATUS_QUERY = 0xDA  # Status query (param 0x10)
 
 # Telink command packet fixed bytes (vendor/application identifier)
-# Confirmed from HCI snoop capture of Malmbergs BLE app (2026-03-03):
+# Confirmed from HCI snoop capture (2026-03-03):
 # App sends vendor bytes 01 10 (LE uint16: 0x1001), NOT 60 01 (0x0160).
 TELINK_VENDOR_ID = bytes([0x01, 0x10])
 
@@ -210,11 +210,11 @@ TUYA_MESH_DEFAULT_PASSWORD = "123456"  # nosec B105 — documented public defaul
 # Name patterns for detecting Tuya mesh devices
 TUYA_MESH_NAME_PATTERNS: tuple[str, ...] = ("out_of_mesh", "tymesh")
 
-# --- Target Device ---
+# --- Target Device (Example configuration) ---
 
 TARGET_DEVICE_MAC = "DC:23:4D:21:43:A5"
 TARGET_DEVICE_MODEL = "9952126"
-TARGET_DEVICE_NAME = "Malmbergs LED Driver"
+TARGET_DEVICE_NAME = "Tuya LED Driver"
 TARGET_DEVICE_CATEGORY = "dj"
 
 # --- Timeout Constants (seconds) ---

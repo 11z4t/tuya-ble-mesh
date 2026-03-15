@@ -6,11 +6,11 @@
 [![License: MIT](https://img.shields.io/badge/License-Myellow.svg)](LICENSE)
 [![HA 2024.1+](https://img.shields.io/badge/HA-2024.1%2B-blue.svg)](https://www.home-assistant.io)
 
-A fully local Home Assistant integration for controlling Tuya BLE Mesh devices — including **Malmbergs BT Smart** lighting products. No cloud. No Tuya account required for daily use.
+A fully local Home Assistant integration for controlling Tuya BLE Mesh devices. No cloud. No Tuya account required for daily use.
 
 ## What is this?
 
-Many affordable smart lighting products (sold under brands like Malmbergs, AwoX, and others) use **Tuya BLE Mesh** firmware internally. They're typically controlled via the Tuya Smart app through Tuya's cloud servers.
+Many affordable smart lighting products (sold under brands like AwoX, Malmbergs, and others) use **Tuya BLE Mesh** firmware internally. They're typically controlled via the Tuya Smart app through Tuya's cloud servers.
 
 This integration replaces cloud control with **direct BLE communication**, keeping everything local on your network. Your smart lights respond faster, work without internet, and don't depend on any external servers.
 
@@ -38,8 +38,8 @@ In both modes, Home Assistant itself doesn't need Bluetooth hardware.
 
 | Device | Brand | Type | MAC | Status |
 |--------|-------|------|-----|--------|
-| LED Driver 9952126 | Malmbergs BT Smart | Dimmable LED driver | DC:23:4D:21:43:A5 | Tested — on/off, brightness |
-| Smart Plug S17 | Malmbergs BT Smart | BLE Mesh relay plug | DC:23:4F:10:52:C4 | Tested — on/off, SIG Mesh provisioned |
+| LED Driver 9952126 | Malmbergs | Dimmable LED driver | DC:23:4D:21:43:A5 | Tested — on/off, brightness |
+| Smart Plug S17 | Malmbergs | BLE Mesh relay plug | DC:23:4F:10:52:C4 | Tested — on/off, SIG Mesh provisioned |
 
 ### Potentially Compatible
 
@@ -47,8 +47,8 @@ Devices using the Tuya BLE Mesh / Telink stack with service UUID `fe07`:
 
 | Brand | Example Products | Vendor ID | Status |
 |-------|-----------------|-----------|--------|
-| **Malmbergs BT Smart** | LED drivers, plugs | `0x1001` | Hardware tested |
 | **AwoX** | Mesh lights | `0x0160` | Protocol compatible, untested |
+| **Malmbergs** | LED drivers, plugs | `0x1001` | Hardware tested |
 | **Dimond/retsimx** | Mesh lights | `0x0211` | Protocol compatible, untested |
 
 ## Features
@@ -116,8 +116,8 @@ The bridge daemon runs on a Raspberry Pi with Bluetooth, close to your mesh devi
 
 ```bash
 # On the RPi
-cd ~/malmbergs-bt
-source ~/malmbergs-ble/bin/activate
+cd ~/tuya-ble-mesh
+source venv/bin/activate
 python scripts/ble_mesh_daemon.py --host 0.0.0.0 --port 8099
 ```
 
@@ -129,8 +129,9 @@ Different brands embed different vendor IDs in the Telink mesh protocol:
 
 | Brand | Vendor ID |
 |-------|-----------|
-| Malmbergs BT Smart | `0x1001` (default) |
+| Tuya (default) | `0x1001` |
 | AwoX | `0x0160` |
+| Malmbergs | `0x1001` |
 | Dimond/retsimx | `0x0211` |
 
 If commands don't work with the default, try `0x0160` (AwoX) or `0x0211` (Dimond). Contact the integration maintainers with your device's brand and model if none of these work.
@@ -151,7 +152,7 @@ Each device creates:
 
 - **Home Assistant** 2024.1 or later (any installation method)
 - **Raspberry Pi** (3B+ or 4) with built-in Bluetooth — runs the bridge daemon
-- **Tuya BLE Mesh devices** — Malmbergs BT Smart or compatible
+- **Tuya BLE Mesh devices** — compatible devices (see Tested Devices section)
 
 ### Optional hardware (for development/debugging)
 
@@ -227,19 +228,19 @@ Local-only (not in CI): **bandit**, **safety**, **detect-secrets**.
 
 | Area | CI Verified | Hardware Tested | Notes |
 |------|-------------|-----------------|-------|
-| Telink mesh protocol | Unit tests | 1 device (Malmbergs LED Driver) | on/off, brightness confirmed |
-| SIG Mesh provisioning | Unit tests | 1 device (Malmbergs BLE Plug) | on/off confirmed, limited testing |
+| Telink mesh protocol | Unit tests | 1 device (LED Driver 9952126) | on/off, brightness confirmed |
+| SIG Mesh provisioning | Unit tests | 1 device (Smart Plug S17) | on/off confirmed, limited testing |
 | SIG Mesh segmentation | Unit tests | Limited | Proxy SAR fragmentation NOT implemented — only complete PDUs |
 | HA integration layer | Unit tests | 2 devices | Config flow, coordinator, entities |
 | Command queue | Unit tests | Indirect | Future-based blocking model, not a full async dispatcher |
 | BLE reconnection | Unit tests | Observed | Exponential backoff works in practice |
 
-**Overall status: HACS beta-ready / stable for limited use.** Tested with 2 Malmbergs devices only. SIG Mesh layer has known simplifications (see below). Not broadly validated across vendors.
+**Overall status: HACS beta-ready / stable for limited use.** Tested with limited devices. SIG Mesh layer has known simplifications (see below). Not broadly validated across vendors.
 
 ## Known Limitations
 
 - **Bridge required** — HA cannot talk BLE mesh directly; the RPi bridge daemon must be running (for Telink devices)
-- **Limited device testing** — only 2 Malmbergs devices confirmed; other brands are protocol-compatible but untested
+- **Limited device testing** — limited hardware testing; other brands are protocol-compatible but untested
 - **Factory reset** — some devices need 5x rapid power cycling to enter provisioning mode; not all respond reliably
 - **BlueZ quirks** — on older BlueZ versions, `bluetoothctl remove` may be needed between reconnects (handled automatically)
 - **No OTA** — firmware updates are out of scope

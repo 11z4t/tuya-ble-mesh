@@ -26,8 +26,8 @@ automation:
       - service: light.turn_on
         target:
           entity_id:
-            - light.malmbergs_led_driver
-            - light.malmbergs_smart_plug
+            - light.living_room_led
+            - light.bedroom_led
         data:
           brightness_pct: 80
 ```
@@ -44,8 +44,8 @@ automation:
       - service: light.turn_off
         target:
           entity_id:
-            - light.malmbergs_led_driver
-            - light.malmbergs_smart_plug
+            - light.living_room_led
+            - light.bedroom_led
 ```
 
 ### Fade In at Wake-Up Time
@@ -59,7 +59,7 @@ automation:
     action:
       - service: light.turn_on
         target:
-          entity_id: light.malmbergs_led_driver
+          entity_id: light.living_room_led
         data:
           brightness_pct: 1
       - repeat:
@@ -68,7 +68,7 @@ automation:
             - delay: "00:01:00"  # 1 minute
             - service: light.turn_on
               target:
-                entity_id: light.malmbergs_led_driver
+                entity_id: light.living_room_led
               data:
                 brightness_pct: "{{ (repeat.index * 5) | int }}"
 ```
@@ -116,7 +116,7 @@ automation:
       # Dim lights gradually over 30 minutes
       - service: light.turn_on
         target:
-          entity_id: light.malmbergs_led_driver
+          entity_id: light.living_room_led
         data:
           brightness_pct: 60
           transition: 1800  # 30 minutes in seconds
@@ -124,7 +124,7 @@ automation:
       # Switch to warm color temperature
       - service: light.turn_on
         target:
-          entity_id: light.malmbergs_led_driver
+          entity_id: light.living_room_led
         data:
           kelvin: 2500
           transition: 1800
@@ -141,7 +141,7 @@ light:
   - platform: group
     name: "Mesh Lights"
     entities:
-      - light.malmbergs_led_driver
+      - light.living_room_led
       - light.bedroom_ceiling
       - light.kitchen_downlights
 ```
@@ -225,11 +225,11 @@ automation:
           sequence:
             - service: light.turn_off
               target:
-                entity_id: light.malmbergs_led_driver
+                entity_id: light.living_room_led
             - delay: "00:00:01"
             - service: light.turn_on
               target:
-                entity_id: light.malmbergs_led_driver
+                entity_id: light.living_room_led
               data:
                 brightness_pct: 100
             - delay: "00:00:01"
@@ -267,7 +267,7 @@ script:
 scene:
   - name: "Good Night"
     entities:
-      light.malmbergs_led_driver:
+      light.living_room_led:
         state: off
       light.bedroom_ceiling:
         state: off
