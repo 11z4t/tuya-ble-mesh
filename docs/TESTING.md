@@ -142,7 +142,7 @@ All async tests use `@pytest.mark.asyncio`:
 ```python
 @pytest.mark.asyncio
 async def test_power_cycle_success(self) -> None:
-    ctrl = ShellyPowerController("192.168.1.50")
+    ctrl = BridgePowerController("192.168.1.50")
     ctrl._generation = 1
     # ... mock setup ...
     result = await ctrl.power_cycle(off_seconds=0.01)
@@ -159,7 +159,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 
-from tuya_ble_mesh.power import ShellyPowerController
+from tuya_ble_mesh.power import BridgePowerController
 ```
 
 ### HA Integration Path Setup
@@ -200,7 +200,7 @@ result = await ctrl.power_cycle(off_seconds=0.01)
 
 ## Test Cases by Module
 
-### power.py — ShellyPowerController (implemented)
+### power.py — BridgePowerController (implemented)
 
 | Test Class | Cases | What It Covers |
 |------------|-------|----------------|

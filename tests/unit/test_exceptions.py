@@ -100,7 +100,7 @@ class TestMessageFormatting:
             (CryptoError, "decryption failed"),
             (AuthenticationError, "pair proof mismatch"),
             (SecretAccessError, "vault unreachable"),
-            (PowerControlError, "Shelly HTTP 500"),
+            (PowerControlError, "Bridge HTTP 500"),
             (DisconnectedError, "device not ready"),
             (CommandQueueFullError, "queue at capacity: 32"),
             (CommandExpiredError, "command TTL exceeded"),

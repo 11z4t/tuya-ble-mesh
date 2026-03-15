@@ -20,7 +20,7 @@ from custom_components.tuya_ble_mesh import something
 # ALLOWED:
 import asyncio
 import aiohttp
-from tuya_ble_mesh.power import ShellyPowerController
+from tuya_ble_mesh.power import BridgePowerController
 ```
 
 **Why:** The library must be usable outside HA — in scripts, tests, and
@@ -91,7 +91,7 @@ def power_cycle(controller, off_time):
     ...
 
 # REQUIRED:
-async def power_cycle(controller: ShellyPowerController, off_time: float) -> bool:
+async def power_cycle(controller: BridgePowerController, off_time: float) -> bool:
     ...
 ```
 
@@ -112,7 +112,7 @@ raise ValueError("bad response")
 class PowerControlError(Exception):
     """Base exception for power control operations."""
 
-class ShellyUnreachableError(PowerControlError):
+class BridgeUnreachableError(PowerControlError):
     """Shelly device is not reachable on the network."""
 
 raise ShellyUnreachableError(f"Cannot reach Shelly at {host}")

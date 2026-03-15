@@ -17,7 +17,7 @@ Modules:
     protocol — Packet encoding/decoding (internal)
     crypto — Cryptographic operations (internal)
     dps — Device profile loading
-    power — Shelly power control
+    power — Bridge power control
     secrets — 1Password integration
     exceptions — Exception hierarchy
     const — Protocol constants
@@ -51,7 +51,7 @@ from tuya_ble_mesh.exceptions import (
     SIGMeshKeyError,
     TuyaBLEMeshError,
 )
-from tuya_ble_mesh.power import ShellyPowerController
+from tuya_ble_mesh.power import BridgePowerController
 from tuya_ble_mesh.protocol import StatusResponse
 from tuya_ble_mesh.provisioner import provision
 from tuya_ble_mesh.scanner import (
@@ -130,7 +130,7 @@ __all__ = [
     "SIGMeshKeyError",
     "SecretAccessError",
     "SegmentHeader",
-    "ShellyPowerController",
+    "BridgePowerController",
     "StatusResponse",
     "TuyaBLEMeshError",
     "TuyaVendorDP",

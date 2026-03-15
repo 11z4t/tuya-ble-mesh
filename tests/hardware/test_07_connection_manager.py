@@ -14,7 +14,7 @@ import asyncio
 
 import pytest
 from tuya_ble_mesh.device import MeshDevice
-from tuya_ble_mesh.power import ShellyPowerController
+from tuya_ble_mesh.power import BridgePowerController
 
 from tests.hardware.conftest import SHELLY_HOST, requires_bluetooth
 
@@ -70,7 +70,7 @@ class TestAutoReconnect:
         VERIFY: Device reconnects after power cycle and command works.
         """
         device = MeshDevice(target_mac, mesh_name, mesh_password)
-        shelly = ShellyPowerController(SHELLY_HOST)
+        shelly = BridgePowerController(SHELLY_HOST)
 
         def on_disconnect() -> None:
             print("  Disconnect detected!")

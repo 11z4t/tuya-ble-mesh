@@ -25,15 +25,15 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class BridgeUnreachableError(PowerControlError):
-    """Shelly device is not reachable on the network."""
+    """Bridge device is not reachable on the network."""
 
 
 class BridgeCommandError(PowerControlError):
-    """Shelly device returned an error for a command."""
+    """Bridge device returned an error for a command."""
 
 
-class ShellyPowerController:
-    """Controls power to BLE device via Shelly smart plug.
+class BridgePowerController:
+    """Controls power to BLE device via smart plug bridge.
 
     Supports Gen1 and Gen2 devices with auto-detection.
     """
@@ -50,19 +50,19 @@ class ShellyPowerController:
 
     @property
     def host(self) -> str:
-        """Return the Shelly device host.
+        """Return the bridge device host.
 
         Returns:
-            str: Shelly device host.
+            str: Bridge device host.
         """
         return self._host
 
     @property
     def base_url(self) -> str:
-        """Return the base URL for the Shelly device.
+        """Return the base URL for the bridge device.
 
         Returns:
-            str: Base URL for the Shelly device.
+            str: Base URL for the bridge device.
         """
         return f"http://{self._host}"
 
@@ -73,7 +73,7 @@ class ShellyPowerController:
         return self._session
 
     async def _request(self, path: str) -> dict[str, Any]:
-        """Make HTTP GET request to Shelly device."""
+        """Make HTTP GET request to bridge device."""
         url = f"{self.base_url}{path}"
         session = await self._get_session()
         try:
@@ -82,10 +82,10 @@ class ShellyPowerController:
                     raise BridgeCommandError(f"HTTP {resp.status} from {path}")
                 return await resp.json(content_type=None)  # type: ignore[no-any-return]
         except aiohttp.ClientError as exc:
-            raise BridgeUnreachableError(f"Cannot reach Shelly at {self._host}: {exc}") from exc
+            raise BridgeUnreachableError(f"Cannot reach bridge at {self._host}: {exc}") from exc
 
     async def detect_generation(self) -> int:
-        """Auto-detect Shelly generation (1 or 2) via /shelly endpoint."""
+        """Auto-detect bridge generation (1 or 2) via /shelly endpoint."""
         if self._generation is not None:
             return self._generation
 
@@ -95,7 +95,7 @@ class ShellyPowerController:
         else:
             self._generation = 1
 
-        _LOGGER.info("Shelly at %s: Gen%d", self._host, self._generation)
+        _LOGGER.info("Bridge at %s: Gen%d", self._host, self._generation)
         return self._generation
 
     async def power_off(self) -> bool:
@@ -172,7 +172,7 @@ class ShellyPowerController:
         return True
 
     async def is_reachable(self) -> bool:
-        """Check if Shelly device responds to /shelly."""
+        """Check if bridge device responds to /shelly."""
         try:
             await self._request("/shelly")
             return True
@@ -185,7 +185,7 @@ class ShellyPowerController:
             await self._session.close()
             self._session = None
 
-    async def __aenter__(self) -> ShellyPowerController:
+    async def __aenter__(self) -> BridgePowerController:
         """Async context manager entry."""
         return self
 

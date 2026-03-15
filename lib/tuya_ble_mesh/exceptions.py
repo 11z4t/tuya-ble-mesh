@@ -67,7 +67,7 @@ class SIGMeshKeyError(SIGMeshError):
 
 
 class PowerControlError(TuyaBLEMeshError):
-    """Shelly power control operation failed."""
+    """Bridge power control operation failed."""
 
 
 class DisconnectedError(MeshConnectionError):

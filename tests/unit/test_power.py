@@ -1,4 +1,4 @@
-"""Unit tests for ShellyPowerController."""
+"""Unit tests for BridgePowerController."""
 
 import sys
 import unittest.mock
@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
 from tuya_ble_mesh.power import (
     BridgeCommandError,
     BridgeUnreachableError,
-    ShellyPowerController,
+    BridgePowerController,
 )
 
 # --- Helpers ---
@@ -44,23 +44,23 @@ def make_mock_session(responses: list[MagicMock]) -> MagicMock:
 # --- Tests ---
 
 
-class TestShellyInit:
-    """Test ShellyPowerController initialization."""
+class TestBridgeInit:
+    """Test BridgePowerController initialization."""
 
     def test_init_default(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         assert ctrl.host == "192.168.1.50"
         assert ctrl.base_url == "http://192.168.1.50"
 
     def test_init_custom_host(self) -> None:
-        ctrl = ShellyPowerController("10.0.0.1")
+        ctrl = BridgePowerController("10.0.0.1")
         assert ctrl.host == "10.0.0.1"
         assert ctrl.base_url == "http://10.0.0.1"
 
     @pytest.mark.asyncio
     async def test_session_creation(self) -> None:
         """Test that session is created when needed."""
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         assert ctrl._session is None
 
         # Trigger session creation by making a request
@@ -80,7 +80,7 @@ class TestDetectGeneration:
 
     @pytest.mark.asyncio
     async def test_gen1_detection(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         mock_resp = make_mock_response(
             json_data={"type": "SHPLG-S", "mac": "AABBCC", "auth": False}
         )
@@ -92,7 +92,7 @@ class TestDetectGeneration:
 
     @pytest.mark.asyncio
     async def test_gen2_detection(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         mock_resp = make_mock_response(json_data={"gen": 2, "type": "SHPLG-S", "mac": "AABBCC"})
         mock_session = make_mock_session([mock_resp])
         ctrl._session = mock_session
@@ -102,7 +102,7 @@ class TestDetectGeneration:
 
     @pytest.mark.asyncio
     async def test_generation_cached(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         ctrl._generation = 1
         # Should not make any HTTP request
         gen = await ctrl.detect_generation()
@@ -114,7 +114,7 @@ class TestPowerOn:
 
     @pytest.mark.asyncio
     async def test_gen1_power_on(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         ctrl._generation = 1
 
         mock_resp = make_mock_response(json_data={"ison": True, "has_timer": False})
@@ -126,7 +126,7 @@ class TestPowerOn:
 
     @pytest.mark.asyncio
     async def test_gen2_power_on(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         ctrl._generation = 2
 
         mock_set_resp = make_mock_response(json_data={"was_on": False})
@@ -143,7 +143,7 @@ class TestPowerOff:
 
     @pytest.mark.asyncio
     async def test_gen1_power_off(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         ctrl._generation = 1
 
         mock_resp = make_mock_response(json_data={"ison": False, "has_timer": False})
@@ -155,7 +155,7 @@ class TestPowerOff:
 
     @pytest.mark.asyncio
     async def test_gen1_power_off_failure(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         ctrl._generation = 1
 
         mock_resp = make_mock_response(
@@ -169,7 +169,7 @@ class TestPowerOff:
 
     @pytest.mark.asyncio
     async def test_gen2_power_off(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         ctrl._generation = 2
 
         mock_set_resp = make_mock_response(json_data={"was_on": True})
@@ -186,7 +186,7 @@ class TestPowerCycle:
 
     @pytest.mark.asyncio
     async def test_power_cycle_success(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         ctrl._generation = 1
 
         off_resp = make_mock_response(json_data={"ison": False})
@@ -200,7 +200,7 @@ class TestPowerCycle:
 
     @pytest.mark.asyncio
     async def test_power_cycle_off_fails(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         ctrl._generation = 1
 
         off_resp = make_mock_response(json_data={"ison": True})  # off failed
@@ -216,7 +216,7 @@ class TestFactoryReset:
 
     @pytest.mark.asyncio
     async def test_factory_reset_success(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         ctrl._generation = 1
 
         # 3 cycles = 3 off + 3 on = 6 responses
@@ -236,7 +236,7 @@ class TestIsReachable:
 
     @pytest.mark.asyncio
     async def test_reachable(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         mock_resp = make_mock_response(json_data={"type": "SHPLG-S"})
         mock_session = make_mock_session([mock_resp])
         ctrl._session = mock_session
@@ -245,7 +245,7 @@ class TestIsReachable:
 
     @pytest.mark.asyncio
     async def test_unreachable(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         import aiohttp
 
         mock_session = MagicMock()
@@ -265,7 +265,7 @@ class TestErrorHandling:
 
     @pytest.mark.asyncio
     async def test_http_error_raises_command_error(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         ctrl._generation = 1
 
         mock_resp = make_mock_response(status=500)
@@ -277,7 +277,7 @@ class TestErrorHandling:
 
     @pytest.mark.asyncio
     async def test_connection_error_raises_unreachable(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         ctrl._generation = 1
         import aiohttp
 
@@ -298,7 +298,7 @@ class TestClose:
 
     @pytest.mark.asyncio
     async def test_close_session(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         mock_session = MagicMock()
         mock_session.closed = False
         mock_session.close = AsyncMock()
@@ -310,7 +310,7 @@ class TestClose:
 
     @pytest.mark.asyncio
     async def test_close_no_session(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         # Should not raise
         await ctrl.close()
 
@@ -320,7 +320,7 @@ class TestGetStatus:
 
     @pytest.mark.asyncio
     async def test_gen1_status(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         ctrl._generation = 1
 
         status_data = {"ison": True, "has_timer": False, "power": 5.2}
@@ -334,7 +334,7 @@ class TestGetStatus:
 
     @pytest.mark.asyncio
     async def test_gen2_status(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         ctrl._generation = 2
 
         status_data = {"output": True, "id": 0}
@@ -347,7 +347,7 @@ class TestGetStatus:
 
     @pytest.mark.asyncio
     async def test_is_on_true(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         ctrl._generation = 1
 
         mock_resp = make_mock_response(json_data={"ison": True})
@@ -358,7 +358,7 @@ class TestGetStatus:
 
     @pytest.mark.asyncio
     async def test_gen2_is_on_true(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         ctrl._generation = 2
 
         mock_resp = make_mock_response(json_data={"output": True})
@@ -369,7 +369,7 @@ class TestGetStatus:
 
     @pytest.mark.asyncio
     async def test_is_on_false(self) -> None:
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         ctrl._generation = 1
 
         mock_resp = make_mock_response(json_data={"ison": False})
@@ -385,7 +385,7 @@ class TestContextManager:
     @pytest.mark.asyncio
     async def test_context_manager_enter_and_exit(self) -> None:
         """Test that async context manager properly enters and exits."""
-        ctrl = ShellyPowerController("192.168.1.50")
+        ctrl = BridgePowerController("192.168.1.50")
         mock_session = MagicMock()
         mock_session.closed = False
         mock_session.close = AsyncMock()

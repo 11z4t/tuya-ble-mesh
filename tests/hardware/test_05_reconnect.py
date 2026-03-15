@@ -10,7 +10,7 @@ import asyncio
 
 import pytest
 from tuya_ble_mesh.device import MeshDevice
-from tuya_ble_mesh.power import ShellyPowerController
+from tuya_ble_mesh.power import BridgePowerController
 
 from tests.hardware.conftest import SHELLY_HOST, requires_bluetooth
 
@@ -36,7 +36,7 @@ class TestReconnect:
         await device.disconnect()
 
         # Power cycle via Shelly
-        shelly = ShellyPowerController(SHELLY_HOST)
+        shelly = BridgePowerController(SHELLY_HOST)
         await shelly.power_cycle(off_seconds=3.0)
         await shelly.close()
 
