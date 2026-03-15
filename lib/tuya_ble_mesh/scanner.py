@@ -112,6 +112,16 @@ async def scan_for_devices(
     devices_map: dict[str, DiscoveredDevice] = {}
 
     def callback(device: BLEDevice, adv: AdvertisementData) -> None:
+        """Handle a BLE advertisement event from BleakScanner.
+
+        Converts the raw BLE device and advertisement data into a
+        DiscoveredDevice and upserts it into devices_map, keeping the
+        entry with the strongest RSSI for each address.
+
+        Args:
+            device: The BLE device that was detected.
+            adv: Advertisement data broadcast by the device.
+        """
         discovered = _make_discovered(device, adv)
         existing = devices_map.get(device.address)
         if existing is None or discovered.rssi > existing.rssi:

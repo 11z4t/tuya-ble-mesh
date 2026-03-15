@@ -623,6 +623,16 @@ class SIGMeshProvisioner:
                     rx_event.set()
 
         async def send_prov(pdu: bytes) -> None:
+            """Send a provisioning PDU to the device over GATT.
+
+            Wraps the PDU into MTU-sized segments and writes each segment to
+            the provisioning data-in characteristic.  A brief inter-segment
+            delay is applied when the PDU spans more than one segment to
+            avoid overwhelming the device's receive buffer.
+
+            Args:
+                pdu: Raw provisioning PDU bytes to transmit.
+            """
             segments = _wrap_provisioning_pdu(pdu, client.mtu_size)
             for seg in segments:
                 await client.write_gatt_char(PROV_DATA_IN, seg, response=False)

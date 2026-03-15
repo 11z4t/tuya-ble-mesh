@@ -676,6 +676,11 @@ class MeshDevice:
         result: list[StatusResponse] = []
 
         def on_status(status: StatusResponse) -> None:
+            """Store received status and signal the waiting coroutine.
+
+            Args:
+                status: The status response received from the device.
+            """
             result.append(status)
             event.set()
 
