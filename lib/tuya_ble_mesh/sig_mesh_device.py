@@ -10,6 +10,9 @@ All crypto operations are in ``sig_mesh_crypto`` (Rule S4).
 
 SECURITY: Key material is NEVER logged, printed, or included in exceptions.
 Only addresses, lengths, and opcodes are safe to log.
+
+Command methods are in ``sig_mesh_device_commands``.
+Segment reassembly and dispatch are in ``sig_mesh_device_segments``.
 """
 
 from __future__ import annotations
@@ -17,9 +20,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
-import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
 from typing import Any, Protocol
 
 from bleak import BleakClient, BleakScanner
@@ -33,11 +34,17 @@ from tuya_ble_mesh.exceptions import (
     ConnectionError as MeshConnectionError,
 )
 from tuya_ble_mesh.exceptions import (
+    SecretAccessError,
     SIGMeshError,
+    SIGMeshKeyError,
 )
 from tuya_ble_mesh.logging_context import MeshLogAdapter, mesh_operation
 from tuya_ble_mesh.sig_mesh_device_commands import SIGMeshDeviceCommandsMixin
-from tuya_ble_mesh.sig_mesh_device_notify import SIGMeshDeviceNotifyMixin
+from tuya_ble_mesh.sig_mesh_device_segments import (
+    _REASSEMBLY_TIMEOUT,
+    SIGMeshDeviceSegmentsMixin,
+    _ReassemblyBuffer,
+)
 from tuya_ble_mesh.sig_mesh_protocol import (
     CompositionData,
     MeshKeys,
@@ -59,20 +66,14 @@ DisconnectCallback = Callable[[], Any]
 # BlueZ D-Bus cache settle delay after device removal (seconds)
 _BLUEZ_CACHE_CLEAR_DELAY = 2.0
 
+# Bluetoothctl remove command timeout (seconds)
+_BLUETOOTHCTL_REMOVE_TIMEOUT = 5.0
 
-@dataclass
-class _ReassemblyBuffer:
-    """Buffer for collecting segmented transport PDU chunks."""
-
-    src: int
-    dst: int
-    akf: int
-    aid: int
-    szmic: int
-    seq_zero: int
-    seg_n: int
-    segments: dict[int, bytes] = field(default_factory=dict)
-    created_at: float = field(default_factory=time.monotonic)
+# Re-export for backward compatibility (tests import from here)
+__all__ = [
+    "_REASSEMBLY_TIMEOUT",
+    "SIGMeshDevice",
+]
 
 
 class SeqStore(Protocol):
@@ -130,7 +131,7 @@ class InMemorySeqStore:
         self._seq = seq
 
 
-class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceNotifyMixin):
+class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceSegmentsMixin):
     """High-level interface to a SIG Mesh device via GATT Proxy.
 
     Provides the same duck-type interface as ``MeshDevice`` for use
@@ -161,7 +162,7 @@ class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceNotifyMixin):
             iv_index: Mesh IV Index.
             seq_store: Optional SeqStore for sequence number persistence.
                 If None, uses InMemorySeqStore starting from 0.
-            ble_device_callback: Optional callback(address) → BLEDevice for
+            ble_device_callback: Optional callback(address) -> BLEDevice for
                 HA Bluetooth Proxy support. If None, uses BleakScanner.
             adapter: BLE adapter name (e.g. "hci0"). Forces scan and connect
                 via this specific adapter, bypassing HA's habluetooth routing.
@@ -221,8 +222,6 @@ class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceNotifyMixin):
     def set_seq(self, seq: int) -> None:
         """Override the current sequence number (for restore on startup).
 
-        Delegates to the configured seq_store.
-
         Args:
             seq: Sequence number to set.
         """
@@ -231,75 +230,41 @@ class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceNotifyMixin):
     def get_seq(self) -> int:
         """Return the current sequence number (for persistence).
 
-        Delegates to the configured seq_store.
-
         Returns:
             Current sequence number.
         """
         return self._seq_store.get_seq()
 
     def register_onoff_callback(self, callback: OnOffCallback) -> None:
-        """Register a callback for GenericOnOff Status notifications.
-
-        Args:
-            callback: Called with ``on: bool`` when status received.
-        """
+        """Register a callback for GenericOnOff Status notifications."""
         self._onoff_callbacks.append(callback)
 
     def unregister_onoff_callback(self, callback: OnOffCallback) -> None:
-        """Remove a previously registered onoff callback.
-
-        Args:
-            callback: The callback to remove.
-        """
+        """Remove a previously registered onoff callback."""
         self._onoff_callbacks.remove(callback)
 
     def register_vendor_callback(self, callback: VendorCallback) -> None:
-        """Register a callback for Tuya vendor messages.
-
-        Args:
-            callback: Called with ``(opcode: int, params: bytes)``.
-        """
+        """Register a callback for Tuya vendor messages."""
         self._vendor_callbacks.append(callback)
 
     def unregister_vendor_callback(self, callback: VendorCallback) -> None:
-        """Remove a previously registered vendor callback.
-
-        Args:
-            callback: The callback to remove.
-        """
+        """Remove a previously registered vendor callback."""
         self._vendor_callbacks.remove(callback)
 
     def register_composition_callback(self, callback: CompositionCallback) -> None:
-        """Register a callback for Composition Data responses.
-
-        Args:
-            callback: Called with ``CompositionData`` when received.
-        """
+        """Register a callback for Composition Data responses."""
         self._composition_callbacks.append(callback)
 
     def unregister_composition_callback(self, callback: CompositionCallback) -> None:
-        """Remove a previously registered composition callback.
-
-        Args:
-            callback: The callback to remove.
-        """
+        """Remove a previously registered composition callback."""
         self._composition_callbacks.remove(callback)
 
     def register_disconnect_callback(self, callback: DisconnectCallback) -> None:
-        """Register a callback for disconnect events.
-
-        Args:
-            callback: Called when BLE connection is lost.
-        """
+        """Register a callback for disconnect events."""
         self._disconnect_callbacks.append(callback)
 
     def unregister_disconnect_callback(self, callback: DisconnectCallback) -> None:
-        """Remove a previously registered disconnect callback.
-
-        Args:
-            callback: The callback to remove.
-        """
+        """Remove a previously registered disconnect callback."""
         self._disconnect_callbacks.remove(callback)
 
     async def connect(
@@ -318,100 +283,83 @@ class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceNotifyMixin):
             ConnectionError: If BLE connection fails after all retries.
         """
         async with mesh_operation(self._address, "connect"):
-            await self._connect_impl(timeout=timeout, max_retries=max_retries)
+            await self._load_keys()
 
-    async def _connect_impl(
-        self,
-        timeout: float = DEFAULT_CONNECTION_TIMEOUT,
-        max_retries: int = DEFAULT_MAX_RETRIES,
-    ) -> None:
-        """Internal connect implementation (called within mesh_operation context).
+            last_error: Exception | None = None
+            for attempt in range(1, max_retries + 1):
+                try:
+                    _LOGGER.info(
+                        "Connecting to %s (attempt %d/%d)",
+                        self._address,
+                        attempt,
+                        max_retries,
+                    )
+                    if self._ble_device_callback is not None:
+                        device = self._ble_device_callback(self._address)
+                    else:
+                        scan_kwargs: dict[str, Any] = {"timeout": timeout}
+                        if self._adapter is not None:
+                            scan_kwargs["adapter"] = self._adapter
+                        _LOGGER.debug(
+                            "Scanning for %s (adapter=%s)",
+                            self._address,
+                            self._adapter or "default",
+                        )
+                        device = await BleakScanner.find_device_by_address(
+                            self._address, **scan_kwargs
+                        )
+                    if device is None:
+                        msg = f"Device {self._address} not found"
+                        raise MeshConnectionError(msg)
 
-        Args:
-            timeout: Connection timeout per attempt in seconds.
-            max_retries: Maximum number of connection attempts.
-
-        Raises:
-            SIGMeshKeyError: If keys cannot be loaded.
-            ConnectionError: If BLE connection fails after all retries.
-        """
-        await self._load_keys()
-
-        last_error: Exception | None = None
-        for attempt in range(1, max_retries + 1):
-            try:
-                _LOGGER.info(
-                    "Connecting to %s (attempt %d/%d)",
-                    self._address,
-                    attempt,
-                    max_retries,
-                )
-                if self._ble_device_callback is not None:
-                    device = self._ble_device_callback(self._address)
-                else:
-                    scan_kwargs: dict[str, Any] = {"timeout": timeout}
+                    client_kwargs: dict[str, Any] = {
+                        "timeout": timeout,
+                        "disconnected_callback": self._on_ble_disconnect,
+                    }
                     if self._adapter is not None:
-                        scan_kwargs["adapter"] = self._adapter
-                    _LOGGER.debug(
-                        "Scanning for %s (adapter=%s)",
-                        self._address,
-                        self._adapter or "default",
-                    )
-                    device = await BleakScanner.find_device_by_address(self._address, **scan_kwargs)
-                if device is None:
-                    msg = f"Device {self._address} not found"
-                    raise MeshConnectionError(msg)
+                        client_kwargs["adapter"] = self._adapter
+                    client = BleakClient(device, **client_kwargs)
+                    await client.connect()
 
-                client_kwargs: dict[str, Any] = {
-                    "timeout": timeout,
-                    "disconnected_callback": self._on_ble_disconnect,
-                }
-                if self._adapter is not None:
-                    client_kwargs["adapter"] = self._adapter
-                client = BleakClient(device, **client_kwargs)
-                await client.connect()
+                    # Subscribe to Proxy Data Out notifications
+                    try:
+                        await client.start_notify(SIG_MESH_PROXY_DATA_OUT, self._on_notify)
+                    except (EOFError, BleakError, BleakDBusError, OSError) as notify_exc:
+                        _LOGGER.warning(
+                            "Notification subscription failed for %s: %s (%s) — "
+                            "device will work but won't receive push status updates",
+                            self._address,
+                            notify_exc,
+                            type(notify_exc).__name__,
+                        )
 
-                # Subscribe to Proxy Data Out notifications
-                # Wrap in try/except: on some BlueZ versions, start_notify
-                # triggers EOFError or BleakDBusError on the D-Bus connection for mesh devices.
-                try:
-                    await client.start_notify(SIG_MESH_PROXY_DATA_OUT, self._on_notify)
-                except (EOFError, BleakError, BleakDBusError, OSError) as notify_exc:
+                    self._client = client
+                    _LOGGER.info("Connected to %s", self._address)
+
+                    # Request Composition Data (non-critical)
+                    try:
+                        await self.request_composition_data()
+                    except (TimeoutError, SIGMeshError, BleakError):
+                        _LOGGER.debug(
+                            "Composition Data request failed (non-critical)",
+                            exc_info=True,
+                        )
+                    return
+
+                except (BleakError, MeshConnectionError, OSError) as exc:
+                    last_error = exc
                     _LOGGER.warning(
-                        "Notification subscription failed for %s: %s (%s) — "
-                        "device will work but won't receive push status updates",
+                        "Connection attempt %d failed for %s",
+                        attempt,
                         self._address,
-                        notify_exc,
-                        type(notify_exc).__name__,
-                    )
-
-                self._client = client
-                _LOGGER.info("Connected to %s", self._address)
-
-                # Request Composition Data (non-critical)
-                try:
-                    await self.request_composition_data()
-                except (TimeoutError, SIGMeshError, BleakError):
-                    _LOGGER.debug(
-                        "Composition Data request failed (non-critical)",
                         exc_info=True,
                     )
-                return
+                    # Remove cached BLE device between retries
+                    await self._bluetoothctl_remove()
+                    await asyncio.sleep(_BLUEZ_CACHE_CLEAR_DELAY)
 
-            except (BleakError, MeshConnectionError, OSError) as exc:
-                last_error = exc
-                _LOGGER.warning(
-                    "Connection attempt %d failed for %s",
-                    attempt,
-                    self._address,
-                    exc_info=True,
-                )
-                # Remove cached BLE device between retries
-                await self._bluetoothctl_remove()
-                await asyncio.sleep(_BLUEZ_CACHE_CLEAR_DELAY)
-
-        msg = f"Failed to connect to {self._address} after {max_retries} attempts"
-        raise MeshConnectionError(msg) from last_error
+            msg = f"Failed to connect to {self._address} after {max_retries} attempts"
+            raise MeshConnectionError(msg) from last_error
 
     async def disconnect(self) -> None:
         """Disconnect from the device and zero key material."""
@@ -425,13 +373,9 @@ class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceNotifyMixin):
 
         # Zero-fill key material before clearing (defense in depth)
         if self._keys is not None:
-            # Attempt to overwrite key bytes in memory with zeros
-            # Note: Python's memory management may not guarantee immediate zeroing,
-            # but this is best-effort defense-in-depth against memory forensics.
             try:
                 for attr in ("net_key", "dev_key", "app_key", "enc_key", "priv_key", "network_id"):
                     val = getattr(self._keys, attr, None)
-                    # Overwrite mutable bytearray if possible
                     if isinstance(val, bytearray) and len(val) > 0:
                         val[:] = b"\x00" * len(val)
             except (AttributeError, TypeError):
@@ -447,21 +391,95 @@ class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceNotifyMixin):
 
         _LOGGER.info("Disconnected from %s", self._address)
 
-    def _log_notify_exception(self, task: asyncio.Task[None]) -> None:
-        """Log exceptions from notify processing tasks.
+    # --- Private helpers ---
+
+    async def _next_seq(self) -> int:
+        """Return and increment the sequence number (24-bit wrap).
+
+        Protected by asyncio.Lock to prevent nonce collision from
+        concurrent callers. Delegates to seq_store.
+
+        Raises:
+            SIGMeshError: If sequence number exhausted (> 0xFFFFFF).
+        """
+        async with self._seq_lock:
+            seq = self._seq_store.get_seq()
+            if seq > 0xFFFFFF:
+                msg = "Sequence number exhausted — reconnect required"
+                raise SIGMeshError(msg)
+            self._seq_store.set_seq(seq + 1)
+            return seq
+
+    async def _next_seqs(self, n: int) -> int:
+        """Reserve n consecutive sequence numbers and return the first.
+
+        Used for segmented messages that need a contiguous seq range.
+        Wraps at 24-bit boundary per SIG Mesh spec. Delegates to seq_store.
 
         Args:
-            task: The completed task to check for exceptions.
+            n: Number of sequence numbers to reserve.
+
+        Returns:
+            First sequence number of the reserved range.
+
+        Raises:
+            SIGMeshError: If sequence number exhausted (> 0xFFFFFF).
         """
-        if task.cancelled():
-            return
+        async with self._seq_lock:
+            seq = self._seq_store.get_seq()
+            if seq > 0xFFFFFF or (seq + n) > 0xFFFFFF:
+                msg = "Sequence number exhausted — reconnect required"
+                raise SIGMeshError(msg)
+            self._seq_store.set_seq(seq + n)
+            return seq
+
+    async def _load_keys(self) -> None:
+        """Load mesh keys from 1Password via SecretsManager.
+
+        Raises:
+            SIGMeshKeyError: If any required key is missing.
+        """
+        prefix = self._op_item_prefix
         try:
-            exc = task.exception()
-            if exc is not None:
-                _LOGGER.error(
-                    "Notify processing task failed for %s",
-                    self._address,
-                    exc_info=exc,
-                )
-        except asyncio.CancelledError:
-            pass
+            net_key_hex = await self._secrets.get(
+                f"{prefix}-net-key",
+                "password",  # pragma: allowlist secret
+            )
+            dev_key_hex = await self._secrets.get(
+                f"{prefix}-dev-key-{self._target_addr:04x}",
+                "password",  # pragma: allowlist secret
+            )
+            app_key_hex = await self._secrets.get(
+                f"{prefix}-app-key",
+                "password",  # pragma: allowlist secret
+            )
+        except (SecretAccessError, OSError, ValueError, RuntimeError) as exc:
+            msg = f"Failed to load SIG Mesh keys for prefix '{prefix}'"
+            raise SIGMeshKeyError(msg) from exc
+
+        self._keys = MeshKeys(
+            net_key_hex,
+            dev_key_hex,
+            app_key_hex,
+            iv_index=self._iv_index,
+        )
+        _LOGGER.info(
+            "SIG Mesh keys loaded (prefix=%s, NID=0x%02X, AID=0x%02X)",
+            prefix,
+            self._keys.nid,
+            self._keys.aid,
+        )
+
+    async def _bluetoothctl_remove(self) -> None:
+        """Remove device from BlueZ cache via bluetoothctl."""
+        try:
+            process = await asyncio.create_subprocess_exec(
+                "bluetoothctl",
+                "remove",
+                self._address,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await asyncio.wait_for(process.wait(), timeout=_BLUETOOTHCTL_REMOVE_TIMEOUT)
+        except (TimeoutError, OSError):
+            _LOGGER.debug("bluetoothctl remove failed (ignored)", exc_info=True)

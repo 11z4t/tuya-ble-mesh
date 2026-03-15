@@ -1,24 +1,14 @@
-"""SIG Mesh device notification and reassembly methods mixin.
+"""SIG Mesh device segment reassembly and notification dispatch.
 
-Provides notification handling, segmented message reassembly, and key loading
-for ``SIGMeshDevice``. Separated into mixin for maintainability (PLAT-600).
+Provides ``SIGMeshDeviceSegmentsMixin`` which handles:
 
-All methods assume the parent class provides:
-- ``_client: BleakClient | None``
-- ``_keys: MeshKeys | None``
-- ``_target_addr: int``
-- ``_secrets: Any`` (SecretsManager instance)
-- ``_op_item_prefix: str``
-- ``_iv_index: int``
-- ``_segment_buffers: dict[tuple[int, int, int, int], _ReassemblyBuffer]``
-- ``_segment_lock: asyncio.Lock``
-- ``_pending_responses: dict[tuple[int, int], asyncio.Future[bytes]]``
-- ``_onoff_callbacks: list[OnOffCallback]``
-- ``_vendor_callbacks: list[VendorCallback]``
-- ``_composition_callbacks: list[CompositionCallback]``
-- ``_disconnect_callbacks: list[DisconnectCallback]``
-- ``_composition: CompositionData | None``
-- ``_firmware_version: str | None``
+- GATT Proxy notification processing
+- Segmented message reassembly per BT Mesh spec
+- Access payload dispatch to callbacks and pending response futures
+- BLE disconnection handling
+
+This mixin is not intended for standalone use — it requires attributes
+defined in ``SIGMeshDevice.__init__``.
 """
 
 from __future__ import annotations
@@ -26,19 +16,14 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from bleak.backends.characteristic import BleakGATTCharacteristic
-
-from tuya_ble_mesh.exceptions import (
-    MalformedPacketError,
-    SecretAccessError,
-    SIGMeshKeyError,
-)
+from tuya_ble_mesh.exceptions import MalformedPacketError
 from tuya_ble_mesh.logging_context import MeshLogAdapter
 from tuya_ble_mesh.sig_mesh_protocol import (
     _OPCODE_COMPOSITION_STATUS,
-    MeshKeys,
+    CompositionData,
     decrypt_access_payload,
     decrypt_network_pdu,
     parse_access_opcode,
@@ -49,81 +34,79 @@ from tuya_ble_mesh.sig_mesh_protocol import (
 )
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
+    from bleak.backends.characteristic import BleakGATTCharacteristic
 
-    from bleak import BleakClient
-
-    from tuya_ble_mesh.sig_mesh_protocol import CompositionData
+    from tuya_ble_mesh.sig_mesh_protocol import MeshKeys
 
 _LOGGER = MeshLogAdapter(logging.getLogger(__name__), {})
-
-# Opcodes for status responses
-_OPCODE_ONOFF_STATUS = 0x8204
 
 # Reassembly timeout for segmented messages (seconds)
 _REASSEMBLY_TIMEOUT = 10.0
 
-# Bluetoothctl remove command timeout (seconds)
-_BLUETOOTHCTL_REMOVE_TIMEOUT = 5.0
+# Opcodes for status responses
+_OPCODE_ONOFF_STATUS = 0x8204
+_OPCODE_APPKEY_STATUS = 0x8003
+_OPCODE_MODEL_APP_STATUS = 0x803E
 
 
-class SIGMeshDeviceNotifyMixin:
-    """Mixin providing notification handling and reassembly for SIG Mesh devices."""
+@dataclass
+class _ReassemblyBuffer:
+    """Buffer for collecting segmented transport PDU chunks."""
 
-    # Type hints for attributes provided by parent class
-    _client: BleakClient | None
+    src: int
+    dst: int
+    akf: int
+    aid: int
+    szmic: int
+    seq_zero: int
+    seg_n: int
+    segments: dict[int, bytes] = field(default_factory=dict)
+    created_at: float = field(default_factory=time.monotonic)
+
+
+class SIGMeshDeviceSegmentsMixin:
+    """Mixin providing segment reassembly and notification dispatch.
+
+    Requires attributes defined in ``SIGMeshDevice.__init__``:
+    ``_keys``, ``_client``, ``_address``, ``_segment_lock``,
+    ``_segment_buffers``, ``_pending_responses``, ``_pending_notify_tasks``,
+    ``_onoff_callbacks``, ``_vendor_callbacks``, ``_composition_callbacks``,
+    ``_disconnect_callbacks``, ``_composition``, ``_firmware_version``.
+    """
+
+    # Type stubs for attributes defined in SIGMeshDevice.__init__
     _keys: MeshKeys | None
-    _target_addr: int
     _address: str
-    _secrets: Any
-    _op_item_prefix: str
-    _iv_index: int
-    _segment_buffers: dict[tuple[int, int, int, int], Any]  # _ReassemblyBuffer
+    _client: Any
     _segment_lock: asyncio.Lock
+    _segment_buffers: dict[tuple[int, int, int, int], _ReassemblyBuffer]
     _pending_responses: dict[tuple[int, int], asyncio.Future[bytes]]
-    _onoff_callbacks: list[Callable[[bool], Any]]
-    _vendor_callbacks: list[Callable[[int, bytes], Any]]
-    _composition_callbacks: list[Callable[[CompositionData], Any]]
-    _disconnect_callbacks: list[Callable[[], Any]]
+    _pending_notify_tasks: set[asyncio.Task[None]]
+    _onoff_callbacks: list[Any]
+    _vendor_callbacks: list[Any]
+    _composition_callbacks: list[Any]
+    _disconnect_callbacks: list[Any]
     _composition: CompositionData | None
     _firmware_version: str | None
 
-    async def _load_keys(self) -> None:
-        """Load mesh keys from 1Password via SecretsManager.
+    def _log_notify_exception(self, task: asyncio.Task[None]) -> None:
+        """Log exceptions from notify processing tasks.
 
-        Raises:
-            SIGMeshKeyError: If any required key is missing.
+        Args:
+            task: The completed task to check for exceptions.
         """
-        prefix = self._op_item_prefix
+        if task.cancelled():
+            return
         try:
-            net_key_hex = await self._secrets.get(
-                f"{prefix}-net-key",
-                "password",  # pragma: allowlist secret
-            )
-            dev_key_hex = await self._secrets.get(
-                f"{prefix}-dev-key-{self._target_addr:04x}",
-                "password",  # pragma: allowlist secret
-            )
-            app_key_hex = await self._secrets.get(
-                f"{prefix}-app-key",
-                "password",  # pragma: allowlist secret
-            )
-        except (SecretAccessError, OSError, ValueError, RuntimeError) as exc:
-            msg = f"Failed to load SIG Mesh keys for prefix '{prefix}'"
-            raise SIGMeshKeyError(msg) from exc
-
-        self._keys = MeshKeys(
-            net_key_hex,
-            dev_key_hex,
-            app_key_hex,
-            iv_index=self._iv_index,
-        )
-        _LOGGER.info(
-            "SIG Mesh keys loaded (prefix=%s, NID=0x%02X, AID=0x%02X)",
-            prefix,
-            self._keys.nid,
-            self._keys.aid,
-        )
+            exc = task.exception()
+            if exc is not None:
+                _LOGGER.error(
+                    "Notify processing task failed for %s",
+                    self._address,
+                    exc_info=exc,
+                )
+        except asyncio.CancelledError:
+            pass
 
     def _on_notify(self, _sender: BleakGATTCharacteristic, data: bytearray) -> None:
         """Handle a GATT Proxy notification.
@@ -141,9 +124,9 @@ class SIGMeshDeviceNotifyMixin:
         try:
             loop = asyncio.get_running_loop()
             task = loop.create_task(self._process_notify(data_copy))
-            self._pending_notify_tasks.add(task)  # type: ignore[attr-defined]
-            task.add_done_callback(self._pending_notify_tasks.discard)  # type: ignore[attr-defined]
-            task.add_done_callback(self._log_notify_exception)  # type: ignore[attr-defined]
+            self._pending_notify_tasks.add(task)
+            task.add_done_callback(self._pending_notify_tasks.discard)
+            task.add_done_callback(self._log_notify_exception)
         except RuntimeError:
             # asyncio.get_running_loop() raises RuntimeError if no loop is running
             # (documented stdlib behavior). This can happen during shutdown.
@@ -223,9 +206,6 @@ class SIGMeshDeviceNotifyMixin:
             # Get or create reassembly buffer
             buf = self._segment_buffers.get(buf_key)
             if buf is None:
-                # Import _ReassemblyBuffer from parent module
-                from tuya_ble_mesh.sig_mesh_device import _ReassemblyBuffer
-
                 buf = _ReassemblyBuffer(
                     src=src,
                     dst=dst,
@@ -437,7 +417,7 @@ class SIGMeshDeviceNotifyMixin:
             except Exception:
                 _LOGGER.warning("Composition callback error", exc_info=True)
 
-    def _on_ble_disconnect(self, _client: BleakClient) -> None:
+    def _on_ble_disconnect(self, _client: Any) -> None:
         """Handle BLE disconnection event.
 
         Args:
@@ -452,17 +432,3 @@ class SIGMeshDeviceNotifyMixin:
                 raise
             except Exception:
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
-
-    async def _bluetoothctl_remove(self) -> None:
-        """Remove device from BlueZ cache via bluetoothctl."""
-        try:
-            process = await asyncio.create_subprocess_exec(
-                "bluetoothctl",
-                "remove",
-                self._address,
-                stdout=asyncio.subprocess.DEVNULL,
-                stderr=asyncio.subprocess.DEVNULL,
-            )
-            await asyncio.wait_for(process.wait(), timeout=_BLUETOOTHCTL_REMOVE_TIMEOUT)
-        except (TimeoutError, OSError):
-            _LOGGER.debug("bluetoothctl remove failed (ignored)", exc_info=True)
