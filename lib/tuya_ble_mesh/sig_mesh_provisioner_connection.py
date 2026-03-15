@@ -40,7 +40,7 @@ PROV_SERVICE = "00001827-0000-1000-8000-00805f9b34fb"
 _BLUETOOTHCTL_TIMEOUT = 5.0
 
 # BLE adapter slot release delay after disconnect (seconds)
-_BLE_SLOT_RELEASE_DELAY = 1.0  # Increased from 0.5s — see PLAT-506
+_BLE_SLOT_RELEASE_DELAY = 1.0  # Increased from 0.5s — see 
 
 # BlueZ device cache processing delay after bluetoothctl remove (seconds)
 _BLUEZ_CACHE_SETTLE_DELAY = 0.5
@@ -258,12 +258,12 @@ class ProvisionerConnectionMixin:
                     max_retries,
                     timeout,
                 )
-                # PLAT-506: Ensure client is disconnected before retry
+                #  Ensure client is disconnected before retry
                 if client is not None:
                     with contextlib.suppress(OSError, asyncio.TimeoutError):
                         await client.disconnect()
                     client = None
-                # PLAT-506: Longer backoff to allow connection slot release
+                #  Longer backoff to allow connection slot release
                 backoff = min(
                     _CONNECT_RETRY_BACKOFF_BASE
                     * (_CONNECT_RETRY_BACKOFF_EXPONENT ** (attempt - 1)),
@@ -274,7 +274,7 @@ class ProvisionerConnectionMixin:
                 last_exc = exc
                 connect_failures += 1
 
-                # PLAT-506: Special handling for out-of-slots errors
+                #  Special handling for out-of-slots errors
                 exc_str = str(exc).lower()
                 is_slot_error = (
                     "out of connection slots" in exc_str
@@ -282,7 +282,7 @@ class ProvisionerConnectionMixin:
                     or "no backend with an available connection slot" in exc_str
                 )
 
-                # PLAT-506: Ensure client is disconnected before retry
+                #  Ensure client is disconnected before retry
                 if client is not None:
                     with contextlib.suppress(OSError, asyncio.TimeoutError):
                         await client.disconnect()
@@ -296,7 +296,7 @@ class ProvisionerConnectionMixin:
                         attempt,
                         max_retries,
                     )
-                    # PLAT-506: Force cleanup to free connection slot
+                    #  Force cleanup to free connection slot
                     await self._cleanup_stale_connections(address)
                     # Longer backoff when slots are exhausted
                     backoff = min(

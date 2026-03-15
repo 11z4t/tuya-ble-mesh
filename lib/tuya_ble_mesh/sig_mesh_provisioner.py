@@ -57,7 +57,7 @@ _LOGGER = MeshLogAdapter(logging.getLogger(__name__), {})
 PROV_DATA_OUT = "00002adc-0000-1000-8000-00805f9b34fb"
 
 # BLE adapter slot release delay after disconnect (seconds)
-_BLE_SLOT_RELEASE_DELAY = 1.0  # Increased from 0.5s — see PLAT-506
+_BLE_SLOT_RELEASE_DELAY = 1.0  # Increased from 0.5s — see 
 
 
 # Re-export for backward compatibility
@@ -164,7 +164,7 @@ class SIGMeshProvisioner(ProvisionerConnectionMixin, ProvisionerExchangeMixin):
             ProvisioningError: If provisioning fails at any step.
         """
         async with mesh_operation(address.upper(), "provision"):
-            # PLAT-506: Force cleanup of any stale BLE connections before provisioning
+            #  Force cleanup of any stale BLE connections before provisioning
             await self._cleanup_stale_connections(address)
 
             client = await self._connect(address, timeout, max_retries)
@@ -177,5 +177,5 @@ class SIGMeshProvisioner(ProvisionerConnectionMixin, ProvisionerExchangeMixin):
                 with contextlib.suppress(BleakError, OSError):
                     await client.disconnect()
                 _LOGGER.info("Provisioning session disconnected from %s", address.upper())
-                # PLAT-506: Give BLE adapter time to release connection slot
+                #  Give BLE adapter time to release connection slot
                 await asyncio.sleep(_BLE_SLOT_RELEASE_DELAY)

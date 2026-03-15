@@ -6,7 +6,7 @@ This document captures insights, patterns, and lessons learned during developmen
 
 ---
 
-## PLAT-402 Final Achievement — 100% Test Coverage (2026-03-09)
+## Final Achievement — 100% Test Coverage (2026-03-09)
 
 ### 🎯 Coverage Milestone
 
@@ -147,21 +147,21 @@ Benefits:
 
 ---
 
-## PLAT-402 Batch 5 — CI Pipeline Fix + Quality Verification (2026-03-08)
+## Batch 5 — CI Pipeline Fix + Quality Verification (2026-03-08)
 
 ### Completed Tasks
-- ✅ PLAT-429: Fixed 5 failing CI integration tests
+- ✅  Fixed 5 failing CI integration tests
   - diagnostics._redact_string() now handles MagicMock objects gracefully
   - Updated test mocks to use property() for device.address string returns
   - Fixed sensor test to use EntityDescription pattern correctly
   - Added send_power() mocks to light/switch service call tests
   - All 1194 tests now passing (17/17 integration, 30 benchmarks, 1147 others)
-- ✅ PLAT-431: quality_scale.yaml verified — Platinum tier maintained
-- ✅ PLAT-421: E2E tests verified (Playwright):
+- ✅  quality_scale.yaml verified — Platinum tier maintained
+- ✅  E2E tests verified (Playwright):
   - config-flow.spec.ts, entity-interaction.spec.ts
   - visual-regression.spec.ts, accessibility.spec.ts (WCAG 2.1 AA)
   - browser-compatibility.spec.ts (multi-browser)
-- ✅ PLAT-422–424: Visual regression, a11y, multi-browser tests exist
+- ✅ –424: Visual regression, a11y, multi-browser tests exist
 - ✅ Community documentation complete (CONTRIBUTING.md, COMMUNITY.md ready)
 
 ### Coverage Status
@@ -581,7 +581,7 @@ npm run test:e2e:report
 
 ---
 
-## 15. CI/CD Pipeline Lessons (PLAT-429 - Batch 5)
+## 15. CI/CD Pipeline Lessons (- Batch 5)
 
 ### Import Error Pitfalls
 **Problem**: Tests imported non-existent `build_command_packet` instead of `encode_command_packet`
@@ -655,36 +655,36 @@ tests/
 All assigned Tuya BLE Mesh stories have been completed:
 
 ### Infrastructure (Fas 0)
-- PLAT-403-406: Infrastructure tasks (VLAN, LXC, CI runner) - handled separately from code repo
+- -406: Infrastructure tasks (VLAN, LXC, CI runner) - handled separately from code repo
 
 ### Code Quality (Batch 1)
-- PLAT-407: Security fixes ✓ (commit 8511ebb)
-- PLAT-408: Provisioning bugfix ✓ (commit cb10f69)
-- PLAT-409: Modern HA patterns ✓ (EntityDescription, DeviceInfo, diagnostics - commits ac9a17c, 692e0f4)
-- PLAT-410: Security test CRLF validation ✓ (commit e76500e - this session)
-- PLAT-412: Strict typing ✓ (commit fde945c)
-- PLAT-413: Code quality/ruff ✓ (commit 64711b0)
-- PLAT-414: Documentation ✓ (commit df442e3)
+-  Security fixes ✓ (commit 8511ebb)
+-  Provisioning bugfix ✓ (commit cb10f69)
+-  Modern HA patterns ✓ (EntityDescription, DeviceInfo, diagnostics - commits ac9a17c, 692e0f4)
+-  Security test CRLF validation ✓ (commit e76500e - this session)
+-  Strict typing ✓ (commit fde945c)
+-  Code quality/ruff ✓ (commit 64711b0)
+-  Documentation ✓ (commit df442e3)
 
 ### Testing (Batch 2)
-- PLAT-416-421: Security, integration, benchmarks, E2E tests ✓
+- -421: Security, integration, benchmarks, E2E tests ✓
 
 ### Final Polish (Batch 3-5)
-- PLAT-422-424: Visual regression, a11y, multi-browser ✓
-- PLAT-427-431: Community, Brands, CI fix, manual testing, quality_scale ✓
+- -424: Visual regression, a11y, multi-browser ✓
+- -431: Community, Brands, CI fix, manual testing, quality_scale ✓
 
 **Batch 5 verification (2026-03-08 by Thor):**
-- PLAT-429: CI pipeline created (.github/workflows/ci.yml, pytest-benchmark added) ✓
-- PLAT-431: quality_scale.yaml complete (all 45 rules done, Platinum tier) ✓
-- PLAT-421: E2E tests (config-flow.spec.ts, entity-interaction.spec.ts) ✓
-- PLAT-422: Visual regression (visual-regression.spec.ts, Playwright snapshots) ✓
-- PLAT-423: Accessibility (accessibility.spec.ts, axe-core WCAG 2.1 AA) ✓
-- PLAT-424: Multi-browser (browser-compatibility.spec.ts, 5 browser configs) ✓
-- PLAT-427: Community prep (COMMUNITY.md, CONTRIBUTING.md, issue templates) ✓
-- PLAT-428: Brands submission (BRANDS_SUBMISSION.md, logo guidelines) ✓
-- PLAT-430: Manual checklist (MANUAL_VERIFICATION.md, 295 verification steps) ✓
+-  CI pipeline created (.github/workflows/ci.yml, pytest-benchmark added) ✓
+-  quality_scale.yaml complete (all 45 rules done, Platinum tier) ✓
+-  E2E tests (config-flow.spec.ts, entity-interaction.spec.ts) ✓
+-  Visual regression (visual-regression.spec.ts, Playwright snapshots) ✓
+-  Accessibility (accessibility.spec.ts, axe-core WCAG 2.1 AA) ✓
+-  Multi-browser (browser-compatibility.spec.ts, 5 browser configs) ✓
+-  Community prep (COMMUNITY.md, CONTRIBUTING.md, issue templates) ✓
+-  Brands submission (BRANDS_SUBMISSION.md, logo guidelines) ✓
+-  Manual checklist (MANUAL_VERIFICATION.md, 295 verification steps) ✓
 
-Stories PLAT-411, 415, 425-426 were not assigned/specified in batches.
+Stories , 415, 425-426 were not assigned/specified in batches.
 All code quality requirements met - integration achieves Platinum tier.
 
 Last updated: 2026-03-08 by Thor (VM 903) - Batch 5 complete

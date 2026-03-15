@@ -3,7 +3,7 @@
 **Framework:** STRIDE (Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, Elevation of Privilege)
 
 **Status:** Phase 0 — Foundation
-**Owner:** PLAT-402
+**Owner:** 
 **Date:** 2026-03-13
 **Last Review:** 2026-03-13
 

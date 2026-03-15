@@ -66,7 +66,7 @@ DisconnectCallback = Callable[[], Any]
 class ConnectionState(enum.Enum):
     """BLE connection state machine states.
 
-    State transitions (PLAT-402 Phase 1 Task 1.3 extended)::
+    State transitions (Phase 1 Task 1.3 extended)::
 
         DISCONNECTED ──connect()──→ CONNECTING
         CONNECTING ──BLE success──→ PAIRING
@@ -89,7 +89,7 @@ class ConnectionState(enum.Enum):
     PAIRING = "pairing"
     READY = "ready"
     DISCONNECTING = "disconnecting"
-    # PLAT-402 Task 1.3: Degraded connection states
+    # Task 1.3: Degraded connection states
     DEGRADED = "degraded"  # Connection alive but unreliable (X failed writes)
     RECOVERING = "recovering"  # Active reconnect in progress
 

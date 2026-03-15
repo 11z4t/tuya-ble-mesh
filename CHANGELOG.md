@@ -41,13 +41,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.17.3] — 2026-03-09
 
 ### Added
-- Enhanced discovery cards showing MAC address, RSSI, and device category (PLAT-508)
+- Enhanced discovery cards showing MAC address, RSSI, and device category ()
 - Zero-knowledge config flow for auto-detected devices (no manual key entry)
 - HACS metadata and integration icons (icon.png, icon.svg, icon@2x.png)
 
 ### Fixed
 - Discovery flow stale device handling — auto-detects device type from advertisement
-- BLE provisioning connection slot exhaustion (PLAT-506)
+- BLE provisioning connection slot exhaustion ()
 - Integration setup race condition in async_setup_entry
 
 ### Changed
@@ -58,7 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.17.2] — 2026-03-08
 
 ### Added
-- 100% unit test coverage across all modules (PLAT-402)
+- 100% unit test coverage across all modules ()
 - Comprehensive integration tests including production lifecycle scenarios
 - Security test suite (bandit, detect-secrets)
 - E2E tests (Playwright) for UI flows

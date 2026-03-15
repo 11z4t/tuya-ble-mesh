@@ -5,7 +5,7 @@ SIGMeshDevice, BLEConnection, SIGMeshBridgeDevice, TelinkBridgeDevice)
 conform to. This allows duck-typing across different transport mechanisms
 while maintaining type safety with mypy and pyright.
 
-PLAT-613: Extracted from device.py, sig_mesh_device.py, connection.py,
+ Extracted from device.py, sig_mesh_device.py, connection.py,
 and sig_mesh_bridge.py to eliminate code duplication and provide a
 single source of truth for the common device interface.
 """

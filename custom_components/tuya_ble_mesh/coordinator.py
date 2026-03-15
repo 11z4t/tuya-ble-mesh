@@ -129,7 +129,7 @@ class StateUpdateSource(StrEnum):
 
 
 class DeviceAvailabilityState(StrEnum):
-    """Per-device availability state (PLAT-402 Phase 1 Task 1.3).
+    """Per-device availability state (Phase 1 Task 1.3).
 
     More granular than the binary available flag. Tracks the reason
     why a device might be unavailable or degraded.
@@ -156,7 +156,7 @@ class TuyaBLEMeshDeviceState:
     All updates must use dataclasses.replace() to produce a new snapshot.
     This guarantees atomic state transitions with no partially-updated views.
 
-    Task 1.2 (PLAT-402 Phase 1): Desired vs Confirmed State Model
+    Task 1.2 (Phase 1): Desired vs Confirmed State Model
     --------------------------------------------------------------
     desired_state: What the user/automation wants (last command sent)
     last_sent_state: What we actually sent to the device (may differ due to clamping/rounding)
@@ -182,7 +182,7 @@ class TuyaBLEMeshDeviceState:
     scene_id: int = 0  # Active scene/effect index (0 = none)
     last_seen: float | None = None  # Unix timestamp of last successful communication
 
-    # --- PLAT-402 Phase 1 Task 1.2: Desired vs Confirmed State ---
+    # --- Phase 1 Task 1.2: Desired vs Confirmed State ---
     desired_state: MappingProxyType[str, Any] = field(default_factory=lambda: MappingProxyType({}))
     last_sent_state: MappingProxyType[str, Any] = field(
         default_factory=lambda: MappingProxyType({})
@@ -194,7 +194,7 @@ class TuyaBLEMeshDeviceState:
     last_update_source: str = StateUpdateSource.ASSUMED.value
     last_update_time: float | None = None  # Unix timestamp of last state update
 
-    # --- PLAT-402 Phase 1 Task 1.3: Extended Connection State ---
+    # --- Phase 1 Task 1.3: Extended Connection State ---
     device_availability: str = DeviceAvailabilityState.UNKNOWN.value  # Granular availability state
     consecutive_write_failures: int = 0  # Triggers DEGRADED at threshold
     degraded_reason: str | None = None  # Human-readable reason for DEGRADED/UNREACHABLE
@@ -435,9 +435,9 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         changed = self._state.is_on != on
         now = time.time()
 
-        # PLAT-402 Task 1.2: Confirmed state from device notification
+        # Task 1.2: Confirmed state from device notification
         confirmed = MappingProxyType({"is_on": on})
-        # PLAT-402 Task 1.3: Reset failure counters on successful notify
+        # Task 1.3: Reset failure counters on successful notify
         self._state = replace(
             self._state,
             is_on=on,
@@ -503,7 +503,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
         is_on = status.white_brightness > 0 or status.color_brightness > 0
 
-        # PLAT-402 Task 1.2: Confirmed state from device notification
+        # Task 1.2: Confirmed state from device notification
         confirmed = MappingProxyType(
             {
                 "is_on": is_on,
@@ -517,7 +517,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             }
         )
 
-        # PLAT-402 Task 1.3: Reset failure counters on successful notify
+        # Task 1.3: Reset failure counters on successful notify
         self._state = replace(
             self._state,
             mode=status.mode,
@@ -613,7 +613,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
         if updated:
             now = time.time()
-            # PLAT-402 Task 1.2: Confirmed vendor data (power/energy)
+            # Task 1.2: Confirmed vendor data (power/energy)
             confirmed_dict = dict(self._state.last_confirmed_state)
             if power_w is not None:
                 confirmed_dict["power_w"] = power_w
@@ -1090,7 +1090,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                 )
 
                 # Permanent errors should not retry
-                # PLAT-402 Task 1.3: Set availability state based on error class
+                # Task 1.3: Set availability state based on error class
                 if error_class == ErrorClass.PERMANENT:
                     _LOGGER.error(
                         "Permanent error for %s — stopping reconnect",
@@ -1142,7 +1142,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                     )
                 )
 
-                # PLAT-402 Task 1.3: Set UNREACHABLE state on reconnect failure
+                # Task 1.3: Set UNREACHABLE state on reconnect failure
                 availability_state = DeviceAvailabilityState.UNREACHABLE.value
                 if error_class == ErrorClass.MESH_AUTH:
                     availability_state = DeviceAvailabilityState.REPROVISION_REQUIRED.value
@@ -1349,7 +1349,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         self._dispatch_update()
 
     def assume_state(self, desired: dict[str, Any], sent: dict[str, Any]) -> None:
-        """Optimistically update state after sending a command (PLAT-402 Task 1.2).
+        """Optimistically update state after sending a command (Task 1.2).
 
         Called by entities after sending a command but before device confirmation.
         Sets state_confidence to low (0.3) and marks source as ASSUMED.
@@ -1360,7 +1360,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         """
         now = time.time()
         # Apply sent state to current fields (optimistic update)
-        # PLAT-402 Task 1.3: Mark as ASSUMED_ONLINE
+        # Task 1.3: Mark as ASSUMED_ONLINE
         updates: dict[str, Any] = {
             "desired_state": MappingProxyType(desired),
             "last_sent_state": MappingProxyType(sent),

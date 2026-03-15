@@ -3,7 +3,7 @@
 **Purpose:** Define what "premium quality" means for this integration in measurable, enforceable terms.
 
 **Status:** Phase 0 — Foundation
-**Owner:** PLAT-402
+**Owner:** 
 **Date:** 2026-03-13
 
 ---

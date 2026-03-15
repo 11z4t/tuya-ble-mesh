@@ -512,7 +512,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         # If device already has a config entry, signal reconnect and abort discovery
         self._abort_if_unique_id_configured()
 
-        # PLAT-509: Check if device is still advertising (stale flow protection)
+        #  Check if device is still advertising (stale flow protection)
         # If the device is not currently available in HA's bluetooth stack, ignore the discovery.
         # This prevents stale discovery flows from persisting after a device stops advertising.
         try:
@@ -533,7 +533,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         ) else "LED Light"
         rssi = getattr(discovery_info, "rssi", None)
 
-        # PLAT-510: Auto-detect device type based on service UUIDs
+        #  Auto-detect device type based on service UUIDs
         service_uuids = getattr(discovery_info, "service_uuids", [])
         auto_device_type = None
 
@@ -566,10 +566,10 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
     async def async_step_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
         """Confirm bluetooth discovery and choose device type."""
         # Discovery pre-fills defaults but ALWAYS shows confirmation form
-        # (removed PLAT-511 auto-creation - user must explicitly confirm)
+        # (removed auto-creation - user must explicitly confirm)
 
-        # PLAT-510: Use auto-detected device type as default if available
-        # PLAT-511: If device type is confidently auto-detected, skip form and create entry directly
+        #  Use auto-detected device type as default if available
+        #  If device type is confidently auto-detected, skip form and create entry directly
         default_device_type = DEVICE_TYPE_LIGHT
         auto_detected = False
         if self._discovery_info:
@@ -608,7 +608,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 },
             )
 
-        # PLAT-511: Zero-knowledge flow -- if type is auto-detected and NO user_input, create entry with defaults
+        #  Zero-knowledge flow -- if type is auto-detected and NO user_input, create entry with defaults
         if user_input is None and auto_detected and self._discovery_info:
             mac = self._discovery_info["address"]
             short_mac = mac[-8:]

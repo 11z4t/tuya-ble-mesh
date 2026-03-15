@@ -4,20 +4,20 @@
 
 This release brings **zero-knowledge configuration**, **enhanced BLE provisioning reliability**, and **comprehensive test coverage** improvements.
 
-### Zero-Knowledge Config Flow (PLAT-510, PLAT-511)
+### Zero-Knowledge Config Flow (, )
 Devices are now **auto-detected and configured with zero user input**:
 - SIG Mesh devices (0x1827/0x1828) → auto-detected as **Plug**
 - Telink Mesh devices (fe07) → auto-detected as **Light**
 - Discovery cards show **MAC, RSSI, and device category**
 - No manual mesh credentials needed for default devices
 
-### BLE Provisioning Enhancements (PLAT-506, PLAT-508)
+### BLE Provisioning Enhancements (, )
 - **Out-of-slots error detection** — intelligent backoff when BLE adapter runs out of connection slots
 - **Exponential backoff** — 3.0 → 4.5 → 6.75s retry delays (capped at 15s)
 - **Connection slot release delay** — 0.5s sleep after disconnect to prevent slot exhaustion
 - **Stale discovery protection** — ignores devices that stopped advertising
 
-### Security Hardening (PLAT-408)
+### Security Hardening ()
 - **Sequence number overflow protection** — prevents catastrophic AES-CCM nonce reuse
 - **Key material zeroization** — defense-in-depth against memory forensics
 - Both fixes address critical issues from HARDENING.md (C2, H1)
@@ -63,8 +63,8 @@ Devices are now **auto-detected and configured with zero user input**:
 - **E2E tests:** Playwright suite with accessibility, visual regression, multi-browser
 - **Benchmarks:** 30 performance tests
 
-### Test Improvements (PLAT-415)
-- Added tests for PLAT-506 out-of-slots error handling
+### Test Improvements ()
+- Added tests for out-of-slots error handling
 - Added tests for is_connected=False error path
 - Added tests for missing Provisioning Service 0x1827
 - Added tests for service enumeration timeout
@@ -78,7 +78,7 @@ Devices are now **auto-detected and configured with zero user input**:
 ### New Files
 - `HA_DOCS_DRAFT.md` — Draft for home-assistant.io documentation
 - `PEER_REVIEW_CHECKLIST.md` — Comprehensive pre-merge checklist
-- Enhanced `LEARNINGS.md` with PLAT-506 insights
+- Enhanced `LEARNINGS.md` with insights
 
 ### Updated Files
 - `README.md` — Updated badges and feature list
@@ -125,7 +125,7 @@ None.
 
 ## 🙏 Contributors
 
-- **Thor (VM 903)** — PLAT-415, PLAT-425, PLAT-426, PLAT-432 implementation and testing
+- **Thor (VM 903)** — , , , implementation and testing
 - All previous contributors to the 0.18.x series
 
 ---

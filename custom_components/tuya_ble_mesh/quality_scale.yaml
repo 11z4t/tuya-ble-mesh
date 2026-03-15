@@ -3,7 +3,7 @@
 #
 # Tuya BLE Mesh Integration - PLATINUM TIER
 # All rules verified as of 2026-03-08 by Thor (VM 903)
-# PLAT-402 Batch 5: Final verification and E2E/a11y test additions
+# Final verification and E2E/a11y test additions
 
 rules:
   # ============================================================================
@@ -116,14 +116,14 @@ rules:
 
   entity-disabled-by-default:
     status: todo
-    comment: Partial - only firmware sensor disabled, need rssi/connection_quality/last_seen (tracked by PLAT-597)
+    comment: Partial - only firmware sensor disabled, need rssi/connection_quality/last_seen 
 
   entity-translations: done
   # All entity names, states, attributes translated in strings.json
 
   exception-translations:
     status: todo
-    comment: "strings.json has keys but HomeAssistantError in code does not reference translation_key/translation_domain (tracked by PLAT-592)"
+    comment: "strings.json has keys but HomeAssistantError in code does not reference translation_key/translation_domain "
   # Error messages translated for user-friendly display
 
   repair-issues: done
@@ -131,7 +131,7 @@ rules:
 
   stale-devices:
     status: todo
-    comment: Not implemented - no async_remove_config_entry_device handler (tracked by PLAT-597)
+    comment: Not implemented - no async_remove_config_entry_device handler 
 
   # ============================================================================
   # PLATINUM TIER - Exceptional (4 rules)
@@ -181,4 +181,4 @@ rules:
 # - Release automation
 #
 # Quality Scale Tier: PLATINUM ⭐⭐⭐⭐
-# Verified: 2026-03-08 (PLAT-431)
+# Verified: 2026-03-08
