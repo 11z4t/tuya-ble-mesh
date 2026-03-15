@@ -544,16 +544,13 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             _LOGGER.debug("BluetoothManager not available, skipping stale check for %s", address)
 
         # Detect human-readable device category from service UUIDs
-        device_category = "Smart Plug" if any(
-            u in service_uuids
-            for u in (SIG_MESH_PROV_UUID, SIG_MESH_PROXY_UUID)
-        ) else "LED Light"
+        device_category = "Smart Plug" if SIG_MESH_PROV_UUID in service_uuids else "LED Light"
         rssi = getattr(discovery_info, "rssi", None)
 
         #  Auto-detect device type based on service UUIDs
         auto_device_type = None
 
-        if SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids:
+        if SIG_MESH_PROV_UUID in service_uuids:  # Only match Provisioning (pairing mode)
             # SIG Mesh device -> Plug
             auto_device_type = DEVICE_TYPE_SIG_PLUG
         elif any(
@@ -571,13 +568,13 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         }
 
         # PLAT-660: Set title_placeholders so discovery card shows device name
-        self.context["title_placeholders"] = {"name": name or address}
+        self.context["title_placeholders"] = {"name": f"{device_category} ({name or address})"}
 
         # Auto-detect SIG Mesh devices by service UUID.
         # 0x1827 = Provisioning Service (unprovisioned device)
         # 0x1828 = Proxy Service (already provisioned)
-        if auto_device_type == DEVICE_TYPE_SIG_PLUG:
-            _LOGGER.info("SIG Mesh device detected: %s", address)
+        if auto_device_type == DEVICE_TYPE_SIG_PLUG and SIG_MESH_PROV_UUID in service_uuids:
+            _LOGGER.info("SIG Mesh device in pairing mode: %s", address)
             return await self.async_step_sig_plug()
 
         return await self.async_step_confirm()
