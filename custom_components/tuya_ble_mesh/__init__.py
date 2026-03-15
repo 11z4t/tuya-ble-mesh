@@ -243,6 +243,38 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
     # Reload entry when options are changed
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
 
+    # Register BLE callback for auto-reconnect when configured device reappears
+    try:
+        from homeassistant.components.bluetooth import (
+            async_register_callback,
+            BluetoothChange,
+            BluetoothCallbackMatcher,
+        )
+
+        def _on_ble_device_found(
+            service_info: "BluetoothServiceInfoBleak",
+            change: BluetoothChange,
+        ) -> None:
+            if not coordinator.is_connected:
+                _LOGGER.info(
+                    "BLE device %s reappeared (RSSI: %s) — triggering reconnect",
+                    service_info.address,
+                    service_info.rssi,
+                )
+                coordinator.schedule_reconnect()
+
+        entry.async_on_unload(
+            async_register_callback(
+                hass,
+                _on_ble_device_found,
+                BluetoothCallbackMatcher(address=mac_address),
+                BluetoothChange.ADVERTISEMENT,
+            )
+        )
+        _LOGGER.debug("BLE reconnect callback registered for %s", mac_address)
+    except ImportError:
+        _LOGGER.debug("Bluetooth integration not available, skipping BLE reconnect callback")
+
     _LOGGER.info("Tuya BLE Mesh entry set up: %s", entry.title)
     return True
 
