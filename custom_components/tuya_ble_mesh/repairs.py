@@ -134,7 +134,7 @@ async def async_create_issue_timeout(
         issue_id,
         is_fixable=False,
         severity=ir.IssueSeverity.WARNING,
-        translation_key="bridge_unreachable",
+        translation_key="connection_timeout",
         translation_placeholders={"device": device_name},
     )
     _LOGGER.warning("Repair issue created: timeout for %s", device_name)
@@ -157,8 +157,8 @@ async def async_create_issue_reconnect_storm(
         issue_id,
         is_fixable=False,
         severity=ir.IssueSeverity.WARNING,
-        translation_key="bridge_unreachable",
-        translation_placeholders={"device": device_name},
+        translation_key="reconnect_storm",
+        translation_placeholders={"device": device_name, "count": str(reconnect_count)},
     )
     _LOGGER.warning(
         "Repair issue created: reconnect_storm for %s (%d reconnects in %d min)",

@@ -261,6 +261,14 @@
     "bridge_unreachable": {
       "title": "Hub not responding",
       "description": "Cannot reach the device hub at {host}:{port}. Check that it's powered on and connected to your network."
+    },
+    "connection_timeout": {
+      "title": "Device connection timeout",
+      "description": "The device {device} is not responding. Check that it is powered on and in range."
+    },
+    "reconnect_storm": {
+      "title": "Frequent reconnections detected",
+      "description": "The device {device} has reconnected {count} times recently. This may indicate interference or a weak signal."
     }
   }
 }
