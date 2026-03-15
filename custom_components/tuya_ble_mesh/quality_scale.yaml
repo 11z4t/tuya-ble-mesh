@@ -121,7 +121,9 @@ rules:
   entity-translations: done
   # All entity names, states, attributes translated in strings.json
 
-  exception-translations: done
+  exception-translations:
+    status: todo
+    comment: "strings.json has keys but HomeAssistantError in code does not reference translation_key/translation_domain (tracked by PLAT-592)"
   # Error messages translated for user-friendly display
 
   repair-issues: done
