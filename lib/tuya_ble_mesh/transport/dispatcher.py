@@ -376,7 +376,7 @@ class AsyncCommandDispatcher:
                 except asyncio.CancelledError:
                     raise
                 except (OSError, TimeoutError, TuyaBLEMeshError) as exc:
-                    # Transport must absorb all send errors
+                    # Transport: absorb all send errors for retry
                     last_error = exc
                     retries_used += 1
 
