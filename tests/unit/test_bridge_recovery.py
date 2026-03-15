@@ -339,11 +339,13 @@ class TestBridgeCRLFInjection:
     """Test CRLF injection protection in bridge host validation."""
 
     def test_sig_bridge_rejects_crlf_in_host(self) -> None:
-        with pytest.raises(ValueError, match="CRLF"):
+        from tuya_ble_mesh.exceptions import InvalidRequestError
+        with pytest.raises(InvalidRequestError, match="CRLF"):
             SIGMeshBridgeDevice("DC:23:4F:10:52:C4", 0x00B0, "evil\r\nhost", 8099)
 
     def test_telink_bridge_rejects_crlf_in_host(self) -> None:
-        with pytest.raises(ValueError, match="CRLF"):
+        from tuya_ble_mesh.exceptions import InvalidRequestError
+        with pytest.raises(InvalidRequestError, match="CRLF"):
             TelinkBridgeDevice("DC:23:4D:21:43:A5", "evil\nhost", 8099)
 
     def test_sig_bridge_accepts_valid_host(self) -> None:
