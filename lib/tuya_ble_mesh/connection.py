@@ -458,6 +458,8 @@ class BLEConnection:
         for callback in self._disconnect_callbacks:
             try:
                 callback()
+            except asyncio.CancelledError:
+                raise
             except Exception:  # Callback protection: catch all errors but allow system exits
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
 

@@ -97,6 +97,9 @@ _BLE_WRITE_RETRY_BACKOFF_MULTIPLIER = 2.0
 # BlueZ D-Bus cache settle delay after device removal (seconds)
 _BLUEZ_CACHE_CLEAR_DELAY = 2.0
 
+# Bluetoothctl remove command timeout (seconds)
+_BLUETOOTHCTL_REMOVE_TIMEOUT = 5.0
+
 
 @dataclass
 class _ReassemblyBuffer:
@@ -1226,6 +1229,8 @@ class SIGMeshDevice:
             for callback in list(self._onoff_callbacks):
                 try:
                     callback(on_state)
+                except asyncio.CancelledError:
+                    raise
                 except Exception:  # Callback protection: catch all errors but allow system exits
                     _LOGGER.warning("OnOff callback error", exc_info=True)
         elif opcode == _OPCODE_COMPOSITION_STATUS:
@@ -1241,6 +1246,8 @@ class SIGMeshDevice:
             for vcb in list(self._vendor_callbacks):
                 try:
                     vcb(opcode, params)
+                except asyncio.CancelledError:
+                    raise
                 except Exception:  # Callback protection: catch all errors but allow system exits
                     _LOGGER.warning("Vendor callback error", exc_info=True)
         else:
@@ -1279,6 +1286,8 @@ class SIGMeshDevice:
         for callback in list(self._composition_callbacks):
             try:
                 callback(comp)
+            except asyncio.CancelledError:
+                raise
             except Exception:  # Callback protection: catch all errors but allow system exits
                 _LOGGER.warning("Composition callback error", exc_info=True)
 
@@ -1293,6 +1302,8 @@ class SIGMeshDevice:
         for callback in list(self._disconnect_callbacks):
             try:
                 callback()
+            except asyncio.CancelledError:
+                raise
             except Exception:  # Callback protection: catch all errors but allow system exits
                 _LOGGER.warning("Disconnect callback error", exc_info=True)
 
@@ -1306,6 +1317,6 @@ class SIGMeshDevice:
                 stdout=asyncio.subprocess.DEVNULL,
                 stderr=asyncio.subprocess.DEVNULL,
             )
-            await asyncio.wait_for(process.wait(), timeout=5)
+            await asyncio.wait_for(process.wait(), timeout=_BLUETOOTHCTL_REMOVE_TIMEOUT)
         except (TimeoutError, OSError):
             _LOGGER.debug("bluetoothctl remove failed (ignored)", exc_info=True)

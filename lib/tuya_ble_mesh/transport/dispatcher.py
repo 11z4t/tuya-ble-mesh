@@ -373,7 +373,10 @@ class AsyncCommandDispatcher:
                     self._complete_request(request, result)
                     return
 
-                except Exception as exc:  # Transport must absorb all send errors
+                except asyncio.CancelledError:
+                    raise
+                except (OSError, TimeoutError, TuyaBLEMeshError) as exc:
+                    # Transport must absorb all send errors
                     last_error = exc
                     retries_used += 1
 
