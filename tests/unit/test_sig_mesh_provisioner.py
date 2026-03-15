@@ -565,8 +565,8 @@ class TestProvisionMethod:
         """Test that disconnect errors are suppressed."""
         prov = SIGMeshProvisioner(b"\x00" * 16, b"\x01" * 16, 0x00B0)
         mock_client = MagicMock()
-        mock_client.stop_notify = AsyncMock(side_effect=Exception("Stop notify failed"))
-        mock_client.disconnect = AsyncMock(side_effect=Exception("Disconnect failed"))
+        mock_client.stop_notify = AsyncMock(side_effect=BleakError("Stop notify failed"))
+        mock_client.disconnect = AsyncMock(side_effect=BleakError("Disconnect failed"))
 
         with patch.object(prov, "_connect", return_value=mock_client), patch.object(
             prov, "_run_exchange", side_effect=ProvisioningError("Exchange failed")
@@ -601,4 +601,4 @@ class TestProvisionMethod:
             result = await prov.provision("AA:BB:CC:DD:EE:FF")
             assert result == mock_result
             # Verify 0.5s sleep was called after disconnect
-            mock_sleep.assert_called_with(0.5)
+            mock_sleep.assert_called_with(1.0)

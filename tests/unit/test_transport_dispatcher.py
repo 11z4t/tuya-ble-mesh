@@ -23,7 +23,7 @@ class MockSendCallback:
 
         if self.should_fail_count > 0:
             self.should_fail_count -= 1
-            raise RuntimeError("Mock send failure")
+            raise OSError("Mock send failure")
 
         return b"mock_response"
 
