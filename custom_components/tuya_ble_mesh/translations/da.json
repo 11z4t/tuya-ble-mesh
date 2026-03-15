@@ -184,6 +184,18 @@
     },
     "invalid_key": {
       "message": "Ugyldigt krypteringsnøgleformat"
+    },
+    "device_not_found": {
+      "message": "Enhed ikke fundet: {device_id}"
+    },
+    "identify_failed": {
+      "message": "Kunne ikke identificere enhed: {error}"
+    },
+    "switch_on_failed": {
+      "message": "Kunne ikke tænde kontakten"
+    },
+    "switch_off_failed": {
+      "message": "Kunne ikke slukke kontakten"
     }
   },
   "services": {

@@ -184,6 +184,18 @@
     },
     "invalid_key": {
       "message": "Ungültiges Verschlüsselungsschlüssel-Format"
+    },
+    "device_not_found": {
+      "message": "Gerät nicht gefunden: {device_id}"
+    },
+    "identify_failed": {
+      "message": "Gerät konnte nicht identifiziert werden: {error}"
+    },
+    "switch_on_failed": {
+      "message": "Schalter konnte nicht eingeschaltet werden"
+    },
+    "switch_off_failed": {
+      "message": "Schalter konnte nicht ausgeschaltet werden"
     }
   },
   "services": {

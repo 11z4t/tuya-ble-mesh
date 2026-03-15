@@ -184,6 +184,18 @@
     },
     "invalid_key": {
       "message": "Ongeldig versleutelingssleutelformaat"
+    },
+    "device_not_found": {
+      "message": "Apparaat niet gevonden: {device_id}"
+    },
+    "identify_failed": {
+      "message": "Kan apparaat niet identificeren: {error}"
+    },
+    "switch_on_failed": {
+      "message": "Kan schakelaar niet inschakelen"
+    },
+    "switch_off_failed": {
+      "message": "Kan schakelaar niet uitschakelen"
     }
   },
   "services": {

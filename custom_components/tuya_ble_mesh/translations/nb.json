@@ -184,6 +184,18 @@
     },
     "invalid_key": {
       "message": "Ugyldig krypteringsnøkkelformat"
+    },
+    "device_not_found": {
+      "message": "Enhet ikke funnet: {device_id}"
+    },
+    "identify_failed": {
+      "message": "Kunne ikke identifisere enhet: {error}"
+    },
+    "switch_on_failed": {
+      "message": "Kunne ikke slå på bryter"
+    },
+    "switch_off_failed": {
+      "message": "Kunne ikke slå av bryter"
     }
   },
   "services": {

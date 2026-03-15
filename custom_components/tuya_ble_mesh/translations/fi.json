@@ -184,6 +184,18 @@
     },
     "invalid_key": {
       "message": "Virheellinen salausavaimen muoto"
+    },
+    "device_not_found": {
+      "message": "Laitetta ei löytynyt: {device_id}"
+    },
+    "identify_failed": {
+      "message": "Laitteen tunnistaminen epäonnistui: {error}"
+    },
+    "switch_on_failed": {
+      "message": "Kytkimen käynnistäminen epäonnistui"
+    },
+    "switch_off_failed": {
+      "message": "Kytkimen sammuttaminen epäonnistui"
     }
   },
   "services": {

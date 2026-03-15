@@ -184,6 +184,18 @@
     },
     "invalid_key": {
       "message": "Ogiltigt format på krypteringsnyckeln"
+    },
+    "device_not_found": {
+      "message": "Enheten hittades inte: {device_id}"
+    },
+    "identify_failed": {
+      "message": "Kunde inte identifiera enheten: {error}"
+    },
+    "switch_on_failed": {
+      "message": "Kunde inte slå på strömbrytaren"
+    },
+    "switch_off_failed": {
+      "message": "Kunde inte stänga av strömbrytaren"
     }
   },
   "services": {

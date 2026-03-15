@@ -184,6 +184,18 @@
     },
     "invalid_key": {
       "message": "Недiйсний формат ключа шифрування"
+    },
+    "device_not_found": {
+      "message": "Пристрiй не знайдено: {device_id}"
+    },
+    "identify_failed": {
+      "message": "Не вдалося iдентифiкувати пристрiй: {error}"
+    },
+    "switch_on_failed": {
+      "message": "Не вдалося увiмкнути перемикач"
+    },
+    "switch_off_failed": {
+      "message": "Не вдалося вимкнути перемикач"
     }
   },
   "services": {

@@ -184,6 +184,18 @@
     },
     "invalid_key": {
       "message": "Isissutissaq krypteret-ip aaqqissuussinerai oqimaanngillat"
+    },
+    "device_not_found": {
+      "message": "Peqataatit nassaarineqarsinnaanngilaq: {device_id}"
+    },
+    "identify_failed": {
+      "message": "Peqataatit nassaarinneqarsinnaanngilaq: {error}"
+    },
+    "switch_on_failed": {
+      "message": "Aanngarsinnaatit iluarsitaasinnaanngilaq"
+    },
+    "switch_off_failed": {
+      "message": "Aanngarsinnaatit matussaasinnaanngilaq"
     }
   },
   "services": {

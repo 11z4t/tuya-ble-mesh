@@ -174,7 +174,7 @@
   },
   "exceptions": {
     "connection_failed": {
-      "message": "Impossible de se connecter à {device}. Vérifiez qu’il est allumé et à portée."
+      "message": "Impossible de se connecter à {device}. Vérifiez qu'il est allumé et à portée."
     },
     "command_timeout": {
       "message": "Aucune réponse de {device}. Il est peut-être hors de portée."
@@ -184,6 +184,18 @@
     },
     "invalid_key": {
       "message": "Format de clé de chiffrement invalide"
+    },
+    "device_not_found": {
+      "message": "Appareil introuvable : {device_id}"
+    },
+    "identify_failed": {
+      "message": "Impossible d'identifier l'appareil : {error}"
+    },
+    "switch_on_failed": {
+      "message": "Impossible d'allumer l'interrupteur"
+    },
+    "switch_off_failed": {
+      "message": "Impossible d'éteindre l'interrupteur"
     }
   },
   "services": {

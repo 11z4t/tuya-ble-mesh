@@ -184,6 +184,18 @@
     },
     "invalid_key": {
       "message": "Invalid encryption key format"
+    },
+    "device_not_found": {
+      "message": "Device not found: {device_id}"
+    },
+    "identify_failed": {
+      "message": "Failed to identify device: {error}"
+    },
+    "switch_on_failed": {
+      "message": "Failed to turn on switch"
+    },
+    "switch_off_failed": {
+      "message": "Failed to turn off switch"
     }
   },
   "services": {
