@@ -114,8 +114,9 @@ rules:
   entity-category: done
   # Diagnostic entities (RSSI sensor) marked with EntityCategory.DIAGNOSTIC
 
-  entity-disabled-by-default: done
-  # Diagnostic sensors disabled by default to reduce clutter
+  entity-disabled-by-default:
+    status: todo
+    comment: Partial - only firmware sensor disabled, need rssi/connection_quality/last_seen (tracked by PLAT-597)
 
   entity-translations: done
   # All entity names, states, attributes translated in strings.json
@@ -126,8 +127,9 @@ rules:
   repair-issues: done
   # Repair flow for bridge offline, device unreachable, config errors
 
-  stale-devices: done
-  # Coordinator removes stale devices after extended disconnect period
+  stale-devices:
+    status: todo
+    comment: Not implemented - no async_remove_config_entry_device handler (tracked by PLAT-597)
 
   # ============================================================================
   # PLATINUM TIER - Exceptional (4 rules)

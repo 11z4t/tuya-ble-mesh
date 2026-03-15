@@ -6,7 +6,7 @@
   "documentation": "https://github.com/11z4t/tuya-ble-mesh",
   "issue_tracker": "https://github.com/11z4t/tuya-ble-mesh/issues",
   "codeowners": [
-    "@kvista-se"
+    "@11z4t"
   ],
   "config_flow": true,
   "iot_class": "local_push",

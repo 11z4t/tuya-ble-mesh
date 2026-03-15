@@ -1,8 +1,41 @@
 {
   "entity": {
+    "binary_sensor": {
+      "connectivity": {
+        "default": "mdi:bluetooth-connect"
+      }
+    },
+    "button": {
+      "identify": {
+        "default": "mdi:magnify"
+      },
+      "reconnect": {
+        "default": "mdi:refresh"
+      }
+    },
     "light": {
       "mesh_light": {
         "default": "mdi:lightbulb-group"
+      }
+    },
+    "sensor": {
+      "connection_quality": {
+        "default": "mdi:signal-variant"
+      },
+      "energy": {
+        "default": "mdi:lightning-bolt-circle"
+      },
+      "firmware": {
+        "default": "mdi:chip"
+      },
+      "last_seen": {
+        "default": "mdi:clock-outline"
+      },
+      "power": {
+        "default": "mdi:lightning-bolt"
+      },
+      "rssi": {
+        "default": "mdi:signal"
       }
     },
     "switch": {
@@ -10,18 +43,9 @@
         "default": "mdi:power-socket"
       }
     },
-    "sensor": {
-      "rssi": {
-        "default": "mdi:signal"
-      },
-      "firmware": {
-        "default": "mdi:chip"
-      },
-      "power": {
-        "default": "mdi:lightning-bolt"
-      },
-      "energy": {
-        "default": "mdi:lightning-bolt-circle"
+    "update": {
+      "firmware_update": {
+        "default": "mdi:cellphone-arrow-down"
       }
     }
   },
