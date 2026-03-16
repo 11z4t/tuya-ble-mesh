@@ -1,0 +1,43 @@
+# Icon Guard - PLAT-692
+# This file prevents icon regression by documenting icon requirements
+
+## CRITICAL: DO NOT add icon.svg
+Home Assistant icon loading priority:
+1. icon.svg (HIGHEST - if exists, overrides PNG)
+2. icon.png + icon@2x.png
+3. brand/ subdirectory
+
+The old orange SVG icon was removed in commit cd942fee.
+If icon.svg exists, it will OVERRIDE the correct PNG icons.
+
+## Required icon files:
+- custom_components/tuya_ble_mesh/icon.png (62224 bytes, MD5: de1a2e116b411dfa1d4da882774d7469)
+- custom_components/tuya_ble_mesh/icon@2x.png (244539 bytes)
+- custom_components/tuya_ble_mesh/logo.png (62224 bytes)
+- custom_components/tuya_ble_mesh/logo@2x.png (244539 bytes)
+- custom_components/tuya_ble_mesh/brand/icon.png (62224 bytes)
+- custom_components/tuya_ble_mesh/brand/icon@2x.png (244539 bytes)
+- custom_components/tuya_ble_mesh/brand/logo.png (62224 bytes)
+- custom_components/tuya_ble_mesh/brand/logo@2x.png (244539 bytes)
+
+## FORBIDDEN files (will cause icon regression):
+- custom_components/tuya_ble_mesh/icon.svg
+- custom_components/tuya_ble_mesh/brand/icon.svg
+- custom_components/tuya_ble_mesh/icons/ (old subdirectory, removed)
+
+## To verify icons after HA reload:
+```bash
+# Check no SVG exists
+find custom_components/tuya_ble_mesh -name "*.svg" | wc -l  # Must be 0
+
+# Verify PNG checksums
+md5sum custom_components/tuya_ble_mesh/icon.png
+# Expected: de1a2e116b411dfa1d4da882774d7469
+```
+
+## Cache clearing (if old icon persists):
+If the old icon is still visible after reload:
+1. Clear browser cache (Ctrl+Shift+R)
+2. Restart Home Assistant: Developer Tools → Restart
+3. Clear HA cache: `rm -rf /config/.storage/lovelace*`
+4. Check integration: Settings → Devices & Services → Tuya BLE Mesh
