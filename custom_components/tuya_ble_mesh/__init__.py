@@ -195,6 +195,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         from homeassistant.components.bluetooth import (
             BluetoothCallbackMatcher,
             BluetoothChange,
+            BluetoothServiceInfoBleak,
             async_register_callback,
         )
 
