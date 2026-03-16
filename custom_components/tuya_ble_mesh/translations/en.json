@@ -52,8 +52,8 @@
         "data": {}
       },
       "confirm": {
-        "title": "Device Found: {name}",
-        "description": "A new **{category}** was found nearby.\n\n**Signal:** {signal_quality}\n\nSelect the device type below to finish setup.",
+        "title": "Add {name}",
+        "description": "**Signal:** {signal_quality}\n\nSelect the device type below to finish setup.",
         "data": {
           "device_type": "Device Type",
           "mesh_name": "Network Name",
