@@ -73,7 +73,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
     """
     from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
 
-    _LOGGER.info("Setting up Tuya BLE Mesh entry: %s", entry.title)
+    # PLAT-759: Routine setup logging at DEBUG level
+    _LOGGER.debug("Setting up Tuya BLE Mesh entry: %s", entry.title)
 
     mac_address: str = entry.data[CONF_MAC_ADDRESS]
     device_type: str = entry.data.get(CONF_DEVICE_TYPE, "")
@@ -202,7 +203,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             change: BluetoothChange,
         ) -> None:
             if not coordinator.state.available:
-                _LOGGER.info(
+                # PLAT-759: Routine reconnect trigger at DEBUG level
+                _LOGGER.debug(
                     "BLE device %s reappeared (RSSI: %s) — triggering reconnect",
                     service_info.address,
                     service_info.rssi,
@@ -221,7 +223,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
     except ImportError:
         _LOGGER.debug("Bluetooth integration not available, skipping BLE reconnect callback")
 
-    _LOGGER.info("Tuya BLE Mesh entry set up: %s", entry.title)
+    # PLAT-759: Routine setup completion at DEBUG level
+    _LOGGER.debug("Tuya BLE Mesh entry set up: %s", entry.title)
     return True
 
 
@@ -454,7 +457,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry)
     Returns:
         True if unload succeeded.
     """
-    _LOGGER.info("Unloading Tuya BLE Mesh entry: %s", entry.title)
+    # PLAT-759: Routine unload logging at DEBUG level
+    _LOGGER.debug("Unloading Tuya BLE Mesh entry: %s", entry.title)
 
     runtime: TuyaBLEMeshRuntimeData | None = getattr(entry, "runtime_data", None)
     if runtime is not None:
@@ -464,5 +468,6 @@ async def async_unload_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry)
 
     unload_ok: bool = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    _LOGGER.info("Tuya BLE Mesh entry unloaded: %s (ok=%s)", entry.title, unload_ok)
+    # PLAT-759: Routine unload completion at DEBUG level
+    _LOGGER.debug("Tuya BLE Mesh entry unloaded: %s (ok=%s)", entry.title, unload_ok)
     return unload_ok
