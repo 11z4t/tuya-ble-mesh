@@ -1,22 +1,16 @@
 """SIG Mesh provisioning for Tuya BLE Mesh config flow.
-
 Handles:
 - SIG Mesh plug provisioning via PB-GATT
 - SIG Mesh bridge configuration
 """
-
 from __future__ import annotations
-
 import asyncio
 import logging
 import os
 from typing import TYPE_CHECKING, Any
-
 import voluptuous as vol
-
 if TYPE_CHECKING:
     from homeassistant.data_entry_flow import FlowResult
-
 from custom_components.tuya_ble_mesh.const import (
     CONF_BRIDGE_HOST,
     CONF_BRIDGE_PORT,
@@ -26,34 +20,24 @@ from custom_components.tuya_ble_mesh.const import (
     DEVICE_TYPE_SIG_BRIDGE_PLUG,
     DEVICE_TYPE_SIG_PLUG,
 )
-
 _LOGGER = logging.getLogger(__name__)
-
 # Unicast addresses used during provisioning
 _UNICAST_PROVISIONER = 0x0001
 _UNICAST_DEVICE_DEFAULT = 0x00B0
-
 # GenericOnOff Server SIG Model ID
 _MODEL_GENERIC_ONOFF_SERVER = 0x1000
-
 # Seconds to wait for device to reboot as Proxy Service after provisioning
 _POST_PROV_REBOOT_DELAY = 6.0
-
-
 async def run_provision(hass: Any, mac: str) -> tuple[str, str, str]:
     """Generate keys, provision the device, configure application key and model bind.
-
     Phase 1: PB-GATT provisioning (Service 0x1827).
     Phase 2: Wait for device to reboot into Proxy Service (0x1828).
     Phase 3: Add application key and bind to GenericOnOff Server model.
-
     Args:
         hass: Home Assistant instance.
         mac: BLE MAC address of the unprovisioned device.
-
     Returns:
         Tuple of (net_key_hex, dev_key_hex, app_key_hex).
-
     Raises:
         ProvisioningError: If PB-GATT provisioning fails.
         Any exception from Phase 3 is logged but not re-raised.
@@ -66,22 +50,18 @@ async def run_provision(hass: Any, mac: str) -> tuple[str, str, str]:
     from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.sig_mesh_provisioner import (
         SIGMeshProvisioner,  # type: ignore[import-not-found]
     )
-
     # Generate fresh random keys (SECURITY: never logged)
     net_key = os.urandom(16)
     app_key = os.urandom(16)
-
     _LOGGER.info(
         "Auto-provisioning SIG Mesh device %s (unicast=0x%04X)",
         mac,
         _UNICAST_DEVICE_DEFAULT,
     )
-
     # HA Bluetooth callbacks -- use retry-connector to avoid HA warning
     # NOTE: Works with ESPHome BLE proxies. If HA has no local adapter but has
     # ESPHome BLE proxies, devices discovered by proxies will be in HA's bluetooth
     # registry and establish_connection will route traffic via the proxy.
-    # PLAT-737: ALWAYS use connectable=True to signal connection intent
     def _ble_device_cb(address: str) -> Any:
         """Look up BLEDevice via HA bluetooth registry (connectable=True required)."""
         device = ha_bluetooth.async_ble_device_from_address(
@@ -96,10 +76,8 @@ async def run_provision(hass: Any, mac: str) -> tuple[str, str, str]:
         else:
             _LOGGER.debug("Found BLEDevice for %s: %s", address, device)
         return device
-
     async def _ble_connect_cb(ble_device: Any) -> BleakClient:
         """Connect via bleak-retry-connector with service caching and stale cleanup.
-
         PLAT-737: Use BleakClientWithServiceCache + close_stale_connections
         to prevent "Busy" adapter errors during provisioning.
         """
@@ -107,10 +85,8 @@ async def run_provision(hass: Any, mac: str) -> tuple[str, str, str]:
             BleakClientWithServiceCache,
             close_stale_connections_by_address,
         )
-
         # Clean up stale connections before connecting
         await close_stale_connections_by_address(ble_device.address)
-
         return await establish_connection(
             BleakClientWithServiceCache,
             ble_device,
@@ -118,7 +94,6 @@ async def run_provision(hass: Any, mac: str) -> tuple[str, str, str]:
             max_attempts=5,
             use_services_cache=True,
         )
-
     # Phase 1: PB-GATT provisioning
     provisioner = SIGMeshProvisioner(
         net_key=net_key,
@@ -132,19 +107,16 @@ async def run_provision(hass: Any, mac: str) -> tuple[str, str, str]:
         result = await asyncio.wait_for(provisioner.provision(mac), timeout=20.0)
     except asyncio.TimeoutError:
         raise TimeoutError("Provisioning timed out after 20s")
-
     _LOGGER.info(
         "PB-GATT provisioning succeeded for %s (%d elements)",
         mac,
         result.num_elements,
     )
-
     # Phase 2: Wait for device to reboot and switch to Proxy Service
     _LOGGER.info(
         "Waiting %.0fs for %s to reboot as Proxy Service...", _POST_PROV_REBOOT_DELAY, mac
     )
     await asyncio.sleep(_POST_PROV_REBOOT_DELAY)
-
     # Phase 3: Post-provisioning config via GATT Proxy
     op_prefix = "cfg"
     target_hex = f"{_UNICAST_DEVICE_DEFAULT:04x}"
@@ -185,27 +157,20 @@ async def run_provision(hass: Any, mac: str) -> tuple[str, str, str]:
         )
     finally:
         await device.disconnect()
-
     return net_key.hex(), result.dev_key.hex(), app_key.hex()
-
-
 async def async_step_sig_plug(flow: Any, user_input: dict[str, Any] | None) -> FlowResult:
     """Handle SIG Mesh plug -- auto-provisions and generates all keys.
-
     The device is provisioned via PB-GATT (Service UUID 0x1827).
     A random network key and device key are established via a secure key exchange.
     After provisioning, the application key is added and bound to the
     GenericOnOff Server model via the Proxy Service (UUID 0x1828).
-
     Args:
         flow: Config flow instance.
         user_input: Empty dict when user confirms provisioning (no fields).
-
     Returns:
         Flow result dict.
     """
     errors: dict[str, str] = {}
-
     if user_input is not None and flow._discovery_info is not None:
         mac = flow._discovery_info["address"]
         try:
@@ -224,7 +189,6 @@ async def async_step_sig_plug(flow: Any, user_input: dict[str, Any] | None) -> F
                 from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.exceptions import (
                     TimeoutError as MeshTimeoutError,
                 )
-
                 if isinstance(exc, DeviceNotFoundError):
                     _LOGGER.warning("Device %s not found during provisioning", mac)
                     _error_key = "device_not_found"
@@ -266,7 +230,6 @@ async def async_step_sig_plug(flow: Any, user_input: dict[str, Any] | None) -> F
                 dev_key=dev_key_hex,
                 app_key=app_key_hex,
             )
-
     return flow.async_show_form(
         step_id="sig_plug",
         data_schema=vol.Schema({}),
@@ -275,20 +238,15 @@ async def async_step_sig_plug(flow: Any, user_input: dict[str, Any] | None) -> F
         },
         errors=errors,
     )
-
-
 async def async_step_sig_bridge(flow: Any, user_input: dict[str, Any] | None) -> FlowResult:
     """Handle SIG Mesh Bridge plug configuration.
-
     Args:
         flow: Config flow instance.
         user_input: User-provided bridge parameters.
-
     Returns:
         Flow result dict.
     """
     from custom_components.tuya_ble_mesh.config_flow_validators import _test_bridge_with_session, _validate_bridge_host, _validate_unicast_address
-
     errors: dict[str, str] = {}
     if user_input is not None:
         host = user_input.get(CONF_BRIDGE_HOST, "")
@@ -314,7 +272,6 @@ async def async_step_sig_bridge(flow: Any, user_input: dict[str, Any] | None) ->
                     bridge_host=host,
                     bridge_port=port,
                 )
-
     return flow.async_show_form(
         step_id="sig_bridge",
         data_schema=vol.Schema(

@@ -17,7 +17,9 @@ from homeassistant.config_entries import HANDLERS
 
 from custom_components.tuya_ble_mesh.config_flow import (
     TuyaBLEMeshConfigFlow,
-    TuyaBLEMeshOptionsFlow,
+)
+from custom_components.tuya_ble_mesh.config_flow_options import TuyaBLEMeshOptionsFlow
+from custom_components.tuya_ble_mesh.config_flow_validators import (
     _parse_json_body,
     _test_bridge_with_session,
     _validate_bridge_host,
