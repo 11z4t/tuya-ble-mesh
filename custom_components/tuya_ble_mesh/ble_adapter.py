@@ -1,249 +1,296 @@
-"""BLE adapter layer for Home Assistant bluetooth API integration.
+"""HA Bluetooth adapter layer for tuya_ble_mesh.
 
-This adapter provides a bridge between lib/tuya_ble_mesh (which MUST NOT
-import from homeassistant) and HA's bluetooth integration. It wraps HA's
-bluetooth device discovery and managed connection APIs in a form that
-lib/ can consume without breaking S1 Library Isolation.
+Monkey-patches lib/ modules at runtime to use HA's bluetooth integration for:
+- Scanner coordination (pause/resume during connect via bleak_retry_connector)
+- ESPHome Bluetooth Proxy support (BLEDevice re-resolution from HA)
+- Retry resilience (ble_device_callback for stale device re-resolution)
 
-Architecture (S1 compliance):
-- lib/tuya_ble_mesh/connection.py expects: ble_device_callback(address) → BLEDevice
-- This adapter provides HABluetoothAdapter that implements that interface
-- HABluetoothAdapter internally uses HA's async_ble_device_from_address
-- lib/ never imports homeassistant — adapter is ONLY used in custom_components/
+S1 Library Isolation: lib/ files are NOT modified on disk.
+Module-level references are patched at runtime before device creation.
 
-Key patterns from research (switchbot, bthome, shelly):
-1. Use async_ble_device_from_address for device lookup (no manual scanning)
-2. Use establish_connection from bleak_retry_connector (not raw BleakClient)
-3. Use BleakClientWithServiceCache for GATT service caching
-4. Always call close_stale_connections_by_address before connecting
-5. HA's bluetooth wrapper automatically manages scanning pause/resume
+PLAT-737: Migrera BLE-lager till HA Bluetooth API + ESPHome Proxy-stöd.
 """
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
-from bleak_retry_connector import (
-    BleakClientWithServiceCache,
-    close_stale_connections_by_address,
-    establish_connection,
-)
-
 if TYPE_CHECKING:
-    from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
     from homeassistant.core import HomeAssistant
 
 _LOGGER = logging.getLogger(__name__)
 
+# Original references stored for cleanup
+_originals: dict[str, Any] = {}
+_patched = False
 
-class HABluetoothAdapter:
-    """Adapter that provides HA bluetooth device lookup for lib/ consumption.
 
-    This class bridges lib/tuya_ble_mesh (which uses ble_device_callback)
-    and HA's bluetooth integration, preserving S1 Library Isolation.
+def patch_lib_for_ha(hass: HomeAssistant) -> None:
+    """Patch lib/ BLE modules to use HA's bluetooth stack.
 
-    Usage pattern (in custom_components/__init__.py):
-        adapter = HABluetoothAdapter(hass, device_name="Tuya Light AA:BB:CC")
-        device = create_device(
-            device_type,
-            mac_address,
-            entry.data,
-            ble_device_callback=adapter.get_ble_device,
-            ble_connect_callback=adapter.establish_connection,
-        )
+    Must be called ONCE before creating any device instances.
 
-    The lib/ code calls get_ble_device(address) and receives a BLEDevice
-    without knowing it came from HA's bluetooth stack.
+    Patches:
+    - tuya_ble_mesh.connection.establish_connection
+      → Adds ble_device_callback for HA BLE device re-resolution during retries.
+        This allows bleak_retry_connector to coordinate scanner pause/resume
+        via habluetooth metadata in the BLEDevice.
+
+    - tuya_ble_mesh.sig_mesh_device.SIGMeshDevice.connect
+      → Replaces raw BleakClient().connect() with bleak_retry_connector's
+        establish_connection, which properly coordinates with HA's scanner.
     """
+    global _patched
+    if _patched:
+        _LOGGER.debug("lib/ BLE modules already patched for HA")
+        return
 
-    def __init__(self, hass: HomeAssistant, device_name: str = "Tuya BLE Mesh Device") -> None:
-        """Initialize the adapter.
+    import tuya_ble_mesh.connection as conn_mod
+    import tuya_ble_mesh.sig_mesh_device as sig_mod
 
-        Args:
-            hass: Home Assistant instance (provides bluetooth registry access).
-            device_name: Device name for logging (e.g., "Smart Plug AA:BB:CC").
-        """
-        self._hass = hass
-        self._device_name = device_name
+    # Store originals for unpatch
+    _originals["conn_establish"] = conn_mod.establish_connection
+    _originals["sig_connect"] = sig_mod.SIGMeshDevice.connect
 
-    def get_ble_device(self, address: str) -> Any:
-        """Look up BLEDevice via HA's bluetooth registry.
+    # --- Patch 1: BLEConnection.establish_connection ---
+    _patch_establish_connection(hass, conn_mod)
 
-        Called by lib/tuya_ble_mesh/connection.py during connect.
-        Returns BLEDevice from HA's unified bluetooth registry (includes
-        devices discovered via local adapters AND ESPHome BLE proxies).
+    # --- Patch 2: SIGMeshDevice.connect ---
+    _patch_sig_mesh_connect(hass, sig_mod)
 
-        Args:
-            address: BLE MAC address (e.g., "AA:BB:CC:DD:EE:FF").
+    _patched = True
+    _LOGGER.info("Patched lib/ BLE modules for HA bluetooth coordination (PLAT-737)")
 
-        Returns:
-            BLEDevice if found in HA's registry, None otherwise.
-        """
+
+def unpatch_lib_for_ha() -> None:
+    """Restore original lib/ module references."""
+    global _patched
+    if not _originals:
+        return
+
+    import tuya_ble_mesh.connection as conn_mod
+    import tuya_ble_mesh.sig_mesh_device as sig_mod
+
+    if "conn_establish" in _originals:
+        conn_mod.establish_connection = _originals["conn_establish"]
+    if "sig_connect" in _originals:
+        sig_mod.SIGMeshDevice.connect = _originals["sig_connect"]
+
+    _originals.clear()
+    _patched = False
+    _LOGGER.info("Restored original lib/ BLE modules")
+
+
+def _patch_establish_connection(hass: HomeAssistant, conn_mod: Any) -> None:
+    """Replace establish_connection in connection.py with HA-aware version.
+
+    The HA-aware version:
+    1. Re-resolves the BLEDevice from HA for fresh adapter metadata
+    2. Provides a ble_device_callback so bleak_retry_connector can
+       re-resolve during retries (handles stale BLEDevice objects)
+    3. Delegates to the original bleak_retry_connector.establish_connection
+       which coordinates scanner pause/resume via habluetooth
+    """
+    from bleak_retry_connector import establish_connection as raw_establish
+
+    async def ha_establish_connection(
+        client_class: type,
+        device: Any,
+        name: str,
+        disconnected_callback: Any = None,
+        max_attempts: int = 3,
+        cached_services: Any = None,
+        ble_device_callback: Any = None,
+        use_services_cache: bool = True,
+    ) -> Any:
         from homeassistant.components.bluetooth import async_ble_device_from_address
 
-        # Try connectable first (for devices that need GATT connections)
-        device = async_ble_device_from_address(
-            self._hass, address.upper(), connectable=True
-        )
-        if device is None:
-            # Fall back to any advertisement (passive discovery)
-            device = async_ble_device_from_address(
-                self._hass, address.upper(), connectable=False
-            )
-        if device is None:
-            _LOGGER.warning(
-                "BLE device %s not found in HA bluetooth registry. "
-                "Ensure device is in range of a BLE adapter or ESPHome BLE proxy.",
-                address,
-            )
-        else:
+        # Re-resolve from HA for fresh adapter metadata and ESPHome proxy routing
+        ha_device = async_ble_device_from_address(hass, name, connectable=True)
+        if ha_device is not None:
+            device = ha_device
             _LOGGER.debug(
-                "Resolved BLE device %s via HA bluetooth (connectable=%s, RSSI=%s)",
-                address,
-                getattr(device, "connectable", "?"),
-                getattr(device, "rssi", "?"),
+                "BLE device %s resolved via HA bluetooth stack (RSSI: %s)",
+                name,
+                getattr(ha_device, "rssi", "?"),
             )
-        return device
 
-    async def establish_connection(self, ble_device: Any) -> BleakClientWithServiceCache:
-        """Establish a managed BLE connection to the given BLEDevice.
+        # Always provide HA re-resolution callback for retries
+        if ble_device_callback is None:
 
-        Called by lib/tuya_ble_mesh/connection.py during connect.
-        Uses HA's bluetooth API with automatic stale connection cleanup,
-        retry logic, and service caching.
+            def _ha_resolve() -> Any:
+                return (
+                    async_ble_device_from_address(hass, name, connectable=True)
+                    or device
+                )
 
-        Args:
-            ble_device: BLEDevice from get_ble_device().
+            ble_device_callback = _ha_resolve
 
-        Returns:
-            Connected BleakClientWithServiceCache instance.
+        return await raw_establish(
+            client_class,
+            device,
+            name,
+            disconnected_callback=disconnected_callback,
+            max_attempts=max_attempts,
+            cached_services=cached_services,
+            ble_device_callback=ble_device_callback,
+            use_services_cache=use_services_cache,
+        )
 
-        Raises:
-            BleakError: If all connection attempts fail.
-            TimeoutError: If connection times out.
+    conn_mod.establish_connection = ha_establish_connection
+
+
+def _patch_sig_mesh_connect(hass: HomeAssistant, sig_mod: Any) -> None:
+    """Replace SIGMeshDevice.connect with HA-aware version.
+
+    The original connect() uses raw BleakClient().connect() which does NOT
+    coordinate with HA's bluetooth scanner → BlueZ returns 0x0a Busy.
+
+    The patched version uses bleak_retry_connector.establish_connection which:
+    1. Detects habluetooth scanner via BLEDevice metadata
+    2. Pauses scanner during connection attempt
+    3. Resumes scanner on disconnect
+    4. Supports ESPHome Bluetooth Proxy routing
+    """
+    from bleak_retry_connector import establish_connection as raw_establish
+
+    # Import constants from sig_mesh_device module
+    SIG_MESH_PROXY_DATA_OUT = sig_mod.SIG_MESH_PROXY_DATA_OUT
+    _BLUEZ_CACHE_CLEAR_DELAY = sig_mod._BLUEZ_CACHE_CLEAR_DELAY
+
+    async def ha_sig_connect(
+        self: Any,
+        timeout: float = 10.0,
+        max_retries: int = 5,
+    ) -> None:
+        """HA-aware SIG Mesh connect using establish_connection.
+
+        Uses bleak_retry_connector.establish_connection instead of raw
+        BleakClient.connect() for HA scanner coordination and ESPHome
+        Bluetooth Proxy support.
         """
-        # Clean up stale connections (prevents "Busy" adapter errors)
-        await close_stale_connections_by_address(ble_device.address)
+        from bleak import BleakClient, BleakScanner
+        from bleak.exc import BleakDBusError, BleakError
 
-        # Establish connection with retries and caching
-        # HA's bluetooth wrapper automatically manages scanning pause/resume
-        client = await establish_connection(
-            BleakClientWithServiceCache,
-            ble_device,
-            name=self._device_name,
-            max_attempts=4,
-            use_services_cache=True,
-        )
+        from tuya_ble_mesh.exceptions import ConnectionError as MeshConnectionError
+        from tuya_ble_mesh.exceptions import SIGMeshError
+        from tuya_ble_mesh.logging_context import mesh_operation
 
-        _LOGGER.info(
-            "Established managed BLE connection to %s (RSSI=%s)",
-            ble_device.address,
-            getattr(ble_device, "rssi", "?"),
-        )
-        return client
+        from homeassistant.components.bluetooth import async_ble_device_from_address
 
+        async with mesh_operation(self._address, "connect"):
+            await self._load_keys()
 
-async def ha_establish_connection(
-    hass: HomeAssistant,
-    address: str,
-    name: str,
-    *,
-    disconnected_callback: Any = None,
-    max_attempts: int = 4,
-) -> BleakClientWithServiceCache:
-    """Establish a managed BLE connection using HA's bluetooth stack.
+            last_error: Exception | None = None
+            for attempt in range(1, max_retries + 1):
+                try:
+                    _LOGGER.info(
+                        "Connecting to %s (attempt %d/%d, HA-managed)",
+                        self._address,
+                        attempt,
+                        max_retries,
+                    )
 
-    This function wraps bleak_retry_connector.establish_connection with:
-    - Automatic stale connection cleanup
-    - BLE device lookup via HA's bluetooth registry
-    - Service caching for faster reconnections
-    - Automatic retry with intelligent backoff
-    - Scanning pause/resume (handled by HA's BleakClient wrapper)
+                    # Resolve BLE device — prefer HA stack, fall back to scan
+                    device = None
+                    if self._ble_device_callback is not None:
+                        device = self._ble_device_callback(self._address)
 
-    Args:
-        hass: Home Assistant instance.
-        address: BLE MAC address (e.g., "AA:BB:CC:DD:EE:FF").
-        name: Device name for logging (e.g., "Tuya Mesh AA:BB:CC").
-        disconnected_callback: Callback(client) when connection is lost.
-        max_attempts: Maximum connection attempts (default 4).
+                    # Re-resolve from HA for fresh adapter metadata
+                    ha_device = async_ble_device_from_address(
+                        hass, self._address, connectable=True
+                    )
+                    if ha_device is not None:
+                        device = ha_device
 
-    Returns:
-        Connected BleakClientWithServiceCache instance.
+                    # Last resort: direct BleakScanner
+                    if device is None:
+                        scan_kwargs: dict[str, Any] = {"timeout": timeout}
+                        if self._adapter is not None:
+                            scan_kwargs["adapter"] = self._adapter
+                        device = await BleakScanner.find_device_by_address(
+                            self._address, **scan_kwargs
+                        )
 
-    Raises:
-        BleakError: If all connection attempts fail.
-        TimeoutError: If connection times out.
+                    if device is None:
+                        msg = (
+                            f"Device {self._address} not found in BLE scan. "
+                            "Ensure device is powered on and in range of a BLE "
+                            "adapter or ESPHome proxy."
+                        )
+                        raise MeshConnectionError(msg)
 
-    Example:
-        client = await ha_establish_connection(
-            hass, "AA:BB:CC:DD:EE:FF", "My Device",
-            disconnected_callback=lambda c: print("Disconnected!"),
-        )
-        try:
-            await client.write_gatt_char(uuid, data)
-        finally:
-            await client.disconnect()
-    """
-    from homeassistant.components.bluetooth import async_ble_device_from_address
+                    # HA re-resolution callback for retries within establish_connection
+                    def _ha_resolve() -> Any:
+                        return (
+                            async_ble_device_from_address(
+                                hass, self._address, connectable=True
+                            )
+                            or device
+                        )
 
-    # Step 1: Clean up any stale connections (CRITICAL — prevents "Busy" errors)
-    await close_stale_connections_by_address(address.upper())
+                    # Use establish_connection for HA scanner coordination
+                    # instead of raw BleakClient().connect()
+                    client = await raw_establish(
+                        BleakClient,
+                        device,
+                        self._address,
+                        disconnected_callback=self._on_ble_disconnect,
+                        max_attempts=3,
+                        ble_device_callback=_ha_resolve,
+                    )
 
-    # Step 2: Get BLEDevice from HA's bluetooth registry
-    ble_device = async_ble_device_from_address(hass, address.upper(), connectable=True)
-    if ble_device is None:
-        # Fall back to non-connectable (may work via proxy)
-        ble_device = async_ble_device_from_address(
-            hass, address.upper(), connectable=False
-        )
-    if ble_device is None:
-        from tuya_ble_mesh.exceptions import MeshConnectionError
+                    # Subscribe to Proxy Data Out notifications
+                    try:
+                        await client.start_notify(
+                            SIG_MESH_PROXY_DATA_OUT, self._on_notify
+                        )
+                    except (
+                        EOFError,
+                        BleakError,
+                        BleakDBusError,
+                        OSError,
+                    ) as notify_exc:
+                        _LOGGER.warning(
+                            "Notification subscription failed for %s: %s (%s) — "
+                            "device will work but won't receive push status updates",
+                            self._address,
+                            notify_exc,
+                            type(notify_exc).__name__,
+                        )
 
-        msg = (
-            f"Device {address} not found in HA bluetooth registry. "
-            "Ensure device is powered on and in range of a BLE adapter or ESPHome proxy."
-        )
-        raise MeshConnectionError(msg)
+                    self._client = client
+                    _LOGGER.info(
+                        "Connected to %s (HA-managed, attempt %d)",
+                        self._address,
+                        attempt,
+                    )
 
-    # Step 3: Establish connection with retries and caching
-    # NOTE: HA's bluetooth wrapper (HaBleakClientWrapper) automatically:
-    # - Pauses scanning during connection (prevents adapter "Busy" 0x0a)
-    # - Resumes scanning after connection/disconnect
-    # - Selects best adapter/proxy based on RSSI
-    # - Manages connection slots to avoid exhaustion
-    client = await establish_connection(
-        BleakClientWithServiceCache,  # Use cached version for faster reconnects
-        ble_device,
-        name=name,
-        disconnected_callback=disconnected_callback,
-        max_attempts=max_attempts,
-        use_services_cache=True,  # Enable GATT service caching
-    )
+                    # Request Composition Data (non-critical)
+                    try:
+                        await self.request_composition_data()
+                    except (TimeoutError, SIGMeshError, BleakError):
+                        _LOGGER.debug(
+                            "Composition Data request failed (non-critical)",
+                            exc_info=True,
+                        )
+                    return
 
-    _LOGGER.info(
-        "Established BLE connection to %s via HA bluetooth (RSSI=%s)",
-        address,
-        getattr(ble_device, "rssi", "?"),
-    )
-    return client
+                except (BleakError, MeshConnectionError, OSError) as exc:
+                    last_error = exc
+                    _LOGGER.warning(
+                        "Connection attempt %d failed for %s: %s",
+                        attempt,
+                        self._address,
+                        exc,
+                    )
+                    # Remove cached BLE device between retries
+                    await self._bluetoothctl_remove()
+                    await asyncio.sleep(_BLUEZ_CACHE_CLEAR_DELAY)
 
+            msg = f"Failed to connect to {self._address} after {max_retries} attempts"
+            raise MeshConnectionError(msg) from last_error
 
-def parse_discovery_info(discovery_info: BluetoothServiceInfoBleak) -> dict[str, Any]:
-    """Parse bluetooth discovery info into a dict for config flow.
-
-    Extracts relevant fields from BluetoothServiceInfoBleak for use in
-    config_flow.py discovery step.
-
-    Args:
-        discovery_info: Bluetooth service info from HA bluetooth integration.
-
-    Returns:
-        Dict with keys: address, name, rssi, service_uuids.
-    """
-    return {
-        "address": discovery_info.address,
-        "name": discovery_info.name or "",
-        "rssi": getattr(discovery_info, "rssi", None),
-        "service_uuids": getattr(discovery_info, "service_uuids", []),
-    }
+    sig_mod.SIGMeshDevice.connect = ha_sig_connect

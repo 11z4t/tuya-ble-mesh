@@ -107,6 +107,7 @@ class TestAsyncSetupEntry:
             mesh_id=0,
             vendor_id=b"\x01\x10",
             ble_device_callback=ANY,
+            ble_connect_callback=None,
         )
         coord_cls.assert_called_once_with(mock_device, hass=hass, entry_id=entry.entry_id)
 
