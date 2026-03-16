@@ -189,6 +189,21 @@ class BLEConnection:
         """
         return self._firmware_version
 
+    @property
+    def rssi(self) -> int | None:
+        """Return the current RSSI from the BLE connection, or None if not connected.
+
+        RSSI (Received Signal Strength Indicator) is provided by the BleakClient
+        and represents the signal strength in dBm at the time of connection or
+        last advertisement received by the underlying BLE stack.
+
+        Returns:
+            int | None: RSSI in dBm, or None if not connected or unavailable.
+        """
+        if self._client is None:
+            return None
+        return getattr(self._client, "rssi", None)
+
     async def next_sequence(self) -> int:
         """Get the next sequence number (24-bit, wrapping).
 
