@@ -38,6 +38,10 @@ from custom_components.tuya_ble_mesh.const import (  # noqa: E402
     DEVICE_TYPE_SIG_PLUG,
 )
 
+# PLAT-749: validate_and_connect moved to config_flow_ble module
+# Mock where it's USED (in config_flow), not where it's defined
+VALIDATE_AND_CONNECT_PATH = "custom_components.tuya_ble_mesh.config_flow.validate_and_connect"
+
 
 class TestPLAT740ValidationFlow:
     """Test PLAT-740 connect → pair → verify → create_entry flow."""
@@ -50,10 +54,8 @@ class TestPLAT740ValidationFlow:
         flow.hass.config_entries = MagicMock()
         flow.hass.config_entries.async_entries = MagicMock(return_value=[])
 
-        # Mock _validate_and_connect to succeed
-        with patch.object(
-            flow, "_validate_and_connect", new_callable=AsyncMock
-        ) as mock_validate:
+        # Mock validate_and_connect to succeed (PLAT-749: now in config_flow_ble)
+        with patch(VALIDATE_AND_CONNECT_PATH, new_callable=AsyncMock) as mock_validate:
             mock_validate.return_value = (DEVICE_TYPE_LIGHT, {})
 
             user_input = {
@@ -80,10 +82,8 @@ class TestPLAT740ValidationFlow:
         flow.hass.config_entries = MagicMock()
         flow.hass.config_entries.async_entries = MagicMock(return_value=[])
 
-        # Mock _validate_and_connect to raise cannot_connect_ble
-        with patch.object(
-            flow, "_validate_and_connect", new_callable=AsyncMock
-        ) as mock_validate:
+        # Mock validate_and_connect to raise cannot_connect_ble (PLAT-749)
+        with patch(VALIDATE_AND_CONNECT_PATH, new_callable=AsyncMock) as mock_validate:
             mock_validate.side_effect = ValueError("cannot_connect_ble")
 
             user_input = {
@@ -109,10 +109,8 @@ class TestPLAT740ValidationFlow:
         flow.hass.config_entries = MagicMock()
         flow.hass.config_entries.async_entries = MagicMock(return_value=[])
 
-        # Mock _validate_and_connect to raise pairing_failed
-        with patch.object(
-            flow, "_validate_and_connect", new_callable=AsyncMock
-        ) as mock_validate:
+        # Mock validate_and_connect to raise pairing_failed (PLAT-749)
+        with patch(VALIDATE_AND_CONNECT_PATH, new_callable=AsyncMock) as mock_validate:
             mock_validate.side_effect = ValueError("pairing_failed")
 
             user_input = {
@@ -136,10 +134,8 @@ class TestPLAT740ValidationFlow:
         flow.hass.config_entries = MagicMock()
         flow.hass.config_entries.async_entries = MagicMock(return_value=[])
 
-        # Mock _validate_and_connect to raise verify_failed
-        with patch.object(
-            flow, "_validate_and_connect", new_callable=AsyncMock
-        ) as mock_validate:
+        # Mock validate_and_connect to raise verify_failed (PLAT-749)
+        with patch(VALIDATE_AND_CONNECT_PATH, new_callable=AsyncMock) as mock_validate:
             mock_validate.side_effect = ValueError("verify_failed")
 
             user_input = {
@@ -163,10 +159,8 @@ class TestPLAT740ValidationFlow:
         flow.hass.config_entries = MagicMock()
         flow.hass.config_entries.async_entries = MagicMock(return_value=[])
 
-        # Mock _validate_and_connect to raise timeout
-        with patch.object(
-            flow, "_validate_and_connect", new_callable=AsyncMock
-        ) as mock_validate:
+        # Mock validate_and_connect to raise timeout (PLAT-749)
+        with patch(VALIDATE_AND_CONNECT_PATH, new_callable=AsyncMock) as mock_validate:
             mock_validate.side_effect = ValueError("timeout_validation")
 
             user_input = {
@@ -190,10 +184,8 @@ class TestPLAT740ValidationFlow:
         flow.hass.config_entries = MagicMock()
         flow.hass.config_entries.async_entries = MagicMock(return_value=[])
 
-        # Mock _validate_and_connect to auto-detect as LIGHT
-        with patch.object(
-            flow, "_validate_and_connect", new_callable=AsyncMock
-        ) as mock_validate:
+        # Mock validate_and_connect to auto-detect as LIGHT (PLAT-749)
+        with patch(VALIDATE_AND_CONNECT_PATH, new_callable=AsyncMock) as mock_validate:
             mock_validate.return_value = (DEVICE_TYPE_LIGHT, {})
 
             user_input = {
@@ -204,12 +196,12 @@ class TestPLAT740ValidationFlow:
             }
 
             # Call async_step_user without device_type
-            # (In real flow, this would trigger auto-detect in _validate_and_connect)
+            # (In real flow, this would trigger auto-detect in validate_and_connect)
             result = await flow.async_step_user(user_input)
 
             # Depending on schema, may show form first or create entry
             # If form shown first (due to required DEVICE_TYPE), this is expected
-            # We test that _validate_and_connect correctly auto-detects
+            # We test that validate_and_connect correctly auto-detects
 
     @pytest.mark.asyncio
     async def test_auto_detect_sig_plug(self) -> None:
@@ -219,10 +211,8 @@ class TestPLAT740ValidationFlow:
         flow.hass.config_entries = MagicMock()
         flow.hass.config_entries.async_entries = MagicMock(return_value=[])
 
-        # Mock _validate_and_connect to auto-detect as SIG_PLUG
-        with patch.object(
-            flow, "_validate_and_connect", new_callable=AsyncMock
-        ) as mock_validate:
+        # Mock validate_and_connect to auto-detect as SIG_PLUG (PLAT-749)
+        with patch(VALIDATE_AND_CONNECT_PATH, new_callable=AsyncMock) as mock_validate:
             mock_validate.return_value = (DEVICE_TYPE_SIG_PLUG, {})
 
             user_input = {
@@ -244,9 +234,7 @@ class TestPLAT740ValidationFlow:
         flow.hass.config_entries.async_entries = MagicMock(return_value=[])
 
         # First attempt: connect fails
-        with patch.object(
-            flow, "_validate_and_connect", new_callable=AsyncMock
-        ) as mock_validate:
+        with patch(VALIDATE_AND_CONNECT_PATH, new_callable=AsyncMock) as mock_validate:
             mock_validate.side_effect = ValueError("cannot_connect_ble")
 
             user_input = {
@@ -261,9 +249,7 @@ class TestPLAT740ValidationFlow:
             assert result1["errors"]["base"] == "cannot_connect_ble"
 
         # Second attempt: connect succeeds
-        with patch.object(
-            flow, "_validate_and_connect", new_callable=AsyncMock
-        ) as mock_validate:
+        with patch(VALIDATE_AND_CONNECT_PATH, new_callable=AsyncMock) as mock_validate:
             mock_validate.return_value = (DEVICE_TYPE_LIGHT, {})
 
             result2 = await flow.async_step_user(user_input)

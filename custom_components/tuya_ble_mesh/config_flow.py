@@ -16,14 +16,18 @@ if TYPE_CHECKING:
     from homeassistant.data_entry_flow import FlowResult
 
 from custom_components.tuya_ble_mesh.const import (
+    CONF_APP_KEY,
     CONF_BRIDGE_HOST,
     CONF_BRIDGE_PORT,
+    CONF_DEV_KEY,
     CONF_DEVICE_TYPE,
     CONF_IV_INDEX,
     CONF_MAC_ADDRESS,
     CONF_MESH_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
+    CONF_NET_KEY,
+    CONF_UNICAST_OUR,
     CONF_UNICAST_TARGET,
     CONF_VENDOR_ID,
     DEFAULT_BRIDGE_PORT,
