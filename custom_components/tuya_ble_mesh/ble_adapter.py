@@ -87,10 +87,11 @@ def _patch_establish_connection(hass: HomeAssistant, conn_mod: Any) -> None:
     """Replace establish_connection in connection.py with HA-aware version.
 
     The HA-aware version:
-    1. Re-resolves the BLEDevice from HA for fresh adapter metadata
-    2. Provides a ble_device_callback so bleak_retry_connector can
+    1. Forces HaBleakClientWrapper usage for automatic scanner pause/resume
+    2. Re-resolves the BLEDevice from HA for fresh adapter metadata
+    3. Provides a ble_device_callback so bleak_retry_connector can
        re-resolve during retries (handles stale BLEDevice objects)
-    3. Delegates to the original bleak_retry_connector.establish_connection
+    4. Delegates to the original bleak_retry_connector.establish_connection
        which coordinates scanner pause/resume via habluetooth
     """
     from bleak_retry_connector import establish_connection as raw_establish
@@ -106,6 +107,21 @@ def _patch_establish_connection(hass: HomeAssistant, conn_mod: Any) -> None:
         use_services_cache: bool = True,
     ) -> Any:
         from homeassistant.components.bluetooth import async_ble_device_from_address
+
+        # CRITICAL: Force HaBleakClientWrapper usage regardless of what client_class
+        # lib/ passes (it will pass BleakClient). This enables scanner pause/resume.
+        try:
+            from habluetooth import HaBleakClientWrapper
+
+            client_class = HaBleakClientWrapper
+            _LOGGER.debug("Using HaBleakClientWrapper for %s (scanner will pause during connect)", name)
+        except ImportError:
+            _LOGGER.warning(
+                "habluetooth.HaBleakClientWrapper not available for %s, "
+                "using fallback %s (scanning may NOT pause)",
+                name,
+                client_class.__name__,
+            )
 
         # Re-resolve from HA for fresh adapter metadata and ESPHome proxy routing
         ha_device = async_ble_device_from_address(hass, name, connectable=True)
@@ -149,10 +165,11 @@ def _patch_sig_mesh_connect(hass: HomeAssistant, sig_mod: Any) -> None:
     coordinate with HA's bluetooth scanner → BlueZ returns 0x0a Busy.
 
     The patched version uses bleak_retry_connector.establish_connection which:
-    1. Detects habluetooth scanner via BLEDevice metadata
-    2. Pauses scanner during connection attempt
-    3. Resumes scanner on disconnect
-    4. Supports ESPHome Bluetooth Proxy routing
+    1. Uses HaBleakClientWrapper instead of BleakClient for automatic scanner pause
+    2. Detects habluetooth scanner via BLEDevice metadata
+    3. Pauses scanner during connection attempt
+    4. Resumes scanner on disconnect
+    5. Supports ESPHome Bluetooth Proxy routing
     """
     from bleak_retry_connector import establish_connection as raw_establish
 
@@ -167,11 +184,11 @@ def _patch_sig_mesh_connect(hass: HomeAssistant, sig_mod: Any) -> None:
     ) -> None:
         """HA-aware SIG Mesh connect using establish_connection.
 
-        Uses bleak_retry_connector.establish_connection instead of raw
-        BleakClient.connect() for HA scanner coordination and ESPHome
-        Bluetooth Proxy support.
+        Uses bleak_retry_connector.establish_connection with HaBleakClientWrapper
+        instead of raw BleakClient.connect() for HA scanner coordination and
+        ESPHome Bluetooth Proxy support.
         """
-        from bleak import BleakClient, BleakScanner
+        from bleak import BleakScanner
         from bleak.exc import BleakDBusError, BleakError
 
         from tuya_ble_mesh.exceptions import ConnectionError as MeshConnectionError
@@ -179,6 +196,19 @@ def _patch_sig_mesh_connect(hass: HomeAssistant, sig_mod: Any) -> None:
         from tuya_ble_mesh.logging_context import mesh_operation
 
         from homeassistant.components.bluetooth import async_ble_device_from_address
+
+        # CRITICAL: Use HaBleakClientWrapper instead of BleakClient
+        # This enables automatic scanner pause/resume during connection
+        try:
+            from habluetooth import HaBleakClientWrapper as BleakClient
+        except ImportError:
+            # Fallback to standard BleakClient if habluetooth not available
+            # (e.g., in tests or standalone usage)
+            from bleak import BleakClient
+            _LOGGER.warning(
+                "habluetooth.HaBleakClientWrapper not available, "
+                "falling back to bleak.BleakClient (scanning may NOT pause)"
+            )
 
         async with mesh_operation(self._address, "connect"):
             await self._load_keys()
