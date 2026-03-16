@@ -1,9 +1,9 @@
 # Home Assistant Quality Scale
 # https://developers.home-assistant.io/docs/integration_quality_scale_index
 #
-# Tuya BLE Mesh Integration - PLATINUM TIER
-# All rules verified as of 2026-03-08 by Thor (VM 903)
-# Final verification and E2E/a11y test additions
+# Tuya BLE Mesh Integration - Quality Scale Tracking
+# Status: NOT platinum — several Gold-tier rules still TODO (see below)
+# Platinum claim removed from manifest.json per PLAT-744
 
 rules:
   # ============================================================================
@@ -180,5 +180,5 @@ rules:
 # - Dual review (GPT + Claude)
 # - Release automation
 #
-# Quality Scale Tier: PLATINUM ⭐⭐⭐⭐
-# Verified: 2026-03-08
+# Quality Scale Tier: NOT YET PLATINUM — 3 Gold-tier rules still TODO
+# Last reviewed: 2026-03-16

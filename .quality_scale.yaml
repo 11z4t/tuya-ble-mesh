@@ -2,7 +2,7 @@
 # https://developers.home-assistant.io/docs/integration_quality_scale_index
 #
 # This file documents compliance with the HA Quality Scale requirements.
-# All rules are marked as 'done' indicating full Platinum tier compliance.
+# Status: NOT platinum — several rules still incomplete (see custom_components quality_scale.yaml).
 
 # BRONZE TIER (Entry Level - 22 rules)
 action-setup: done
@@ -44,11 +44,11 @@ integration-tests: done
 devices: done
 discovery-update-info: done
 entity-category: done
-entity-disabled-by-default: done
+entity-disabled-by-default: todo  # Partial - only firmware sensor disabled
 entity-translations: done
-exception-translations: done
+exception-translations: todo  # HomeAssistantError not using translation_key
 repair-issues: done
-stale-devices: done
+stale-devices: todo  # No async_remove_config_entry_device handler
 entity-translation-key: done
 
 # PLATINUM TIER (Exceptional - 4 rules)
@@ -58,10 +58,9 @@ runtime-data: done
 strict-typing: done
 
 # Notes:
-# - Total rules verified: 45
-# - Tier achieved: Platinum ⭐⭐⭐⭐
-# - Last reviewed: 2026-03-08
-# - Reviewed by: Thor (VM 903)
+# - Tier achieved: NOT YET PLATINUM (3 Gold-tier rules still TODO)
+# - Last reviewed: 2026-03-16
+# - Platinum claim removed from manifest.json per PLAT-744
 #
 # All rules have been verified and documented in:
 # - .github/QUALITY_SCALE_REVIEW.md (detailed verification)
