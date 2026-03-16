@@ -96,6 +96,9 @@ SENSOR_DESCRIPTIONS: tuple[TuyaBLEMeshSensorEntityDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
         value_fn=lambda state: state.rssi,
+        # PLAT-695: Mark unavailable when RSSI is None (e.g. SIG Mesh devices)
+        # instead of showing "unknown"
+        available_fn=lambda state: state.rssi is not None,
     ),
     TuyaBLEMeshSensorEntityDescription(
         key="firmware",
