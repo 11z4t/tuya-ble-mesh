@@ -129,3 +129,30 @@ class TestLogRedaction:
             low = line.lower()
             assert "password" not in low, f"Password in log: {line}"
             assert "token" not in low, f"Token in log: {line}"
+
+
+class TestNoSysPathManipulation:
+    """Verify that no code in custom_components/ manipulates sys.path (PLAT-741)."""
+
+    def test_no_sys_path_manipulation(self) -> None:
+        """Grep all custom_components files and verify sys.path.insert is not present.
+
+        PLAT-741: Regression guard to prevent sys.path.insert in production code.
+        This is a code smell that indicates improper import structure.
+        Test files are allowed to use sys.path.insert for testing purposes.
+        """
+        # Path to custom_components directory
+        cc_dir = Path(__file__).resolve().parent.parent.parent / "custom_components"
+
+        # Grep all Python files in custom_components/
+        violations = []
+        for py_file in cc_dir.rglob("*.py"):
+            content = py_file.read_text()
+            for line_num, line in enumerate(content.splitlines(), start=1):
+                if "sys.path.insert" in line or "sys.path.append" in line:
+                    violations.append(f"{py_file.relative_to(cc_dir.parent)}:{line_num}: {line.strip()}")
+
+        assert not violations, (
+            f"Found sys.path manipulation in custom_components/ (forbidden):\n"
+            + "\n".join(violations)
+        )
