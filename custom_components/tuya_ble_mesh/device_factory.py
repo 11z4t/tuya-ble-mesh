@@ -7,7 +7,7 @@ chain that was previously in __init__.py.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, TypeAlias, Union
 
 from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
@@ -34,6 +34,21 @@ from custom_components.tuya_ble_mesh.const import (
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
+    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.device import MeshDevice  # type: ignore[import-not-found]
+    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.sig_mesh_bridge import (  # type: ignore[import-not-found]
+        SIGMeshBridgeDevice,
+        TelinkBridgeDevice,
+    )
+    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
+
+# Union type alias for all mesh device types returned by device_factory
+AnyMeshDevice: TypeAlias = Union[
+    "MeshDevice",
+    "SIGMeshDevice",
+    "SIGMeshBridgeDevice",
+    "TelinkBridgeDevice",
+]
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -42,7 +57,7 @@ def _create_sig_bridge_plug(
     data: Mapping[str, Any],
     ble_device_callback: Callable[[str], Any] | None,
     ble_connect_callback: Callable[[Any], Any] | None = None,
-) -> Any:
+) -> "SIGMeshBridgeDevice":
     """Create a SIG Mesh Bridge device."""
     from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.sig_mesh_bridge import (
         SIGMeshBridgeDevice,  # type: ignore[import-not-found]
@@ -65,7 +80,7 @@ def _create_telink_bridge_light(
     data: Mapping[str, Any],
     ble_device_callback: Callable[[str], Any] | None,
     ble_connect_callback: Callable[[Any], Any] | None = None,
-) -> Any:
+) -> "TelinkBridgeDevice":
     """Create a Telink Bridge device."""
     from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.sig_mesh_bridge import (
         TelinkBridgeDevice,  # type: ignore[import-not-found]
@@ -86,7 +101,7 @@ def _create_sig_plug(
     data: Mapping[str, Any],
     ble_device_callback: Callable[[str], Any] | None,
     ble_connect_callback: Callable[[Any], Any] | None = None,
-) -> Any:
+) -> "SIGMeshDevice":
     """Create a SIG Mesh direct device.
 
     Raises:
@@ -143,8 +158,12 @@ def _create_default_mesh_device(
     data: Mapping[str, Any],
     ble_device_callback: Callable[[str], Any] | None,
     ble_connect_callback: Callable[[Any], Any] | None = None,
-) -> Any:
-    """Create a standard Tuya BLE Mesh device (light or plug)."""
+) -> "MeshDevice":
+    """Create a standard Tuya BLE Mesh device (light or plug).
+
+    Note: MeshDevice does not support ble_connect_callback parameter.
+    Only ble_device_callback is passed through.
+    """
     from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.device import MeshDevice  # type: ignore[import-not-found]
 
     mesh_name: str = data[CONF_MESH_NAME]
@@ -161,7 +180,6 @@ def _create_default_mesh_device(
         mesh_id=mesh_addr,
         vendor_id=vendor_id_bytes,
         ble_device_callback=ble_device_callback,
-        ble_connect_callback=ble_connect_callback,
     )
 
 
@@ -170,7 +188,7 @@ _DEVICE_CREATORS: dict[
     str,
     Callable[
         [str, Mapping[str, Any], Callable[[str], Any] | None, Callable[[Any], Any] | None],
-        Any,
+        AnyMeshDevice,
     ],
 ] = {
     DEVICE_TYPE_SIG_BRIDGE_PLUG: _create_sig_bridge_plug,
@@ -185,7 +203,7 @@ def create_device(
     data: Mapping[str, Any],
     ble_device_callback: Callable[[str], Any] | None = None,
     ble_connect_callback: Callable[[Any], Any] | None = None,
-) -> Any:
+) -> AnyMeshDevice:
     """Create a mesh device instance based on device_type.
 
     Args:
@@ -196,7 +214,7 @@ def create_device(
         ble_connect_callback: Optional callback for HA managed BLE connections (PLAT-737).
 
     Returns:
-        A device instance (MeshDevice, SIGMeshDevice, etc.).
+        A device instance (MeshDevice, SIGMeshDevice, SIGMeshBridgeDevice, or TelinkBridgeDevice).
     """
     creator = _DEVICE_CREATORS.get(device_type, _create_default_mesh_device)
     return creator(mac_address, data, ble_device_callback, ble_connect_callback)
