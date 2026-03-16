@@ -89,26 +89,21 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
     mac_address: str = entry.data[CONF_MAC_ADDRESS]
     device_type: str = entry.data.get(CONF_DEVICE_TYPE, "")
 
-    # BLE Proxy support: use HA's bluetooth stack to find devices
-    # This routes through all available BLE adapters and ESPHome proxies
-    def _ble_device_from_ha(address: str) -> Any:
-        from homeassistant.components.bluetooth import async_ble_device_from_address
+    # PLAT-737: Use HA Bluetooth API adapter (replaces raw bleak)
+    # This routes through all available BLE adapters and ESPHome proxies,
+    # with managed connection handling that prevents "Busy" adapter errors.
+    from custom_components.tuya_ble_mesh.ble_adapter import HABluetoothAdapter
 
-        # Try connectable first, fall back to any advertisement
-        device = async_ble_device_from_address(hass, address, connectable=True)
-        if device is None:
-            device = async_ble_device_from_address(hass, address, connectable=False)
-        if device is None:
-            _LOGGER.warning("BLE device %s not found via HA bluetooth stack", address)
-        else:
-            _LOGGER.debug("BLE device %s resolved via HA bluetooth stack", address)
-        return device
+    short_mac = mac_address[-8:] if len(mac_address) >= 8 else mac_address
+    device_name = f"{entry.title} {short_mac}"
+    adapter = HABluetoothAdapter(hass, device_name=device_name)
 
     device = create_device(
         device_type,
         mac_address,
         entry.data,
-        ble_device_callback=_ble_device_from_ha,
+        ble_device_callback=adapter.get_ble_device,
+        ble_connect_callback=adapter.establish_connection,
     )
 
     coordinator = TuyaBLEMeshCoordinator(device, hass=hass, entry_id=entry.entry_id)

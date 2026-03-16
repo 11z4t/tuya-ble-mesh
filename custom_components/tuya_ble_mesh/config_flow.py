@@ -973,12 +973,25 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             return device
 
         async def _ble_connect_cb(ble_device: Any) -> BleakClient:
-            """Connect via bleak-retry-connector to avoid HA BleakClient warning."""
+            """Connect via bleak-retry-connector with service caching and stale cleanup.
+
+            PLAT-737: Use BleakClientWithServiceCache + close_stale_connections
+            to prevent "Busy" adapter errors during provisioning.
+            """
+            from bleak_retry_connector import (
+                BleakClientWithServiceCache,
+                close_stale_connections_by_address,
+            )
+
+            # Clean up stale connections before connecting
+            await close_stale_connections_by_address(ble_device.address)
+
             return await establish_connection(
-                BleakClient,
+                BleakClientWithServiceCache,
                 ble_device,
-                ble_device.address,
+                f"Provisioning {ble_device.address}",
                 max_attempts=5,
+                use_services_cache=True,
             )
 
         # Phase 1: PB-GATT provisioning

@@ -44,25 +44,28 @@ class HABluetoothAdapter:
     and HA's bluetooth integration, preserving S1 Library Isolation.
 
     Usage pattern (in custom_components/__init__.py):
-        adapter = HABluetoothAdapter(hass)
+        adapter = HABluetoothAdapter(hass, device_name="Tuya Light AA:BB:CC")
         device = create_device(
             device_type,
             mac_address,
             entry.data,
             ble_device_callback=adapter.get_ble_device,
+            ble_connect_callback=adapter.establish_connection,
         )
 
     The lib/ code calls get_ble_device(address) and receives a BLEDevice
     without knowing it came from HA's bluetooth stack.
     """
 
-    def __init__(self, hass: HomeAssistant) -> None:
+    def __init__(self, hass: HomeAssistant, device_name: str = "Tuya BLE Mesh Device") -> None:
         """Initialize the adapter.
 
         Args:
             hass: Home Assistant instance (provides bluetooth registry access).
+            device_name: Device name for logging (e.g., "Smart Plug AA:BB:CC").
         """
         self._hass = hass
+        self._device_name = device_name
 
     def get_ble_device(self, address: str) -> Any:
         """Look up BLEDevice via HA's bluetooth registry.
@@ -102,6 +105,43 @@ class HABluetoothAdapter:
                 getattr(device, "rssi", "?"),
             )
         return device
+
+    async def establish_connection(self, ble_device: Any) -> BleakClientWithServiceCache:
+        """Establish a managed BLE connection to the given BLEDevice.
+
+        Called by lib/tuya_ble_mesh/connection.py during connect.
+        Uses HA's bluetooth API with automatic stale connection cleanup,
+        retry logic, and service caching.
+
+        Args:
+            ble_device: BLEDevice from get_ble_device().
+
+        Returns:
+            Connected BleakClientWithServiceCache instance.
+
+        Raises:
+            BleakError: If all connection attempts fail.
+            TimeoutError: If connection times out.
+        """
+        # Clean up stale connections (prevents "Busy" adapter errors)
+        await close_stale_connections_by_address(ble_device.address)
+
+        # Establish connection with retries and caching
+        # HA's bluetooth wrapper automatically manages scanning pause/resume
+        client = await establish_connection(
+            BleakClientWithServiceCache,
+            ble_device,
+            name=self._device_name,
+            max_attempts=4,
+            use_services_cache=True,
+        )
+
+        _LOGGER.info(
+            "Established managed BLE connection to %s (RSSI=%s)",
+            ble_device.address,
+            getattr(ble_device, "rssi", "?"),
+        )
+        return client
 
 
 async def ha_establish_connection(

@@ -41,6 +41,7 @@ def _create_sig_bridge_plug(
     mac_address: str,
     data: Mapping[str, Any],
     ble_device_callback: Callable[[str], Any] | None,
+    ble_connect_callback: Callable[[Any], Any] | None = None,
 ) -> Any:
     """Create a SIG Mesh Bridge device."""
     from tuya_ble_mesh.sig_mesh_bridge import (
@@ -63,6 +64,7 @@ def _create_telink_bridge_light(
     mac_address: str,
     data: Mapping[str, Any],
     ble_device_callback: Callable[[str], Any] | None,
+    ble_connect_callback: Callable[[Any], Any] | None = None,
 ) -> Any:
     """Create a Telink Bridge device."""
     from tuya_ble_mesh.sig_mesh_bridge import (
@@ -83,6 +85,7 @@ def _create_sig_plug(
     mac_address: str,
     data: Mapping[str, Any],
     ble_device_callback: Callable[[str], Any] | None,
+    ble_connect_callback: Callable[[Any], Any] | None = None,
 ) -> Any:
     """Create a SIG Mesh direct device."""
     from tuya_ble_mesh.secrets import DictSecretsManager  # type: ignore[import-not-found]
@@ -108,6 +111,7 @@ def _create_sig_plug(
         op_item_prefix=op_prefix,
         iv_index=iv_index,
         ble_device_callback=ble_device_callback,
+        ble_connect_callback=ble_connect_callback,
     )
 
 
@@ -115,6 +119,7 @@ def _create_default_mesh_device(
     mac_address: str,
     data: Mapping[str, Any],
     ble_device_callback: Callable[[str], Any] | None,
+    ble_connect_callback: Callable[[Any], Any] | None = None,
 ) -> Any:
     """Create a standard Tuya BLE Mesh device (light or plug)."""
     from tuya_ble_mesh.device import MeshDevice  # type: ignore[import-not-found]
@@ -133,6 +138,7 @@ def _create_default_mesh_device(
         mesh_id=mesh_addr,
         vendor_id=vendor_id_bytes,
         ble_device_callback=ble_device_callback,
+        ble_connect_callback=ble_connect_callback,
     )
 
 
@@ -140,7 +146,7 @@ def _create_default_mesh_device(
 _DEVICE_CREATORS: dict[
     str,
     Callable[
-        [str, Mapping[str, Any], Callable[[str], Any] | None],
+        [str, Mapping[str, Any], Callable[[str], Any] | None, Callable[[Any], Any] | None],
         Any,
     ],
 ] = {
@@ -155,6 +161,7 @@ def create_device(
     mac_address: str,
     data: Mapping[str, Any],
     ble_device_callback: Callable[[str], Any] | None = None,
+    ble_connect_callback: Callable[[Any], Any] | None = None,
 ) -> Any:
     """Create a mesh device instance based on device_type.
 
@@ -163,9 +170,10 @@ def create_device(
         mac_address: BLE MAC address of the device.
         data: Config entry data dict.
         ble_device_callback: Optional callback for HA BLE proxy resolution.
+        ble_connect_callback: Optional callback for HA managed BLE connections (PLAT-737).
 
     Returns:
         A device instance (MeshDevice, SIGMeshDevice, etc.).
     """
     creator = _DEVICE_CREATORS.get(device_type, _create_default_mesh_device)
-    return creator(mac_address, data, ble_device_callback)
+    return creator(mac_address, data, ble_device_callback, ble_connect_callback)

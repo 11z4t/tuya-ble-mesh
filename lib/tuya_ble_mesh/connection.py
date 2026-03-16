@@ -109,6 +109,7 @@ class BLEConnection:
         *,
         vendor_id: bytes = TELINK_VENDOR_ID,
         ble_device_callback: Callable[[str], Any] | None = None,
+        ble_connect_callback: Callable[[Any], Any] | None = None,
         adapter: str | None = None,
     ) -> None:
         self._address = address.upper()
@@ -117,6 +118,7 @@ class BLEConnection:
         self._mesh_password = mesh_password
         self._vendor_id = vendor_id
         self._ble_device_callback = ble_device_callback
+        self._ble_connect_callback = ble_connect_callback
         self._adapter = adapter
         self._state = ConnectionState.DISCONNECTED
         self._client: BleakClient | None = None
@@ -312,7 +314,11 @@ class BLEConnection:
         timeout: float,
         max_retries: int,
     ) -> None:
-        """Connect to BLE device using bleak-retry-connector."""
+        """Connect to BLE device using bleak-retry-connector or HA managed connection.
+
+        PLAT-737: Prefers ble_connect_callback (HA bluetooth API) if available,
+        falls back to raw bleak for standalone/test environments.
+        """
         last_exc: Exception | None = None
 
         for attempt in range(1, max_retries + 1):
@@ -340,16 +346,21 @@ class BLEConnection:
                     )
                     raise MeshConnectionError(msg)
 
-                self._client = await establish_connection(
-                    BleakClient,
-                    ble_device,
-                    self._address,
-                    max_attempts=3,
-                )
+                # PLAT-737: Use HA managed connection if callback provided
+                if self._ble_connect_callback is not None:
+                    self._client = await self._ble_connect_callback(ble_device)
+                else:
+                    self._client = await establish_connection(
+                        BleakClient,
+                        ble_device,
+                        self._address,
+                        max_attempts=3,
+                    )
                 _LOGGER.info(
-                    "BLE connected on attempt %d/%d",
+                    "BLE connected on attempt %d/%d%s",
                     attempt,
                     max_retries,
+                    " (HA managed)" if self._ble_connect_callback else "",
                 )
                 return
             except MeshConnectionError:

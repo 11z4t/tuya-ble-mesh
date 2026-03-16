@@ -149,6 +149,7 @@ class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceSegmentsMixin):
         iv_index: int = 0,
         seq_store: SeqStore | None = None,
         ble_device_callback: Any = None,
+        ble_connect_callback: Any = None,
         adapter: str | None = None,
     ) -> None:
         """Initialize a SIG Mesh device interface.
@@ -164,6 +165,8 @@ class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceSegmentsMixin):
                 If None, uses InMemorySeqStore starting from 0.
             ble_device_callback: Optional callback(address) -> BLEDevice for
                 HA Bluetooth Proxy support. If None, uses BleakScanner.
+            ble_connect_callback: Optional callback(ble_device) → BleakClient for
+                HA managed BLE connections (PLAT-737). If None, uses establish_connection.
             adapter: BLE adapter name (e.g. "hci0"). Forces scan and connect
                 via this specific adapter, bypassing HA's habluetooth routing.
         """
@@ -174,6 +177,7 @@ class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceSegmentsMixin):
         self._op_item_prefix = op_item_prefix
         self._iv_index = iv_index
         self._ble_device_callback = ble_device_callback
+        self._ble_connect_callback = ble_connect_callback
         self._adapter = adapter
 
         self._client: BleakClient | None = None
@@ -312,14 +316,21 @@ class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceSegmentsMixin):
                         msg = f"Device {self._address} not found"
                         raise MeshConnectionError(msg)
 
-                    client_kwargs: dict[str, Any] = {
-                        "timeout": timeout,
-                        "disconnected_callback": self._on_ble_disconnect,
-                    }
-                    if self._adapter is not None:
-                        client_kwargs["adapter"] = self._adapter
-                    client = BleakClient(device, **client_kwargs)
-                    await client.connect()
+                    # PLAT-737: Use HA managed connection if callback provided
+                    if self._ble_connect_callback is not None:
+                        client = await self._ble_connect_callback(device)
+                        # Set disconnect callback manually for HA managed client
+                        if hasattr(client, "set_disconnected_callback"):
+                            client.set_disconnected_callback(self._on_ble_disconnect)
+                    else:
+                        client_kwargs: dict[str, Any] = {
+                            "timeout": timeout,
+                            "disconnected_callback": self._on_ble_disconnect,
+                        }
+                        if self._adapter is not None:
+                            client_kwargs["adapter"] = self._adapter
+                        client = BleakClient(device, **client_kwargs)
+                        await client.connect()
 
                     # Subscribe to Proxy Data Out notifications
                     try:
