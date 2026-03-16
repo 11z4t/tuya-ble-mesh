@@ -177,6 +177,18 @@ class MeshDevice(DeviceCommandsMixin):
         return self._conn.notify_active
 
     @property
+    def rssi(self) -> int | None:
+        """Return the current RSSI from the BLE connection, or None if not connected.
+
+        RSSI (Received Signal Strength Indicator) is provided by the underlying
+        BleakClient and represents the signal strength in dBm.
+
+        Returns:
+            int | None: RSSI in dBm, or None if not connected or unavailable.
+        """
+        return self._conn.rssi
+
+    @property
     def connection(self) -> BLEConnection:
         """Return the underlying BLE connection.
 

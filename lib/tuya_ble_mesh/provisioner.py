@@ -73,11 +73,17 @@ async def pair(
     Raises:
         ProvisioningError: If pairing fails at any step.
     """
-    _LOGGER.info("Starting pairing handshake")
+    _LOGGER.info("Starting pairing handshake with mesh credentials [REDACTED]")
+    _LOGGER.debug(
+        "Mesh name length: %d bytes, password length: %d bytes",
+        len(mesh_name),
+        len(mesh_password),
+    )
 
     # Step 1: Generate random and build pair packet
     client_random = generate_session_random()
     pair_packet = make_pair_packet(mesh_name, mesh_password, client_random)
+    _LOGGER.debug("Generated pair packet: %d bytes (opcode 0x0C)", len(pair_packet))
 
     _LOGGER.debug("Writing pair request (%d bytes) to %s", len(pair_packet), TELINK_CHAR_PAIRING)
     await asyncio.wait_for(
@@ -101,9 +107,15 @@ async def pair(
     )
 
     response = parse_pair_response(response_data)
+    _LOGGER.debug("Pair response opcode: 0x%02X", response.opcode)
 
     if response.opcode == PAIR_OPCODE_FAILURE:
-        msg = "Device rejected pairing (wrong mesh name or password)"
+        msg = (
+            "Device rejected pairing (opcode 0x0E). "
+            "Likely wrong mesh name or password. "
+            "If device was previously paired with different credentials "
+            "(e.g. via Tuya app), you must factory-reset it first."
+        )
         raise ProvisioningError(msg)
 
     if response.opcode != PAIR_OPCODE_SUCCESS:

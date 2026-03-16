@@ -82,6 +82,12 @@ _ATTENTION_DURATION = 5
 # Delay after Start PDU to let device initialize provisioning state (seconds)
 _POST_START_PDU_DELAY = 0.5
 
+# Delay after Complete PDU to let device save provisioning data before disconnect (seconds)
+# Some devices (e.g., Tuya SIG Mesh plugs) need time to write state to flash
+# and transition out of provisioning mode. Without this delay, the device may
+# continue blinking in pairing mode even though provisioning succeeded.
+_POST_COMPLETE_DELAY = 2.5
+
 # Provisioning poll interval (seconds)
 _PROVISIONING_POLL_INTERVAL = 0.05
 
@@ -465,6 +471,14 @@ class ProvisionerExchangeMixin:
             num_elements,
             self._iv_index,
         )
+
+        # PLAT-694: Give device time to save provisioning data to flash before disconnect
+        # Some devices (Tuya SIG Mesh plugs) continue blinking in pairing mode if
+        # disconnected immediately after Complete PDU. This delay allows the device
+        # to write state and transition out of provisioning mode gracefully.
+        _LOGGER.debug("Waiting %.1fs for device to save provisioning state...", _POST_COMPLETE_DELAY)
+        await asyncio.sleep(_POST_COMPLETE_DELAY)
+
         return ProvisioningResult(
             dev_key=dev_key,
             net_key=self._net_key,

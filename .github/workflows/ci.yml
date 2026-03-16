@@ -126,6 +126,15 @@ jobs:
         run: mypy custom_components/tuya_ble_mesh --ignore-missing-imports
         continue-on-error: true  # HA stubs not available in CI
 
+  # ─── Icon regression check (PLAT-692) ────────────────────────────────────────
+  icon-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for icon regression
+        run: .github/scripts/check-icon-regression.sh
+
   # ─── HACS validation ─────────────────────────────────────────────────────────
   hacs:
     runs-on: ubuntu-latest

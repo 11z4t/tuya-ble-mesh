@@ -527,15 +527,28 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             getattr(discovery_info, "rssi", None),
         )
 
-        # PLAT-661: Reject paired devices advertising Proxy Service
-        # Paired devices advertise tymesh* name and Proxy Service (0x1828) — NOT Provisioning.
-        # Unpaired devices advertise out_of_mesh* and Provisioning Service (0x1827).
-        # Only trigger discovery for unpaired devices (in pairing mode).
+        # PLAT-661 / PLAT-694: Discovery logic for SIG Mesh devices
+        # - out_of_mesh* name → ALWAYS in pairing mode (accept both 0x1827 and 0x1828)
+        # - Other names + 0x1827 (Provisioning) → in pairing mode
+        # - Other names + ONLY 0x1828 (Proxy) → already provisioned (reject)
+        # PLAT-694: After partial provisioning or device removal, plug keeps blinking
+        # and may advertise out_of_mesh* + 0x1828. We must accept this for re-discovery.
         service_uuids = getattr(discovery_info, "service_uuids", [])
         if not name.startswith("out_of_mesh"):
-            # Device name does not indicate pairing mode
-            if SIG_MESH_PROV_UUID not in service_uuids:
-                # No Provisioning Service — device is not in pairing mode
+            # Device name does not indicate pairing mode — check service UUIDs
+            has_prov = SIG_MESH_PROV_UUID in service_uuids
+            has_proxy = SIG_MESH_PROXY_UUID in service_uuids
+            if not has_prov and has_proxy:
+                # Only Proxy Service (no Provisioning) → already paired device, not pairing mode
+                _LOGGER.debug(
+                    "Ignoring discovery for %s (already provisioned: name=%s, services=%s)",
+                    address,
+                    name,
+                    service_uuids,
+                )
+                return self.async_abort(reason="not_in_pairing_mode")
+            if not has_prov and not has_proxy:
+                # No SIG Mesh services at all — not a SIG Mesh device in pairing mode
                 _LOGGER.debug(
                     "Ignoring discovery for %s (not in pairing mode: name=%s, services=%s)",
                     address,
@@ -559,13 +572,15 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             _LOGGER.debug("BluetoothManager not available, skipping stale check for %s", address)
 
         # Detect human-readable device category from service UUIDs
-        device_category = "Smart Plug" if SIG_MESH_PROV_UUID in service_uuids else "LED Light"
+        # PLAT-694: Accept both Provisioning (0x1827) and Proxy (0x1828) services
+        is_sig_mesh = (SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids)
+        device_category = "Smart Plug" if is_sig_mesh else "LED Light"
         rssi = getattr(discovery_info, "rssi", None)
 
         #  Auto-detect device type based on service UUIDs
         auto_device_type = None
 
-        if SIG_MESH_PROV_UUID in service_uuids:  # Only match Provisioning (pairing mode)
+        if is_sig_mesh:  # Match both Provisioning (0x1827) and Proxy (0x1828)
             # SIG Mesh device -> Plug
             auto_device_type = DEVICE_TYPE_SIG_PLUG
         elif any(
@@ -583,15 +598,21 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         }
 
         # PLAT-660 / PLAT-693: Set title_placeholders for discovery card
-        # Hide internal BLE names (out_of_mesh) from user — show type + MAC only
-        # PLAT-693 fix: Don't include device_category in name (already in description)
-        display_name = address[-8:] if name.startswith("out_of_mesh") or not name else name
-        self.context["title_placeholders"] = {"name": display_name}
+        # Show device category + MAC so users know what type of device was found
+        # PLAT-693 fix: Include device_category in title to show device type clearly
+        short_mac = address[-8:]
+        display_title = f"{device_category} {short_mac}"
+        self.context["title_placeholders"] = {
+            "name": display_title,
+            "category": device_category,
+            "mac": short_mac,
+        }
 
         # Auto-detect SIG Mesh devices by service UUID.
         # 0x1827 = Provisioning Service (unprovisioned device)
         # 0x1828 = Proxy Service (already provisioned)
-        if auto_device_type == DEVICE_TYPE_SIG_PLUG and SIG_MESH_PROV_UUID in service_uuids:
+        # PLAT-694: Accept both — device may advertise 0x1828 after partial provisioning
+        if auto_device_type == DEVICE_TYPE_SIG_PLUG and is_sig_mesh:
             _LOGGER.info("SIG Mesh device in pairing mode: %s", address)
             return await self.async_step_sig_plug()
 

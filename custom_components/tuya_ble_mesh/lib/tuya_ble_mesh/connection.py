@@ -189,6 +189,21 @@ class BLEConnection:
         """
         return self._firmware_version
 
+    @property
+    def rssi(self) -> int | None:
+        """Return the current RSSI from the BLE connection, or None if not connected.
+
+        RSSI (Received Signal Strength Indicator) is provided by the BleakClient
+        and represents the signal strength in dBm at the time of connection or
+        last advertisement received by the underlying BLE stack.
+
+        Returns:
+            int | None: RSSI in dBm, or None if not connected or unavailable.
+        """
+        if self._client is None:
+            return None
+        return getattr(self._client, "rssi", None)
+
     async def next_sequence(self) -> int:
         """Get the next sequence number (24-bit, wrapping).
 
@@ -282,12 +297,18 @@ class BLEConnection:
         self._state = ConnectionState.PAIRING
 
         try:
+            # PLAT-696 v2: Pair with USER-CONFIGURED credentials (not hardcoded factory defaults).
+            # The device must already be configured with these credentials (either factory
+            # defaults if fresh from reset, or credentials set by Tuya app / previous pairing).
+            # We do NOT set new credentials here — we only establish the session key.
+            # This allows connection to devices that are already paired with the configured
+            # mesh_name/mesh_password, not just factory-reset devices.
             key = await provision(
                 self._client,
-                current_name=b"out_of_mesh",
-                current_password=b"123456",
-                new_name=self._mesh_name,
-                new_password=self._mesh_password,
+                current_name=self._mesh_name,
+                current_password=self._mesh_password,
+                new_name=None,  # Don't change credentials
+                new_password=None,
             )
             self._session_key = bytearray(key)
         except Exception as exc:

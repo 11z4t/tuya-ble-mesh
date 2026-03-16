@@ -168,6 +168,19 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
         """Return firmware version string."""
         return self._firmware_version
 
+    @property
+    def rssi(self) -> int | None:
+        """Return RSSI (always None for bridge devices — no local BLE connection).
+
+        Bridge devices communicate via HTTP proxy, so there is no direct BLE
+        connection to measure signal strength. RSSI is only available for
+        devices connected directly via BLE (MeshDevice, SIGMeshDevice).
+
+        Returns:
+            None: Bridge devices do not have RSSI.
+        """
+        return None
+
     def register_onoff_callback(self, callback: OnOffCallback) -> None:
         """Register a GenericOnOff Status callback."""
         self._onoff_callbacks.append(callback)
@@ -461,6 +474,19 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
     def mesh_id(self, value: int) -> None:
         """Set the target mesh address."""
         self._mesh_id = value
+
+    @property
+    def rssi(self) -> int | None:
+        """Return RSSI (always None for bridge devices — no local BLE connection).
+
+        Bridge devices communicate via HTTP proxy, so there is no direct BLE
+        connection to measure signal strength. RSSI is only available for
+        devices connected directly via BLE (MeshDevice, SIGMeshDevice).
+
+        Returns:
+            None: Bridge devices do not have RSSI.
+        """
+        return None
 
     def register_status_callback(self, callback: StatusCallback) -> None:
         """Register a callback for synthetic status updates.

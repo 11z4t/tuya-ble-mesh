@@ -162,6 +162,7 @@ class ConnectionManager:
         self._rssi_interval = RSSI_DEFAULT_INTERVAL
         self._state_change_counter = 0
         self._stable_cycles = 0
+        self._latest_rssi: int | None = None
 
         # Command concurrency
         self._command_semaphore = asyncio.Semaphore(COMMAND_CONCURRENCY_LIMIT)
@@ -228,6 +229,11 @@ class ConnectionManager:
         self._backoff = (
             BRIDGE_INITIAL_BACKOFF if self.is_bridge_device() else INITIAL_BACKOFF
         )
+        # PLAT-695: Populate RSSI immediately after connect (from BleakClient.rssi)
+        rssi = getattr(self._device, "rssi", None)
+        if rssi is not None:
+            self._latest_rssi = rssi
+            self._stats.rssi_history.append((time.time(), rssi))
         self.start_rssi_polling()
         self._log_connect_metrics(response_time)
         return response_time
@@ -343,6 +349,11 @@ class ConnectionManager:
                 self._backoff = BRIDGE_INITIAL_BACKOFF if is_bridge else INITIAL_BACKOFF
                 self._consecutive_failures = 0
                 self._stats.storm_detected = False
+                # PLAT-695: Populate RSSI immediately after reconnect (from BleakClient.rssi)
+                rssi = getattr(self._device, "rssi", None)
+                if rssi is not None:
+                    self._latest_rssi = rssi
+                    self._stats.rssi_history.append((time.time(), rssi))
                 _LOGGER.info(
                     "Reconnected to %s (%.2fs)", self._device.address, response_time
                 )

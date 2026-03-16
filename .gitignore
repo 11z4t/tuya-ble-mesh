@@ -62,3 +62,10 @@ tuya_icon_*.png
 tuya_ble_mesh_icon*.png
 invoice_reconciliation.py
 bandit-report.json
+
+# CRITICAL (PLAT-692): Block SVG icons to prevent regression
+# SVG icons override PNG and cause the old orange icon to return
+# Only PNG icons are allowed: icon.png, icon@2x.png, logo.png, logo@2x.png
+custom_components/tuya_ble_mesh/icon.svg
+custom_components/tuya_ble_mesh/brand/icon.svg
+custom_components/tuya_ble_mesh/icons/
