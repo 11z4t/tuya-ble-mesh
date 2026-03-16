@@ -274,6 +274,8 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
         self._attr_unique_id = f"{coordinator.device.address}_light"
         self._transition_task: asyncio.Task[None] | None = None
         self._pending_command_task: asyncio.Task[None] | None = None
+        # PLAT-756: Semaphore to serialize light transitions and prevent race conditions
+        self._transition_lock = asyncio.Lock()
 
     @property
     def is_on(self) -> bool:
@@ -394,6 +396,8 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
     ) -> None:
         """Send turn-on command after debounce interval.
 
+        PLAT-756: Uses transition_lock to serialize commands and prevent race conditions.
+
         Called from a task; cancelled if a newer command arrives within
         _COMMAND_DEBOUNCE_INTERVAL.
 
@@ -406,35 +410,36 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
         await asyncio.sleep(_COMMAND_DEBOUNCE_INTERVAL)
         self._pending_command_task = None
 
-        device = self.coordinator.device
+        async with self._transition_lock:
+            device = self.coordinator.device
 
-        if rgb_color is not None:
-            await device.send_color(rgb_color[0], rgb_color[1], rgb_color[2])
-            await device.send_light_mode(1)
-            _LOGGER.debug("Set RGB color: (%d,%d,%d)", *rgb_color)
+            if rgb_color is not None:
+                await device.send_color(rgb_color[0], rgb_color[1], rgb_color[2])
+                await device.send_light_mode(1)
+                _LOGGER.debug("Set RGB color: (%d,%d,%d)", *rgb_color)
+                if brightness is not None:
+                    await device.send_color_brightness(brightness)
+                    _LOGGER.debug("Set color brightness: %d", brightness)
+                return
+
+            if color_temp is not None:
+                if self.coordinator.state.mode == 1:
+                    await device.send_light_mode(0)
+                device_temp = color_temp_to_device(color_temp)
+                await device.send_color_temp(device_temp)
+                _LOGGER.debug("Set color temp: HA %d mireds -> device %d", color_temp, device_temp)
+
             if brightness is not None:
-                await device.send_color_brightness(brightness)
-                _LOGGER.debug("Set color brightness: %d", brightness)
-            return
+                if self.coordinator.state.mode == 1:
+                    await device.send_color_brightness(brightness)
+                    _LOGGER.debug("Set color brightness: %d", brightness)
+                else:
+                    device_brightness = brightness_to_device(brightness)
+                    await device.send_brightness(device_brightness)
+                    _LOGGER.debug("Set brightness: HA %d -> device %d", brightness, device_brightness)
 
-        if color_temp is not None:
-            if self.coordinator.state.mode == 1:
-                await device.send_light_mode(0)
-            device_temp = color_temp_to_device(color_temp)
-            await device.send_color_temp(device_temp)
-            _LOGGER.debug("Set color temp: HA %d mireds -> device %d", color_temp, device_temp)
-
-        if brightness is not None:
-            if self.coordinator.state.mode == 1:
-                await device.send_color_brightness(brightness)
-                _LOGGER.debug("Set color brightness: %d", brightness)
-            else:
-                device_brightness = brightness_to_device(brightness)
-                await device.send_brightness(device_brightness)
-                _LOGGER.debug("Set brightness: HA %d -> device %d", brightness, device_brightness)
-
-        if not has_target:
-            await device.send_power(True)
+            if not has_target:
+                await device.send_power(True)
 
     def _cancel_pending_command(self) -> None:
         """Cancel any pending debounced command task."""
@@ -528,6 +533,9 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
     ) -> None:
         """Run a gradual transition by sending incremental commands.
 
+        PLAT-756: Uses transition_lock to serialize transitions and prevent race conditions
+        when multiple transition commands are issued in quick succession.
+
         Args:
             target_brightness: Target device brightness (1-100), or None.
             target_color_temp: Target device color temp (0-127), or None.
@@ -535,37 +543,38 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
             power_off_after: Send power off after transition completes.
             target_rgb: Target RGB color tuple, or None.
         """
-        device = self.coordinator.device
-        state = self.coordinator.state
+        async with self._transition_lock:
+            device = self.coordinator.device
+            state = self.coordinator.state
 
-        steps = min(int(duration * 10), 50)
-        if steps < 2:
-            steps = 2
-        interval = duration / steps
+            steps = min(int(duration * 10), 50)
+            if steps < 2:
+                steps = 2
+            interval = duration / steps
 
-        start_bright = state.brightness if target_brightness is not None else None
-        start_temp = state.color_temp if target_color_temp is not None else None
-        start_rgb: tuple[int, int, int] | None = None
-        if target_rgb is not None:
-            start_rgb = (state.red, state.green, state.blue)
+            start_bright = state.brightness if target_brightness is not None else None
+            start_temp = state.color_temp if target_color_temp is not None else None
+            start_rgb: tuple[int, int, int] | None = None
+            if target_rgb is not None:
+                start_rgb = (state.red, state.green, state.blue)
 
-        for i in range(1, steps + 1):
-            fraction = i / steps
-            await self._apply_transition_step(
-                fraction,
-                target_brightness,
-                start_bright,
-                target_color_temp,
-                start_temp,
-                target_rgb,
-                start_rgb,
-            )
+            for i in range(1, steps + 1):
+                fraction = i / steps
+                await self._apply_transition_step(
+                    fraction,
+                    target_brightness,
+                    start_bright,
+                    target_color_temp,
+                    start_temp,
+                    target_rgb,
+                    start_rgb,
+                )
 
-            if i < steps:
-                await asyncio.sleep(interval)
+                if i < steps:
+                    await asyncio.sleep(interval)
 
-        if power_off_after:
-            await device.send_power(False)
+            if power_off_after:
+                await device.send_power(False)
 
     async def async_will_remove_from_hass(self) -> None:
         """Cancel in-progress transitions and pending commands when removed from HA."""
