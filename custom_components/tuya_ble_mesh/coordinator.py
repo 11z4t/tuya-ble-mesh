@@ -7,14 +7,6 @@ Connection lifecycle delegated to ConnectionManager (PLAT-667).
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-# Ensure lib/ is importable (HACS installs only custom_components/)
-_lib_path = str(Path(__file__).parent / "lib")
-if _lib_path not in sys.path:
-    sys.path.insert(0, _lib_path)
-
 import asyncio
 import contextlib
 import logging
@@ -48,11 +40,11 @@ from custom_components.tuya_ble_mesh.device_capabilities import DeviceCapabiliti
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.storage import Store
-    from tuya_ble_mesh.device import MeshDevice
-    from tuya_ble_mesh.protocol import StatusResponse
-    from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice, TelinkBridgeDevice
-    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
-    from tuya_ble_mesh.sig_mesh_protocol import CompositionData
+    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.device import MeshDevice
+    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.protocol import StatusResponse
+    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice, TelinkBridgeDevice
+    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
+    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.sig_mesh_protocol import CompositionData
 
 AnyMeshDevice = Union["MeshDevice", "SIGMeshDevice", "TelinkBridgeDevice", "SIGMeshBridgeDevice"]
 
@@ -340,7 +332,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             self._dispatch_update()
 
     def _on_vendor_update(self, opcode: int, params: bytes) -> None:
-        from tuya_ble_mesh.sig_mesh_protocol import (
+        from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.sig_mesh_protocol import (
             DP_ID_ENERGY_KWH, DP_ID_POWER_W, TUYA_CMD_TIMESTAMP_SYNC,
             TUYA_VENDOR_OPCODE, parse_tuya_vendor_frame)
         if opcode != TUYA_VENDOR_OPCODE:
@@ -372,7 +364,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             self._dispatch_update()
 
     async def _send_timestamp_response(self) -> None:
-        from tuya_ble_mesh.sig_mesh_protocol import tuya_vendor_timestamp_response
+        from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.sig_mesh_protocol import tuya_vendor_timestamp_response
         try:
             await self._device.send_vendor_command(tuya_vendor_timestamp_response())
         except Exception:

@@ -7,27 +7,13 @@ SIG Mesh plugs are provisioned automatically using a secure key exchange.
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-# Ensure lib/ is importable (HACS installs only custom_components/)
-_lib_path = str(Path(__file__).parent / "lib")
-if _lib_path not in sys.path:
-    sys.path.insert(0, _lib_path)
-
 import asyncio
 import ipaddress
 import logging
 import os
 import re
-import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-
-# Ensure lib/tuya_ble_mesh is importable from config flow context
-_LIB_DIR = str(Path(__file__).resolve().parent.parent.parent / "lib")
-if _LIB_DIR not in sys.path:
-    sys.path.insert(0, _LIB_DIR)
 
 import voluptuous as vol  # noqa: E402
 from aiohttp import ClientTimeout  # noqa: E402
@@ -36,9 +22,9 @@ from homeassistant.config_entries import ConfigFlow  # noqa: E402
 
 # Module-level imports for patching in tests
 try:
-    from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice  # type: ignore[import-not-found]
-    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
-    from tuya_ble_mesh.scanner import mac_to_bytes  # type: ignore[import-not-found]
+    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice
+    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
+    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.scanner import mac_to_bytes
 except ImportError:
     SIGMeshBridgeDevice = None  # type: ignore[assignment,misc]
     SIGMeshDevice = None  # type: ignore[assignment,misc]
@@ -616,7 +602,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                         raise ValueError("device_type_mismatch")
 
                     # Import provisioner for Telink pairing
-                    from tuya_ble_mesh.provisioner import pair
+                    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.provisioner import pair
 
                     _LOGGER.info("Starting Telink mesh pairing for %s", mac)
                     try:
@@ -625,15 +611,15 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                     except Exception as exc:
                         _LOGGER.warning("Telink pairing failed for %s: %s", mac, exc, exc_info=True)
                         # Map provisioning errors to user-friendly keys
-                        from tuya_ble_mesh.exceptions import ProvisioningError
+                        from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.exceptions import ProvisioningError
                         if isinstance(exc, ProvisioningError):
                             raise ValueError("pairing_failed")
                         raise ValueError("pairing_failed") from exc
 
                     # PLAT-740 QC BRIST 2: Verify — send status query and VALIDATE RESPONSE
                     _LOGGER.info("Verifying Telink device %s with status query (0xE0)", mac)
-                    from tuya_ble_mesh.const import TELINK_CHAR_COMMAND, TELINK_CHAR_NOTIFY, TELINK_CMD_STATUS_QUERY
-                    from tuya_ble_mesh.protocol import encode_command_packet
+                    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.const import TELINK_CHAR_COMMAND, TELINK_CHAR_NOTIFY, TELINK_CMD_STATUS_QUERY
+                    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.protocol import encode_command_packet
 
                     # Build status query command (0xE0)
                     status_query = encode_command_packet(
@@ -1155,11 +1141,11 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 # Import here to avoid circular dep at module level
                 _error_key = "provisioning_failed"
                 try:
-                    from tuya_ble_mesh.exceptions import (  # type: ignore[import-not-found]
+                    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.exceptions import (  # type: ignore[import-not-found]
                         DeviceNotFoundError,
                         ProvisioningError,
                     )
-                    from tuya_ble_mesh.exceptions import (
+                    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.exceptions import (
                         TimeoutError as MeshTimeoutError,
                     )
 
@@ -1234,9 +1220,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         from bleak import BleakClient
         from bleak_retry_connector import establish_connection
         from homeassistant.components import bluetooth as ha_bluetooth
-        from tuya_ble_mesh.secrets import DictSecretsManager  # type: ignore[import-not-found]
-        from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
-        from tuya_ble_mesh.sig_mesh_provisioner import (
+        from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.secrets import DictSecretsManager  # type: ignore[import-not-found]
+        from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
+        from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.sig_mesh_provisioner import (
             SIGMeshProvisioner,  # type: ignore[import-not-found]
         )
 

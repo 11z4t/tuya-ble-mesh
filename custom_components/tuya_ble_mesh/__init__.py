@@ -6,20 +6,10 @@ Provides local BLE mesh control of Tuya/Telink-based devices
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
-# Ensure lib/ is importable as tuya_ble_mesh (HACS installs only custom_components/)
-_lib_path = str(Path(__file__).parent / "lib")
-if _lib_path not in sys.path:
-    sys.path.insert(0, _lib_path)
-
 import asyncio
 import contextlib
 import logging
-import sys
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import TYPE_CHECKING, Any, TypeAlias
 
 from homeassistant.config_entries import ConfigEntry
@@ -44,11 +34,6 @@ if TYPE_CHECKING:
     from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
 
 _LOGGER = logging.getLogger(__name__)
-
-# Make lib/tuya_ble_mesh importable
-_LIB_DIR = str(Path(__file__).resolve().parent.parent.parent / "lib")
-if _LIB_DIR not in sys.path:
-    sys.path.insert(0, _LIB_DIR)
 
 
 @dataclass
@@ -85,13 +70,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
     from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
 
     _LOGGER.info("Setting up Tuya BLE Mesh entry: %s", entry.title)
-
-    # PLAT-737: Patch lib/ BLE modules to use HA's bluetooth stack
-    # for scanner coordination and ESPHome Proxy support.
-    # Must be called ONCE before creating any device instances.
-    from custom_components.tuya_ble_mesh.ble_adapter import patch_lib_for_ha
-
-    patch_lib_for_ha(hass)
 
     mac_address: str = entry.data[CONF_MAC_ADDRESS]
     device_type: str = entry.data.get(CONF_DEVICE_TYPE, "")
