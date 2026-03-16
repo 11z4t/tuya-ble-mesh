@@ -26,6 +26,8 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory  # type: ignore[attr-defined]
 from homeassistant.helpers.typing import StateType
 
+from custom_components.tuya_ble_mesh.helpers import connection_quality
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -43,21 +45,6 @@ _LOGGER = logging.getLogger(__name__)
 
 # BLE mesh serializes commands — limit to one concurrent update
 PARALLEL_UPDATES = 1
-
-
-def _connection_quality(state: TuyaBLEMeshDeviceState) -> str | None:
-    """Map RSSI to a connection quality label.
-
-    Returns 'good' for RSSI ≥ -60, 'marginal' for -80 to -61, 'poor' for < -80.
-    Returns None when RSSI is not available.
-    """
-    if state.rssi is None:
-        return None
-    if state.rssi >= -60:
-        return "good"
-    if state.rssi >= -80:
-        return "marginal"
-    return "poor"
 
 
 def _last_seen_datetime(state: TuyaBLEMeshDeviceState) -> datetime | None:
@@ -135,7 +122,7 @@ SENSOR_DESCRIPTIONS: tuple[TuyaBLEMeshSensorEntityDescription, ...] = (
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
         icon="mdi:signal",
-        value_fn=_connection_quality,
+        value_fn=lambda state: connection_quality(state.rssi),
     ),
     TuyaBLEMeshSensorEntityDescription(
         key="last_seen",

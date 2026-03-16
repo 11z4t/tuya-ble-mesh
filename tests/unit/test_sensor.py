@@ -25,9 +25,9 @@ from homeassistant.helpers.entity import EntityCategory  # noqa: E402
 from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     TuyaBLEMeshDeviceState,
 )
+from custom_components.tuya_ble_mesh.helpers import connection_quality  # noqa: E402
 from custom_components.tuya_ble_mesh.sensor import (  # noqa: E402
     SENSOR_DESCRIPTIONS,
-    _connection_quality,
     _last_seen_datetime,
 )
 
@@ -137,32 +137,22 @@ class TestConnectionQuality:
 
     def test_connection_quality_good(self) -> None:
         """Test RSSI ≥ -60 → good."""
-        state = TuyaBLEMeshDeviceState(rssi=-50)
-        assert _connection_quality(state) == "good"
-
-        state2 = TuyaBLEMeshDeviceState(rssi=-60)
-        assert _connection_quality(state2) == "good"
+        assert connection_quality(-50) == "good"
+        assert connection_quality(-60) == "good"
 
     def test_connection_quality_marginal(self) -> None:
         """Test -80 ≤ RSSI < -60 → marginal."""
-        state = TuyaBLEMeshDeviceState(rssi=-70)
-        assert _connection_quality(state) == "marginal"
-
-        state2 = TuyaBLEMeshDeviceState(rssi=-80)
-        assert _connection_quality(state2) == "marginal"
+        assert connection_quality(-70) == "marginal"
+        assert connection_quality(-80) == "marginal"
 
     def test_connection_quality_poor(self) -> None:
         """Test RSSI < -80 → poor."""
-        state = TuyaBLEMeshDeviceState(rssi=-90)
-        assert _connection_quality(state) == "poor"
-
-        state2 = TuyaBLEMeshDeviceState(rssi=-120)
-        assert _connection_quality(state2) == "poor"
+        assert connection_quality(-90) == "poor"
+        assert connection_quality(-120) == "poor"
 
     def test_connection_quality_none(self) -> None:
         """Test RSSI=None → None."""
-        state = TuyaBLEMeshDeviceState(rssi=None)
-        assert _connection_quality(state) is None
+        assert connection_quality(None) is None
 
     @pytest.mark.parametrize(
         ("rssi", "expected_quality"),
@@ -183,8 +173,7 @@ class TestConnectionQuality:
         expected_quality: str | None,
     ) -> None:
         """Test connection quality boundary conditions."""
-        state = TuyaBLEMeshDeviceState(rssi=rssi)
-        assert _connection_quality(state) == expected_quality
+        assert connection_quality(rssi) == expected_quality
 
 
 class TestLastSeen:

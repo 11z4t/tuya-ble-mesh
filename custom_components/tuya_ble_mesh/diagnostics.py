@@ -15,6 +15,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
 from custom_components.tuya_ble_mesh import TuyaBLEMeshConfigEntry
+from custom_components.tuya_ble_mesh.helpers import connection_quality
 from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
     CONF_BRIDGE_HOST,
@@ -110,6 +111,9 @@ _VENDOR_NAMES: dict[str, str] = {
 def _build_connection_quality(rssi: int | float | None) -> str:
     """Determine connection quality from RSSI value.
 
+    Wrapper for diagnostics that handles edge cases (0 value, MagicMock).
+    Delegates core logic to helpers.connection_quality().
+
     Args:
         rssi: RSSI value in dBm, or None.
 
@@ -118,11 +122,8 @@ def _build_connection_quality(rssi: int | float | None) -> str:
     """
     if not isinstance(rssi, (int, float)) or rssi == 0:
         return "unknown"
-    if rssi >= -60:
-        return "good"
-    if rssi >= -80:
-        return "marginal"
-    return "poor"
+    quality = connection_quality(rssi)
+    return quality if quality is not None else "unknown"
 
 
 def _build_protocol_health(
