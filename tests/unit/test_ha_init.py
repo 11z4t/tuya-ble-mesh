@@ -78,6 +78,7 @@ def _make_patches() -> tuple[MagicMock, MagicMock]:
     mock_coord_instance = MagicMock()
     mock_coord_instance.async_start = AsyncMock()
     mock_coord_instance.async_stop = AsyncMock()
+    mock_coord_instance.async_initial_connect = AsyncMock()
     mock_coord_instance.device = mock_device_instance
 
     return mock_device_instance, mock_coord_instance
@@ -123,7 +124,7 @@ class TestAsyncSetupEntry:
         ):
             await async_setup_entry(hass, entry)
 
-        mock_coord.async_start.assert_called_once()
+        mock_coord.async_initial_connect.assert_called_once()
 
     @pytest.mark.asyncio
     async def test_setup_stores_runtime_data_on_entry(self) -> None:
@@ -189,6 +190,9 @@ class TestAsyncSetupEntrySIGMesh:
             "unicast_our": "0001",
             "op_item_prefix": "s17",
             "iv_index": 0,
+            "net_key": "00112233445566778899aabbccddeeff",  # pragma: allowlist secret
+            "dev_key": "ffeeddccbbaa99887766554433221100",  # pragma: allowlist secret
+            "app_key": "aabbccddeeff00112233445566778899",  # pragma: allowlist secret
         }
 
         mock_device = MagicMock()
@@ -196,6 +200,7 @@ class TestAsyncSetupEntrySIGMesh:
         mock_coord = MagicMock()
         mock_coord.async_start = AsyncMock()
         mock_coord.async_stop = AsyncMock()
+        mock_coord.async_initial_connect = AsyncMock()
         mock_coord.device = mock_device
 
         with (
@@ -237,6 +242,7 @@ class TestAsyncSetupEntrySIGMesh:
         mock_coord = MagicMock()
         mock_coord.async_start = AsyncMock()
         mock_coord.async_stop = AsyncMock()
+        mock_coord.async_initial_connect = AsyncMock()
         mock_coord.device = mock_device
 
         with (
@@ -280,6 +286,7 @@ class TestAsyncSetupEntrySIGMesh:
         mock_coord = MagicMock()
         mock_coord.async_start = AsyncMock()
         mock_coord.async_stop = AsyncMock()
+        mock_coord.async_initial_connect = AsyncMock()
         mock_coord.device = mock_device
 
         mock_ble_device = MagicMock()
@@ -337,6 +344,7 @@ class TestAsyncSetupEntrySIGMesh:
         mock_coord = MagicMock()
         mock_coord.async_start = AsyncMock()
         mock_coord.async_stop = AsyncMock()
+        mock_coord.async_initial_connect = AsyncMock()
         mock_coord.device = mock_device
 
         mock_ble_device = MagicMock()
@@ -392,6 +400,7 @@ class TestAsyncSetupEntrySIGMesh:
         mock_coord = MagicMock()
         mock_coord.async_start = AsyncMock()
         mock_coord.async_stop = AsyncMock()
+        mock_coord.async_initial_connect = AsyncMock()
         mock_coord.device = mock_device
 
         with (
@@ -440,6 +449,7 @@ class TestAsyncSetupEntrySIGMesh:
         mock_coord = MagicMock()
         mock_coord.async_start = AsyncMock()
         mock_coord.async_stop = AsyncMock()
+        mock_coord.async_initial_connect = AsyncMock()
         mock_coord.device = mock_device
 
         with (
@@ -466,6 +476,7 @@ def _make_entry_with_runtime(
     """Create a mock entry with runtime_data and a mock coordinator."""
     mock_coord = MagicMock()
     mock_coord.async_stop = AsyncMock()
+    mock_coord.async_initial_connect = AsyncMock()
 
     entry = make_mock_entry(entry_id=entry_id)
     entry.runtime_data = MagicMock()

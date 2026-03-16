@@ -19,6 +19,7 @@ from custom_components.tuya_ble_mesh.config_flow import (
     TuyaBLEMeshConfigFlow,
 )
 from custom_components.tuya_ble_mesh.config_flow_options import TuyaBLEMeshOptionsFlow
+from custom_components.tuya_ble_mesh.config_flow_sig import run_provision
 from custom_components.tuya_ble_mesh.config_flow_validators import (
     _parse_json_body,
     _test_bridge_with_session,
@@ -414,16 +415,15 @@ class TestSIGPlugStep:
 
     @pytest.mark.asyncio
     async def test_sig_plug_step_creates_entry(self) -> None:
-        """Auto-provisioning: _run_provision is called and entry is created."""
+        """Auto-provisioning: run_provision is called and entry is created."""
         flow = _make_flow()
         flow._discovery_info = {
             "address": "AA:BB:CC:DD:EE:FF",
             "name": "SIG Mesh FF",
         }
 
-        with patch.object(
-            flow,
-            "_run_provision",
+        with patch(
+            "custom_components.tuya_ble_mesh.config_flow_sig.run_provision",
             new=AsyncMock(return_value=(_TEST_NET_KEY, _TEST_DEV_KEY, _TEST_APP_KEY)),
         ):
             result = await flow.async_step_sig_plug({})
@@ -447,9 +447,8 @@ class TestSIGPlugStep:
             "name": "SIG Mesh FF",
         }
 
-        with patch.object(
-            flow,
-            "_run_provision",
+        with patch(
+            "custom_components.tuya_ble_mesh.config_flow_sig.run_provision",
             new=AsyncMock(return_value=(_TEST_NET_KEY, _TEST_DEV_KEY, _TEST_APP_KEY)),
         ):
             result = await flow.async_step_sig_plug({})
@@ -587,9 +586,8 @@ class TestAutoDiscovery:
         assert result["step_id"] == "sig_plug"
 
         # Step 2: submit sig_plug form (empty — auto-provisions) → entry created
-        with patch.object(
-            flow,
-            "_run_provision",
+        with patch(
+            "custom_components.tuya_ble_mesh.config_flow_sig.run_provision",
             new=AsyncMock(return_value=(_TEST_NET_KEY, _TEST_DEV_KEY, _TEST_APP_KEY)),
         ):
             result = await flow.async_step_sig_plug({})
@@ -650,7 +648,7 @@ class TestSigBridgeStep:
 
     @pytest.mark.asyncio
     @patch(
-        "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
+        "custom_components.tuya_ble_mesh.config_flow_validators._test_bridge_with_session",
         new_callable=AsyncMock,
         return_value=True,
     )
@@ -679,7 +677,7 @@ class TestSigBridgeStep:
 
     @pytest.mark.asyncio
     @patch(
-        "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
+        "custom_components.tuya_ble_mesh.config_flow_validators._test_bridge_with_session",
         new_callable=AsyncMock,
         return_value=False,
     )
@@ -705,7 +703,7 @@ class TestSigBridgeStep:
         flow = _make_flow()
 
         with patch(
-            "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
+            "custom_components.tuya_ble_mesh.config_flow_validators._test_bridge_with_session",
             new_callable=AsyncMock,
             return_value=True,
         ):
@@ -758,7 +756,7 @@ class TestTelinkBridgeStep:
 
     @pytest.mark.asyncio
     @patch(
-        "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
+        "custom_components.tuya_ble_mesh.config_flow_telink._test_bridge_with_session",
         new_callable=AsyncMock,
         return_value=True,
     )
@@ -787,7 +785,7 @@ class TestTelinkBridgeStep:
 
     @pytest.mark.asyncio
     @patch(
-        "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
+        "custom_components.tuya_ble_mesh.config_flow_telink._test_bridge_with_session",
         new_callable=AsyncMock,
         return_value=False,
     )
@@ -813,7 +811,7 @@ class TestTelinkBridgeStep:
         flow = _make_flow()
 
         with patch(
-            "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
+            "custom_components.tuya_ble_mesh.config_flow_validators._test_bridge_with_session",
             new_callable=AsyncMock,
             return_value=True,
         ):
@@ -988,9 +986,8 @@ class TestSigPlugKeyValidationErrors:
             "name": "SIG Mesh FF",
         }
 
-        with patch.object(
-            flow,
-            "_run_provision",
+        with patch(
+            "custom_components.tuya_ble_mesh.config_flow_sig.run_provision",
             new=AsyncMock(side_effect=Exception("BLE connection failed")),
         ):
             result = await flow.async_step_sig_plug({})
@@ -1007,9 +1004,8 @@ class TestSigPlugKeyValidationErrors:
             "name": "SIG Mesh FF",
         }
 
-        with patch.object(
-            flow,
-            "_run_provision",
+        with patch(
+            "custom_components.tuya_ble_mesh.config_flow_sig.run_provision",
             new=AsyncMock(side_effect=RuntimeError("timeout")),
         ):
             result = await flow.async_step_sig_plug({})
@@ -1026,9 +1022,8 @@ class TestSigPlugKeyValidationErrors:
             "name": "SIG Mesh FF",
         }
 
-        with patch.object(
-            flow,
-            "_run_provision",
+        with patch(
+            "custom_components.tuya_ble_mesh.config_flow_sig.run_provision",
             new=AsyncMock(side_effect=Exception("device not found")),
         ):
             result = await flow.async_step_sig_plug({})
@@ -1046,9 +1041,8 @@ class TestSigPlugKeyValidationErrors:
             "name": "SIG Mesh FF",
         }
 
-        with patch.object(
-            flow,
-            "_run_provision",
+        with patch(
+            "custom_components.tuya_ble_mesh.config_flow_sig.run_provision",
             new=AsyncMock(side_effect=Exception("confirmation mismatch")),
         ):
             result = await flow.async_step_sig_plug({})
@@ -1159,7 +1153,7 @@ class TestRunProvision:
             mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
             mock_prov_cls.return_value = mock_provisioner
 
-            net_key, dev_key, app_key = await flow._run_provision("AA:BB:CC:DD:EE:FF")
+            net_key, dev_key, app_key = await run_provision(flow.hass,"AA:BB:CC:DD:EE:FF")
 
         # Verify keys are 32-char hex strings
         assert len(net_key) == 32
@@ -1192,7 +1186,7 @@ class TestRunProvision:
             mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
             mock_prov_cls.return_value = mock_provisioner
 
-            net_key, dev_key, _app_key = await flow._run_provision("AA:BB:CC:DD:EE:FF")
+            net_key, dev_key, _app_key = await run_provision(flow.hass,"AA:BB:CC:DD:EE:FF")
 
         # Should still return keys (warning logged)
         assert len(net_key) == 32
@@ -1222,7 +1216,7 @@ class TestRunProvision:
             mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
             mock_prov_cls.return_value = mock_provisioner
 
-            net_key, dev_key, _app_key = await flow._run_provision("AA:BB:CC:DD:EE:FF")
+            net_key, dev_key, _app_key = await run_provision(flow.hass,"AA:BB:CC:DD:EE:FF")
 
         # Should still return keys
         assert len(net_key) == 32
@@ -1251,7 +1245,7 @@ class TestRunProvision:
             mock_prov_cls.return_value = mock_provisioner
 
             # Should still return keys despite post-config failure
-            net_key, dev_key, _app_key = await flow._run_provision("AA:BB:CC:DD:EE:FF")
+            net_key, dev_key, _app_key = await run_provision(flow.hass,"AA:BB:CC:DD:EE:FF")
 
         assert len(net_key) == 32
         assert dev_key == _TEST_DEV_KEY
@@ -1296,7 +1290,7 @@ class TestRunProvision:
             patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device),
             patch("asyncio.sleep", new_callable=AsyncMock),
         ):
-            await flow._run_provision("AA:BB:CC:DD:EE:FF")
+            await run_provision(flow.hass,"AA:BB:CC:DD:EE:FF")
 
         # Verify callbacks were passed
         assert "ble_device_callback" in captured_provisioner_kwargs
@@ -1315,14 +1309,13 @@ class TestRunProvision:
             result = ble_device_cb("AA:BB:CC:DD:EE:FF")
             assert result is mock_ble_device_connectable
 
-        # Test ble_device_cb fallback to connectable=False when connectable=True returns None
+        # Test ble_device_cb when device not found (returns None, logs warning)
         with patch(
-            "homeassistant.components.bluetooth.async_ble_device_from_address"
-        ) as mock_bt:
-            mock_ble_device_non_connectable = MagicMock()
-            mock_bt.side_effect = [None, mock_ble_device_non_connectable]
+            "homeassistant.components.bluetooth.async_ble_device_from_address",
+            return_value=None,
+        ):
             result = ble_device_cb("AA:BB:CC:DD:EE:FF")
-            assert result is mock_ble_device_non_connectable
+            assert result is None
 
         # Test ble_connect_cb - verify it's callable and calls establish_connection
         assert callable(ble_connect_cb)
@@ -1371,7 +1364,7 @@ class TestRunProvision:
             patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device),
             patch("asyncio.sleep", new_callable=AsyncMock),
         ):
-            await flow._run_provision("AA:BB:CC:DD:EE:FF")
+            await run_provision(flow.hass,"AA:BB:CC:DD:EE:FF")
 
         # Verify callbacks were passed
         assert "ble_device_callback" in captured_provisioner_kwargs
@@ -2234,9 +2227,8 @@ class TestSigPlugErrorHandling:
     async def test_asyncio_timeout_error_returns_timeout_key(self) -> None:
         """asyncio.TimeoutError → error key 'timeout' (line 732-733)."""
         flow = self._make_sig_plug_flow()
-        with patch.object(
-            flow,
-            "_run_provision",
+        with patch(
+            "custom_components.tuya_ble_mesh.config_flow_sig.run_provision",
             new=AsyncMock(side_effect=TimeoutError()),
         ):
             result = await flow.async_step_sig_plug({})
@@ -2249,9 +2241,8 @@ class TestSigPlugErrorHandling:
         from tuya_ble_mesh.exceptions import DeviceNotFoundError
 
         flow = self._make_sig_plug_flow()
-        with patch.object(
-            flow,
-            "_run_provision",
+        with patch(
+            "custom_components.tuya_ble_mesh.config_flow_sig.run_provision",
             new=AsyncMock(side_effect=DeviceNotFoundError("not found")),
         ):
             result = await flow.async_step_sig_plug({})
@@ -2264,9 +2255,8 @@ class TestSigPlugErrorHandling:
         from tuya_ble_mesh.exceptions import TimeoutError as MeshTimeoutError
 
         flow = self._make_sig_plug_flow()
-        with patch.object(
-            flow,
-            "_run_provision",
+        with patch(
+            "custom_components.tuya_ble_mesh.config_flow_sig.run_provision",
             new=AsyncMock(side_effect=MeshTimeoutError("timed out")),
         ):
             result = await flow.async_step_sig_plug({})
@@ -2279,9 +2269,8 @@ class TestSigPlugErrorHandling:
         from tuya_ble_mesh.exceptions import ProvisioningError
 
         flow = self._make_sig_plug_flow()
-        with patch.object(
-            flow,
-            "_run_provision",
+        with patch(
+            "custom_components.tuya_ble_mesh.config_flow_sig.run_provision",
             new=AsyncMock(side_effect=ProvisioningError("handshake failed")),
         ):
             result = await flow.async_step_sig_plug({})
@@ -2292,9 +2281,8 @@ class TestSigPlugErrorHandling:
     async def test_generic_exception_fallback_to_provisioning_failed(self) -> None:
         """Generic exception falls through to provisioning_failed."""
         flow = self._make_sig_plug_flow()
-        with patch.object(
-            flow,
-            "_run_provision",
+        with patch(
+            "custom_components.tuya_ble_mesh.config_flow_sig.run_provision",
             new=AsyncMock(side_effect=ValueError("unexpected")),
         ):
             result = await flow.async_step_sig_plug({})
@@ -2308,9 +2296,8 @@ class TestSigPlugErrorHandling:
         flow = self._make_sig_plug_flow()
 
         with (
-            patch.object(
-                flow,
-                "_run_provision",
+            patch(
+                "custom_components.tuya_ble_mesh.config_flow_sig.run_provision",
                 new=AsyncMock(side_effect=RuntimeError("fail")),
             ),
             patch(
@@ -2435,7 +2422,7 @@ class TestReconfigureFlow:
             },
         )
         with patch(
-            "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
+            "custom_components.tuya_ble_mesh.config_flow_reconfigure._test_bridge_with_session",
             new=AsyncMock(return_value=True),
         ):
             result = await flow.async_step_reconfigure({
@@ -2458,7 +2445,7 @@ class TestReconfigureFlow:
             },
         )
         with patch(
-            "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
+            "custom_components.tuya_ble_mesh.config_flow_reconfigure._test_bridge_with_session",
             new=AsyncMock(return_value=False),
         ):
             result = await flow.async_step_reconfigure({
