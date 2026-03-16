@@ -49,6 +49,7 @@ from custom_components.tuya_ble_mesh.const import (
     DEVICE_TYPE_SIG_PLUG,
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
     DOMAIN,
+    SIG_MESH_PROV_UUID,
     SIG_MESH_PROXY_UUID,
 )
 
@@ -456,11 +457,16 @@ class TestSIGPlugStep:
 
 @pytest.mark.requires_ha
 class TestAutoDiscovery:
-    """Test auto-detection of SIG Mesh Proxy devices via bluetooth discovery."""
+    """Test auto-detection of BLE Mesh devices via bluetooth discovery.
+
+    PLAT-659: Only devices in pairing mode (out_of_mesh* name or Provisioning
+    UUID 0x1827) should trigger discovery. Already-paired devices (Proxy UUID
+    0x1828) must be rejected to prevent ghost entities.
+    """
 
     @pytest.mark.asyncio
-    async def test_discovery_with_proxy_uuid_routes_to_sig_plug(self) -> None:
-        """Device with 0x1828 service UUID should route to sig_plug step."""
+    async def test_discovery_with_proxy_uuid_aborts(self) -> None:
+        """PLAT-659: Already-paired device (Proxy 0x1828) must be rejected."""
         flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
         flow._abort_if_unique_id_configured = lambda: None
@@ -472,12 +478,12 @@ class TestAutoDiscovery:
 
         result = await flow.async_step_bluetooth(service_info)
 
-        assert result["type"] == "form"
-        assert result["step_id"] == "sig_plug"
+        assert result["type"] == "abort"
+        assert result["reason"] == "not_in_pairing_mode"
 
     @pytest.mark.asyncio
     async def test_discovery_without_proxy_uuid_routes_to_confirm(self) -> None:
-        """Device without 0x1828 UUID should route to confirm step."""
+        """Device with out_of_mesh name and no UUID should route to confirm step."""
         flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
         flow._abort_if_unique_id_configured = lambda: None
@@ -493,8 +499,8 @@ class TestAutoDiscovery:
         assert result["step_id"] == "confirm"
 
     @pytest.mark.asyncio
-    async def test_discovery_proxy_sets_discovery_info(self) -> None:
-        """Discovery info should be populated for sig_plug step."""
+    async def test_discovery_proxy_uuid_not_in_pairing_mode(self) -> None:
+        """PLAT-659: Proxy UUID without out_of_mesh name → abort."""
         flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
         flow._abort_if_unique_id_configured = lambda: None
@@ -504,10 +510,10 @@ class TestAutoDiscovery:
         service_info.name = "Mesh Proxy"
         service_info.service_uuids = [SIG_MESH_PROXY_UUID]
 
-        await flow.async_step_bluetooth(service_info)
+        result = await flow.async_step_bluetooth(service_info)
 
-        assert flow._discovery_info is not None
-        assert flow._discovery_info["address"] == "AA:BB:CC:DD:EE:FF"
+        assert result["type"] == "abort"
+        assert flow._discovery_info is None
 
     @pytest.mark.asyncio
     async def test_discovery_proxy_no_service_uuids_attr(self) -> None:
@@ -528,16 +534,35 @@ class TestAutoDiscovery:
         assert result["step_id"] == "confirm"
 
     @pytest.mark.asyncio
-    async def test_discovery_proxy_completes_full_flow(self) -> None:
-        """Proxy discovery → sig_plug form → entry creation."""
+    async def test_discovery_provisioning_uuid_routes_to_sig_plug(self) -> None:
+        """PLAT-659: Provisioning UUID (0x1827) in pairing mode → sig_plug step."""
         flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
         flow._abort_if_unique_id_configured = lambda: None
 
         service_info = MagicMock(spec=BluetoothServiceInfoBleak)
         service_info.address = "AA:BB:CC:DD:EE:FF"
-        service_info.name = "Mesh Proxy"
-        service_info.service_uuids = [SIG_MESH_PROXY_UUID]
+        service_info.name = "out_of_mesh_1234"
+        service_info.service_uuids = [SIG_MESH_PROV_UUID]
+
+        result = await flow.async_step_bluetooth(service_info)
+
+        assert result["type"] == "form"
+        assert result["step_id"] == "sig_plug"
+        assert flow._discovery_info is not None
+        assert flow._discovery_info["address"] == "AA:BB:CC:DD:EE:FF"
+
+    @pytest.mark.asyncio
+    async def test_discovery_provisioning_completes_full_flow(self) -> None:
+        """PLAT-659: Provisioning discovery → sig_plug form → entry creation."""
+        flow = _make_flow()
+        flow.async_set_unique_id = AsyncMock()
+        flow._abort_if_unique_id_configured = lambda: None
+
+        service_info = MagicMock(spec=BluetoothServiceInfoBleak)
+        service_info.address = "AA:BB:CC:DD:EE:FF"
+        service_info.name = "out_of_mesh_1234"
+        service_info.service_uuids = [SIG_MESH_PROV_UUID]
 
         # Step 1: bluetooth discovery → sig_plug form
         result = await flow.async_step_bluetooth(service_info)
@@ -1016,7 +1041,11 @@ class TestSigPlugKeyValidationErrors:
 
 @pytest.mark.requires_ha
 class TestBluetoothSigMeshProxyDiscovery:
-    """Test SIG Mesh proxy discovery via bluetooth step with UUID 1828."""
+    """Test SIG Mesh proxy discovery via bluetooth step.
+
+    PLAT-659: Proxy UUID (0x1828) = already paired → must be rejected.
+    Only Provisioning UUID (0x1827) or out_of_mesh* name triggers discovery.
+    """
 
     @pytest.mark.asyncio
     async def test_bluetooth_with_proxy_uuid_sets_unique_id(self) -> None:
@@ -1033,7 +1062,8 @@ class TestBluetoothSigMeshProxyDiscovery:
         flow.async_set_unique_id.assert_called_once_with("AA:BB:CC:DD:EE:FF")
 
     @pytest.mark.asyncio
-    async def test_bluetooth_proxy_preserves_name_in_discovery(self) -> None:
+    async def test_bluetooth_proxy_rejects_paired_device(self) -> None:
+        """PLAT-659: Proxy UUID without out_of_mesh name → abort."""
         flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
 
@@ -1042,12 +1072,31 @@ class TestBluetoothSigMeshProxyDiscovery:
         service_info.name = "SigMesh"
         service_info.service_uuids = [SIG_MESH_PROXY_UUID]
 
-        await flow.async_step_bluetooth(service_info)
+        result = await flow.async_step_bluetooth(service_info)
 
-        assert flow._discovery_info["name"] == "SigMesh"
+        assert result["type"] == "abort"
+        assert result["reason"] == "not_in_pairing_mode"
+        assert flow._discovery_info is None
 
     @pytest.mark.asyncio
-    async def test_bluetooth_none_name_becomes_empty(self) -> None:
+    async def test_bluetooth_out_of_mesh_name_preserves_in_discovery(self) -> None:
+        """out_of_mesh device name is preserved in discovery info."""
+        flow = _make_flow()
+        flow.async_set_unique_id = AsyncMock()
+        flow._abort_if_unique_id_configured = lambda: None
+
+        service_info = MagicMock(spec=BluetoothServiceInfoBleak)
+        service_info.address = "AA:BB:CC:DD:EE:FF"
+        service_info.name = "out_of_mesh_1234"
+        service_info.service_uuids = []
+
+        await flow.async_step_bluetooth(service_info)
+
+        assert flow._discovery_info["name"] == "out_of_mesh_1234"
+
+    @pytest.mark.asyncio
+    async def test_bluetooth_none_name_aborts(self) -> None:
+        """PLAT-659: None name (not out_of_mesh) without prov UUID → abort."""
         flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
 
@@ -1056,9 +1105,10 @@ class TestBluetoothSigMeshProxyDiscovery:
         service_info.name = None
         service_info.service_uuids = []
 
-        await flow.async_step_bluetooth(service_info)
+        result = await flow.async_step_bluetooth(service_info)
 
-        assert flow._discovery_info["name"] == ""
+        assert result["type"] == "abort"
+        assert result["reason"] == "not_in_pairing_mode"
 
 
 @pytest.mark.requires_ha
@@ -1741,18 +1791,22 @@ class TestDiscoveryStaleDevice:
 
 @pytest.mark.requires_ha
 class TestTelinkDiscovery:
-    """Test Telink UUID detection — covers config_flow.py:423."""
+    """Test Telink UUID detection — covers config_flow.py:423.
+
+    PLAT-659: Only devices with out_of_mesh* name pass discovery filter.
+    Telink devices in pairing mode advertise as out_of_mesh_XXXX.
+    """
 
     @pytest.mark.asyncio
     async def test_telink_uuid_sets_device_type_light(self) -> None:
-        """Telink UUID prefix auto-detects Light → shows confirmation form (PLAT-659)."""
+        """Telink UUID prefix with out_of_mesh name → auto-detects Light, shows confirm."""
         flow = _make_flow()
         flow.async_set_unique_id = AsyncMock()
         flow._abort_if_unique_id_configured = lambda: None
 
         service_info = MagicMock(spec=BluetoothServiceInfoBleak)
         service_info.address = "DC:23:4D:21:43:A5"
-        service_info.name = "telink_mesh_1234"
+        service_info.name = "out_of_mesh_1234"
         # Telink UUID prefix → auto_device_type = DEVICE_TYPE_LIGHT
         service_info.service_uuids = ["00010203-0405-0607-0809-0a0b0c0d1234"]
         service_info.rssi = -60
@@ -1766,6 +1820,24 @@ class TestTelinkDiscovery:
         # PLAT-659: Discovery must show confirmation form, NOT auto-create entry
         assert result["type"] == "form"
         assert result["step_id"] == "confirm"
+
+    @pytest.mark.asyncio
+    async def test_telink_non_pairing_name_aborts(self) -> None:
+        """PLAT-659: Telink device without out_of_mesh name → abort."""
+        flow = _make_flow()
+        flow.async_set_unique_id = AsyncMock()
+        flow._abort_if_unique_id_configured = lambda: None
+
+        service_info = MagicMock(spec=BluetoothServiceInfoBleak)
+        service_info.address = "DC:23:4D:21:43:A5"
+        service_info.name = "telink_mesh_1234"
+        service_info.service_uuids = ["00010203-0405-0607-0809-0a0b0c0d1234"]
+        service_info.rssi = -60
+
+        result = await flow.async_step_bluetooth(service_info)
+
+        assert result["type"] == "abort"
+        assert result["reason"] == "not_in_pairing_mode"
 
 
 @pytest.mark.requires_ha
