@@ -65,6 +65,22 @@ def _make_flow() -> TuyaBLEMeshConfigFlow:
     hass.config_entries.async_entries = MagicMock(return_value=[])
     hass.config_entries.async_entry_for_domain_unique_id = MagicMock(return_value=None)
     flow.hass = hass
+
+    # PLAT-740: Mock _validate_and_connect to avoid real BLE connections in tests
+    # Default: succeed with detected device type matching input
+    async def _mock_validate(
+        mac: str,
+        device_type: str | None = None,
+        mesh_name: str = "out_of_mesh",
+        mesh_password: str = "123456",
+    ) -> tuple[str, dict]:
+        """Mock validation that always succeeds."""
+        from custom_components.tuya_ble_mesh.const import DEVICE_TYPE_LIGHT
+
+        detected = device_type if device_type else DEVICE_TYPE_LIGHT
+        return (detected, {})
+
+    flow._validate_and_connect = AsyncMock(side_effect=_mock_validate)
     return flow
 
 

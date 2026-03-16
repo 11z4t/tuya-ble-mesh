@@ -309,175 +309,6 @@ def _validate_unicast_address(value: str) -> str | None:
     return None
 
 
-async def _validate_and_connect(
-    hass: Any,
-    mac: str,
-    device_type: str | None = None,
-    mesh_name: str = "out_of_mesh",
-    mesh_password: str = "123456",
-) -> tuple[str, dict[str, Any]]:
-    """Connect to device, detect type if needed, and verify basic communication.
-
-    This function implements the Shelly-pattern: validate BEFORE creating config entry.
-
-    Steps:
-    1. BLE connect to device
-    2. GATT service discovery to auto-detect device type (if not provided)
-    3. Telink: PAIR_REQUEST → PAIR_SUCCESS (mesh login handshake)
-    4. Send test command (status query) and verify response
-    5. Return device_type + any discovered credentials/config
-
-    PLAT-740: Full implementation with pairing + verify.
-    Timeout: 30 seconds total for entire flow (connect + pair + verify).
-
-    Args:
-        hass: Home Assistant instance.
-        mac: BLE MAC address.
-        device_type: Known device type, or None to auto-detect.
-        mesh_name: Telink mesh network name (for Telink devices).
-        mesh_password: Telink mesh password (for Telink devices).
-
-    Returns:
-        Tuple of (detected_device_type, extra_data_dict).
-        extra_data_dict may contain keys like net_key, dev_key, app_key for SIG devices.
-
-    Raises:
-        ValueError: With translatable error key if connection/pairing/verify fails.
-        asyncio.TimeoutError: If total flow exceeds 30 seconds.
-    """
-    from homeassistant.components import bluetooth as ha_bluetooth
-
-    _LOGGER.info("Validating device %s (type=%s)", mac, device_type or "auto-detect")
-
-    # PLAT-740 AC6: 30s total timeout for entire flow
-    async def _validate_inner() -> tuple[str, dict[str, Any]]:
-        # Step 1: Check device is advertising
-        ble_device = ha_bluetooth.async_ble_device_from_address(
-            hass, mac.upper(), connectable=True
-        )
-        if ble_device is None:
-            _LOGGER.warning("Device %s not found in HA bluetooth registry", mac)
-            raise ValueError("device_not_found")
-
-        # Step 2: Connect via Bleak
-        from bleak import BleakClient
-        from bleak_retry_connector import (
-            BleakClientWithServiceCache,
-            close_stale_connections_by_address,
-            establish_connection,
-        )
-
-        await close_stale_connections_by_address(mac.upper())
-
-        try:
-            client = await establish_connection(
-                BleakClientWithServiceCache,
-                ble_device,
-                f"Validating {mac}",
-                max_attempts=3,
-                use_services_cache=True,
-            )
-        except Exception as exc:
-            _LOGGER.warning("BLE connect failed for %s: %s", mac, exc, exc_info=True)
-            raise ValueError("cannot_connect_ble") from exc
-
-        try:
-            # Step 3: GATT service discovery to detect device type (if not provided)
-            if device_type is None:
-                services = client.services
-                service_uuids = [str(s.uuid).lower() for s in services]
-
-                _LOGGER.debug("Discovered services for %s: %s", mac, service_uuids)
-
-                # SIG Mesh detection (0x1827 Provisioning or 0x1828 Proxy)
-                if SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids:
-                    detected_type = DEVICE_TYPE_SIG_PLUG
-                    _LOGGER.info("Auto-detected %s as SIG Mesh plug", mac)
-                # Telink detection (00010203-... UUID prefix)
-                elif any(uuid.startswith("00010203-0405-0607-0809-0a0b0c0d") for uuid in service_uuids):
-                    detected_type = DEVICE_TYPE_LIGHT
-                    _LOGGER.info("Auto-detected %s as Telink light", mac)
-                else:
-                    _LOGGER.warning("Could not auto-detect device type for %s (services=%s)", mac, service_uuids)
-                    raise ValueError("unknown_device_type")
-            else:
-                detected_type = device_type
-
-            # Step 4: Pairing/provisioning (device-type specific)
-            extra_data: dict[str, Any] = {}
-
-            if detected_type == DEVICE_TYPE_SIG_PLUG:
-                # SIG Mesh: full provisioning handled by _run_provision
-                # (we'll call that later, for now just verify it's a SIG device)
-                services = client.services
-                service_uuids = [str(s.uuid).lower() for s in services]
-                if SIG_MESH_PROV_UUID not in service_uuids and SIG_MESH_PROXY_UUID not in service_uuids:
-                    _LOGGER.warning("%s claims to be SIG plug but lacks SIG Mesh services", mac)
-                    raise ValueError("device_type_mismatch")
-                # Provisioning will be done in async_step_sig_plug (no change to existing flow)
-
-            elif detected_type in (DEVICE_TYPE_LIGHT, DEVICE_TYPE_PLUG):
-                # PLAT-740: Telink pairing — PAIR_REQUEST → PAIR_SUCCESS
-                services = client.services
-                service_uuids = [str(s.uuid).lower() for s in services]
-                has_telink = any(uuid.startswith("00010203-0405-0607-0809-0a0b0c0d") for uuid in service_uuids)
-                if not has_telink:
-                    _LOGGER.warning("%s claims to be Telink but lacks Telink GATT service", mac)
-                    raise ValueError("device_type_mismatch")
-
-                # Import provisioner for Telink pairing
-                from tuya_ble_mesh.provisioner import pair
-
-                _LOGGER.info("Starting Telink mesh pairing for %s", mac)
-                try:
-                    session_key, _ = await pair(client, mesh_name.encode("utf-8"), mesh_password.encode("utf-8"))
-                    _LOGGER.info("Telink pairing succeeded for %s", mac)
-                except Exception as exc:
-                    _LOGGER.warning("Telink pairing failed for %s: %s", mac, exc, exc_info=True)
-                    # Map provisioning errors to user-friendly keys
-                    from tuya_ble_mesh.exceptions import ProvisioningError
-                    if isinstance(exc, ProvisioningError):
-                        raise ValueError("pairing_failed")
-                    raise ValueError("pairing_failed") from exc
-
-                # PLAT-740 Step 5: Verify — send status query and check response
-                _LOGGER.info("Verifying Telink device %s with status query", mac)
-                from tuya_ble_mesh.const import TELINK_CHAR_COMMAND, TELINK_CMD_STATUS_QUERY
-                from tuya_ble_mesh.protocol import encode_command_packet
-
-                # Build status query command
-                status_query = encode_command_packet(
-                    TELINK_CMD_STATUS_QUERY,
-                    b"\x10",  # Status query param
-                    session_key,
-                    0,  # sequence (first command after pairing)
-                    0,  # mesh_id (default)
-                    mac_to_bytes(mac),
-                )
-
-                try:
-                    await client.write_gatt_char(TELINK_CHAR_COMMAND, status_query, response=True)
-                    _LOGGER.info("Status query sent successfully to %s — device verified", mac)
-                except Exception as exc:
-                    _LOGGER.warning("Verify command failed for %s: %s", mac, exc, exc_info=True)
-                    raise ValueError("verify_failed") from exc
-
-            else:
-                # Unknown device type
-                raise ValueError("unknown_device_type")
-
-            _LOGGER.info("Device %s validated successfully (type=%s)", mac, detected_type)
-            return detected_type, extra_data
-
-        finally:
-            await client.disconnect()
-
-    # PLAT-740 AC6: Wrap entire flow in 30s timeout
-    try:
-        return await asyncio.wait_for(_validate_inner(), timeout=30.0)
-    except asyncio.TimeoutError:
-        _LOGGER.warning("Validation timed out for %s after 30s", mac)
-        raise ValueError("timeout_validation")
 
 
 async def _test_bridge_with_session(hass: Any, host: str, port: int) -> bool:
@@ -669,6 +500,266 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         self._prov_dev_key: str = ""
         self._prov_app_key: str = ""
 
+    async def _validate_and_connect(
+        self,
+        mac: str,
+        device_type: str | None = None,
+        mesh_name: str = "out_of_mesh",
+        mesh_password: str = "123456",
+    ) -> tuple[str, dict[str, Any]]:
+        """Connect to device, detect type if needed, and verify basic communication.
+
+        This method implements the Shelly-pattern: validate BEFORE creating config entry.
+
+        Steps:
+        1. BLE connect to device
+        2. GATT service discovery to auto-detect device type (if not provided)
+        3. Telink: PAIR_REQUEST → PAIR_SUCCESS (mesh login handshake)
+        4. Send test command (status query) and verify RESPONSE with hex logging
+        5. Return device_type + any discovered credentials/config
+
+        PLAT-740 QC Round 3: Full implementation with pairing + verify + response check.
+        Timeout: 30 seconds total for entire flow (connect + pair + verify).
+
+        Args:
+            mac: BLE MAC address.
+            device_type: Known device type, or None to auto-detect.
+            mesh_name: Telink mesh network name (for Telink devices).
+            mesh_password: Telink mesh password (for Telink devices).
+
+        Returns:
+            Tuple of (detected_device_type, extra_data_dict).
+            extra_data_dict may contain keys like net_key, dev_key, app_key for SIG devices.
+
+        Raises:
+            ValueError: With translatable error key if connection/pairing/verify fails.
+            asyncio.TimeoutError: If total flow exceeds 30 seconds.
+        """
+        from homeassistant.components import bluetooth as ha_bluetooth
+
+        _LOGGER.info("Validating device %s (type=%s)", mac, device_type or "auto-detect")
+
+        # PLAT-740 AC6: 30s total timeout for entire flow
+        async def _validate_inner() -> tuple[str, dict[str, Any]]:
+            # Step 1: Check device is advertising
+            ble_device = ha_bluetooth.async_ble_device_from_address(
+                self.hass, mac.upper(), connectable=True
+            )
+            if ble_device is None:
+                _LOGGER.warning("Device %s not found in HA bluetooth registry", mac)
+                raise ValueError("device_not_found")
+
+            # Step 2: Connect via Bleak
+            from bleak import BleakClient
+            from bleak_retry_connector import (
+                BleakClientWithServiceCache,
+                close_stale_connections_by_address,
+                establish_connection,
+            )
+
+            await close_stale_connections_by_address(mac.upper())
+
+            try:
+                client = await establish_connection(
+                    BleakClientWithServiceCache,
+                    ble_device,
+                    f"Validating {mac}",
+                    max_attempts=3,
+                    use_services_cache=True,
+                )
+            except Exception as exc:
+                _LOGGER.warning("BLE connect failed for %s: %s", mac, exc, exc_info=True)
+                raise ValueError("cannot_connect_ble") from exc
+
+            try:
+                # Step 3: GATT service discovery to detect device type (if not provided)
+                if device_type is None:
+                    services = client.services
+                    service_uuids = [str(s.uuid).lower() for s in services]
+
+                    _LOGGER.debug("Discovered services for %s: %s", mac, service_uuids)
+
+                    # SIG Mesh detection (0x1827 Provisioning or 0x1828 Proxy)
+                    if SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids:
+                        detected_type = DEVICE_TYPE_SIG_PLUG
+                        _LOGGER.info("Auto-detected %s as SIG Mesh plug", mac)
+                    # Telink detection (00010203-... UUID prefix)
+                    elif any(uuid.startswith("00010203-0405-0607-0809-0a0b0c0d") for uuid in service_uuids):
+                        detected_type = DEVICE_TYPE_LIGHT
+                        _LOGGER.info("Auto-detected %s as Telink light", mac)
+                    else:
+                        _LOGGER.warning("Could not auto-detect device type for %s (services=%s)", mac, service_uuids)
+                        raise ValueError("unknown_device_type")
+                else:
+                    detected_type = device_type
+
+                # Step 4: Pairing/provisioning (device-type specific)
+                extra_data: dict[str, Any] = {}
+
+                if detected_type == DEVICE_TYPE_SIG_PLUG:
+                    # SIG Mesh: full provisioning handled by _run_provision
+                    # (we'll call that later, for now just verify it's a SIG device)
+                    services = client.services
+                    service_uuids = [str(s.uuid).lower() for s in services]
+                    if SIG_MESH_PROV_UUID not in service_uuids and SIG_MESH_PROXY_UUID not in service_uuids:
+                        _LOGGER.warning("%s claims to be SIG plug but lacks SIG Mesh services", mac)
+                        raise ValueError("device_type_mismatch")
+                    # Provisioning will be done in async_step_sig_plug (no change to existing flow)
+
+                elif detected_type in (DEVICE_TYPE_LIGHT, DEVICE_TYPE_PLUG):
+                    # PLAT-740: Telink pairing — PAIR_REQUEST → PAIR_SUCCESS
+                    services = client.services
+                    service_uuids = [str(s.uuid).lower() for s in services]
+                    has_telink = any(uuid.startswith("00010203-0405-0607-0809-0a0b0c0d") for uuid in service_uuids)
+                    if not has_telink:
+                        _LOGGER.warning("%s claims to be Telink but lacks Telink GATT service", mac)
+                        raise ValueError("device_type_mismatch")
+
+                    # Import provisioner for Telink pairing
+                    from tuya_ble_mesh.provisioner import pair
+
+                    _LOGGER.info("Starting Telink mesh pairing for %s", mac)
+                    try:
+                        session_key, _ = await pair(client, mesh_name.encode("utf-8"), mesh_password.encode("utf-8"))
+                        _LOGGER.info("Telink pairing succeeded for %s (session_key=%d bytes)", mac, len(session_key))
+                    except Exception as exc:
+                        _LOGGER.warning("Telink pairing failed for %s: %s", mac, exc, exc_info=True)
+                        # Map provisioning errors to user-friendly keys
+                        from tuya_ble_mesh.exceptions import ProvisioningError
+                        if isinstance(exc, ProvisioningError):
+                            raise ValueError("pairing_failed")
+                        raise ValueError("pairing_failed") from exc
+
+                    # PLAT-740 QC BRIST 2: Verify — send status query and VALIDATE RESPONSE
+                    _LOGGER.info("Verifying Telink device %s with status query (0xE0)", mac)
+                    from tuya_ble_mesh.const import TELINK_CHAR_COMMAND, TELINK_CHAR_NOTIFY, TELINK_CMD_STATUS_QUERY
+                    from tuya_ble_mesh.protocol import encode_command_packet
+
+                    # Build status query command (0xE0)
+                    status_query = encode_command_packet(
+                        TELINK_CMD_STATUS_QUERY,
+                        b"\x10",  # Status query param
+                        session_key,
+                        0,  # sequence (first command after pairing)
+                        0,  # mesh_id (default)
+                        mac_to_bytes(mac),
+                    )
+
+                    # QC REQUIREMENT: Hex-log request
+                    _LOGGER.warning(
+                        "VERIFY TX [%s] → 0xE0 status query: %s",
+                        mac,
+                        status_query.hex() if isinstance(status_query, bytes) else status_query,
+                    )
+
+                    # Subscribe to notifications BEFORE sending command
+                    response_received = asyncio.Event()
+                    response_data: list[bytes] = []
+
+                    def notification_handler(sender: Any, data: bytes) -> None:
+                        """Capture response from device."""
+                        _LOGGER.warning("VERIFY RX [%s] ← notification: %s", mac, data.hex())
+                        response_data.append(data)
+                        response_received.set()
+
+                    await client.start_notify(TELINK_CHAR_NOTIFY, notification_handler)
+
+                    try:
+                        # Send command
+                        await client.write_gatt_char(TELINK_CHAR_COMMAND, status_query, response=True)
+                        _LOGGER.info("Status query (0xE0) sent to %s, waiting for response...", mac)
+
+                        # Wait up to 5 seconds for response
+                        try:
+                            await asyncio.wait_for(response_received.wait(), timeout=5.0)
+                            if response_data:
+                                _LOGGER.info(
+                                    "Device %s responded to verify command — device verified (response: %s)",
+                                    mac,
+                                    response_data[0].hex()[:40],
+                                )
+                            else:
+                                _LOGGER.warning("Device %s: response event set but no data captured", mac)
+                                raise ValueError("verify_failed")
+                        except asyncio.TimeoutError:
+                            _LOGGER.warning("Device %s did not respond to verify command within 5s", mac)
+                            raise ValueError("verify_failed")
+                    finally:
+                        await client.stop_notify(TELINK_CHAR_NOTIFY)
+
+                else:
+                    # Unknown device type
+                    raise ValueError("unknown_device_type")
+
+                _LOGGER.info("Device %s validated successfully (type=%s)", mac, detected_type)
+                return detected_type, extra_data
+
+            finally:
+                await client.disconnect()
+
+        # PLAT-740 AC6: Wrap entire flow in 30s timeout
+        try:
+            return await asyncio.wait_for(_validate_inner(), timeout=30.0)
+        except asyncio.TimeoutError:
+            _LOGGER.warning("Validation timed out for %s after 30s", mac)
+            raise ValueError("timeout_validation")
+
+    def _finalize_entry(
+        self,
+        mac: str,
+        device_type: str,
+        title: str | None = None,
+        **extra_data: Any,
+    ) -> FlowResult:
+        """Create config entry after all validation passed.
+
+        PLAT-740 QC BRIST 1: SINGLE entry point for async_create_entry.
+        ALL code paths must call this method to create entries.
+
+        Args:
+            mac: Device MAC address.
+            device_type: Validated device type.
+            title: Entry title (auto-generated if None).
+            **extra_data: Additional config data (mesh_name, keys, etc.).
+                Accepts both snake_case kwargs and CONF_* constants.
+
+        Returns:
+            FlowResult from async_create_entry.
+        """
+        short_mac = mac[-8:]
+        if title is None:
+            type_label = {
+                DEVICE_TYPE_LIGHT: "LED Light",
+                DEVICE_TYPE_PLUG: "Smart Plug",
+                DEVICE_TYPE_SIG_PLUG: "Smart Plug",
+                DEVICE_TYPE_SIG_BRIDGE_PLUG: "Smart Plug",
+                DEVICE_TYPE_TELINK_BRIDGE_LIGHT: "LED Light",
+            }.get(device_type, "Smart Device")
+            title = f"{type_label} {short_mac}"
+
+        # Map snake_case kwargs to CONF_* constants
+        key_map = {
+            "mesh_name": CONF_MESH_NAME,
+            "mesh_password": CONF_MESH_PASSWORD,
+            "vendor_id": CONF_VENDOR_ID,
+            "mesh_address": CONF_MESH_ADDRESS,
+            "unicast_target": CONF_UNICAST_TARGET,
+            "unicast_our": CONF_UNICAST_OUR,
+            "iv_index": CONF_IV_INDEX,
+            "net_key": CONF_NET_KEY,
+            "dev_key": CONF_DEV_KEY,
+            "app_key": CONF_APP_KEY,
+            "bridge_host": CONF_BRIDGE_HOST,
+            "bridge_port": CONF_BRIDGE_PORT,
+        }
+        data = {CONF_MAC_ADDRESS: mac, CONF_DEVICE_TYPE: device_type}
+        for key, value in extra_data.items():
+            conf_key = key_map.get(key, key)
+            data[conf_key] = value
+
+        _LOGGER.info("Creating config entry: %s (type=%s, data keys=%s)", title, device_type, list(data.keys()))
+        return self.async_create_entry(title=title, data=data)
+
     async def async_step_bluetooth(  # type: ignore[override]
         self,
         discovery_info: BluetoothServiceInfoBleak,
@@ -852,8 +943,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
 
                 # PLAT-740: CRITICAL — Connect and validate BEFORE creating entry
                 try:
-                    validated_type, extra_data = await _validate_and_connect(
-                        self.hass, mac, device_type, mesh_name, mesh_password
+                    validated_type, extra_data = await self._validate_and_connect(
+                        mac, device_type, mesh_name, mesh_password
                     )
                     # Update device_type with validated type (in case auto-detected)
                     device_type = validated_type
@@ -866,22 +957,16 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                     errors["base"] = "cannot_connect_ble"
 
             if not errors:
-                short_mac = mac[-8:]
-                type_label = "Smart Plug" if device_type == DEVICE_TYPE_PLUG else "LED Light"
-
                 await self.async_set_unique_id(mac)
                 self._abort_if_unique_id_configured()
 
-                return self.async_create_entry(
-                    title=f"{type_label} {short_mac}",
-                    data={
-                        CONF_MAC_ADDRESS: mac,
-                        CONF_MESH_NAME: mesh_name,
-                        CONF_MESH_PASSWORD: mesh_password,
-                        CONF_VENDOR_ID: vendor_id_str,
-                        CONF_DEVICE_TYPE: device_type,
-                        CONF_MESH_ADDRESS: mesh_address,
-                    },
+                return self._finalize_entry(
+                    mac=mac,
+                    device_type=device_type,
+                    mesh_name=mesh_name,
+                    mesh_password=mesh_password,
+                    vendor_id=vendor_id_str,
+                    mesh_address=mesh_address,
                 )
 
         # UX: If device type was auto-detected, skip the dropdown
@@ -995,8 +1080,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 mesh_password = user_input.get(CONF_MESH_PASSWORD, "123456")
 
                 try:
-                    validated_type, extra_data = await _validate_and_connect(
-                        self.hass, mac.upper(), device_type, mesh_name, mesh_password
+                    validated_type, extra_data = await self._validate_and_connect(
+                        mac.upper(), device_type, mesh_name, mesh_password
                     )
                     device_type = validated_type
                 except ValueError as exc:
@@ -1007,20 +1092,15 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                     errors["base"] = "cannot_connect_ble"
 
             if not errors:
-                short = mac[-8:]
-                type_label = "Smart Plug" if device_type == DEVICE_TYPE_PLUG else "LED Light"
                 await self.async_set_unique_id(mac.upper())
                 self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title=f"{type_label} {short}",
-                    data={
-                        CONF_MAC_ADDRESS: mac.upper(),
-                        CONF_MESH_NAME: user_input.get(CONF_MESH_NAME, "out_of_mesh"),
-                        CONF_MESH_PASSWORD: user_input.get(CONF_MESH_PASSWORD, "123456"),
-                        CONF_VENDOR_ID: user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID),
-                        CONF_DEVICE_TYPE: device_type,
-                        CONF_MESH_ADDRESS: user_input.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS),
-                    },
+                return self._finalize_entry(
+                    mac=mac.upper(),
+                    device_type=device_type,
+                    mesh_name=user_input.get(CONF_MESH_NAME, "out_of_mesh"),
+                    mesh_password=user_input.get(CONF_MESH_PASSWORD, "123456"),
+                    vendor_id=user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID),
+                    mesh_address=user_input.get(CONF_MESH_ADDRESS, DEFAULT_MESH_ADDRESS),
                 )
 
         # UX-1.4: 3 user-facing device types (SIG types auto-detected via Bluetooth discovery)
@@ -1114,18 +1194,15 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             else:
                 await self.async_set_unique_id(mac)
                 self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title=f"Smart Plug {mac[-8:]}",
-                    data={
-                        CONF_MAC_ADDRESS: mac,
-                        CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG,
-                        CONF_UNICAST_TARGET: f"{_UNICAST_DEVICE_DEFAULT:04X}",
-                        CONF_UNICAST_OUR: f"{_UNICAST_PROVISIONER:04X}",
-                        CONF_IV_INDEX: DEFAULT_IV_INDEX,
-                        CONF_NET_KEY: net_key_hex,
-                        CONF_DEV_KEY: dev_key_hex,
-                        CONF_APP_KEY: app_key_hex,
-                    },
+                return self._finalize_entry(
+                    mac=mac,
+                    device_type=DEVICE_TYPE_SIG_PLUG,
+                    unicast_target=f"{_UNICAST_DEVICE_DEFAULT:04X}",
+                    unicast_our=f"{_UNICAST_PROVISIONER:04X}",
+                    iv_index=DEFAULT_IV_INDEX,
+                    net_key=net_key_hex,
+                    dev_key=dev_key_hex,
+                    app_key=app_key_hex,
                 )
 
         return self.async_show_form(
@@ -1311,15 +1388,12 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                     mac = self._discovery_info["address"]
                     await self.async_set_unique_id(mac)
                     self._abort_if_unique_id_configured()
-                    return self.async_create_entry(
-                        title=f"Smart Plug {mac[-8:]}",
-                        data={
-                            CONF_MAC_ADDRESS: mac,
-                            CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_BRIDGE_PLUG,
-                            CONF_UNICAST_TARGET: unicast_target,
-                            CONF_BRIDGE_HOST: host,
-                            CONF_BRIDGE_PORT: port,
-                        },
+                    return self._finalize_entry(
+                        mac=mac,
+                        device_type=DEVICE_TYPE_SIG_BRIDGE_PLUG,
+                        unicast_target=unicast_target,
+                        bridge_host=host,
+                        bridge_port=port,
                     )
 
         return self.async_show_form(
@@ -1361,14 +1435,11 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 mac = self._discovery_info["address"]
                 await self.async_set_unique_id(mac)
                 self._abort_if_unique_id_configured()
-                return self.async_create_entry(
-                    title=f"LED Light {mac[-8:]}",
-                    data={
-                        CONF_MAC_ADDRESS: mac,
-                        CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
-                        CONF_BRIDGE_HOST: host,
-                        CONF_BRIDGE_PORT: port,
-                    },
+                return self._finalize_entry(
+                    mac=mac,
+                    device_type=DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
+                    bridge_host=host,
+                    bridge_port=port,
                 )
 
         return self.async_show_form(

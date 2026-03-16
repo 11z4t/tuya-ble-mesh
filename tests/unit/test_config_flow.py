@@ -423,6 +423,9 @@ class TestPLAT659DiscoveryDoesNotAutoCreate:
             "auto_device_type": DEVICE_TYPE_LIGHT,
         }
 
+        # PLAT-740: Mock _validate_and_connect
+        flow._validate_and_connect = AsyncMock(return_value=(DEVICE_TYPE_LIGHT, {}))
+
         # Call confirm step WITH user_input (user submitted form)
         result = await flow.async_step_confirm(
             user_input={CONF_DEVICE_TYPE: DEVICE_TYPE_LIGHT}
