@@ -640,7 +640,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             else:
                 # Fallback for standalone mode (no entry)
                 self._hass.loop.call_soon_threadsafe(
-                    lambda: asyncio.create_task(self.async_set_updated_data(None)))
+                    lambda: self._hass.async_create_task(self.async_set_updated_data(None)))
         else:
             self._notify_listeners()
 

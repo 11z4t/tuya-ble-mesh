@@ -244,6 +244,22 @@
     "bridge_unreachable": {
       "title": "Device not responding",
       "description": "Cannot reach the device at {host}:{port}. Check that it's powered on and connected to your network."
+    },
+    "auth_failed": {
+      "title": "Authentication failed",
+      "description": "Could not authenticate with {device}. The device may need to be removed and re-added with the correct network credentials."
+    },
+    "device_not_found": {
+      "title": "Device not found",
+      "description": "Cannot find {device}. Make sure it's powered on and within Bluetooth range."
+    },
+    "connection_timeout": {
+      "title": "Connection timeout",
+      "description": "Connection to {device} timed out. Make sure the device is powered on and close to your Bluetooth adapter."
+    },
+    "reconnect_storm": {
+      "title": "Reconnection loop detected",
+      "description": "{device} has reconnected {count} times recently. This may indicate a power or signal issue."
     }
   }
 }

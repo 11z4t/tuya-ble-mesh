@@ -91,7 +91,7 @@ async def async_create_issue_auth_or_mesh_mismatch(
         issue_id,
         is_fixable=True,
         severity=ir.IssueSeverity.ERROR,
-        translation_key="provisioning_failed",
+        translation_key="auth_failed",
         translation_placeholders={"device": device_name},
     )
     _LOGGER.warning("Repair issue created: auth_or_mesh_mismatch for %s", device_name)
@@ -113,7 +113,7 @@ async def async_create_issue_device_not_found(
         issue_id,
         is_fixable=False,
         severity=ir.IssueSeverity.WARNING,
-        translation_key="provisioning_failed",
+        translation_key="device_not_found",
         translation_placeholders={"device": device_name},
     )
     _LOGGER.warning("Repair issue created: device_not_found for %s (%s)", device_name, mac)
