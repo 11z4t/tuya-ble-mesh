@@ -36,6 +36,7 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 # --- Reconnect backoff parameters ---
+DEBOUNCE_DELAY = 1.5  # PLAT-754: Initial delay before first reconnect attempt
 INITIAL_BACKOFF = 5.0
 MAX_BACKOFF = 300.0
 BACKOFF_MULTIPLIER = 2.0
@@ -307,7 +308,16 @@ class ConnectionManager:
         On success: clears connectivity repair issues, resets failure counter,
         marks entities available (triggers HA state update via callback).
         On failure: classifies error, checks for storm, creates repair if needed.
+
+        PLAT-754: Initial debounce delay to avoid immediate reconnect
+        loops during transient disconnects.
         """
+        # PLAT-754: Debounce delay before first reconnect attempt
+        await asyncio.sleep(DEBOUNCE_DELAY)
+
+        if not self._running:
+            return
+
         is_bridge = self.is_bridge_device()
         max_backoff = BRIDGE_MAX_BACKOFF if is_bridge else MAX_BACKOFF
 

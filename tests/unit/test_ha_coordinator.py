@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(_ROOT) / "lib"))
 
 from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     _BACKOFF_MULTIPLIER,
+    _DEBOUNCE_DELAY,
     _INITIAL_BACKOFF,
     _MAX_BACKOFF,
     _RSSI_DEFAULT_INTERVAL,
@@ -762,12 +763,12 @@ class TestReconnectLoop:
         with patch(_PATCH_SLEEP, side_effect=fake_sleep):
             await coord._reconnect_loop()
 
-        # Verify exponential backoff sequence
-        assert recorded_sleeps[0] == _INITIAL_BACKOFF
-        assert recorded_sleeps[1] == _INITIAL_BACKOFF * _BACKOFF_MULTIPLIER
-        assert recorded_sleeps[2] == _INITIAL_BACKOFF * _BACKOFF_MULTIPLIER**2
-        assert recorded_sleeps[3] == _INITIAL_BACKOFF * _BACKOFF_MULTIPLIER**3
-        assert recorded_sleeps[4] == _INITIAL_BACKOFF * _BACKOFF_MULTIPLIER**4
+        # PLAT-754: First sleep is debounce delay, then exponential backoff
+        assert recorded_sleeps[0] == _DEBOUNCE_DELAY
+        assert recorded_sleeps[1] == _INITIAL_BACKOFF
+        assert recorded_sleeps[2] == _INITIAL_BACKOFF * _BACKOFF_MULTIPLIER
+        assert recorded_sleeps[3] == _INITIAL_BACKOFF * _BACKOFF_MULTIPLIER**2
+        assert recorded_sleeps[4] == _INITIAL_BACKOFF * _BACKOFF_MULTIPLIER**3
 
     @pytest.mark.asyncio
     async def test_reconnect_backoff_capped_at_max(self) -> None:

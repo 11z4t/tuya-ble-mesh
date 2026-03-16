@@ -55,6 +55,7 @@ _SEQ_PERSIST_INTERVAL = 10
 _SEQ_SAFETY_MARGIN = 100
 _SEQ_STORE_VERSION = 1
 _INITIAL_BACKOFF = 5.0  # backward-compat alias
+_DEBOUNCE_DELAY = 1.5  # PLAT-754: backward-compat alias for connection_manager.DEBOUNCE_DELAY
 _STALENESS_THRESHOLD_SECONDS = 300  # 5 minutes
 _STALENESS_CHECK_INTERVAL = 60  # Check every minute
 
@@ -769,6 +770,11 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         self._dispatch_update()
 
     def _on_disconnect(self) -> None:
+        """Handle disconnect event.
+
+        PLAT-754: Disconnect handling includes debounce delay in reconnect logic
+        to avoid immediate reconnect loops during transient disconnects.
+        """
         self._state = replace(self._state, available=False)
         self._conn_mgr.handle_disconnect()
         self._dispatch_update()
