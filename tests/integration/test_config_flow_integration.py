@@ -316,7 +316,7 @@ class TestSIGBridgePlugConfigFlow:
         assert result["step_id"] == "sig_bridge"
 
     @patch(
-        "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
+        "custom_components.tuya_ble_mesh.config_flow_validators._test_bridge_with_session",
         new_callable=AsyncMock,
         return_value=True,
     )
@@ -343,7 +343,7 @@ class TestSIGBridgePlugConfigFlow:
         assert "Smart Plug" in result["title"]
 
     @patch(
-        "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
+        "custom_components.tuya_ble_mesh.config_flow_validators._test_bridge_with_session",
         new_callable=AsyncMock,
         return_value=False,
     )
@@ -408,7 +408,7 @@ class TestTelinkBridgeLightConfigFlow:
         assert result["step_id"] == "telink_bridge"
 
     @patch(
-        "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
+        "custom_components.tuya_ble_mesh.config_flow_validators._test_bridge_with_session",
         new_callable=AsyncMock,
         return_value=True,
     )
@@ -434,7 +434,7 @@ class TestTelinkBridgeLightConfigFlow:
         assert "LED Light" in result["title"]
 
     @patch(
-        "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
+        "custom_components.tuya_ble_mesh.config_flow_validators._test_bridge_with_session",
         new_callable=AsyncMock,
         return_value=False,
     )
@@ -467,7 +467,7 @@ class TestTelinkBridgeLightConfigFlow:
         assert CONF_BRIDGE_HOST in result["errors"]
 
     @patch(
-        "custom_components.tuya_ble_mesh.config_flow._test_bridge_with_session",
+        "custom_components.tuya_ble_mesh.config_flow_validators._test_bridge_with_session",
         new_callable=AsyncMock,
         return_value=True,
     )
