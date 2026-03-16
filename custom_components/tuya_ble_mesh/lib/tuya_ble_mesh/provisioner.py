@@ -1,9 +1,13 @@
-"""Telink BLE Mesh provisioner — 3-step pairing handshake.
+"""Telink BLE Mesh provisioner — 4-step pairing handshake.
 
 Handles the complete provisioning flow:
 1. Send pair request (random + encrypted proof) to char 1914
-2. Read pair response (device random or failure) from char 1914
-3. Derive session key, set mesh credentials via char 1914
+2. Enable notifications on char 1911 (write 0x01) — BEFORE reading response!
+3. Read pair response (device random or failure) from char 1914
+4. Derive session key, optionally set mesh credentials via char 1914
+
+CRITICAL: Step 2 must happen BEFORE step 3, as per PROTOCOL.md section 10.
+The device requires the notification enable write before it will respond.
 
 After provisioning, the device accepts encrypted commands on char 1912
 and sends encrypted status on char 1911.
@@ -51,8 +55,12 @@ async def pair(
     """Execute the 3-step pairing handshake.
 
     Step 1: Write pair request to characteristic 1914.
-    Step 2: Read response — success (0x0D + device random) or failure (0x0E).
-    Step 3: Derive session key from both randoms.
+    Step 2: Enable notifications on 1911 (write 0x01) — BEFORE reading pair response!
+    Step 3: Read response — success (0x0D + device random) or failure (0x0E).
+    Step 4: Derive session key from both randoms.
+
+    CRITICAL: The notification enable (0x01 to char 1911) must happen BEFORE
+    reading the pair response from char 1914, as per PROTOCOL.md section 10.
 
     Args:
         client: Connected BleakClient.
@@ -77,7 +85,16 @@ async def pair(
         timeout=_GATT_TIMEOUT,
     )
 
-    # Step 2: Read pair response
+    # Step 2: Enable notifications on char 1911 BEFORE reading pair response
+    # This is CRITICAL per PROTOCOL.md section 10 — the device requires this
+    # write before it will respond to the pair request.
+    _LOGGER.debug("Enabling notifications on %s (before reading pair response)", TELINK_CHAR_STATUS)
+    await asyncio.wait_for(
+        client.write_gatt_char(TELINK_CHAR_STATUS, b"\x01", response=True),
+        timeout=_GATT_TIMEOUT,
+    )
+
+    # Step 3: Read pair response
     _LOGGER.debug("Reading pair response from %s", TELINK_CHAR_PAIRING)
     response_data = bytes(
         await asyncio.wait_for(client.read_gatt_char(TELINK_CHAR_PAIRING), timeout=_GATT_TIMEOUT)
@@ -183,7 +200,10 @@ async def provision(
     new_name: bytes | None = None,
     new_password: bytes | None = None,
 ) -> bytes:
-    """Complete provisioning: pair, optionally set credentials, enable notifications.
+    """Complete provisioning: pair, optionally set credentials.
+
+    NOTE: enable_notifications() is now called inside pair() before reading
+    the pair response, as required by the Telink protocol (PROTOCOL.md section 10).
 
     Args:
         client: Connected BleakClient.
@@ -205,6 +225,6 @@ async def provision(
         password = new_password if new_password is not None else current_password
         await set_mesh_credentials(client, session_key, name, password)
 
-    await enable_notifications(client)
+    # Notifications are already enabled in pair() — do NOT call enable_notifications() again
 
     return session_key

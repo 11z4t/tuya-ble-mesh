@@ -67,14 +67,22 @@ class TestPair:
         assert len(session_key) == 16
         assert returned_random == CLIENT_RANDOM
 
-        # Verify write was called with pair packet to correct characteristic
-        client.write_gatt_char.assert_called_once()
-        args = client.write_gatt_char.call_args
-        assert args[0][0] == TELINK_CHAR_PAIRING
-        assert len(args[0][1]) == 17  # pair packet size
-        assert args[1]["response"] is True
+        # Verify write was called twice: 1) pair packet, 2) enable notifications
+        assert client.write_gatt_char.call_count == 2
 
-        # Verify read was called
+        # First call: pair packet to TELINK_CHAR_PAIRING
+        first_call = client.write_gatt_char.call_args_list[0]
+        assert first_call[0][0] == TELINK_CHAR_PAIRING
+        assert len(first_call[0][1]) == 17  # pair packet size
+        assert first_call[1]["response"] is True
+
+        # Second call: enable notifications to TELINK_CHAR_STATUS
+        second_call = client.write_gatt_char.call_args_list[1]
+        assert second_call[0][0] == TELINK_CHAR_STATUS
+        assert second_call[0][1] == b"\x01"
+        assert second_call[1]["response"] is True
+
+        # Verify read was called after enable notifications
         client.read_gatt_char.assert_called_once_with(TELINK_CHAR_PAIRING)
 
     @pytest.mark.asyncio
