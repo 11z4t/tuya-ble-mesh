@@ -128,6 +128,19 @@ async def validate_and_connect(
                 use_services_cache=True,
             )
         except Exception as exc:
+            # PLAT-737: Detect BLE adapter busy (0x0a) errors
+            exc_str = str(exc).lower()
+            if "busy" in exc_str or "0x0a" in exc_str or "in progress" in exc_str:
+                from custom_components.tuya_ble_mesh.repairs import async_create_issue_ble_adapter_busy
+
+                _LOGGER.error(
+                    "BLE adapter busy for %s — another integration is monopolizing the adapter. "
+                    "User needs ESPHome Bluetooth Proxy or a second BLE adapter.",
+                    mac,
+                )
+                # Create repair issue to guide user
+                await async_create_issue_ble_adapter_busy(hass, f"Device {mac[-8:]}")
+                raise ValueError("ble_adapter_busy") from exc
             _LOGGER.warning("BLE connect failed for %s: %s", mac, exc, exc_info=True)
             raise ValueError("cannot_connect_ble") from exc
 

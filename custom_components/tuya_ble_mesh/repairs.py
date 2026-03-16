@@ -26,6 +26,7 @@ ISSUE_AUTH_OR_MESH_MISMATCH = "auth_or_mesh_mismatch"
 ISSUE_DEVICE_NOT_FOUND = "device_not_found"
 ISSUE_TIMEOUT = "timeout"
 ISSUE_RECONNECT_STORM = "reconnect_storm"
+ISSUE_BLE_ADAPTER_BUSY = "ble_adapter_busy"
 
 DOMAIN = "tuya_ble_mesh"
 
@@ -165,6 +166,35 @@ async def async_create_issue_reconnect_storm(
         device_name,
         reconnect_count,
         window_minutes,
+    )
+
+
+async def async_create_issue_ble_adapter_busy(
+    hass: HomeAssistant,
+    device_name: str,
+    entry_id: str | None = None,
+) -> None:
+    """Create a repair issue when BLE adapter is busy (status 0x0a).
+
+    PLAT-737: Hardware limitation — HA bluetooth integration monopolizes the adapter.
+    User needs ESPHome Bluetooth Proxy or second BLE adapter.
+    """
+    from homeassistant.helpers import issue_registry as ir
+
+    issue_id = f"{ISSUE_BLE_ADAPTER_BUSY}_{entry_id}" if entry_id else ISSUE_BLE_ADAPTER_BUSY
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        issue_id,
+        is_fixable=False,
+        severity=ir.IssueSeverity.ERROR,
+        translation_key="ble_adapter_busy",
+        translation_placeholders={"device": device_name},
+    )
+    _LOGGER.error(
+        "Repair issue created: ble_adapter_busy for %s — hardware limitation requires "
+        "ESPHome Bluetooth Proxy or second BLE adapter",
+        device_name,
     )
 
 

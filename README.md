@@ -154,6 +154,25 @@ Each device creates:
 - **Raspberry Pi** (3B+ or 4) with built-in Bluetooth — runs the bridge daemon
 - **Tuya BLE Mesh devices** — compatible devices (see Tested Devices section)
 
+### IMPORTANT: Bluetooth Adapter Requirements
+
+**If you use Home Assistant's built-in Bluetooth integration**, you'll encounter "BLE adapter busy" errors (status 0x0a). The built-in integration monopolizes the Bluetooth adapter.
+
+**You have two options:**
+
+**Option 1: ESPHome Bluetooth Proxy (Recommended)**
+- Get an ESP32 device (ESP32-DevKit, M5Atom Lite, or similar)
+- Flash it with ESPHome and enable `bluetooth_proxy`
+- Add it to Home Assistant
+- This integration will automatically use it
+
+**Option 2: Second USB Bluetooth Adapter**
+- Install a USB Bluetooth 4.0+ dongle
+- Plug it into your Home Assistant host
+- Restart Home Assistant
+
+Without one of these solutions, direct BLE device control will fail with "adapter busy" errors.
+
 ### Optional hardware (for development/debugging)
 
 - **Adafruit nRF51822 BLE Sniffer** — passive packet capture via serial
@@ -237,9 +256,42 @@ Local-only (not in CI): **bandit**, **safety**, **detect-secrets**.
 
 **Overall status: HACS beta-ready / stable for limited use.** Tested with limited devices. SIG Mesh layer has known simplifications (see below). Not broadly validated across vendors.
 
+## Troubleshooting
+
+### BLE Adapter Busy (Error 0x0a)
+
+**Symptom:** Connection fails with "Bluetooth adapter busy" or "error 0x0a"
+
+**Cause:** Home Assistant's built-in Bluetooth integration is monopolizing the adapter.
+
+**Solution:** Use ESPHome Bluetooth Proxy or install a second USB Bluetooth adapter (see Hardware Setup section above).
+
+### Device Not Found
+
+**Symptom:** "Device not found" during setup
+
+**Possible causes:**
+- Device not powered on or too far away (>5m from adapter)
+- Device already paired to Tuya Smart app (close the app completely)
+- Device needs factory reset (power cycle 3-5 times quickly)
+
+**Solution:** Ensure device is in pairing mode, close Tuya Smart app, move device closer to adapter.
+
+### Connection Timeouts
+
+**Symptom:** Connection times out during provisioning
+
+**Possible causes:**
+- Weak BLE signal
+- BLE adapter monopolized by another integration
+- Device in wrong state
+
+**Solution:** Move device closer, check for adapter conflicts, try factory reset.
+
 ## Known Limitations
 
 - **Bridge required** — HA cannot talk BLE mesh directly; the RPi bridge daemon must be running (for Telink devices)
+- **BLE adapter sharing** — Cannot share adapter with HA built-in Bluetooth integration; requires ESPHome proxy or second adapter
 - **Limited device testing** — limited hardware testing; other brands are protocol-compatible but untested
 - **Factory reset** — some devices need 5x rapid power cycling to enter provisioning mode; not all respond reliably
 - **BlueZ quirks** — on older BlueZ versions, `bluetoothctl remove` may be needed between reconnects (handled automatically)

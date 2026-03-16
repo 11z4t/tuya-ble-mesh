@@ -100,6 +100,7 @@
       "invalid_vendor_id": "Invalid vendor code — use 1 to 4 hex digits (e.g. 0x1001).",
       "cannot_connect": "Could not reach the device. Check that it's powered on and connected to your network.",
       "cannot_connect_ble": "Kan inte ansluta. Kontrollera att enheten är i par-mode och nära Bluetooth-adaptern.",
+      "ble_adapter_busy": "Your Bluetooth adapter is busy (status 0x0a). Another integration (e.g., Home Assistant bluetooth) is monopolizing it. To fix this: (1) Add an ESPHome Bluetooth Proxy device, OR (2) Install a second USB Bluetooth adapter. See the integration documentation for details.",
       "pairing_failed": "Pairing misslyckades. Fabriksåterställ enheten och försök igen.",
       "verify_failed": "Enheten svarar inte. Försök igen.",
       "device_type_mismatch": "Enhetstypen stämmer inte. Kontrollera att rätt enhetstyp är vald.",
@@ -274,6 +275,10 @@
     "reconnect_storm": {
       "title": "Frequent disconnections for {device}",
       "description": "The device has reconnected {count} times in the last few minutes. This usually indicates:\n\n- **Weak Bluetooth signal** — move device closer\n- **Interference** from other Bluetooth/WiFi devices\n- **Power supply issues** — check the device power\n\nThe integration will continue reconnecting automatically."
+    },
+    "ble_adapter_busy": {
+      "title": "Bluetooth adapter busy — cannot connect to {device}",
+      "description": "Your Bluetooth adapter is busy (error 0x0a). Another integration (likely the built-in Home Assistant Bluetooth integration) is monopolizing the adapter.\n\n**This is a hardware limitation.** To fix it, you have two options:\n\n**Option 1: ESPHome Bluetooth Proxy (Recommended)**\n1. Get an ESP32 device (e.g., ESP32-DevKit, M5Atom Lite)\n2. Flash it with ESPHome and enable `bluetooth_proxy`\n3. Add it to Home Assistant\n4. The integration will automatically use it\n\n**Option 2: Second USB Bluetooth Adapter**\n1. Buy a USB Bluetooth 4.0+ dongle\n2. Plug it into your Home Assistant host\n3. Restart Home Assistant\n4. Try adding the device again\n\n**Why this happens:** Home Assistant's built-in Bluetooth integration keeps the adapter locked for active scanning. This integration cannot share the same adapter.\n\nSee the integration documentation for detailed setup instructions."
     }
   }
 }

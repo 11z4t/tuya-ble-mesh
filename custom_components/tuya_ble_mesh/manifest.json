@@ -24,6 +24,9 @@
   "dependencies": [
     "bluetooth"
   ],
+  "bluetooth_adapters": [
+    "esphome"
+  ],
   "requirements": [
     "bleak>=0.21",
     "bleak-retry-connector>=3.0",
