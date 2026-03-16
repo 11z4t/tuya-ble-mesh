@@ -34,14 +34,11 @@ from custom_components.tuya_ble_mesh.connection_manager import (
     COMMAND_CONCURRENCY_LIMIT as _COMMAND_CONCURRENCY_LIMIT,
     ConnectionManager,
     ConnectionStatistics,
-    DEFAULT_MAX_RECONNECT_FAILURES as _DEFAULT_MAX_RECONNECT_FAILURES,
     MAX_BACKOFF as _MAX_BACKOFF,
-    RECONNECT_TIMELINE_MAX as _RECONNECT_TIMELINE_MAX,
     RSSI_DEFAULT_INTERVAL as _RSSI_DEFAULT_INTERVAL,
     RSSI_MAX_INTERVAL as _RSSI_MAX_INTERVAL,
     RSSI_MIN_INTERVAL as _RSSI_MIN_INTERVAL,
     RSSI_STABILITY_THRESHOLD as _RSSI_STABILITY_THRESHOLD,
-    ReconnectEvent,
     STORM_DEFAULT_THRESHOLD as _STORM_DEFAULT_THRESHOLD,
     STORM_WINDOW_SECONDS as _STORM_WINDOW_SECONDS,
 )
@@ -171,12 +168,8 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         else:
             super().__setattr__(name, value)
 
-    def _classify_error(self, err: Exception) -> ErrorClass:
-        return self._conn_mgr.classify_error(err)
-
-    def _is_bridge_device(self) -> bool:
-        return self._conn_mgr.is_bridge_device()
-
+    def _classify_error(self, err: Exception) -> ErrorClass: return self._conn_mgr.classify_error(err)
+    def _is_bridge_device(self) -> bool: return self._conn_mgr.is_bridge_device()
     def _adjust_polling_interval(self) -> None: self._conn_mgr.adjust_polling_interval()
     def _start_rssi_polling(self) -> None: self._conn_mgr.start_rssi_polling()
     def _stop_rssi_polling(self) -> None: self._conn_mgr.stop_rssi_polling()
