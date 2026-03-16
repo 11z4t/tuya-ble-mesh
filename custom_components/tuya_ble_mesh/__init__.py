@@ -13,7 +13,11 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, TypeAlias
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import (
+    ConfigEntryAuthFailed,
+    ConfigEntryNotReady,
+    HomeAssistantError,
+)
 
 from custom_components.tuya_ble_mesh.const import (
     CONF_DEVICE_TYPE,
@@ -134,14 +138,39 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         registry=registry,
     )
 
-    # Start coordinator in background — do NOT block setup on BLE connection.
-    # Entities will show as "unavailable" until connection succeeds.
-    # This prevents config flow from hanging when device is unreachable.
-    entry.async_create_background_task(
-        hass,
-        coordinator.async_start(),
-        f"tuya_ble_mesh_connect_{mac_address}",
-    )
+    # PLAT-743: Try initial connection synchronously during setup.
+    # If it fails, raise ConfigEntryNotReady to let HA Core handle retry scheduling.
+    # This gives HA visibility into integration health and proper retry state in UI.
+    try:
+        await coordinator.async_initial_connect()
+    except Exception as err:
+        # Classify error to determine if it's auth or connection failure
+        from custom_components.tuya_ble_mesh.error_classifier import ErrorClass
+
+        error_class = coordinator._classify_error(err)
+
+        if error_class == ErrorClass.MESH_AUTH:
+            # Mesh authentication failed — likely invalid provisioning keys
+            _LOGGER.error(
+                "Mesh authentication failed for %s: %s — re-provision required",
+                mac_address,
+                err,
+            )
+            raise ConfigEntryAuthFailed(
+                translation_domain=DOMAIN,
+                translation_key="mesh_auth_failed",
+            ) from err
+
+        # All other errors: BLE connection failure, device offline, etc.
+        _LOGGER.warning(
+            "Initial connection failed for %s: %s — will retry automatically",
+            mac_address,
+            err,
+        )
+        raise ConfigEntryNotReady(
+            translation_domain=DOMAIN,
+            translation_key="device_connection_failed",
+        ) from err
 
     # Forward platform setup even if device is unavailable —
     # entities will show as "unavailable" until connection succeeds

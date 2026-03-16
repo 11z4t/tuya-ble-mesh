@@ -173,6 +173,12 @@
     }
   },
   "exceptions": {
+    "device_connection_failed": {
+      "message": "Could not connect to device. Check that it's powered on and within Bluetooth range. Home Assistant will retry automatically."
+    },
+    "mesh_auth_failed": {
+      "message": "Mesh authentication failed. The device may need to be removed and re-provisioned with the correct network credentials."
+    },
     "connection_failed": {
       "message": "Could not connect to {device}. Check that it's powered on and within range."
     },

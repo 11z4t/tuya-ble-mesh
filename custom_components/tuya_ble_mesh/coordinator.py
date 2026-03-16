@@ -414,7 +414,53 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
     # --- Lifecycle ---
 
+    async def async_initial_connect(self) -> None:
+        """Perform initial connection during config entry setup.
+
+        PLAT-743: Called synchronously from async_setup_entry.
+        If connection fails, raises exception to propagate to HA Core,
+        which will:
+        - Show "Retrying setup" in UI instead of "Loaded"
+        - Handle retry scheduling with exponential backoff
+        - Give users visibility into integration health
+
+        Raises:
+            Exception: Any connection or authentication error from device.connect().
+        """
+        self._conn_mgr.running = True
+        await self._load_seq()
+        if self.capabilities.has_onoff_callback:
+            self._device.register_onoff_callback(self._on_onoff_update)
+        if self.capabilities.has_vendor_callback:
+            self._device.register_vendor_callback(self._on_vendor_update)
+        if self.capabilities.has_composition_callback:
+            self._device.register_composition_callback(self._on_composition_update)
+        if self.capabilities.has_status_callback:
+            self._device.register_status_callback(self._on_status_update)
+        self._device.register_disconnect_callback(self._on_disconnect)
+
+        # Connect and let exceptions propagate to async_setup_entry
+        response_time = await self._conn_mgr.async_connect()
+        self._state = replace(
+            self._state,
+            available=True,
+            firmware_version=self._device.firmware_version,
+            last_seen=time.time(),
+        )
+        _LOGGER.info(
+            "Initial connection succeeded for %s (%.2fs)",
+            self._device.address,
+            response_time,
+        )
+        self._dispatch_update()
+
     async def async_start(self) -> None:
+        """Start coordinator (legacy method for backward compatibility).
+
+        DEPRECATED: Use async_initial_connect() for initial setup.
+        This method swallows exceptions, preventing HA Core from
+        seeing connection failures.
+        """
         self._conn_mgr.running = True
         await self._load_seq()
         if self.capabilities.has_onoff_callback:
