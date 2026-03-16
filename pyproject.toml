@@ -22,7 +22,6 @@ test = [
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-exclude = ["custom_components/tuya_ble_mesh/lib"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
@@ -33,7 +32,6 @@ strict = true
 warn_return_any = true
 warn_unused_configs = true
 warn_unused_ignores = false
-exclude = ["custom_components/tuya_ble_mesh/lib"]
 
 [[tool.mypy.overrides]]
 # Third-party BLE/serial libs and the internal lib package (lib/ excluded from analysis)
