@@ -282,18 +282,17 @@ class BLEConnection:
         self._state = ConnectionState.PAIRING
 
         try:
-            # PLAT-696 v2: Pair with USER-CONFIGURED credentials (not hardcoded factory defaults).
-            # The device must already be configured with these credentials (either factory
-            # defaults if fresh from reset, or credentials set by Tuya app / previous pairing).
-            # We do NOT set new credentials here — we only establish the session key.
-            # This allows connection to devices that are already paired with the configured
-            # mesh_name/mesh_password, not just factory-reset devices.
+            # PLAT-733: Always send set_mesh_credentials after pair handshake.
+            # Even when re-setting the SAME name/password, the device needs the
+            # SET_NAME (0x04) + SET_PASSWORD (0x05) commands to transition from
+            # pairing mode to provisioned state.  Without them the LED keeps
+            # blinking and the device ignores encrypted commands on char 1912.
             key = await provision(
                 self._client,
                 current_name=self._mesh_name,
                 current_password=self._mesh_password,
-                new_name=None,  # Don't change credentials
-                new_password=None,
+                new_name=self._mesh_name,
+                new_password=self._mesh_password,
             )
             self._session_key = bytearray(key)
         except Exception as exc:

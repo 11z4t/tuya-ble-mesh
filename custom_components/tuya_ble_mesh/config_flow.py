@@ -527,13 +527,24 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             getattr(discovery_info, "rssi", None),
         )
 
-        # PLAT-661 / PLAT-694: Discovery logic for SIG Mesh devices
+        # PLAT-736: Discovery logic — only match devices in pairing mode
         # - out_of_mesh* name → ALWAYS in pairing mode (accept both 0x1827 and 0x1828)
+        # - tymesh* name → already paired Telink device, NOT in pairing mode (reject)
         # - Other names + 0x1827 (Provisioning) → in pairing mode
         # - Other names + ONLY 0x1828 (Proxy) → already provisioned (reject)
         # PLAT-694: After partial provisioning or device removal, plug keeps blinking
         # and may advertise out_of_mesh* + 0x1828. We must accept this for re-discovery.
         service_uuids = getattr(discovery_info, "service_uuids", [])
+
+        # PLAT-736: Reject already-paired Telink mesh devices
+        if name.startswith("tymesh"):
+            _LOGGER.debug(
+                "Ignoring discovery for %s (already paired Telink mesh device: name=%s)",
+                address,
+                name,
+            )
+            return self.async_abort(reason="not_in_pairing_mode")
+
         if not name.startswith("out_of_mesh"):
             # Device name does not indicate pairing mode — check service UUIDs
             has_prov = SIG_MESH_PROV_UUID in service_uuids
