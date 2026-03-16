@@ -1,7 +1,7 @@
 {
   "domain": "tuya_ble_mesh",
   "name": "Tuya BLE Mesh",
-  "version": "0.34.0",
+  "version": "0.34.1",
   "integration_type": "device",
   "documentation": "https://github.com/11z4t/tuya-ble-mesh",
   "issue_tracker": "https://github.com/11z4t/tuya-ble-mesh/issues",
@@ -20,9 +20,6 @@
     },
     {
       "local_name": "S17*"
-    },
-    {
-      "manufacturer_id": 1447
     }
   ],
   "dependencies": [
