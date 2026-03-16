@@ -34,7 +34,7 @@ warn_unused_configs = true
 warn_unused_ignores = false
 
 [[tool.mypy.overrides]]
-# Third-party BLE/serial libs and the internal lib package (lib/ excluded from analysis)
+# Third-party BLE/serial libs and the internal lib package (custom_components/.../lib/ excluded from analysis)
 # homeassistant.* uses Python 3.12+ syntax; skip to avoid parse errors
 module = [
     "serial.*",
@@ -63,7 +63,7 @@ disable_error_code = ["misc"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["lib", "tests/stubs"]
+pythonpath = ["custom_components/tuya_ble_mesh/lib", "tests/stubs"]
 asyncio_mode = "auto"
 markers = [
     "integration: requires real hardware (Shelly, BLE, sniffer)",

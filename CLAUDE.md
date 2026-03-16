@@ -42,7 +42,7 @@ wc -c < ~/.anthropic_key
 ### ⛔ RULE 1: ALL SECRETS VIA 1PASSWORD
 
 1Password is the ONLY source of secrets. Use `SecretsManager` from
-`lib/tuya_ble_mesh/secrets.py`. Never read secrets from files, env
+`custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/secrets.py`. Never read secrets from files, env
 vars, or hardcoded values.
 
 ### ⛔ RULE 2: NEVER LOG/PRINT SECRETS IN CODE
@@ -63,7 +63,7 @@ _LOGGER.debug("Key [REDACTED], length: %d", len(key))
 
 Before creating ANY file or function, verify:
 
-1. **S1:** `lib/` NEVER imports `homeassistant` or `custom_components`
+1. **S1:** `custom_components/tuya_ble_mesh/lib/` NEVER imports `homeassistant` or `custom_components`
 2. **S3:** Raw BLE bytes parsed ONLY in `protocol.py`
 3. **S4:** Crypto operations ONLY in `crypto.py`
 4. **S5:** Async everywhere. No `time.sleep()`, no blocking I/O
@@ -102,7 +102,7 @@ Fully local control via Tuya BLE Mesh. No cloud dependency.
 - `docs/TESTING.md` — Test plan and cases
 
 ### Code Structure
-- `lib/tuya_ble_mesh/` — Standalone BLE mesh library
+- `custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/` — Standalone BLE mesh library (single source)
 - `custom_components/tuya_ble_mesh/` — HA integration wrapper
 - `tests/` — Unit + integration + security tests
 - `profiles/` — Device YAML profiles

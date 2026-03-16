@@ -51,6 +51,9 @@ playwright/.cache/
 .DS_Store
 Thumbs.db
 
+# Stale top-level lib/ (canonical source: custom_components/tuya_ble_mesh/lib/)
+/lib/
+
 # Dev/CI artifacts (not for version control)
 FULL_CODEBASE.txt
 ha-error-logs*.txt
