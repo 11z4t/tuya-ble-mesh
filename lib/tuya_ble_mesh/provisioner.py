@@ -150,37 +150,52 @@ async def set_mesh_credentials(
     Raises:
         ProvisioningError: If credential setting fails.
     """
-    _LOGGER.info("Setting mesh credentials [REDACTED]")
+    _LOGGER.info("Setting mesh credentials (SET_NAME 0x04 + SET_PASS 0x05)")
 
     # Encrypt and write name
     enc_name = encrypt_mesh_credential(session_key, new_name)
     name_packet = bytes([PAIR_OPCODE_SET_NAME]) + enc_name
-    _LOGGER.debug("Writing mesh name (%d bytes)", len(name_packet))
+    _LOGGER.debug(
+        "Writing SET_MESH_NAME (0x04, %d bytes) to %s",
+        len(name_packet), TELINK_CHAR_PAIRING,
+    )
     await asyncio.wait_for(
         client.write_gatt_char(TELINK_CHAR_PAIRING, name_packet, response=True),
         timeout=_GATT_TIMEOUT,
     )
+    _LOGGER.debug("SET_MESH_NAME written OK")
 
     # Encrypt and write password
     enc_pass = encrypt_mesh_credential(session_key, new_password)
     pass_packet = bytes([PAIR_OPCODE_SET_PASS]) + enc_pass
-    _LOGGER.debug("Writing mesh password (%d bytes)", len(pass_packet))
+    _LOGGER.debug(
+        "Writing SET_MESH_PASSWORD (0x05, %d bytes) to %s",
+        len(pass_packet), TELINK_CHAR_PAIRING,
+    )
     await asyncio.wait_for(
         client.write_gatt_char(TELINK_CHAR_PAIRING, pass_packet, response=True),
         timeout=_GATT_TIMEOUT,
     )
+    _LOGGER.debug("SET_MESH_PASSWORD written OK")
 
     # Read confirmation
+    _LOGGER.debug("Reading credential confirmation from %s", TELINK_CHAR_PAIRING)
     confirm_data = bytes(
         await asyncio.wait_for(client.read_gatt_char(TELINK_CHAR_PAIRING), timeout=_GATT_TIMEOUT)
     )
     confirm = parse_pair_response(confirm_data)
+    _LOGGER.debug("Credential confirmation opcode: 0x%02X", confirm.opcode)
 
     if confirm.opcode != PAIR_OPCODE_SET_OK:
-        msg = f"Credential set failed, got opcode 0x{confirm.opcode:02X}"
+        msg = (
+            f"Credential set failed, expected SET_OK (0x07), "
+            f"got 0x{confirm.opcode:02X}"
+        )
         raise ProvisioningError(msg)
 
-    _LOGGER.info("Mesh credentials set successfully")
+    _LOGGER.info(
+        "Mesh credentials set successfully (SET_OK 0x07 confirmed)"
+    )
 
 
 async def enable_notifications(client: BleakClient) -> None:
@@ -230,13 +245,24 @@ async def provision(
     Raises:
         ProvisioningError: If any step fails.
     """
+    _LOGGER.info(
+        "Provisioning: pair handshake + %s (notifications in pair)",
+        "set credentials" if (new_name or new_password) else "skip credentials",
+    )
+
     session_key, _ = await pair(client, current_name, current_password)
 
     if new_name is not None or new_password is not None:
         name = new_name if new_name is not None else current_name
         password = new_password if new_password is not None else current_password
         await set_mesh_credentials(client, session_key, name, password)
+    else:
+        _LOGGER.warning(
+            "Skipping set_mesh_credentials — device will stay in "
+            "pairing mode! Pass new_name/new_password to provision.",
+        )
 
     # Notifications are already enabled in pair() — do NOT call enable_notifications() again
 
+    _LOGGER.info("Provisioning complete — device ready for encrypted commands")
     return session_key
