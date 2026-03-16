@@ -54,6 +54,8 @@ _SEQ_PERSIST_INTERVAL = 10
 _SEQ_SAFETY_MARGIN = 100
 _SEQ_STORE_VERSION = 1
 _INITIAL_BACKOFF = 5.0  # backward-compat alias
+_STALENESS_THRESHOLD_SECONDS = 300  # 5 minutes
+_STALENESS_CHECK_INTERVAL = 60  # Check every minute
 
 
 class StateUpdateSource(StrEnum):
@@ -130,6 +132,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             on_connected=self._handle_reconnected,
             on_state_update=self._handle_conn_state_update,
         )
+        self._staleness_task: asyncio.Task[None] | None = None
 
     # --- Explicit delegation to ConnectionManager (no magic methods) ---
 
@@ -458,6 +461,90 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         """Reconnect loop (delegated to ConnectionManager)."""
         await self._conn_mgr._reconnect_loop()
 
+    async def _staleness_watchdog_loop(self) -> None:
+        """Watchdog loop to detect stale devices (PLAT-746).
+
+        Periodically checks if device has stopped sending notifications.
+        If no update for _STALENESS_THRESHOLD_SECONDS, marks device unavailable.
+        """
+        _LOGGER.debug("Starting staleness watchdog for %s", self._device.address)
+        while self._conn_mgr.running:
+            try:
+                await asyncio.sleep(_STALENESS_CHECK_INTERVAL)
+
+                if not self._state.available:
+                    # Already marked unavailable, skip check
+                    continue
+
+                last_update = self._state.last_seen
+                if last_update is None:
+                    # No updates yet, wait for first notification
+                    continue
+
+                now = time.time()
+                time_since_update = now - last_update
+
+                if time_since_update > _STALENESS_THRESHOLD_SECONDS:
+                    _LOGGER.warning(
+                        "Device %s is stale (%.1fs since last update, threshold: %.1fs)",
+                        self._device.address, time_since_update, _STALENESS_THRESHOLD_SECONDS
+                    )
+
+                    # Try to probe device before marking unavailable
+                    probe_success = await self._probe_device()
+
+                    if not probe_success:
+                        _LOGGER.warning("Device %s probe failed, marking unavailable", self._device.address)
+                        self._state = replace(
+                            self._state,
+                            available=False,
+                            device_availability=DeviceAvailabilityState.STALE.value,
+                            degraded_reason="No updates received in 5 minutes"
+                        )
+                        self._dispatch_update()
+                    else:
+                        _LOGGER.info("Device %s probe succeeded, still alive", self._device.address)
+
+            except asyncio.CancelledError:
+                _LOGGER.debug("Staleness watchdog cancelled for %s", self._device.address)
+                raise
+            except Exception:
+                _LOGGER.exception("Error in staleness watchdog for %s", self._device.address)
+
+    async def _probe_device(self) -> bool:
+        """Probe device to check if it's still responsive.
+
+        Returns:
+            True if device responded, False otherwise.
+        """
+        try:
+            # For BLE devices, attempt to read RSSI
+            if hasattr(self._device, "get_rssi"):
+                rssi = await asyncio.wait_for(self._device.get_rssi(), timeout=5.0)
+                if rssi is not None:
+                    _LOGGER.debug("Device %s probe: RSSI=%d", self._device.address, rssi)
+                    # Update last_seen since device responded
+                    now = time.time()
+                    self._state = replace(self._state, last_seen=now, rssi=rssi)
+                    return True
+
+            # For devices without RSSI, try connection check
+            if hasattr(self._device, "is_connected"):
+                if self._device.is_connected:
+                    _LOGGER.debug("Device %s probe: connection active", self._device.address)
+                    now = time.time()
+                    self._state = replace(self._state, last_seen=now)
+                    return True
+
+            return False
+
+        except asyncio.TimeoutError:
+            _LOGGER.debug("Device %s probe timeout", self._device.address)
+            return False
+        except Exception:
+            _LOGGER.debug("Device %s probe exception", self._device.address, exc_info=True)
+            return False
+
     async def _async_update_data(self) -> None:
         return None
 
@@ -744,6 +831,11 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             self._device.address,
             response_time,
         )
+
+        # Start staleness watchdog (PLAT-746)
+        if self._staleness_task is None or self._staleness_task.done():
+            self._staleness_task = asyncio.create_task(self._staleness_watchdog_loop())
+
         self._dispatch_update()
 
     async def async_start(self) -> None:
@@ -771,6 +863,11 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                 firmware_version=self._device.firmware_version, last_seen=time.time())
             _LOGGER.info("Coordinator started for %s (%.2fs)",
                          self._device.address, response_time)
+
+            # Start staleness watchdog (PLAT-746)
+            if self._staleness_task is None or self._staleness_task.done():
+                self._staleness_task = asyncio.create_task(self._staleness_watchdog_loop())
+
         except Exception as err:
             self._conn_mgr.record_connection_error(err)
             _LOGGER.warning("Initial connection failed for %s, scheduling reconnect",
@@ -782,6 +879,13 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
     async def async_stop(self) -> None:
         self._conn_mgr.running = False
         await self._save_seq()
+
+        # Stop staleness watchdog (PLAT-746)
+        if self._staleness_task is not None and not self._staleness_task.done():
+            self._staleness_task.cancel()
+            await asyncio.gather(self._staleness_task, return_exceptions=True)
+            self._staleness_task = None
+
         if self._seq_persist_task is not None:
             self._seq_persist_task.cancel()
             await asyncio.gather(self._seq_persist_task, return_exceptions=True)
