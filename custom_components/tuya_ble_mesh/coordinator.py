@@ -38,6 +38,7 @@ from custom_components.tuya_ble_mesh.error_classifier import ErrorClass
 from custom_components.tuya_ble_mesh.device_capabilities import DeviceCapabilities
 
 if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
     from homeassistant.core import HomeAssistant
     from homeassistant.helpers.storage import Store
     from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.device import MeshDevice
@@ -113,6 +114,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
     def __init__(
         self, device: AnyMeshDevice, *,
         hass: HomeAssistant | None = None, entry_id: str | None = None,
+        entry: ConfigEntry | None = None,
     ) -> None:
         if hass is not None:
             super().__init__(hass, _LOGGER,
@@ -122,6 +124,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         self._state = TuyaBLEMeshDeviceState()
         self._hass = hass
         self._entry_id = entry_id
+        self._entry = entry
         self._seq_store: Store[dict[str, int]] | None = None
         self._seq_command_count = 0
         self._seq_persist_task: asyncio.Task[None] | None = None
@@ -624,8 +627,20 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
     def _dispatch_update(self) -> None:
         if self._hass is not None:
-            self._hass.loop.call_soon_threadsafe(
-                lambda: asyncio.create_task(self.async_set_updated_data(None)))
+            # PLAT-747: Use entry.async_create_background_task for tracked task lifecycle
+            if self._entry is not None:
+                self._hass.loop.call_soon_threadsafe(
+                    lambda: self._entry.async_create_background_task(
+                        self._hass,
+                        self.async_set_updated_data(None),
+                        "dispatch_update",
+                        eager_start=True,
+                    )
+                )
+            else:
+                # Fallback for standalone mode (no entry)
+                self._hass.loop.call_soon_threadsafe(
+                    lambda: asyncio.create_task(self.async_set_updated_data(None)))
         else:
             self._notify_listeners()
 
@@ -766,7 +781,17 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             self._seq_command_count = 0
             try:
                 asyncio.get_running_loop()
-                self._seq_persist_task = asyncio.create_task(self._save_seq())
+                # PLAT-747: Use entry.async_create_background_task for tracked task lifecycle
+                if self._entry is not None and self._hass is not None:
+                    self._seq_persist_task = self._entry.async_create_background_task(
+                        self._hass,
+                        self._save_seq(),
+                        "persist_seq",
+                        eager_start=True,
+                    )
+                else:
+                    # Fallback for standalone mode
+                    self._seq_persist_task = asyncio.create_task(self._save_seq())
             except RuntimeError:
                 pass
 
@@ -832,9 +857,18 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             response_time,
         )
 
-        # Start staleness watchdog (PLAT-746)
+        # Start staleness watchdog (PLAT-746, PLAT-747)
         if self._staleness_task is None or self._staleness_task.done():
-            self._staleness_task = asyncio.create_task(self._staleness_watchdog_loop())
+            if self._entry is not None and self._hass is not None:
+                self._staleness_task = self._entry.async_create_background_task(
+                    self._hass,
+                    self._staleness_watchdog_loop(),
+                    "staleness_watchdog",
+                    eager_start=True,
+                )
+            else:
+                # Fallback for standalone mode
+                self._staleness_task = asyncio.create_task(self._staleness_watchdog_loop())
 
         self._dispatch_update()
 
@@ -864,9 +898,18 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             _LOGGER.info("Coordinator started for %s (%.2fs)",
                          self._device.address, response_time)
 
-            # Start staleness watchdog (PLAT-746)
+            # Start staleness watchdog (PLAT-746, PLAT-747)
             if self._staleness_task is None or self._staleness_task.done():
-                self._staleness_task = asyncio.create_task(self._staleness_watchdog_loop())
+                if self._entry is not None and self._hass is not None:
+                    self._staleness_task = self._entry.async_create_background_task(
+                        self._hass,
+                        self._staleness_watchdog_loop(),
+                        "staleness_watchdog",
+                        eager_start=True,
+                    )
+                else:
+                    # Fallback for standalone mode
+                    self._staleness_task = asyncio.create_task(self._staleness_watchdog_loop())
 
         except Exception as err:
             self._conn_mgr.record_connection_error(err)

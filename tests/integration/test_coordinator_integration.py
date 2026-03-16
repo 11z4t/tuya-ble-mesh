@@ -353,3 +353,143 @@ class TestConnectionStatistics:
 
         assert coord._stats.connection_errors == 1
         assert coord._stats.total_errors == 1
+
+
+@pytest.mark.requires_ha
+class TestTaskCleanup:
+    """Test background task cleanup on coordinator stop (PLAT-747)."""
+
+    @pytest.mark.asyncio
+    async def test_staleness_task_cancelled_on_stop(self) -> None:
+        """Staleness watchdog task should be cancelled and cleaned up on async_stop."""
+        mock_device = make_mock_device()
+        mock_hass = MagicMock()
+        mock_hass.loop = asyncio.get_event_loop()
+
+        # Create mock config entry with async_create_background_task
+        mock_entry = MagicMock()
+        created_tasks = []
+
+        def create_background_task(hass, coro, name, eager_start=False):
+            task = asyncio.create_task(coro)
+            created_tasks.append((name, task))
+            return task
+
+        mock_entry.async_create_background_task = create_background_task
+
+        coord = TuyaBLEMeshCoordinator(
+            mock_device, hass=mock_hass, entry_id="test", entry=mock_entry
+        )
+
+        # Start coordinator to create staleness task
+        await coord.async_initial_connect()
+
+        # Give event loop time to create tasks
+        await asyncio.sleep(0.05)
+
+        # Verify staleness task was created
+        staleness_tasks = [name for name, task in created_tasks if "staleness" in name]
+        assert len(staleness_tasks) > 0, "Staleness watchdog task should be created"
+
+        # Track the staleness task
+        staleness_task = coord._staleness_task
+        assert staleness_task is not None, "Staleness task should exist"
+        assert not staleness_task.done(), "Staleness task should be running"
+
+        # Stop coordinator
+        await coord.async_stop()
+
+        # Give event loop time to cancel tasks
+        await asyncio.sleep(0.05)
+
+        # Verify task was cancelled and cleaned up
+        assert staleness_task.done(), "Staleness task should be done after stop"
+        assert staleness_task.cancelled() or isinstance(
+            staleness_task.exception(), asyncio.CancelledError
+        ), "Staleness task should be cancelled"
+        assert coord._staleness_task is None, "Staleness task reference should be cleared"
+
+    @pytest.mark.asyncio
+    async def test_seq_persist_task_cancelled_on_stop(self) -> None:
+        """Sequence persist task should be cancelled and cleaned up on async_stop."""
+        mock_device = make_mock_device()
+        mock_device.get_seq = MagicMock(return_value=100)
+        mock_device.set_seq = MagicMock()
+        mock_hass = MagicMock()
+        mock_hass.loop = asyncio.get_event_loop()
+
+        mock_entry = MagicMock()
+        created_tasks = []
+
+        def create_background_task(hass, coro, name, eager_start=False):
+            task = asyncio.create_task(coro)
+            created_tasks.append((name, task))
+            return task
+
+        mock_entry.async_create_background_task = create_background_task
+
+        coord = TuyaBLEMeshCoordinator(
+            mock_device, hass=mock_hass, entry_id="test", entry=mock_entry
+        )
+
+        await coord.async_initial_connect()
+
+        # Trigger sequence persistence
+        for _ in range(10):  # Trigger _SEQ_PERSIST_INTERVAL
+            coord._maybe_persist_seq()
+
+        await asyncio.sleep(0.05)
+
+        # Track the persist task
+        persist_task = coord._seq_persist_task
+
+        # Stop coordinator
+        await coord.async_stop()
+
+        await asyncio.sleep(0.05)
+
+        # Verify cleanup
+        if persist_task is not None:
+            assert persist_task.done(), "Persist task should be done after stop"
+        assert coord._seq_persist_task is None, "Persist task reference should be cleared"
+
+    @pytest.mark.asyncio
+    async def test_no_untracked_tasks_remain_after_stop(self) -> None:
+        """Verify no asyncio tasks are left running after coordinator stop."""
+        mock_device = make_mock_device()
+        mock_hass = MagicMock()
+        mock_hass.loop = asyncio.get_event_loop()
+
+        mock_entry = MagicMock()
+
+        def create_background_task(hass, coro, name, eager_start=False):
+            return asyncio.create_task(coro)
+
+        mock_entry.async_create_background_task = create_background_task
+
+        coord = TuyaBLEMeshCoordinator(
+            mock_device, hass=mock_hass, entry_id="test", entry=mock_entry
+        )
+
+        # Get initial task count
+        initial_tasks = asyncio.all_tasks()
+
+        await coord.async_initial_connect()
+        await asyncio.sleep(0.05)
+
+        # Get tasks after start
+        running_tasks = asyncio.all_tasks()
+
+        # Stop coordinator
+        await coord.async_stop()
+        await asyncio.sleep(0.05)
+
+        # Get tasks after stop
+        final_tasks = asyncio.all_tasks()
+
+        # Number of tasks should return to baseline (or fewer if some completed)
+        # Allow some tolerance for test framework tasks
+        assert len(final_tasks) <= len(initial_tasks) + 2, (
+            f"Tasks leaked after stop: {len(final_tasks)} tasks remain "
+            f"(initial: {len(initial_tasks)})"
+        )

@@ -111,7 +111,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
         # User must remove the entry and re-provision the device.
         return False
 
-    coordinator = TuyaBLEMeshCoordinator(device, hass=hass, entry_id=entry.entry_id)
+    coordinator = TuyaBLEMeshCoordinator(device, hass=hass, entry_id=entry.entry_id, entry=entry)
 
     from homeassistant.helpers.device_registry import DeviceInfo
 
