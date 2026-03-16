@@ -130,16 +130,3 @@ def classify_error(err: Exception) -> ErrorClass:
     return ErrorClass.UNKNOWN
 
 
-# --- Backward-compat: export ErrorClassifier class wrapper ---
-
-
-class ErrorClassifier:
-    """DEPRECATED: Use the standalone classify_error() function instead.
-
-    This class wrapper is kept for backward compatibility only.
-    """
-
-    @staticmethod
-    def classify(err: Exception) -> ErrorClass:
-        """DEPRECATED: Use classify_error() instead."""
-        return classify_error(err)
