@@ -87,9 +87,32 @@ def _create_sig_plug(
     ble_device_callback: Callable[[str], Any] | None,
     ble_connect_callback: Callable[[Any], Any] | None = None,
 ) -> Any:
-    """Create a SIG Mesh direct device."""
+    """Create a SIG Mesh direct device.
+
+    Raises:
+        ValueError: If required SIG Mesh keys (net_key, dev_key, app_key) are missing.
+    """
     from tuya_ble_mesh.secrets import DictSecretsManager  # type: ignore[import-not-found]
     from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
+
+    # PLAT-739: Validate required keys are present
+    net_key = data.get(CONF_NET_KEY, "")
+    dev_key = data.get(CONF_DEV_KEY, "")
+    app_key = data.get(CONF_APP_KEY, "")
+
+    missing_keys = []
+    if not net_key:
+        missing_keys.append(CONF_NET_KEY)
+    if not dev_key:
+        missing_keys.append(CONF_DEV_KEY)
+    if not app_key:
+        missing_keys.append(CONF_APP_KEY)
+
+    if missing_keys:
+        raise ValueError(
+            f"SIG Mesh device {mac_address} config entry is missing required keys: "
+            f"{', '.join(missing_keys)}. Device must be provisioned first."
+        )
 
     target_addr = int(data.get(CONF_UNICAST_TARGET, "00B0"), 16)
     our_addr = int(data.get(CONF_UNICAST_OUR, "0001"), 16)
@@ -98,9 +121,9 @@ def _create_sig_plug(
     target_hex = f"{target_addr:04x}"
     op_prefix = "cfg"
     secrets_dict = {
-        f"{op_prefix}-net-key/password": data.get(CONF_NET_KEY, ""),
-        f"{op_prefix}-dev-key-{target_hex}/password": data.get(CONF_DEV_KEY, ""),
-        f"{op_prefix}-app-key/password": data.get(CONF_APP_KEY, ""),
+        f"{op_prefix}-net-key/password": net_key,
+        f"{op_prefix}-dev-key-{target_hex}/password": dev_key,
+        f"{op_prefix}-app-key/password": app_key,
     }
 
     return SIGMeshDevice(

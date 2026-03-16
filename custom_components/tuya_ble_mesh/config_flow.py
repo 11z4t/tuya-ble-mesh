@@ -545,12 +545,11 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             )
             return self.async_abort(reason="not_in_pairing_mode")
 
-        # PLAT-731: S17* devices are Malmbergs SIG Mesh plugs — accept without UUID check
-        if name.startswith("S17"):
-            _LOGGER.info("SIG Mesh plug detected via name pattern: %s (%s)", name, address)
-            # Fall through to setup — these are SIG Mesh devices identified by name
+        # PLAT-731 / PLAT-739: S17* devices are Malmbergs SIG Mesh plugs
+        # Skip UUID validation for S17* - they are SIG Mesh by name pattern
+        is_s17_plug = name.startswith("S17")
 
-        elif not name.startswith("out_of_mesh"):
+        if not is_s17_plug and not name.startswith("out_of_mesh"):
             # Device name does not indicate pairing mode — check service UUIDs
             has_prov = SIG_MESH_PROV_UUID in service_uuids
             has_proxy = SIG_MESH_PROXY_UUID in service_uuids
@@ -590,14 +589,23 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
 
         # Detect human-readable device category from service UUIDs
         # PLAT-694: Accept both Provisioning (0x1827) and Proxy (0x1828) services
-        is_sig_mesh = (SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids)
+        # PLAT-739: S17* devices are SIG Mesh plugs identified by name, not UUID
+        is_sig_mesh = (
+            is_s17_plug
+            or SIG_MESH_PROV_UUID in service_uuids
+            or SIG_MESH_PROXY_UUID in service_uuids
+        )
         device_category = "Smart Plug" if is_sig_mesh else "LED Light"
         rssi = getattr(discovery_info, "rssi", None)
 
-        #  Auto-detect device type based on service UUIDs
+        #  Auto-detect device type based on service UUIDs or name pattern
         auto_device_type = None
 
-        if is_sig_mesh:  # Match both Provisioning (0x1827) and Proxy (0x1828)
+        if is_s17_plug:
+            # PLAT-739: S17* devices are always SIG Mesh plugs
+            auto_device_type = DEVICE_TYPE_SIG_PLUG
+            _LOGGER.info("SIG Mesh plug detected via S17* name pattern: %s (%s)", name, address)
+        elif is_sig_mesh:  # Match both Provisioning (0x1827) and Proxy (0x1828)
             # SIG Mesh device -> Plug
             auto_device_type = DEVICE_TYPE_SIG_PLUG
         elif any(

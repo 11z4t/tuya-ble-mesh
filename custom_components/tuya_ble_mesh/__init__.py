@@ -110,12 +110,24 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
             _LOGGER.debug("BLE device %s resolved via HA bluetooth stack", address)
         return device
 
-    device = create_device(
-        device_type,
-        mac_address,
-        entry.data,
-        ble_device_callback=_ble_device_from_ha,
-    )
+    # PLAT-739: Gracefully handle missing provisioning keys for SIG Mesh devices
+    try:
+        device = create_device(
+            device_type,
+            mac_address,
+            entry.data,
+            ble_device_callback=_ble_device_from_ha,
+        )
+    except ValueError as exc:
+        _LOGGER.error(
+            "Failed to create device for entry %s (%s): %s",
+            entry.title,
+            mac_address,
+            exc,
+        )
+        # Config entry setup fails — device will not be loaded.
+        # User must remove the entry and re-provision the device.
+        return False
 
     coordinator = TuyaBLEMeshCoordinator(device, hass=hass, entry_id=entry.entry_id)
 
