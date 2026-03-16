@@ -163,7 +163,7 @@ async def async_step_telink_bridge(
         Flow result dict.
     """
     errors: dict[str, str] = {}
-    if user_input is not None and flow._discovery_info is not None:
+    if user_input is not None:
         host = user_input.get(CONF_BRIDGE_HOST, "")
         port = user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
         host_error = _validate_bridge_host(host)

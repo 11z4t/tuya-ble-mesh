@@ -108,9 +108,8 @@ class TestAsyncSetupEntry:
             mesh_id=0,
             vendor_id=b"\x01\x10",
             ble_device_callback=ANY,
-            ble_connect_callback=None,
         )
-        coord_cls.assert_called_once_with(mock_device, hass=hass, entry_id=entry.entry_id)
+        coord_cls.assert_called_once_with(mock_device, hass=hass, entry_id=entry.entry_id, entry=entry)
 
     @pytest.mark.asyncio
     async def test_setup_starts_coordinator(self) -> None:
@@ -360,7 +359,7 @@ class TestAsyncSetupEntrySIGMesh:
             patch(_PATCH_COORDINATOR, return_value=mock_coord),
             patch(
                 "homeassistant.components.bluetooth.async_ble_device_from_address",
-                side_effect=[None, mock_ble_device],  # First call None, second returns device
+                return_value=mock_ble_device,  # Return device directly
             ) as mock_ble,
         ):
             await async_setup_entry(hass, entry)
@@ -369,12 +368,12 @@ class TestAsyncSetupEntrySIGMesh:
             call_kwargs = sig_cls.call_args[1]
             ble_callback = call_kwargs["ble_device_callback"]
 
-            # Call the callback to trigger _ble_device_from_ha with fallback
+            # Call the callback to trigger _ble_device_from_ha
             ble_result = ble_callback("CC:CC:DD:DD:EE:EE")
 
-            # Verify fallback was used (both connectable=True and connectable=False)
+            # Verify device was returned
             assert ble_result is mock_ble_device
-            assert mock_ble.call_count == 2
+            assert mock_ble.call_count == 1
 
     @pytest.mark.asyncio
     async def test_sig_mesh_device_ble_callback_not_found(self) -> None:
@@ -426,9 +425,9 @@ class TestAsyncSetupEntrySIGMesh:
             # Call the callback to trigger _ble_device_from_ha with no device found
             ble_result = ble_callback("DD:DD:EE:EE:FF:FF")
 
-            # Verify both calls were made and None was returned
+            # Verify call was made and None was returned
             assert ble_result is None
-            assert mock_ble.call_count == 2
+            assert mock_ble.call_count == 1
 
     @pytest.mark.asyncio
     async def test_setup_telink_bridge_light_creates_telink_device(self) -> None:
@@ -576,6 +575,7 @@ class TestServiceHandlers:
         mock_device.send_power = AsyncMock()
         mock_coord = MagicMock()
         mock_coord.async_start = AsyncMock()
+        mock_coord.async_initial_connect = AsyncMock()
         mock_coord.device = mock_device
 
         with (
@@ -712,6 +712,7 @@ class TestServiceHandlers:
         mock_device.send_power = AsyncMock(side_effect=Exception("BLE timeout"))
         mock_coord = MagicMock()
         mock_coord.async_start = AsyncMock()
+        mock_coord.async_initial_connect = AsyncMock()
         mock_coord.device = mock_device
 
         with (

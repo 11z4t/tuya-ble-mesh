@@ -373,7 +373,7 @@ class TestRuntimeSetup:
         # Simulate frequent state changes (triggers lines 471-478)
         coord._state_change_counter = 2
         initial_interval = coord._rssi_interval
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
         # Should decrease interval
         assert coord._rssi_interval < initial_interval
 
@@ -392,7 +392,7 @@ class TestRuntimeSetup:
         coord._state_change_counter = 0
         coord._stable_cycles = 20
         initial_interval = coord._rssi_interval
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
         # Should increase interval
         assert coord._rssi_interval > initial_interval
 
@@ -412,8 +412,8 @@ class TestRuntimeSetup:
         # Set up for RSSI stability check (lines 533-536)
         coord._stable_cycles = 20  # Above threshold
 
-        # Manually call _adjust_polling_interval to cover lines 535-536
-        coord._adjust_polling_interval()
+        # Manually call adjust_polling_interval to cover lines 535-536
+        coord.adjust_polling_interval()
 
         # Verify it ran without error
         assert coord._stable_cycles == 20

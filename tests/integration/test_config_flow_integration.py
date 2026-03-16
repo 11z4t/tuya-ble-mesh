@@ -408,7 +408,7 @@ class TestTelinkBridgeLightConfigFlow:
         assert result["step_id"] == "telink_bridge"
 
     @patch(
-        "custom_components.tuya_ble_mesh.config_flow_validators._test_bridge_with_session",
+        "custom_components.tuya_ble_mesh.config_flow_telink._test_bridge_with_session",
         new_callable=AsyncMock,
         return_value=True,
     )
@@ -467,7 +467,7 @@ class TestTelinkBridgeLightConfigFlow:
         assert CONF_BRIDGE_HOST in result["errors"]
 
     @patch(
-        "custom_components.tuya_ble_mesh.config_flow_validators._test_bridge_with_session",
+        "custom_components.tuya_ble_mesh.config_flow_telink._test_bridge_with_session",
         new_callable=AsyncMock,
         return_value=True,
     )

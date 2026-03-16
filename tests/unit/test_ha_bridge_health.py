@@ -184,7 +184,9 @@ class TestClearRepairIssuesOnRecovery:
 
         c = TuyaBLEMeshCoordinator(_make_device())
         c._hass = MagicMock()
-        c._entry_id = "entry_xyz"
+        # Set entry_id on connection_manager (where it's actually used)
+        c._conn_mgr._hass = MagicMock()
+        c._conn_mgr._entry_id = "entry_xyz"
         c._raised_repair_issues.add("bridge_unreachable")
 
         with patch.object(ir, "async_delete_issue"):

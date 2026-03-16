@@ -374,6 +374,10 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         """
         return self._conn_mgr._raised_repair_issues
 
+    def _clear_repair_issues_on_recovery(self) -> None:
+        """Clear all raised repair issues on recovery (delegates to ConnectionManager)."""
+        self._conn_mgr._clear_repair_issues_on_recovery()
+
     @property
     def _stats(self) -> ConnectionStatistics:
         """Connection statistics (direct access).

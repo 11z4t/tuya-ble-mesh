@@ -103,21 +103,21 @@ class TestFullLifecycle:
         with (
             patch("tuya_ble_mesh.device.MeshDevice") as mock_device_cls,
             patch(
-                "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator.async_start"
-            ) as mock_start,
+                "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator.async_initial_connect"
+            ) as mock_initial_connect,
         ):
             mock_device = MagicMock()
             mock_device.address = "DC:23:4D:21:43:A5"
             mock_device_cls.return_value = mock_device
-            mock_start.return_value = None
+            mock_initial_connect.return_value = None
 
             result = await async_setup_entry(mock_hass, mock_entry)
 
             # Verify setup succeeded
             assert result is True
 
-            # Verify coordinator was started
-            mock_start.assert_called_once()
+            # Verify initial connection was attempted
+            mock_initial_connect.assert_called_once()
 
             # Verify runtime_data was set
             assert hasattr(mock_entry, "runtime_data")
@@ -223,8 +223,8 @@ class TestFullLifecycle:
         with (
             patch("tuya_ble_mesh.device.MeshDevice") as mock_device_cls,
             patch(
-                "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator.async_start"
-            ) as mock_start,
+                "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator.async_initial_connect"
+            ) as mock_initial_connect,
             patch(
                 "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator.async_stop"
             ) as mock_stop,
@@ -232,6 +232,7 @@ class TestFullLifecycle:
             mock_device = MagicMock()
             mock_device.address = "DC:23:4D:21:43:A5"
             mock_device_cls.return_value = mock_device
+            mock_initial_connect.return_value = None
 
             # Initial setup
             setup_ok = await async_setup_entry(mock_hass, mock_entry)
@@ -245,14 +246,14 @@ class TestFullLifecycle:
             mock_stop.assert_called_once()
 
             # Simulate reload (HA restart completes)
-            mock_start.reset_mock()
             mock_stop.reset_mock()
+            mock_initial_connect.reset_mock()
 
             setup_ok_2 = await async_setup_entry(mock_hass, mock_entry)
             assert setup_ok_2 is True
 
-            # Verify coordinator was restarted
-            mock_start.assert_called_once()
+            # Verify initial connection was called again on reload
+            assert mock_initial_connect.call_count == 1
 
     @pytest.mark.asyncio
     async def test_unload_cleanup_releases_resources(self) -> None:
@@ -359,8 +360,8 @@ class TestRuntimeDataIntegrity:
         mock_hass.services.async_register = MagicMock()
         mock_hass.async_add_import_executor_job = AsyncMock(return_value=None)
 
-        # Track when runtime_data is set vs when async_start is called
-        runtime_data_set_before_start = False
+        # Track when runtime_data is set vs when async_initial_connect is called
+        runtime_data_set_before_connect = False
 
         async def mock_forward_setups(*args: object, **kwargs: object) -> None:
             pass
@@ -377,20 +378,16 @@ class TestRuntimeDataIntegrity:
         }
         mock_entry.async_on_unload = MagicMock(return_value=None)
 
-        original_start = None
-
-        async def track_start(self: object) -> None:
-            nonlocal runtime_data_set_before_start
+        async def track_initial_connect(self: object) -> None:
+            nonlocal runtime_data_set_before_connect
             # Check if runtime_data was set before this call
-            runtime_data_set_before_start = hasattr(mock_entry, "runtime_data")
-            if original_start:
-                await original_start(self)
+            runtime_data_set_before_connect = hasattr(mock_entry, "runtime_data")
 
         with (
             patch("tuya_ble_mesh.device.MeshDevice") as mock_device_cls,
             patch(
-                "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator.async_start",
-                new=track_start,
+                "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator.async_initial_connect",
+                new=track_initial_connect,
             ),
         ):
             mock_device = MagicMock()
@@ -399,8 +396,8 @@ class TestRuntimeDataIntegrity:
 
             await async_setup_entry(mock_hass, mock_entry)
 
-            # Verify runtime_data was set BEFORE async_start
-            assert runtime_data_set_before_start is True
+            # Verify runtime_data was set BEFORE async_initial_connect
+            assert runtime_data_set_before_connect is True
 
     @pytest.mark.asyncio
     async def test_runtime_data_accessible_from_entities(self) -> None:
@@ -428,8 +425,8 @@ class TestRuntimeDataIntegrity:
         mock_entry.runtime_data = runtime
 
         # Create entity using runtime_data
-        light = TuyaBLEMeshLight(runtime.coordinator, mock_entry)
+        light = TuyaBLEMeshLight(runtime.coordinator, mock_entry.entry_id)
 
-        # Verify entity has access to coordinator
-        assert light._coordinator is not None
-        assert light._coordinator.device.address == "DC:23:4D:21:43:A5"
+        # Verify entity has access to coordinator (via CoordinatorEntity.coordinator)
+        assert light.coordinator is not None
+        assert light.coordinator.device.address == "DC:23:4D:21:43:A5"

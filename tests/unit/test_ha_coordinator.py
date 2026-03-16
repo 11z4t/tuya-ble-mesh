@@ -826,21 +826,14 @@ class TestReconnectLoop:
     async def test_reconnect_notifies_on_failure(self) -> None:
         """Failed reconnect should notify listeners (unavailable)."""
         device = make_mock_device()
-        device.connect = AsyncMock(side_effect=ConnectionError("fail"))
+        # Use PERMANENT error to trigger _on_state_update callback
+        device.connect = AsyncMock(side_effect=ConnectionError("unsupported vendor"))
         coord = TuyaBLEMeshCoordinator(device)
         coord._running = True
         listener = MagicMock()
         coord.add_listener(listener)
 
-        call_count = 0
-
-        async def fake_sleep(seconds: float) -> None:
-            nonlocal call_count
-            call_count += 1
-            if call_count >= 2:
-                coord._running = False
-
-        with patch(_PATCH_SLEEP, side_effect=fake_sleep):
+        with patch(_PATCH_SLEEP, new_callable=AsyncMock):
             await coord._reconnect_loop()
 
         assert listener.call_count >= 1
@@ -885,7 +878,7 @@ class TestReconnectLoop:
 
         with (
             patch(_PATCH_SLEEP, new_callable=AsyncMock),
-            patch.object(coord, "_start_rssi_polling") as mock_rssi,
+            patch.object(coord, "start_rssi_polling") as mock_rssi,
         ):
             await coord._reconnect_loop()
 

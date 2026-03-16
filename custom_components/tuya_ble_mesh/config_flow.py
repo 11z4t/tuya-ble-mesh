@@ -11,6 +11,18 @@ from typing import TYPE_CHECKING, Any
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlow
+
+# Import for test patching (used in config_flow_sig/config_flow_telink submodules)
+try:
+    from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice  # noqa: F401
+    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # noqa: F401
+    from bleak import BleakScanner  # noqa: F401
+    find_device_by_address = BleakScanner.find_device_by_address  # noqa: F401
+except ImportError:
+    SIGMeshBridgeDevice = None  # type: ignore[misc,assignment]
+    SIGMeshDevice = None  # type: ignore[misc,assignment]
+    find_device_by_address = None  # type: ignore[misc,assignment]
+
 if TYPE_CHECKING:
     from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
     from homeassistant.data_entry_flow import FlowResult
