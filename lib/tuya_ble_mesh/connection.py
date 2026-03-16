@@ -282,10 +282,13 @@ class BLEConnection:
         self._state = ConnectionState.PAIRING
 
         try:
+            # PLAT-696: Provide explicit current/new credentials to ensure set_mesh_credentials() runs
             key = await provision(
                 self._client,
-                self._mesh_name,
-                self._mesh_password,
+                current_name=b"out_of_mesh",
+                current_password=b"123456",
+                new_name=self._mesh_name,
+                new_password=self._mesh_password,
             )
             self._session_key = bytearray(key)
         except Exception as exc:

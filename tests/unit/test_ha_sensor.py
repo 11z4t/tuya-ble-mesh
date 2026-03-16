@@ -70,7 +70,8 @@ class TestSensorDescriptions:
         assert desc.native_unit_of_measurement == SIGNAL_STRENGTH_DECIBELS_MILLIWATT
         assert desc.entity_category == EntityCategory.DIAGNOSTIC
         assert desc.value_fn is not None
-        assert desc.available_fn is None
+        # PLAT-695: RSSI sensor now has available_fn to avoid showing "unknown"
+        assert desc.available_fn is not None
 
     def test_firmware_description(self) -> None:
         """Test firmware sensor description."""

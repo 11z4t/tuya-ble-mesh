@@ -582,10 +582,11 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             "auto_device_type": auto_device_type,
         }
 
-        # PLAT-660: Set title_placeholders so discovery card shows device name
+        # PLAT-660 / PLAT-693: Set title_placeholders for discovery card
         # Hide internal BLE names (out_of_mesh) from user — show type + MAC only
+        # PLAT-693 fix: Don't include device_category in name (already in description)
         display_name = address[-8:] if name.startswith("out_of_mesh") or not name else name
-        self.context["title_placeholders"] = {"name": f"{device_category} {display_name}"}
+        self.context["title_placeholders"] = {"name": display_name}
 
         # Auto-detect SIG Mesh devices by service UUID.
         # 0x1827 = Provisioning Service (unprovisioned device)
