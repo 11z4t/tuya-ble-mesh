@@ -282,13 +282,18 @@ class BLEConnection:
         self._state = ConnectionState.PAIRING
 
         try:
-            # PLAT-696: Provide explicit current/new credentials to ensure set_mesh_credentials() runs
+            # PLAT-696 v2: Pair with USER-CONFIGURED credentials (not hardcoded factory defaults).
+            # The device must already be configured with these credentials (either factory
+            # defaults if fresh from reset, or credentials set by Tuya app / previous pairing).
+            # We do NOT set new credentials here — we only establish the session key.
+            # This allows connection to devices that are already paired with the configured
+            # mesh_name/mesh_password, not just factory-reset devices.
             key = await provision(
                 self._client,
-                current_name=b"out_of_mesh",
-                current_password=b"123456",
-                new_name=self._mesh_name,
-                new_password=self._mesh_password,
+                current_name=self._mesh_name,
+                current_password=self._mesh_password,
+                new_name=None,  # Don't change credentials
+                new_password=None,
             )
             self._session_key = bytearray(key)
         except Exception as exc:
