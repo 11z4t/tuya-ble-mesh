@@ -22,6 +22,9 @@ from custom_components.tuya_ble_mesh.error_classifier import (
     classify_error,
 )
 
+# Re-export for backward compatibility
+__all__ = ["ConnectionManager", "ErrorClass", "classify_error"]
+
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
     from tuya_ble_mesh.device import MeshDevice
