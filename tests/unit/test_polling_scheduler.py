@@ -194,7 +194,7 @@ class TestAdaptivePollingAdjustment:
         coord._state_change_counter = 3
 
         # Call adjustment logic
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
 
         # Interval should have decreased
         assert coord._rssi_interval < initial_interval
@@ -211,7 +211,7 @@ class TestAdaptivePollingAdjustment:
         coord._stable_cycles = _RSSI_STABILITY_THRESHOLD
 
         # Call adjustment logic
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
 
         # Interval should have increased
         assert coord._rssi_interval > initial_interval
@@ -227,7 +227,7 @@ class TestAdaptivePollingAdjustment:
         # Simulate many frequent changes
         for _ in range(10):
             coord._state_change_counter = 5
-            coord._adjust_polling_interval()
+            coord.adjust_polling_interval()
 
         # Should not go below minimum
         assert coord._rssi_interval >= _RSSI_MIN_INTERVAL
@@ -243,7 +243,7 @@ class TestAdaptivePollingAdjustment:
         # Simulate stable state multiple times
         for _ in range(10):
             coord._stable_cycles = _RSSI_STABILITY_THRESHOLD
-            coord._adjust_polling_interval()
+            coord.adjust_polling_interval()
 
         # Should not exceed maximum
         assert coord._rssi_interval <= _RSSI_MAX_INTERVAL
@@ -256,7 +256,7 @@ class TestAdaptivePollingAdjustment:
         coord._state_change_counter = 5
 
         # Call adjustment
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
 
         # Counter should be reset
         assert coord._state_change_counter == 0
@@ -274,7 +274,7 @@ class TestAdaptivePollingScaling:
         coord._rssi_interval = 100.0
         coord._state_change_counter = 3
 
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
 
         # Should decrease by 25% (multiply by 0.75)
         expected = max(_RSSI_MIN_INTERVAL, 100.0 * 0.75)
@@ -288,7 +288,7 @@ class TestAdaptivePollingScaling:
         coord._rssi_interval = 100.0
         coord._stable_cycles = _RSSI_STABILITY_THRESHOLD
 
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
 
         # Should increase by 50% (multiply by 1.5)
         expected = min(_RSSI_MAX_INTERVAL, 100.0 * 1.5)
@@ -303,12 +303,12 @@ class TestAdaptivePollingScaling:
 
         # First decrease
         coord._state_change_counter = 3
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
         interval_1 = coord._rssi_interval
 
         # Second decrease
         coord._state_change_counter = 3
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
         interval_2 = coord._rssi_interval
 
         # Each should be smaller, respecting minimum
@@ -324,12 +324,12 @@ class TestAdaptivePollingScaling:
 
         # First increase
         coord._stable_cycles = _RSSI_STABILITY_THRESHOLD
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
         interval_1 = coord._rssi_interval
 
         # Second increase
         coord._stable_cycles = _RSSI_STABILITY_THRESHOLD
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
         interval_2 = coord._rssi_interval
 
         # Each should be larger, respecting maximum
@@ -375,7 +375,7 @@ class TestPollingBehaviorScenarios:
         # Simulate rapid color changes
         coord._state_change_counter = 5
 
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
 
         # Should poll faster
         assert coord._rssi_interval < initial_interval
@@ -391,7 +391,7 @@ class TestPollingBehaviorScenarios:
         # Simulate stability
         coord._stable_cycles = _RSSI_STABILITY_THRESHOLD
 
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
 
         # Should poll slower
         assert coord._rssi_interval > initial_interval
@@ -405,12 +405,12 @@ class TestPollingBehaviorScenarios:
 
         # Active period
         coord._state_change_counter = 3
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
         active_interval = coord._rssi_interval
 
         # Idle period
         coord._stable_cycles = _RSSI_STABILITY_THRESHOLD
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
         idle_interval = coord._rssi_interval
 
         # Idle should be longer than active
@@ -427,7 +427,7 @@ class TestPollingBehaviorScenarios:
         # Not enough stable cycles
         coord._stable_cycles = _RSSI_STABILITY_THRESHOLD - 1
 
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
 
         # Should NOT have changed (threshold not reached)
         assert coord._rssi_interval == initial_interval
@@ -443,7 +443,7 @@ class TestPollingBehaviorScenarios:
         # Only 1 change (below threshold)
         coord._state_change_counter = 1
 
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
 
         # Should NOT have decreased (threshold >= 2)
         assert coord._rssi_interval == initial_interval
@@ -451,7 +451,7 @@ class TestPollingBehaviorScenarios:
         # Now 2 changes
         coord._state_change_counter = 2
 
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
 
         # Should have decreased
         assert coord._rssi_interval < initial_interval
@@ -485,7 +485,7 @@ class TestPollingForBridgeDevices:
 
         # Trigger adjustment
         coord._state_change_counter = 3
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
 
         # Should have adjusted
         assert coord._rssi_interval != initial_interval

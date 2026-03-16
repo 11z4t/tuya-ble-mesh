@@ -113,7 +113,7 @@ class TestReconnectionBackoff:
         assert _BRIDGE_INITIAL_BACKOFF < _INITIAL_BACKOFF
 
         # Simulate setting bridge backoff (happens in async_start)
-        if coord._is_bridge_device():
+        if coord.is_bridge_device():
             coord._backoff = _BRIDGE_INITIAL_BACKOFF
 
         assert coord._backoff == _BRIDGE_INITIAL_BACKOFF

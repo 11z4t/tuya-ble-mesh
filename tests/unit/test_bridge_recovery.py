@@ -361,23 +361,23 @@ class TestCoordinatorBridgeDetection:
     def test_sig_bridge_detected(self) -> None:
         dev = _make_bridge_device()
         coord = TuyaBLEMeshCoordinator(dev)
-        assert coord._is_bridge_device() is True
+        assert coord.is_bridge_device() is True
 
     def test_telink_bridge_detected(self) -> None:
         dev = _make_telink_device()
         coord = TuyaBLEMeshCoordinator(dev)
-        assert coord._is_bridge_device() is True
+        assert coord.is_bridge_device() is True
 
     def test_mesh_device_not_bridge(self) -> None:
         dev = MagicMock()
         dev.__class__.__name__ = "MeshDevice"
         dev.address = "DC:23:4D:21:43:A5"
         coord = TuyaBLEMeshCoordinator(dev)
-        assert coord._is_bridge_device() is False
+        assert coord.is_bridge_device() is False
 
     def test_sig_mesh_device_not_bridge(self) -> None:
         dev = MagicMock()
         dev.__class__.__name__ = "SIGMeshDevice"
         dev.address = "DC:23:4D:21:43:A5"
         coord = TuyaBLEMeshCoordinator(dev)
-        assert coord._is_bridge_device() is False
+        assert coord.is_bridge_device() is False

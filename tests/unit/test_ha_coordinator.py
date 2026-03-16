@@ -932,35 +932,35 @@ class TestIsBridgeDevice:
         device = make_mock_device()
         type(device).__name__ = "MeshDevice"
         coord = TuyaBLEMeshCoordinator(device)
-        assert coord._is_bridge_device() is False
+        assert coord.is_bridge_device() is False
 
     def test_sig_mesh_device_is_not_bridge(self) -> None:
         """SIGMeshDevice should not be detected as bridge."""
         device = make_mock_device()
         type(device).__name__ = "SIGMeshDevice"
         coord = TuyaBLEMeshCoordinator(device)
-        assert coord._is_bridge_device() is False
+        assert coord.is_bridge_device() is False
 
     def test_bridge_device_detected(self) -> None:
         """Device with 'Bridge' in class name should be detected."""
         device = make_mock_device()
         type(device).__name__ = "TuyaBridgeDevice"
         coord = TuyaBLEMeshCoordinator(device)
-        assert coord._is_bridge_device() is True
+        assert coord.is_bridge_device() is True
 
     def test_http_bridge_detected(self) -> None:
         """HTTPBridge should be detected as bridge."""
         device = make_mock_device()
         type(device).__name__ = "HTTPBridge"
         coord = TuyaBLEMeshCoordinator(device)
-        assert coord._is_bridge_device() is True
+        assert coord.is_bridge_device() is True
 
     def test_mock_device_not_bridge(self) -> None:
         """Default MagicMock should not be bridge."""
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
         # MagicMock.__name__ is "MagicMock" — no "Bridge"
-        assert coord._is_bridge_device() is False
+        assert coord.is_bridge_device() is False
 
 
 @pytest.mark.requires_ha
@@ -973,7 +973,7 @@ class TestRSSIPolling:
         type(device).__name__ = "TuyaBridgeDevice"
         coord = TuyaBLEMeshCoordinator(device)
 
-        coord._start_rssi_polling()
+        coord.start_rssi_polling()
 
         assert coord._rssi_task is None
 
@@ -984,7 +984,7 @@ class TestRSSIPolling:
         type(device).__name__ = "MeshDevice"
         coord = TuyaBLEMeshCoordinator(device)
 
-        coord._start_rssi_polling()
+        coord.start_rssi_polling()
 
         assert coord._rssi_task is not None
 
@@ -999,7 +999,7 @@ class TestRSSIPolling:
         fake_task = MagicMock()
         coord._rssi_task = fake_task
 
-        coord._stop_rssi_polling()
+        coord.stop_rssi_polling()
 
         fake_task.cancel.assert_called_once()
         assert coord._rssi_task is None
@@ -1009,7 +1009,7 @@ class TestRSSIPolling:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
 
-        coord._stop_rssi_polling()  # Should not raise
+        coord.stop_rssi_polling()  # Should not raise
         assert coord._rssi_task is None
 
     @pytest.mark.asyncio
@@ -1022,7 +1022,7 @@ class TestRSSIPolling:
         old_task = MagicMock()
         coord._rssi_task = old_task
 
-        coord._start_rssi_polling()
+        coord.start_rssi_polling()
 
         old_task.cancel.assert_called_once()
         assert coord._rssi_task is not None
@@ -1547,7 +1547,7 @@ class TestAdaptivePollingFrequentChanges:
         initial_interval = coord._rssi_interval
         coord._state_change_counter = 3  # trigger frequent changes path
 
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
 
         # Interval should be reduced by 25%
         assert coord._rssi_interval < initial_interval
@@ -1560,7 +1560,7 @@ class TestAdaptivePollingFrequentChanges:
         coord._rssi_interval = _RSSI_MIN_INTERVAL  # already at minimum
         coord._state_change_counter = 5
 
-        coord._adjust_polling_interval()
+        coord.adjust_polling_interval()
 
         assert coord._rssi_interval >= _RSSI_MIN_INTERVAL
 

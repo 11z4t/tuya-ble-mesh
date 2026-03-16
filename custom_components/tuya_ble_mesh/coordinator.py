@@ -131,40 +131,332 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             on_state_update=self._handle_conn_state_update,
         )
 
-    # --- Backward-compatible proxies for private attrs moved to ConnectionManager ---
-    _CONN_ATTRS = frozenset({
-        '_backoff', '_stats', '_rssi_interval', '_stable_cycles',
-        '_state_change_counter', '_consecutive_failures', '_running',
-        '_storm_threshold', '_max_reconnect_failures', '_raised_repair_issues',
-        '_reconnect_task', '_rssi_task', '_command_semaphore',
-    })
-    # Attrs that need dual-write (coordinator + conn_mgr)
-    _DUAL_ATTRS = frozenset({'_hass', '_entry_id'})
+    # --- Explicit delegation to ConnectionManager (no magic methods) ---
 
-    def __getattr__(self, name: str) -> Any:
-        # __getattr__ is only called when normal lookup fails
-        if '_conn_mgr' not in self.__dict__:
-            raise AttributeError(name)
-        cm = self.__dict__['_conn_mgr']
-        if name in self._CONN_ATTRS or hasattr(cm, name):
-            return getattr(cm, name)
-        raise AttributeError(f"'{type(self).__name__}' has no attribute '{name}'")
+    @property
+    def backoff(self) -> float:
+        """Current reconnect backoff delay in seconds.
 
-    def __setattr__(self, name: str, value: Any) -> None:
-        has_cm = '_conn_mgr' in self.__dict__
-        if name in TuyaBLEMeshCoordinator._CONN_ATTRS and has_cm:
-            setattr(self.__dict__['_conn_mgr'], name, value)
-        elif name in TuyaBLEMeshCoordinator._DUAL_ATTRS and has_cm:
-            super().__setattr__(name, value)
-            setattr(self.__dict__['_conn_mgr'], name, value)
-        else:
-            super().__setattr__(name, value)
+        Returns:
+            Backoff delay in seconds before next reconnect attempt.
+        """
+        return self._conn_mgr.backoff
 
-    def _classify_error(self, err: Exception) -> ErrorClass: return self._conn_mgr.classify_error(err)
-    def _is_bridge_device(self) -> bool: return self._conn_mgr.is_bridge_device()
-    def _adjust_polling_interval(self) -> None: self._conn_mgr.adjust_polling_interval()
-    def _start_rssi_polling(self) -> None: self._conn_mgr.start_rssi_polling()
-    def _stop_rssi_polling(self) -> None: self._conn_mgr.stop_rssi_polling()
+    @backoff.setter
+    def backoff(self, value: float) -> None:
+        """Set reconnect backoff delay.
+
+        Args:
+            value: New backoff delay in seconds.
+        """
+        self._conn_mgr.backoff = value
+
+    @property
+    def _backoff(self) -> float:
+        """Current reconnect backoff delay (private accessor).
+
+        Returns:
+            Backoff delay in seconds.
+        """
+        return self._conn_mgr._backoff
+
+    @_backoff.setter
+    def _backoff(self, value: float) -> None:
+        """Set reconnect backoff delay (private accessor).
+
+        Args:
+            value: New backoff delay in seconds.
+        """
+        self._conn_mgr._backoff = value
+
+    @property
+    def running(self) -> bool:
+        """Whether the connection manager is actively running.
+
+        Returns:
+            True if connection manager is running, False otherwise.
+        """
+        return self._conn_mgr.running
+
+    @running.setter
+    def running(self, value: bool) -> None:
+        """Set running state.
+
+        Args:
+            value: New running state.
+        """
+        self._conn_mgr.running = value
+
+    @property
+    def _running(self) -> bool:
+        """Whether the connection manager is actively running (private accessor).
+
+        Returns:
+            Running state.
+        """
+        return self._conn_mgr._running
+
+    @_running.setter
+    def _running(self, value: bool) -> None:
+        """Set running state (private accessor).
+
+        Args:
+            value: New running state.
+        """
+        self._conn_mgr._running = value
+
+    @property
+    def latest_rssi(self) -> int | None:
+        """Most recent RSSI value from device.
+
+        Returns:
+            RSSI in dBm, or None if not yet measured.
+        """
+        return self._conn_mgr.latest_rssi
+
+    @property
+    def _rssi_interval(self) -> float:
+        """Current RSSI polling interval in seconds.
+
+        Returns:
+            RSSI polling interval in seconds.
+        """
+        return self._conn_mgr._rssi_interval
+
+    @_rssi_interval.setter
+    def _rssi_interval(self, value: float) -> None:
+        """Set RSSI polling interval.
+
+        Args:
+            value: New interval in seconds.
+        """
+        self._conn_mgr._rssi_interval = value
+
+    @property
+    def _stable_cycles(self) -> int:
+        """Number of consecutive stable polling cycles.
+
+        Returns:
+            Count of stable cycles without state changes.
+        """
+        return self._conn_mgr._stable_cycles
+
+    @_stable_cycles.setter
+    def _stable_cycles(self, value: int) -> None:
+        """Set stable cycles count.
+
+        Args:
+            value: New count.
+        """
+        self._conn_mgr._stable_cycles = value
+
+    @property
+    def _state_change_counter(self) -> int:
+        """Number of state changes in current polling window.
+
+        Returns:
+            State change count.
+        """
+        return self._conn_mgr._state_change_counter
+
+    @_state_change_counter.setter
+    def _state_change_counter(self, value: int) -> None:
+        """Set state change counter.
+
+        Args:
+            value: New count.
+        """
+        self._conn_mgr._state_change_counter = value
+
+    @property
+    def _reconnect_task(self) -> asyncio.Task[None] | None:
+        """Current reconnect task, if any.
+
+        Returns:
+            Reconnect task or None.
+        """
+        return self._conn_mgr._reconnect_task
+
+    @_reconnect_task.setter
+    def _reconnect_task(self, value: asyncio.Task[None] | None) -> None:
+        """Set reconnect task.
+
+        Args:
+            value: New task or None.
+        """
+        self._conn_mgr._reconnect_task = value
+
+    @property
+    def _rssi_task(self) -> asyncio.Task[None] | None:
+        """Current RSSI polling task, if any.
+
+        Returns:
+            RSSI task or None.
+        """
+        return self._conn_mgr._rssi_task
+
+    @_rssi_task.setter
+    def _rssi_task(self, value: asyncio.Task[None] | None) -> None:
+        """Set RSSI task.
+
+        Args:
+            value: New task or None.
+        """
+        self._conn_mgr._rssi_task = value
+
+    @property
+    def _consecutive_failures(self) -> int:
+        """Number of consecutive connection failures.
+
+        Returns:
+            Consecutive failure count.
+        """
+        return self._conn_mgr._consecutive_failures
+
+    @_consecutive_failures.setter
+    def _consecutive_failures(self, value: int) -> None:
+        """Set consecutive failures count.
+
+        Args:
+            value: New count.
+        """
+        self._conn_mgr._consecutive_failures = value
+
+    @property
+    def _storm_threshold(self) -> int:
+        """Reconnect storm detection threshold.
+
+        Returns:
+            Storm threshold count.
+        """
+        return self._conn_mgr._storm_threshold
+
+    @_storm_threshold.setter
+    def _storm_threshold(self, value: int) -> None:
+        """Set storm threshold.
+
+        Args:
+            value: New threshold.
+        """
+        self._conn_mgr._storm_threshold = value
+
+    @property
+    def _max_reconnect_failures(self) -> int:
+        """Maximum reconnect failures before giving up.
+
+        Returns:
+            Max failures (0 = unlimited).
+        """
+        return self._conn_mgr._max_reconnect_failures
+
+    @_max_reconnect_failures.setter
+    def _max_reconnect_failures(self, value: int) -> None:
+        """Set max reconnect failures.
+
+        Args:
+            value: New max (0 = unlimited).
+        """
+        self._conn_mgr._max_reconnect_failures = value
+
+    @property
+    def _raised_repair_issues(self) -> set[str]:
+        """Set of repair issue IDs that have been raised.
+
+        Returns:
+            Set of raised issue IDs.
+        """
+        return self._conn_mgr._raised_repair_issues
+
+    @property
+    def _stats(self) -> ConnectionStatistics:
+        """Connection statistics (direct access).
+
+        Returns:
+            ConnectionStatistics instance.
+        """
+        return self._conn_mgr._stats
+
+    def classify_error(self, err: Exception) -> ErrorClass:
+        """Classify an exception into an ErrorClass category.
+
+        Args:
+            err: Exception to classify.
+
+        Returns:
+            ErrorClass category for the exception.
+        """
+        return self._conn_mgr.classify_error(err)
+
+    def _classify_error(self, err: Exception) -> ErrorClass:
+        """Classify an exception (private accessor).
+
+        Args:
+            err: Exception to classify.
+
+        Returns:
+            ErrorClass category for the exception.
+        """
+        return self._conn_mgr.classify_error(err)
+
+    def is_bridge_device(self) -> bool:
+        """Check if the device is a bridge (HTTP-based).
+
+        Returns:
+            True if device is a bridge, False otherwise.
+        """
+        return self._conn_mgr.is_bridge_device()
+
+    def adjust_polling_interval(self) -> None:
+        """Adjust RSSI polling interval based on device stability."""
+        self._conn_mgr.adjust_polling_interval()
+
+    def start_rssi_polling(self) -> None:
+        """Start adaptive RSSI polling task."""
+        self._conn_mgr.start_rssi_polling()
+
+    def _start_rssi_polling(self) -> None:
+        """Start adaptive RSSI polling task (private alias)."""
+        self._conn_mgr.start_rssi_polling()
+
+    def stop_rssi_polling(self) -> None:
+        """Stop RSSI polling task."""
+        self._conn_mgr.stop_rssi_polling()
+
+    def _stop_rssi_polling(self) -> None:
+        """Stop RSSI polling task (private alias)."""
+        self._conn_mgr.stop_rssi_polling()
+
+    def _check_reconnect_storm(self) -> bool:
+        """Check if reconnect storm is detected.
+
+        Returns:
+            True if storm detected, False otherwise.
+        """
+        return self._conn_mgr._check_reconnect_storm()
+
+    def record_connection_error(self, err: Exception) -> None:
+        """Record a connection error in statistics.
+
+        Args:
+            err: The exception that occurred.
+        """
+        self._conn_mgr.record_connection_error(err)
+
+    def _log_connect_metrics(self, response_time: float) -> None:
+        """Log connection metrics.
+
+        Args:
+            response_time: Connection response time in seconds.
+        """
+        self._conn_mgr._log_connect_metrics(response_time)
+
+    async def _rssi_loop(self) -> None:
+        """RSSI polling loop (delegated to ConnectionManager)."""
+        await self._conn_mgr._rssi_loop()
+
+    async def _reconnect_loop(self) -> None:
+        """Reconnect loop (delegated to ConnectionManager)."""
+        await self._conn_mgr._reconnect_loop()
 
     async def _async_update_data(self) -> None:
         return None
@@ -256,7 +548,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         self._state = replace(
             self._state, available=True,
             firmware_version=self._device.firmware_version)
-        self._start_rssi_polling()
+        self.start_rssi_polling()
         self._dispatch_update()
 
     def _handle_conn_state_update(self) -> None:
