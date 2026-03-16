@@ -14,7 +14,7 @@ import pytest
 # Add project root and lib for imports
 _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
-sys.path.insert(0, str(Path(_ROOT) / "lib"))
+sys.path.insert(0, str(Path(_ROOT) / "custom_components" / "tuya_ble_mesh" / "lib"))
 
 from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     _BACKOFF_MULTIPLIER,
@@ -1845,7 +1845,7 @@ class TestCommandDebouncing:
         """Rapid turn_on calls should coalesce — only last command fires."""
         import sys
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-        sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "custom_components" / "tuya_ble_mesh" / "lib"))
         import asyncio
         from unittest.mock import AsyncMock, MagicMock
 
@@ -1884,7 +1884,7 @@ class TestCommandDebouncing:
         """async_turn_off should cancel a pending debounced turn_on."""
         import sys
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-        sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
+        sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "custom_components" / "tuya_ble_mesh" / "lib"))
         import asyncio
         from unittest.mock import AsyncMock, MagicMock
 

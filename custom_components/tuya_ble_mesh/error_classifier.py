@@ -38,7 +38,7 @@ def classify_error(err: Exception) -> ErrorClass:
         ErrorClass indicating the failure category.
 
     Examples:
-        >>> from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.exceptions import AuthenticationError
+        >>> from tuya_ble_mesh.exceptions import AuthenticationError
         >>> classify_error(AuthenticationError("bad key"))
         ErrorClass.MESH_AUTH
 
@@ -51,7 +51,7 @@ def classify_error(err: Exception) -> ErrorClass:
     # --- Stage 1: isinstance checks for lib exception hierarchy ---
     # Import locally to avoid circular dependencies
     try:
-        from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.exceptions import (
+        from tuya_ble_mesh.exceptions import (
             AuthenticationError,
             CryptoError,
             DeviceNotFoundError,

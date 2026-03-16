@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "custom_components" / "tuya_ble_mesh" / "lib"))
 
 from tuya_ble_mesh.crypto import (
     make_pair_packet,
@@ -22,7 +22,7 @@ from tuya_ble_mesh.crypto import (
 from tuya_ble_mesh.exceptions import CryptoError, SecretAccessError
 from tuya_ble_mesh.secrets import DictSecretsManager, SecretsManager
 
-_LIB_DIR = Path(__file__).resolve().parent.parent.parent / "lib" / "tuya_ble_mesh"
+_LIB_DIR = Path(__file__).resolve().parent.parent.parent / "custom_components" / "tuya_ble_mesh" / "lib" / "tuya_ble_mesh"
 
 
 class TestSecretManagerLeakage:

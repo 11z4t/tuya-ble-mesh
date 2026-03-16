@@ -76,7 +76,7 @@ async def perform_telink_pairing(
         raise ValueError("device_type_mismatch")
 
     # Import provisioner for Telink pairing
-    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.provisioner import pair
+    from tuya_ble_mesh.provisioner import pair
 
     _LOGGER.info("Starting Telink mesh pairing for %s", mac)
     try:
@@ -85,15 +85,15 @@ async def perform_telink_pairing(
     except Exception as exc:
         _LOGGER.warning("Telink pairing failed for %s: %s", mac, exc, exc_info=True)
         # Map provisioning errors to user-friendly keys
-        from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.exceptions import ProvisioningError
+        from tuya_ble_mesh.exceptions import ProvisioningError
         if isinstance(exc, ProvisioningError):
             raise ValueError("pairing_failed")
         raise ValueError("pairing_failed") from exc
 
     # PLAT-740 QC BRIST 2: Verify — send status query and VALIDATE RESPONSE
     _LOGGER.info("Verifying Telink device %s with status query (0xE0)", mac)
-    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.const import TELINK_CHAR_COMMAND, TELINK_CHAR_NOTIFY, TELINK_CMD_STATUS_QUERY
-    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.protocol import encode_command_packet
+    from tuya_ble_mesh.const import TELINK_CHAR_COMMAND, TELINK_CHAR_NOTIFY, TELINK_CMD_STATUS_QUERY
+    from tuya_ble_mesh.protocol import encode_command_packet
 
     # Build status query command (0xE0)
     status_query = encode_command_packet(

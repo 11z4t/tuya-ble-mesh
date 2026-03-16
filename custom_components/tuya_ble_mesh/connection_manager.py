@@ -27,9 +27,9 @@ __all__ = ["ConnectionManager", "ErrorClass", "classify_error"]
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
-    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.device import MeshDevice
-    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice, TelinkBridgeDevice
-    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
+    from tuya_ble_mesh.device import MeshDevice
+    from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice, TelinkBridgeDevice
+    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
 
     from custom_components.tuya_ble_mesh.coordinator import AnyMeshDevice
 

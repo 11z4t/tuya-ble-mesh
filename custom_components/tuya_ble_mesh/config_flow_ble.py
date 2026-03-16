@@ -34,7 +34,7 @@ from custom_components.tuya_ble_mesh.const import (
 from custom_components.tuya_ble_mesh.config_flow_telink import perform_telink_pairing
 
 try:
-    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.scanner import mac_to_bytes
+    from tuya_ble_mesh.scanner import mac_to_bytes
 except ImportError:
     mac_to_bytes = None  # type: ignore[assignment]
 

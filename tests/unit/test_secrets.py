@@ -9,7 +9,7 @@ import pytest
 
 _ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(_ROOT))
-sys.path.insert(0, str(_ROOT / "lib"))
+sys.path.insert(0, str(_ROOT / "custom_components" / "tuya_ble_mesh" / "lib"))
 
 from tuya_ble_mesh.exceptions import SecretAccessError  # noqa: E402
 from tuya_ble_mesh.secrets import DictSecretsManager, SecretsManager  # noqa: E402

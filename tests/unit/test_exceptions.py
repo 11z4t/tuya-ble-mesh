@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "custom_components" / "tuya_ble_mesh" / "lib"))
 
 from tuya_ble_mesh.exceptions import (
     AuthenticationError,
@@ -200,6 +200,7 @@ class TestBackwardCompatibility:
             raise ConnectionError("test")
 
     def test_catch_malmbergs_alias_catches_new_name(self) -> None:
+        with pytest.raises(ConnectionError):
             raise ConnectionError("test")
 
     def test_catch_new_name_catches_alias_raise(self) -> None:

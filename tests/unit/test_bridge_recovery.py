@@ -23,7 +23,7 @@ import pytest
 # Add project root and lib for imports
 _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
-sys.path.insert(0, str(Path(_ROOT) / "lib"))
+sys.path.insert(0, str(Path(_ROOT) / "custom_components" / "tuya_ble_mesh" / "lib"))
 
 from tuya_ble_mesh.exceptions import SIGMeshError  # noqa: E402
 from tuya_ble_mesh.sig_mesh_bridge import (  # noqa: E402

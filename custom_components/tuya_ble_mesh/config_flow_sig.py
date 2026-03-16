@@ -45,9 +45,9 @@ async def run_provision(hass: Any, mac: str) -> tuple[str, str, str]:
     from bleak import BleakClient
     from bleak_retry_connector import establish_connection
     from homeassistant.components import bluetooth as ha_bluetooth
-    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.secrets import DictSecretsManager  # type: ignore[import-not-found]
-    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
-    from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.sig_mesh_provisioner import (
+    from tuya_ble_mesh.secrets import DictSecretsManager  # type: ignore[import-not-found]
+    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
+    from tuya_ble_mesh.sig_mesh_provisioner import (
         SIGMeshProvisioner,  # type: ignore[import-not-found]
     )
     # Generate fresh random keys (SECURITY: never logged)
@@ -182,11 +182,11 @@ async def async_step_sig_plug(flow: Any, user_input: dict[str, Any] | None) -> F
             # Import here to avoid circular dep at module level
             _error_key = "provisioning_failed"
             try:
-                from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.exceptions import (  # type: ignore[import-not-found]
+                from tuya_ble_mesh.exceptions import (  # type: ignore[import-not-found]
                     DeviceNotFoundError,
                     ProvisioningError,
                 )
-                from custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.exceptions import (
+                from tuya_ble_mesh.exceptions import (
                     TimeoutError as MeshTimeoutError,
                 )
                 if isinstance(exc, DeviceNotFoundError):

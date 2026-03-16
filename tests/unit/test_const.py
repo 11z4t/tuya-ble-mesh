@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import ClassVar
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "lib"))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "custom_components" / "tuya_ble_mesh" / "lib"))
 
 from tuya_ble_mesh.const import (
     BT_BASE_UUID_FMT,

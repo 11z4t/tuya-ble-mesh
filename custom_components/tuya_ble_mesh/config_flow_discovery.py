@@ -25,6 +25,7 @@ from custom_components.tuya_ble_mesh.const import (
     DEFAULT_VENDOR_ID,
     DEVICE_TYPE_LIGHT,
     DEVICE_TYPE_PLUG,
+    DEVICE_TYPE_SIG_PLUG,
     SIG_MESH_PROV_UUID,
     SIG_MESH_PROXY_UUID,
 )

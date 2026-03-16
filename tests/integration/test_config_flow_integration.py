@@ -21,7 +21,7 @@ import pytest
 _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 if _ROOT not in sys.path:
     sys.path.insert(0, _ROOT)
-_LIB = str(Path(_ROOT) / "lib")
+_LIB = str(Path(_ROOT) / "custom_components" / "tuya_ble_mesh" / "lib")
 if _LIB not in sys.path:
     sys.path.insert(0, _LIB)
 
