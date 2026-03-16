@@ -545,7 +545,12 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             )
             return self.async_abort(reason="not_in_pairing_mode")
 
-        if not name.startswith("out_of_mesh"):
+        # PLAT-731: S17* devices are Malmbergs SIG Mesh plugs — accept without UUID check
+        if name.startswith("S17"):
+            _LOGGER.info("SIG Mesh plug detected via name pattern: %s (%s)", name, address)
+            # Fall through to setup — these are SIG Mesh devices identified by name
+
+        elif not name.startswith("out_of_mesh"):
             # Device name does not indicate pairing mode — check service UUIDs
             has_prov = SIG_MESH_PROV_UUID in service_uuids
             has_proxy = SIG_MESH_PROXY_UUID in service_uuids
