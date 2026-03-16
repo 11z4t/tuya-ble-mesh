@@ -576,8 +576,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         #  Check if device is still advertising (stale flow protection)
         # If the device is not currently available in HA's bluetooth stack, ignore the discovery.
         # This prevents stale discovery flows from persisting after a device stops advertising.
+        # PLAT-737: Use connectable=True to signal connection intent to HA bluetooth manager
         try:
-            ble_device = async_ble_device_from_address(self.hass, address, connectable=False)
+            ble_device = async_ble_device_from_address(self.hass, address, connectable=True)
             if ble_device is None:
                 _LOGGER.debug(
                     "Ignoring stale discovery for %s (device no longer advertising)", address
@@ -955,18 +956,12 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         # NOTE: Works with ESPHome BLE proxies. If HA has no local adapter but has
         # ESPHome BLE proxies, devices discovered by proxies will be in HA's bluetooth
         # registry and establish_connection will route traffic via the proxy.
+        # PLAT-737: ALWAYS use connectable=True to signal connection intent
         def _ble_device_cb(address: str) -> Any:
-            """Look up BLEDevice via HA bluetooth registry (non-connectable OK)."""
+            """Look up BLEDevice via HA bluetooth registry (connectable=True required)."""
             device = ha_bluetooth.async_ble_device_from_address(
                 self.hass, address.upper(), connectable=True
             )
-            if device is None:
-                _LOGGER.debug(
-                    "No connectable BLEDevice for %s, trying non-connectable", address
-                )
-                device = ha_bluetooth.async_ble_device_from_address(
-                    self.hass, address.upper(), connectable=False
-                )
             if device is None:
                 _LOGGER.warning(
                     "BLEDevice not found in HA bluetooth registry for %s. "

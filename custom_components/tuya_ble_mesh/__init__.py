@@ -98,13 +98,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
 
     # BLE Proxy support: use HA's bluetooth stack to find devices
     # This routes through all available BLE adapters and ESPHome proxies
+    # PLAT-737: ALWAYS use connectable=True to signal connection intent
     def _ble_device_from_ha(address: str) -> Any:
         from homeassistant.components.bluetooth import async_ble_device_from_address
 
-        # Try connectable first, fall back to any advertisement
+        # PLAT-737: connectable=True signals HA to pause scanning during connect
         device = async_ble_device_from_address(hass, address, connectable=True)
-        if device is None:
-            device = async_ble_device_from_address(hass, address, connectable=False)
         if device is None:
             _LOGGER.warning("BLE device %s not found via HA bluetooth stack", address)
         else:
