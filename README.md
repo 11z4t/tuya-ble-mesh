@@ -1,10 +1,11 @@
 # Tuya BLE Mesh for Home Assistant
 
 [![hacs_badge](https://img.shields.io/badge/HACS-Custom-41BDF5.svg?logo=homeassistantcommunitystore)](https://github.com/hacs/integration)
-[![CI](https://github.com/kvista-se/tuya-ble-mesh/actions/workflows/ci.yml/badge.svg)](https://github.com/kvista-se/tuya-ble-mesh/actions/workflows/ci.yml)
-[![Version](https://img.shields.io/badge/version-0.26.0-blue.svg)](CHANGELOG.md)
-[![License: MIT](https://img.shields.io/badge/License-Myellow.svg)](LICENSE)
+[![CI](https://github.com/11z4t/tuya-ble-mesh/actions/workflows/ci.yml/badge.svg)](https://github.com/11z4t/tuya-ble-mesh/actions/workflows/ci.yml)
+[![Version](https://img.shields.io/badge/version-0.35.0-blue.svg)](CHANGELOG.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![HA 2024.1+](https://img.shields.io/badge/HA-2024.1%2B-blue.svg)](https://www.home-assistant.io)
+[![Tests](https://img.shields.io/badge/tests-1922%20passing-brightgreen.svg)](https://github.com/11z4t/tuya-ble-mesh/actions)
 
 A fully local Home Assistant integration for controlling Tuya BLE Mesh devices. No cloud. No Tuya account required for daily use.
 
@@ -36,10 +37,10 @@ In both modes, Home Assistant itself doesn't need Bluetooth hardware.
 
 ## Tested Devices
 
-| Device | Brand | Type | MAC | Status |
-|--------|-------|------|-----|--------|
-| LED Driver 9952126 | Malmbergs | Dimmable LED driver | DC:23:4D:21:43:A5 | Tested — on/off, brightness |
-| Smart Plug S17 | Malmbergs | BLE Mesh relay plug | DC:23:4F:10:52:C4 | Tested — on/off, SIG Mesh provisioned |
+| Device | Brand | Type | Status |
+|--------|-------|------|--------|
+| LED Driver 9952126 | Malmbergs | Dimmable LED driver | ✅ Tested — on/off, brightness |
+| Smart Plug S17 | Malmbergs | BLE Mesh relay plug | ✅ Tested — on/off, SIG Mesh provisioned |
 
 ### Potentially Compatible
 
@@ -62,20 +63,25 @@ Devices using the Tuya BLE Mesh / Telink stack with service UUID `fe07`:
 
 ### Connectivity
 - **Auto-discovery** — finds `out_of_mesh*` and `tymesh*` devices via BLE
+- **HA Bluetooth integration** — uses Home Assistant's native Bluetooth API (no adapter conflicts)
 - **ESPHome BLE proxy** — use any ESPHome device as a BLE bridge (SIG Mesh)
 - **Auto-reconnect** — exponential backoff (5s → 5min) on connection loss
 - **Keep-alive** — maintains BLE connections proactively to minimize latency
 - **Command queue** — delivery with TTL and retry under rapid HA automations
+- **Reconnect debounce** — prevents reconnect storms after transient failures
 
 ### Status & Monitoring
-- **Push-based updates** — BLE notifications drive state changes when supported; automatic fallback to poll-only mode when `start_notify()` fails (e.g. older BlueZ)
-- **RSSI sensor** — signal strength monitoring with adaptive polling
+- **Push-based updates** — BLE notifications drive state changes; automatic fallback to poll mode
+- **RSSI sensor** — signal strength from HA Bluetooth API, adaptive polling
 - **Firmware version** — sensor for device firmware tracking
+- **Staleness detection** — coordinator marks unavailable if no updates for configurable period
 - **Connection statistics** — visible in HA diagnostics
+- **Device triggers** — automation triggers for connection events
+- **Logbook integration** — state changes logged in HA logbook
 
 ### Protocol Support
 - **Tuya proprietary BLE Mesh** (Telink TLK8232 / TLK8258) — all light and plug features
-- **SIG Mesh (Bluetooth Mesh)** — provisioning, proxy, basic segmentation/reassembly (experimental — tested with 1-2 devices only)
+- **SIG Mesh (Bluetooth Mesh)** — provisioning, proxy, segmentation/reassembly (experimental)
 - **Dual-stack** — both protocols work simultaneously on the same HA instance
 
 ## Installation
@@ -99,6 +105,8 @@ Devices using the Tuya BLE Mesh / Telink stack with service UUID `fe07`:
 ### Adding a device
 
 **Settings** → **Devices & Services** → **Add Integration** → search **"Tuya BLE Mesh"**
+
+The integration will scan for nearby BLE Mesh devices automatically. Select your device from the list, or enter the MAC address manually.
 
 | Field | Description | Default |
 |-------|-------------|---------|
@@ -134,7 +142,7 @@ Different brands embed different vendor IDs in the Telink mesh protocol:
 | Malmbergs | `0x1001` |
 | Dimond/retsimx | `0x0211` |
 
-If commands don't work with the default, try `0x0160` (AwoX) or `0x0211` (Dimond). Contact the integration maintainers with your device's brand and model if none of these work.
+If commands don't work with the default, try `0x0160` (AwoX) or `0x0211` (Dimond).
 
 ## Entities
 
@@ -145,6 +153,7 @@ Each device creates:
 | `light.<name>` | Light | Power, brightness, color temperature |
 | `switch.<name>` | Switch | Power on/off (plugs only) |
 | `sensor.<name>_signal` | Sensor | BLE signal strength (RSSI) |
+| `sensor.<name>_firmware` | Sensor | Device firmware version |
 
 ## Hardware Setup
 
@@ -154,29 +163,13 @@ Each device creates:
 - **Raspberry Pi** (3B+ or 4) with built-in Bluetooth — runs the bridge daemon
 - **Tuya BLE Mesh devices** — compatible devices (see Tested Devices section)
 
-### IMPORTANT: Bluetooth Adapter Requirements
+### Bluetooth Setup
 
-**If you use Home Assistant's built-in Bluetooth integration**, you'll encounter "BLE adapter busy" errors (status 0x0a). The built-in integration monopolizes the Bluetooth adapter.
+This integration uses **Home Assistant's native Bluetooth integration** (since v0.33). You no longer need a second USB adapter or ESPHome proxy to avoid conflicts.
 
-**You have two options:**
+**Recommended:** Enable Home Assistant's built-in Bluetooth integration and let it manage the adapter. The bridge daemon on the RPi handles direct BLE communication.
 
-**Option 1: ESPHome Bluetooth Proxy (Recommended)**
-- Get an ESP32 device (ESP32-DevKit, M5Atom Lite, or similar)
-- Flash it with ESPHome and enable `bluetooth_proxy`
-- Add it to Home Assistant
-- This integration will automatically use it
-
-**Option 2: Second USB Bluetooth Adapter**
-- Install a USB Bluetooth 4.0+ dongle
-- Plug it into your Home Assistant host
-- Restart Home Assistant
-
-Without one of these solutions, direct BLE device control will fail with "adapter busy" errors.
-
-### Optional hardware (for development/debugging)
-
-- **Adafruit nRF51822 BLE Sniffer** — passive packet capture via serial
-- **Shelly Plug S** — remote power cycling for factory reset procedures
+> **Note:** If you have an older setup with a second USB Bluetooth adapter or ESPHome proxy, these continue to work — the integration supports both modes.
 
 ### Network diagram
 
@@ -190,33 +183,42 @@ Without one of these solutions, direct BLE device control will fail with "adapte
                                                                  └─────────┘
 ```
 
+### Optional hardware (for development/debugging)
+
+- **Adafruit nRF51822 BLE Sniffer** — passive packet capture via serial
+- **Shelly Plug S** — remote power cycling for factory reset procedures
+
 ## Architecture
 
 The codebase is split into two independent layers:
 
 ```
-lib/tuya_ble_mesh/          ← Standalone BLE mesh library (no HA dependency)
+custom_components/tuya_ble_mesh/lib/tuya_ble_mesh/  ← Standalone BLE mesh library (no HA dependency)
 ├── protocol.py             ← Tuya BLE Mesh packet encoding/decoding
 ├── crypto.py               ← Mesh encryption (AES-based)
 ├── connection.py           ← BLE GATT connection management
+├── connection_manager.py   ← Connection lifecycle and backoff
 ├── device.py               ← High-level device abstraction
+├── device_protocol.py      ← MeshDeviceProtocol interface
 ├── scanner.py              ← BLE device discovery
 ├── sig_mesh_protocol.py    ← SIG Mesh standard protocol
 ├── sig_mesh_crypto.py      ← SIG Mesh encryption
-├── sig_mesh_device.py      ← SIG Mesh device with GATT proxy
-└── sig_mesh_bridge.py      ← HTTP bridge for remote BLE access
+└── sig_mesh_device.py      ← SIG Mesh device with GATT proxy
 
 custom_components/tuya_ble_mesh/   ← Home Assistant integration
 ├── __init__.py             ← Setup, config entry handling
-├── config_flow.py          ← UI configuration wizard
+├── config_flow/            ← UI configuration wizard (modular)
 ├── coordinator.py          ← Data update coordinator
+├── connection_manager.py   ← BLE connection lifecycle
 ├── light.py                ← Light entity platform
 ├── switch.py               ← Switch entity platform (plugs)
-├── sensor.py               ← Signal strength sensor
-└── lib/                    ← Bundled copy of the core library
+├── sensor.py               ← Signal strength + firmware sensors
+├── device_trigger.py       ← Automation triggers
+├── logbook.py              ← Logbook integration
+└── repairs.py              ← HA repair issues
 ```
 
-The core library can be used independently — for scripts, testing, or other platforms.
+The core library has no HA dependencies and can be used independently for scripts, testing, or other platforms.
 
 ## Development
 
@@ -226,7 +228,7 @@ git clone https://github.com/11z4t/tuya-ble-mesh.git
 cd tuya-ble-mesh
 python -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install -e ".[test]"
 
 # Run full check pipeline (must pass before committing)
 bash scripts/run-checks.sh
@@ -240,31 +242,25 @@ python -m pytest tests/unit/ -q
 
 ### Check pipeline
 
-CI runs: **ruff** (lint + format), **mypy** (strict for lib, relaxed for HA layer), **pytest**, **HACS validation**.
-Local-only (not in CI): **bandit**, **safety**, **detect-secrets**.
+CI runs: **ruff** (lint + format), **mypy** (strict), **pytest** (1922 tests), **HACS validation**.
+Local-only: **bandit**, **safety**, **detect-secrets**.
+
+All checks must pass before committing — enforced by `run-checks.sh`.
 
 ## Verification Status
 
 | Area | CI Verified | Hardware Tested | Notes |
 |------|-------------|-----------------|-------|
-| Telink mesh protocol | Unit tests | 1 device (LED Driver 9952126) | on/off, brightness confirmed |
-| SIG Mesh provisioning | Unit tests | 1 device (Smart Plug S17) | on/off confirmed, limited testing |
-| SIG Mesh segmentation | Unit tests | Limited | Proxy SAR fragmentation NOT implemented — only complete PDUs |
-| HA integration layer | Unit tests | 2 devices | Config flow, coordinator, entities |
-| Command queue | Unit tests | Indirect | Future-based blocking model, not a full async dispatcher |
-| BLE reconnection | Unit tests | Observed | Exponential backoff works in practice |
+| Telink mesh protocol | ✅ Unit tests | 1 device (LED Driver 9952126) | on/off, brightness confirmed |
+| SIG Mesh provisioning | ✅ Unit tests | 1 device (Smart Plug S17) | on/off confirmed |
+| SIG Mesh segmentation | ✅ Unit tests | Limited | SAR fragmentation tested in CI |
+| HA integration layer | ✅ 1922 tests | 2 devices | Config flow, coordinator, entities |
+| HA Bluetooth API | ✅ Unit tests | Indirect | HaBleakClientWrapper integration |
+| BLE reconnection | ✅ Unit tests | Observed | Exponential backoff with debounce |
 
-**Overall status: HACS beta-ready / stable for limited use.** Tested with limited devices. SIG Mesh layer has known simplifications (see below). Not broadly validated across vendors.
+**Overall status: HACS beta-ready / stable for limited use.** Tested with 2 Malmbergs devices. SIG Mesh layer has known simplifications. Not broadly validated across vendors.
 
 ## Troubleshooting
-
-### BLE Adapter Busy (Error 0x0a)
-
-**Symptom:** Connection fails with "Bluetooth adapter busy" or "error 0x0a"
-
-**Cause:** Home Assistant's built-in Bluetooth integration is monopolizing the adapter.
-
-**Solution:** Use ESPHome Bluetooth Proxy or install a second USB Bluetooth adapter (see Hardware Setup section above).
 
 ### Device Not Found
 
@@ -283,29 +279,36 @@ Local-only (not in CI): **bandit**, **safety**, **detect-secrets**.
 
 **Possible causes:**
 - Weak BLE signal
-- BLE adapter monopolized by another integration
 - Device in wrong state
 
-**Solution:** Move device closer, check for adapter conflicts, try factory reset.
+**Solution:** Move device closer, try factory reset.
+
+### Device Shows Unavailable After HA Restart
+
+**Symptom:** Entity shows unavailable after HA restart
+
+**Cause:** Bridge daemon not running, or device temporarily out of range.
+
+**Solution:** Ensure bridge daemon is running (`python scripts/ble_mesh_daemon.py`). The integration will auto-reconnect with exponential backoff once the bridge is reachable.
 
 ## Known Limitations
 
 - **Bridge required** — HA cannot talk BLE mesh directly; the RPi bridge daemon must be running (for Telink devices)
-- **BLE adapter sharing** — Cannot share adapter with HA built-in Bluetooth integration; requires ESPHome proxy or second adapter
-- **Limited device testing** — limited hardware testing; other brands are protocol-compatible but untested
-- **Factory reset** — some devices need 5x rapid power cycling to enter provisioning mode; not all respond reliably
-- **BlueZ quirks** — on older BlueZ versions, `bluetoothctl remove` may be needed between reconnects (handled automatically)
+- **Limited device testing** — only 2 Malmbergs devices tested; other brands are protocol-compatible but untested
+- **Factory reset** — some devices need 5x rapid power cycling to enter provisioning mode
 - **No OTA** — firmware updates are out of scope
-- **SIG Mesh pending responses** — keyed by opcode only; concurrent requests for the same opcode type may collide
 - **SIG Mesh Proxy SAR** — only COMPLETE PDUs supported; FIRST/CONTINUE/LAST fragmentation not implemented
-- **Telink command queue** — blocking Future model, not a true async dispatcher; under high load, callers block until queue drains
+- **SIG Mesh pending responses** — keyed by opcode only; concurrent requests for the same opcode may collide
 
 ## Contributing
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the full development workflow.
+
+Quick summary:
 1. Fork the repository
 2. Create a feature branch
-3. Ensure `bash scripts/run-checks.sh` passes
-4. Submit a pull request
+3. Run `bash scripts/run-checks.sh` — all checks must pass
+4. Submit a pull request with the PR template
 
 ## Changelog
 
@@ -313,4 +316,4 @@ See [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE)

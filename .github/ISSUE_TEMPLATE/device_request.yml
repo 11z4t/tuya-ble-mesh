@@ -1,0 +1,81 @@
+name: Device Compatibility Request
+description: Report a new device you'd like supported or that you've tested
+title: "[DEVICE] "
+labels: ["device-compatibility"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us expand device support! Fill out what you know.
+        If you have a working YAML profile, consider submitting a PR directly to `profiles/`.
+
+  - type: input
+    id: brand
+    attributes:
+      label: Brand / Manufacturer
+      placeholder: "e.g. AwoX, Malmbergs, Dimond"
+    validations:
+      required: true
+
+  - type: input
+    id: model
+    attributes:
+      label: Model / Product Name
+      placeholder: "e.g. EGLO Crosslink-C 99104"
+    validations:
+      required: true
+
+  - type: input
+    id: sku
+    attributes:
+      label: SKU / Article Number
+      placeholder: "e.g. 99104"
+
+  - type: dropdown
+    id: protocol
+    attributes:
+      label: Protocol
+      description: Check BLE advertisement — Telink uses `fe07` UUID, SIG Mesh uses `fe07` + provisioning UUID
+      options:
+        - Telink BLE Mesh (proprietary)
+        - SIG Mesh (Bluetooth Mesh standard)
+        - Unknown
+    validations:
+      required: true
+
+  - type: input
+    id: vendor_id
+    attributes:
+      label: Vendor ID (if known)
+      description: Visible in BLE advertisement manufacturer data, e.g. `0x0160` for AwoX
+      placeholder: "e.g. 0x0160"
+
+  - type: input
+    id: mac_prefix
+    attributes:
+      label: MAC Address Prefix (first 3 octets)
+      placeholder: "e.g. DC:23:4D"
+
+  - type: textarea
+    id: features
+    attributes:
+      label: Features / Data Points
+      description: What DPs does the device expose? (power, brightness, color temp, RGB, etc.)
+
+  - type: dropdown
+    id: status
+    attributes:
+      label: Test Status
+      options:
+        - Confirmed working — I tested this
+        - Partially working — some features work
+        - Not working — protocol compatible but commands fail
+        - Untested — I just have the device info
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional Notes
+      description: Anything else useful — BLE sniff logs, Tuya device ID, firmware version, etc.

@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Discussions
+    url: https://github.com/11z4t/tuya-ble-mesh/discussions
+    about: Questions, ideas, and general discussion
+  - name: Wiki
+    url: https://github.com/11z4t/tuya-ble-mesh/wiki
+    about: Architecture docs, protocol details, FAQ

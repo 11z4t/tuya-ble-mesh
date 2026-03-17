@@ -4,8 +4,10 @@
 
 | Version | Supported |
 |---------|-----------|
-| 0.17.x  | Yes       |
-| < 0.17  | No        |
+| 0.35.x  | Yes       |
+| 0.34.x  | Yes       |
+| 0.33.x  | Yes       |
+| < 0.33  | No        |
 
 ## Security Model
 
