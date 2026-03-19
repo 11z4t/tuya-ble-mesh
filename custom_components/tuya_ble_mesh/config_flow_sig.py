@@ -134,7 +134,7 @@ async def run_provision(hass: Any, mac: str) -> tuple[str, str, str]:
     try:
         result = await asyncio.wait_for(provisioner.provision(mac), timeout=60.0)
     except TimeoutError:
-        raise TimeoutError("Provisioning timed out after 20s") from None
+        raise TimeoutError("Provisioning timed out after 60s") from None
     _LOGGER.info(
         "PB-GATT provisioning succeeded for %s (%d elements)",
         mac,

@@ -29,36 +29,6 @@ _BRIDGE_HOST_PATTERN = re.compile(
     r")$"
 )
 
-# Unicast addresses used during provisioning
-_UNICAST_PROVISIONER = 0x0001
-_UNICAST_DEVICE_DEFAULT = 0x00B0
-
-# GenericOnOff Server SIG Model ID
-_MODEL_GENERIC_ONOFF_SERVER = 0x1000
-
-# Seconds to wait for device to reboot as Proxy Service after provisioning
-_POST_PROV_REBOOT_DELAY = 6.0
-
-
-def _rssi_to_signal_quality(rssi: int | None) -> str:
-    """Convert RSSI dBm value to a human-readable signal quality label.
-
-    Args:
-        rssi: Signal strength in dBm (negative integer) or None if unknown.
-
-    Returns:
-        Human-readable label: Excellent, Good, Fair, Weak, or Unknown.
-    """
-    if rssi is None:
-        return "Unknown"
-    if rssi >= -65:
-        return "Excellent"
-    if rssi >= -75:
-        return "Good"
-    if rssi >= -85:
-        return "Fair"
-    return "Weak"
-
 
 def _parse_json_body(body: str) -> dict[str, object]:
     """Parse a JSON string, returning an empty dict on failure.

@@ -108,8 +108,7 @@ async def perform_telink_pairing(
         mac_to_bytes(mac),
     )
 
-    # QC REQUIREMENT: Hex-log request
-    _LOGGER.warning(
+    _LOGGER.debug(
         "VERIFY TX [%s] → 0xE0 status query: %s",
         mac,
         status_query.hex() if isinstance(status_query, bytes) else status_query,
@@ -121,7 +120,7 @@ async def perform_telink_pairing(
 
     def notification_handler(sender: Any, data: bytes) -> None:
         """Capture response from device."""
-        _LOGGER.warning("VERIFY RX [%s] ← notification: %s", mac, data.hex())
+        _LOGGER.debug("VERIFY RX [%s] ← notification: %s", mac, data.hex())
         response_data.append(data)
         response_received.set()
 
