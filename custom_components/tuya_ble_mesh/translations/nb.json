@@ -20,32 +20,6 @@
           "mesh_address": "La stå som 0 med mindre du har fått andre instruksjoner."
         }
       },
-      "sig_device": {
-        "title": "Koble til enhetens device",
-        "description": "Skriv inn adressen til deviceben som kobler til **{name}**.",
-        "data": {
-          "device_host": "device-adresse",
-          "device_port": "device-port",
-          "unicast_target": "Enhets-ID"
-        },
-        "data_description": {
-          "device_host": "IP-adressen eller vertsnavnet til deviceben din (f.eks. din Raspberry Pi).",
-          "device_port": "Porten deviceben lytter på. Standard er 8099.",
-          "unicast_target": "Endre bare hvis du har fått instruksjoner om det."
-        }
-      },
-      "telink_device": {
-        "title": "Koble til enhetens device",
-        "description": "Skriv inn adressen til deviceben som kobler til **{name}**.",
-        "data": {
-          "device_host": "device-adresse",
-          "device_port": "device-port"
-        },
-        "data_description": {
-          "device_host": "IP-adressen eller vertsnavnet til deviceben din (f.eks. din Raspberry Pi).",
-          "device_port": "Porten deviceben lytter på. Standard er 8099."
-        }
-      },
       "sig_plug": {
         "title": "Konfigurerer {name}",
         "description": "Den sikre Bluetooth-tilkoblingen til enheten din konfigureres automatisk.\n\nSørg for at enheten er **slått på** og **nær Bluetooth-adapteren din**, klikk deretter på **Send**.",
@@ -67,8 +41,6 @@
         "data": {
           "mesh_name": "Nettverksnavn",
           "mesh_password": "Nettverkspassord",
-          "device_host": "device-adresse",
-          "device_port": "device-port",
           "bridge_host": "Device Address",
           "bridge_port": "Device Port"
         }
@@ -103,7 +75,6 @@
     "error": {
       "invalid_mac": "Det ser ikke ut til å være en gyldig Bluetooth-adresse. Forventet format: XX:XX:XX:XX:XX:XX.",
       "invalid_key": "Ugyldig nøkkel — vi trenger nøyaktig 32 hex-tegn.",
-      "invalid_device_host": "Skriv inn en gyldig adresse, f.eks. 192.168.1.100 eller raspberrypi.local.",
       "invalid_credential_length": "Nettverksnavn og passord må ha høyst 16 tegn hver.",
       "invalid_vendor_id": "Ugyldig leverandørkode — bruk 1 til 4 hex-sifre (f.eks. 0x1001).",
       "cannot_connect": "Kunne ikke nå deviceben. Kontroller at den er slått på og koblet til nettverket.",
@@ -118,7 +89,8 @@
       "ble_adapter_busy": "Your Bluetooth adapter is busy. Another app is using it. To fix this: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter. See the integration documentation for details.",
       "unknown_device_type": "Could not identify the device type automatically. Select the device type manually.",
       "device_type_mismatch": "This device doesn't match the selected type. Choose the correct device type or let the system detect it automatically.",
-      "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again."
+      "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again.",
+      "timeout_validation": "Validering fikk tidsavbrudd (over 30 sekunder). Kontroller at enheten er slått på og nær Bluetooth-adapteren, og prøv igjen."
     },
     "abort": {
       "already_configured": "Denne enheten er allerede konfigurert i Home Assistant.",
@@ -138,8 +110,6 @@
           "mesh_name": "Nettverksnavn",
           "mesh_password": "Nettverkspassord",
           "mesh_address": "Enhetsadresse",
-          "device_host": "device-adresse",
-          "device_port": "device-port",
           "unicast_target": "Enhets-ID",
           "iv_index": "Sikkerhetsteller",
           "bridge_host": "Device Address",
@@ -149,8 +119,6 @@
           "mesh_name": "Nettverksnavnet for enheten din.",
           "mesh_password": "Nettverkspassordet for enheten din.",
           "mesh_address": "Intern adresse for denne enheten. Sett til 0 for å bruke standarden.",
-          "device_host": "IP-adressen eller vertsnavnet til deviceben din.",
-          "device_port": "Porten deviceben lytter på. Standard er 8099.",
           "unicast_target": "Endre bare hvis du har fått instruksjoner om det.",
           "iv_index": "Endre bare hvis du har fått instruksjoner om det.",
           "bridge_host": "The IP address or hostname of your device.",
@@ -282,10 +250,6 @@
     "provisioning_failed": {
       "title": "Enhetskonfigurasjon mislyktes",
       "description": "Kunne ikke konfigurere {device}. Slå av og på enheten, og legg den til i Home Assistant igjen."
-    },
-    "device_unreachable": {
-      "title": "deviceben svarer ikke",
-      "description": "Kan ikke nå enhetens device på {host}:{port}. Kontroller at den er slått på og koblet til nettverket."
     },
     "bridge_unreachable": {
       "title": "Device not responding",

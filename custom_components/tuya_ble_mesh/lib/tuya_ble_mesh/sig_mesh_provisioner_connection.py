@@ -219,6 +219,7 @@ class ProvisionerConnectionMixin:
                     raise ProvisioningError(msg)
 
                 # Verify Provisioning Service is present
+                services = None
                 try:
                     # HA's HaBleakClientWrapper uses .services property, not .get_services()
                     if hasattr(client, "get_services"):
@@ -241,11 +242,16 @@ class ProvisionerConnectionMixin:
                 except TimeoutError:
                     _LOGGER.warning("Service enumeration timed out, continuing anyway")
 
+                svc_count = (
+                    len(services.services)
+                    if services is not None and hasattr(services, "services")
+                    else 0
+                )
                 _LOGGER.info(
                     "PB-GATT connected to %s (MTU=%d, services=%d)",
                     address,
                     client.mtu_size,
-                    len(services.services) if "services" in locals() else 0,
+                    svc_count,
                 )
                 return client
 

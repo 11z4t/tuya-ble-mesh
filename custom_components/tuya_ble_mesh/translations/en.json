@@ -89,7 +89,8 @@
       "unknown_device_type": "Could not identify the device type automatically. Select the device type manually.",
       "ble_adapter_busy": "Your Bluetooth adapter is busy. Another app is using it. To fix this: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter. See the integration documentation for details.",
       "invalid_iv_index": "Enter a number between 0 and 4,294,967,295.",
-      "invalid_unicast_address": "Enter a 4-character hex address between 0001 and 7FFF (e.g. 00B0)."
+      "invalid_unicast_address": "Enter a 4-character hex address between 0001 and 7FFF (e.g. 00B0).",
+      "timeout_validation": "Validation timed out (over 30 seconds). Make sure the device is powered on and close to the Bluetooth adapter, then try again."
     },
     "abort": {
       "already_configured": "This device is already set up in Home Assistant.",

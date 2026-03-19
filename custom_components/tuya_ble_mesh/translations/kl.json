@@ -20,32 +20,6 @@
           "mesh_address": "0-mik atoruk, siunnersuisimaneq alla pillugu kisiat."
         }
       },
-      "sig_device": {
-        "title": "device-imut attavissiisoq",
-        "description": "device-ip adressea allaguk, **{name}**-mut attaviusartup.",
-        "data": {
-          "device_host": "device-ip adressea",
-          "device_port": "device-ip port-ia",
-          "unicast_target": "Peqataatip ID-a"
-        },
-        "data_description": {
-          "device_host": "device-ip IP-adressea imaluunniit hostname-a (soorlu Raspberry Pi-p).",
-          "device_port": "Port device-ip nipilinnaatissaa. Atuuffissaq 8099-iuvoq.",
-          "unicast_target": "Allanngortinnagu, siunnersuisimaneq pillugu kisiat."
-        }
-      },
-      "telink_device": {
-        "title": "device-imut attavissiisoq",
-        "description": "device-ip adressea allaguk, **{name}**-mut attaviusartup.",
-        "data": {
-          "device_host": "device-ip adressea",
-          "device_port": "device-ip port-ia"
-        },
-        "data_description": {
-          "device_host": "device-ip IP-adressea imaluunniit hostname-a (soorlu Raspberry Pi-p).",
-          "device_port": "Port device-ip nipilinnaatissaa. Atuuffissaq 8099-iuvoq."
-        }
-      },
       "sig_plug": {
         "title": "{name} aaqqissuusserneqarpoq",
         "description": "Bluetooth-attaveqarneq pillugu periarfissiissutit nammineq aaqqissuusserneqassapput.\n\nPerqataatit **iluarsitaq** aamma **Bluetooth-adapterimut qanittumik** itissallugu, kingornussaq **Nassiuk** tiguuk.",
@@ -67,8 +41,6 @@
         "data": {
           "mesh_name": "Netværkip aqqa",
           "mesh_password": "Netværkip isissutissaa",
-          "device_host": "device-ip adressea",
-          "device_port": "device-ip port-ia",
           "bridge_host": "Device Address",
           "bridge_port": "Device Port"
         }
@@ -103,7 +75,6 @@
     "error": {
       "invalid_mac": "Taamaasiornissaq Bluetooth-adressitut isumaqarsinnaanngilaq. Aaqqissuusseq tassaavoq: XX:XX:XX:XX:XX:XX.",
       "invalid_key": "Isissutissaq oqimaanaq — hex-talut 32-t kissaatigineqassapput.",
-      "invalid_device_host": "Adresse oqimaanaq allaguk, soorlu 192.168.1.100 imaluunniit raspberrypi.local.",
       "invalid_credential_length": "Netværkip aqqa isissutissaalu naapertoqqussiissillutik 16-inik nakkutillutik.",
       "invalid_vendor_id": "Nioqqutissiursortip kode-a oqimaanaq — 1-4 hex-talut atorsinnaapput (soorlu 0x1001).",
       "cannot_connect": "device-imut attaveqarsinnaanngitsoorpoq. device iluarsitaasoq netværkimuullu attavissimasoq misissoruk.",
@@ -118,7 +89,8 @@
       "ble_adapter_busy": "Your Bluetooth adapter is busy. Another app is using it. To fix this: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter. See the integration documentation for details.",
       "unknown_device_type": "Could not identify the device type automatically. Select the device type manually.",
       "device_type_mismatch": "This device doesn't match the selected type. Choose the correct device type or let the system detect it automatically.",
-      "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again."
+      "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again.",
+      "timeout_validation": "Nalunaarsuineq uninngasiurpoq (30 sekunder-it qaangiinnarlugit). Peqataatit iluarsitaasoq Bluetooth-adapter-imik qanittumillu itillugu, utissalluaruk."
     },
     "abort": {
       "already_configured": "Peqataatit matuma Home Assistantimi aaqqissuusserneqareerpoq.",
@@ -138,8 +110,6 @@
           "mesh_name": "Netværkip aqqa",
           "mesh_password": "Netværkip isissutissaa",
           "mesh_address": "Peqataatip adressea",
-          "device_host": "device-ip adressea",
-          "device_port": "device-ip port-ia",
           "unicast_target": "Peqataatip ID-a",
           "iv_index": "Annertuumik illersornermi kisitsit",
           "bridge_host": "Device Address",
@@ -149,8 +119,6 @@
           "mesh_name": "Peqataatip netværkianut aqqa.",
           "mesh_password": "Peqataatip netværkianut isissutissaa.",
           "mesh_address": "Peqataatip iluani adressea. 0-mik atoruk atuuffissaq atorumassiuk.",
-          "device_host": "device-ip IP-adressea imaluunniit hostname-a.",
-          "device_port": "Port device-ip nipilinnaatissaa. Atuuffissaq 8099-iuvoq.",
           "unicast_target": "Allanngortinnagu, siunnersuisimaneq pillugu kisiat.",
           "iv_index": "Allanngortinnagu, siunnersuisimaneq pillugu kisiat.",
           "bridge_host": "The IP address or hostname of your device.",
@@ -282,10 +250,6 @@
     "provisioning_failed": {
       "title": "Peqataatit aaqqissuusserneqarsinnaanngilaq",
       "description": "{device} aaqqissuusserneqarsinnaanngilaq. Peqataatit matussiarlugu aamma iluarsillugu, Home Assistantimut nutaamik ilanngunniassuk."
-    },
-    "device_unreachable": {
-      "title": "device akissuteqanngilaq",
-      "description": "device-imut {host}:{port}-mi attaveqarsinnaanngitsoorpoq. device iluarsitaasoq netværkimuullu attavissimasoq misissoruk."
     },
     "bridge_unreachable": {
       "title": "Device not responding",

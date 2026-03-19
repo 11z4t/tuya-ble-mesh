@@ -20,32 +20,6 @@
           "mesh_address": "Залиште значення 0, якщо не отримали iнших вказiвок."
         }
       },
-      "sig_device": {
-        "title": "Пiдключитись до хабу пристрою",
-        "description": "Введiть адресу хабу, який пiдключається до **{name}**.",
-        "data": {
-          "device_host": "Адреса хабу",
-          "device_port": "Порт хабу",
-          "unicast_target": "Iдентифiкатор пристрою"
-        },
-        "data_description": {
-          "device_host": "IP-адреса або iм'я хоста вашого хабу (наприклад, ваш Raspberry Pi).",
-          "device_port": "Порт, на якому слухає хаб. За замовчуванням 8099.",
-          "unicast_target": "Змiнюйте лише за вказiвкою."
-        }
-      },
-      "telink_device": {
-        "title": "Пiдключитись до хабу пристрою",
-        "description": "Введiть адресу хабу, який пiдключається до **{name}**.",
-        "data": {
-          "device_host": "Адреса хабу",
-          "device_port": "Порт хабу"
-        },
-        "data_description": {
-          "device_host": "IP-адреса або iм'я хоста вашого хабу (наприклад, ваш Raspberry Pi).",
-          "device_port": "Порт, на якому слухає хаб. За замовчуванням 8099."
-        }
-      },
       "sig_plug": {
         "title": "Налаштування {name}",
         "description": "Захищене Bluetooth-з'єднання з вашим пристроєм буде налаштовано автоматично.\n\nПереконайтесь, що пристрiй **увiмкнено** i **знаходиться поблизу Bluetooth-адаптера**, потiм натиснiть **Надiслати**.",
@@ -67,8 +41,6 @@
         "data": {
           "mesh_name": "Назва мережi",
           "mesh_password": "Пароль мережi",
-          "device_host": "Адреса хабу",
-          "device_port": "Порт хабу",
           "bridge_host": "Device Address",
           "bridge_port": "Device Port"
         }
@@ -103,7 +75,6 @@
     "error": {
       "invalid_mac": "Це не схоже на дiйсну Bluetooth-адресу. Очiкуваний формат: XX:XX:XX:XX:XX:XX.",
       "invalid_key": "Недiйсний ключ — потрiбно рiвно 32 шiстнадцяткових символи.",
-      "invalid_device_host": "Введiть дiйсну адресу, наприклад 192.168.1.100 або raspberrypi.local.",
       "invalid_credential_length": "Назва мережi та пароль повиннi мiстити не бiльше 16 символiв кожен.",
       "invalid_vendor_id": "Недiйсний код виробника — використовуйте вiд 1 до 4 шiстнадцяткових цифр (наприклад, 0x1001).",
       "cannot_connect": "Не вдалось досягти хабу. Перевiрте, чи вiн увiмкнений i пiдключений до мережi.",
@@ -118,7 +89,8 @@
       "ble_adapter_busy": "Your Bluetooth adapter is busy. Another app is using it. To fix this: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter. See the integration documentation for details.",
       "unknown_device_type": "Could not identify the device type automatically. Select the device type manually.",
       "device_type_mismatch": "This device doesn't match the selected type. Choose the correct device type or let the system detect it automatically.",
-      "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again."
+      "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again.",
+      "timeout_validation": "Перевiрку перервано (понад 30 секунд). Переконайтесь, що пристрiй увiмкнений i знаходиться поруч з Bluetooth-адаптером, та спробуйте ще раз."
     },
     "abort": {
       "already_configured": "Цей пристрiй вже налаштовано в Home Assistant.",
@@ -138,8 +110,6 @@
           "mesh_name": "Назва мережi",
           "mesh_password": "Пароль мережi",
           "mesh_address": "Адреса пристрою",
-          "device_host": "Адреса хабу",
-          "device_port": "Порт хабу",
           "unicast_target": "Iдентифiкатор пристрою",
           "iv_index": "Лiчильник безпеки",
           "bridge_host": "Device Address",
@@ -149,8 +119,6 @@
           "mesh_name": "Назва мережi для вашого пристрою.",
           "mesh_password": "Пароль мережi для вашого пристрою.",
           "mesh_address": "Внутрiшня адреса цього пристрою. Встановiть значення 0 для використання типового.",
-          "device_host": "IP-адреса або iм'я хоста вашого хабу.",
-          "device_port": "Порт, на якому слухає хаб. За замовчуванням 8099.",
           "unicast_target": "Змiнюйте лише за вказiвкою.",
           "iv_index": "Змiнюйте лише за вказiвкою.",
           "bridge_host": "The IP address or hostname of your device.",
@@ -282,10 +250,6 @@
     "provisioning_failed": {
       "title": "Налаштування пристрою не вдалось",
       "description": "Не вдалось налаштувати {device}. Вимкнiть та увiмкнiть пристрiй, потiм додайте його знову в Home Assistant."
-    },
-    "device_unreachable": {
-      "title": "Хаб не вiдповiдає",
-      "description": "Не вдалось досягти хабу пристрою на {host}:{port}. Перевiрте, чи вiн увiмкнений i пiдключений до мережi."
     },
     "bridge_unreachable": {
       "title": "Device not responding",

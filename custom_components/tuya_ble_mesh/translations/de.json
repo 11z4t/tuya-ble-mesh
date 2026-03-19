@@ -20,32 +20,6 @@
           "mesh_address": "Als 0 lassen, sofern Sie keine anderen Anweisungen erhalten haben."
         }
       },
-      "sig_device": {
-        "title": "Mit Geräte-device verbinden",
-        "description": "Geben Sie die Adresse des devices ein, der mit **{name}** verbunden ist.",
-        "data": {
-          "device_host": "device-Adresse",
-          "device_port": "device-Port",
-          "unicast_target": "Geräte-ID"
-        },
-        "data_description": {
-          "device_host": "Die IP-Adresse oder der Hostname Ihres devices (z.B. Ihr Raspberry Pi).",
-          "device_port": "Port, auf dem der device lauscht. Standard ist 8099.",
-          "unicast_target": "Nur ändern, wenn Sie eine Anweisung dazu erhalten haben."
-        }
-      },
-      "telink_device": {
-        "title": "Mit Geräte-device verbinden",
-        "description": "Geben Sie die Adresse des devices ein, der mit **{name}** verbunden ist.",
-        "data": {
-          "device_host": "device-Adresse",
-          "device_port": "device-Port"
-        },
-        "data_description": {
-          "device_host": "Die IP-Adresse oder der Hostname Ihres devices (z.B. Ihr Raspberry Pi).",
-          "device_port": "Port, auf dem der device lauscht. Standard ist 8099."
-        }
-      },
       "sig_plug": {
         "title": "{name} wird eingerichtet",
         "description": "Die sichere Bluetooth-Verbindung zu Ihrem Gerät wird automatisch eingerichtet.\n\nStellen Sie sicher, dass das Gerät **eingeschaltet** und **in der Nähe Ihres Bluetooth-Adapters** ist, und klicken Sie dann auf **Senden**.",
@@ -67,8 +41,6 @@
         "data": {
           "mesh_name": "Netzwerkname",
           "mesh_password": "Netzwerkpasswort",
-          "device_host": "device-Adresse",
-          "device_port": "device-Port",
           "bridge_host": "Device Address",
           "bridge_port": "Device Port"
         }
@@ -103,7 +75,6 @@
     "error": {
       "invalid_mac": "Das sieht nicht wie eine gültige Bluetooth-Adresse aus. Erwartetes Format: XX:XX:XX:XX:XX:XX.",
       "invalid_key": "Ungültiger Schlüssel — wir benötigen genau 32 Hex-Zeichen.",
-      "invalid_device_host": "Bitte geben Sie eine gültige Adresse ein, z.B. 192.168.1.100 oder raspberrypi.local.",
       "invalid_credential_length": "Netzwerkname und Passwort dürfen jeweils maximal 16 Zeichen haben.",
       "invalid_vendor_id": "Ungültiger Herstellercode — verwenden Sie 1 bis 4 Hex-Ziffern (z.B. 0x1001).",
       "cannot_connect": "device konnte nicht erreicht werden. Überprüfen Sie, ob er eingeschaltet und mit Ihrem Netzwerk verbunden ist.",
@@ -118,7 +89,8 @@
       "ble_adapter_busy": "Your Bluetooth adapter is busy. Another app is using it. To fix this: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter. See the integration documentation for details.",
       "unknown_device_type": "Could not identify the device type automatically. Select the device type manually.",
       "device_type_mismatch": "This device doesn't match the selected type. Choose the correct device type or let the system detect it automatically.",
-      "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again."
+      "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again.",
+      "timeout_validation": "Validierung abgebrochen (über 30 Sekunden). Stellen Sie sicher, dass das Gerät eingeschaltet und nah am Bluetooth-Adapter ist, und versuchen Sie es erneut."
     },
     "abort": {
       "already_configured": "Dieses Gerät ist bereits in Home Assistant eingerichtet.",
@@ -138,8 +110,6 @@
           "mesh_name": "Netzwerkname",
           "mesh_password": "Netzwerkpasswort",
           "mesh_address": "Geräteadresse",
-          "device_host": "device-Adresse",
-          "device_port": "device-Port",
           "unicast_target": "Geräte-ID",
           "iv_index": "Sicherheitszähler",
           "bridge_host": "Device Address",
@@ -149,8 +119,6 @@
           "mesh_name": "Der Netzwerkname für Ihr Gerät.",
           "mesh_password": "Das Netzwerkpasswort für Ihr Gerät.",
           "mesh_address": "Interne Adresse dieses Geräts. Auf 0 setzen, um den Standard zu verwenden.",
-          "device_host": "Die IP-Adresse oder der Hostname Ihres devices.",
-          "device_port": "Port, auf dem der device lauscht. Standard ist 8099.",
           "unicast_target": "Nur ändern, wenn Sie eine Anweisung dazu erhalten haben.",
           "iv_index": "Nur ändern, wenn Sie eine Anweisung dazu erhalten haben.",
           "bridge_host": "The IP address or hostname of your device.",
@@ -282,10 +250,6 @@
     "provisioning_failed": {
       "title": "Geräteeinrichtung fehlgeschlagen",
       "description": "{device} konnte nicht eingerichtet werden. Schalten Sie das Gerät aus und wieder ein, und fügen Sie es dann erneut zu Home Assistant hinzu."
-    },
-    "device_unreachable": {
-      "title": "device antwortet nicht",
-      "description": "Geräte-device unter {host}:{port} nicht erreichbar. Überprüfen Sie, ob er eingeschaltet und mit Ihrem Netzwerk verbunden ist."
     },
     "bridge_unreachable": {
       "title": "Device not responding",

@@ -20,32 +20,6 @@
           "mesh_address": "Jätä arvoon 0, ellei toisin ohjeisteta."
         }
       },
-      "sig_device": {
-        "title": "Yhdistä laitteen deviceiin",
-        "description": "Syötä devicein osoite, joka yhdistää laitteeseen **{name}**.",
-        "data": {
-          "device_host": "devicein osoite",
-          "device_port": "devicein portti",
-          "unicast_target": "Laitteen tunnus"
-        },
-        "data_description": {
-          "device_host": "deviceisi IP-osoite tai palvelinnimi (esim. Raspberry Pi).",
-          "device_port": "Portti, jolla devicei kuuntelee. Oletus on 8099.",
-          "unicast_target": "Muuta vain, jos sinulle on annettu ohjeet."
-        }
-      },
-      "telink_device": {
-        "title": "Yhdistä laitteen deviceiin",
-        "description": "Syötä devicein osoite, joka yhdistää laitteeseen **{name}**.",
-        "data": {
-          "device_host": "devicein osoite",
-          "device_port": "devicein portti"
-        },
-        "data_description": {
-          "device_host": "deviceisi IP-osoite tai palvelinnimi (esim. Raspberry Pi).",
-          "device_port": "Portti, jolla devicei kuuntelee. Oletus on 8099."
-        }
-      },
       "sig_plug": {
         "title": "Määritetään {name}",
         "description": "Suojattu Bluetooth-yhteys laitteeseesi määritetään automaattisesti.\n\nVarmista, että laite on **päällä** ja **lähellä Bluetooth-sovitintasi**, ja paina sitten **Lähetä**.",
@@ -67,8 +41,6 @@
         "data": {
           "mesh_name": "Verkkonimi",
           "mesh_password": "Verkkosalasana",
-          "device_host": "devicein osoite",
-          "device_port": "devicein portti",
           "bridge_host": "Device Address",
           "bridge_port": "Device Port"
         }
@@ -103,7 +75,6 @@
     "error": {
       "invalid_mac": "Tämä ei näytä kelvolliselta Bluetooth-osoitteelta. Odotettu muoto: XX:XX:XX:XX:XX:XX.",
       "invalid_key": "Virheellinen avain — tarvitaan täsmälleen 32 heksadesimaalimerkkeiä.",
-      "invalid_device_host": "Syötä kelvollinen osoite, esim. 192.168.1.100 tai raspberrypi.local.",
       "invalid_credential_length": "Verkkonimi ja salasana saavat olla enintään 16 merkkiä kumpikin.",
       "invalid_vendor_id": "Virheellinen valmistajan koodi — käytä 1–4 heksadesimaalimerkkeiä (esim. 0x1001).",
       "cannot_connect": "deviceiin ei saatu yhteyttä. Tarkista, että se on päällä ja yhteydessä verkkoon.",
@@ -118,7 +89,8 @@
       "ble_adapter_busy": "Your Bluetooth adapter is busy. Another app is using it. To fix this: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter. See the integration documentation for details.",
       "unknown_device_type": "Could not identify the device type automatically. Select the device type manually.",
       "device_type_mismatch": "This device doesn't match the selected type. Choose the correct device type or let the system detect it automatically.",
-      "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again."
+      "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again.",
+      "timeout_validation": "Vahvistus aikakatkaistiin (yli 30 sekuntia). Varmista, että laite on päällä ja lähellä Bluetooth-adapteria, ja yritä uudelleen."
     },
     "abort": {
       "already_configured": "Tämä laite on jo määritetty Home Assistantissa.",
@@ -138,8 +110,6 @@
           "mesh_name": "Verkkonimi",
           "mesh_password": "Verkkosalasana",
           "mesh_address": "Laitteen osoite",
-          "device_host": "devicein osoite",
-          "device_port": "devicein portti",
           "unicast_target": "Laitteen tunnus",
           "iv_index": "Turvalaskuri",
           "bridge_host": "Device Address",
@@ -149,8 +119,6 @@
           "mesh_name": "Laitteesi verkkonimi.",
           "mesh_password": "Laitteesi verkkosalasana.",
           "mesh_address": "Tämän laitteen sisäinen osoite. Aseta arvoon 0 käyttääksesi oletusta.",
-          "device_host": "deviceisi IP-osoite tai palvelinnimi.",
-          "device_port": "Portti, jolla devicei kuuntelee. Oletus on 8099.",
           "unicast_target": "Muuta vain, jos sinulle on annettu ohjeet.",
           "iv_index": "Muuta vain, jos sinulle on annettu ohjeet.",
           "bridge_host": "The IP address or hostname of your device.",
@@ -282,10 +250,6 @@
     "provisioning_failed": {
       "title": "Laitteen määritys epäonnistui",
       "description": "{device}-laitteen määritys epäonnistui. Katkaise laitteen virta ja kytke se uudelleen, ja lisää se sitten uudelleen Home Assistantiin."
-    },
-    "device_unreachable": {
-      "title": "devicei ei vastaa",
-      "description": "Laitteen deviceiin osoitteessa {host}:{port} ei saada yhteyttä. Tarkista, että se on päällä ja yhteydessä verkkoon."
     },
     "bridge_unreachable": {
       "title": "Device not responding",
