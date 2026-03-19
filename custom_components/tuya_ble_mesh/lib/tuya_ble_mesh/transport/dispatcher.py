@@ -95,6 +95,9 @@ class AsyncCommandDispatcher:
         self._worker_task: asyncio.Task[None] | None = None
         self._running = False
 
+        # Strong references to send tasks (prevents premature GC)
+        self._background_tasks: set[asyncio.Task[None]] = set()
+
     def start(self) -> None:
         """Start the dispatcher worker task."""
         if self._running:
@@ -128,6 +131,7 @@ class AsyncCommandDispatcher:
         self._in_flight.clear()
         self._in_flight_per_device.clear()
         self._correlation.clear()
+        self._background_tasks.clear()
 
         _LOGGER.debug("AsyncCommandDispatcher stopped")
 
@@ -291,10 +295,10 @@ class AsyncCommandDispatcher:
                 )
                 self._metrics.record_in_flight(len(self._in_flight))
 
-                # Send the request
+                # Send the request — hold a strong reference to prevent GC
                 task = asyncio.create_task(self._send_with_retry(request))
-                # Store task reference to prevent garbage collection
-                task.add_done_callback(lambda _: None)
+                self._background_tasks.add(task)
+                task.add_done_callback(self._background_tasks.discard)
 
             except asyncio.CancelledError:
                 _LOGGER.debug("AsyncCommandDispatcher worker cancelled")

@@ -41,7 +41,7 @@ class BridgePowerController:
     def __init__(self, host: str, timeout: float = DEFAULT_POWER_TIMEOUT) -> None:
         if timeout <= 0:
             msg = f"Timeout must be positive, got {timeout}"
-            raise ValueError(msg)
+            raise PowerControlError(msg)
 
         self._host = host
         self._timeout = aiohttp.ClientTimeout(total=timeout)
