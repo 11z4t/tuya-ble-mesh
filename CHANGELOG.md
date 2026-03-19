@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.36.2] — 2026-03-19
+
+### Fixed
+- `TypeError: type 'ConfigEntry' is not subscriptable` on HA < 2024.4 — guard
+  `ConfigEntry[TuyaBLEMeshRuntimeData]` under `TYPE_CHECKING` so older HA
+  versions can load the integration without a startup crash
+
+---
+
 ## [0.36.1] — 2026-03-19
 
 ### Fixed
