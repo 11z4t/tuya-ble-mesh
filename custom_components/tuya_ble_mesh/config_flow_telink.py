@@ -94,8 +94,8 @@ async def perform_telink_pairing(
         raise ValueError("pairing_failed") from exc
 
     # PLAT-740 QC BRIST 2: Verify — send status query and VALIDATE RESPONSE
-    _LOGGER.info("Verifying Telink device %s with status query (0xE0)", mac)
-    from tuya_ble_mesh.const import TELINK_CHAR_COMMAND, TELINK_CHAR_NOTIFY, TELINK_CMD_STATUS_QUERY
+    _LOGGER.info("Verifying Telink device %s with status query (0xDA)", mac)
+    from tuya_ble_mesh.const import TELINK_CHAR_COMMAND, TELINK_CHAR_STATUS, TELINK_CMD_STATUS_QUERY
     from tuya_ble_mesh.protocol import encode_command_packet
 
     # Build status query command (0xE0)
@@ -125,7 +125,7 @@ async def perform_telink_pairing(
         response_data.append(data)
         response_received.set()
 
-    await client.start_notify(TELINK_CHAR_NOTIFY, notification_handler)
+    await client.start_notify(TELINK_CHAR_STATUS, notification_handler)
 
     try:
         # Send command
@@ -148,7 +148,7 @@ async def perform_telink_pairing(
             _LOGGER.warning("Device %s did not respond to verify command within 5s", mac)
             raise ValueError("verify_failed") from None
     finally:
-        await client.stop_notify(TELINK_CHAR_NOTIFY)
+        await client.stop_notify(TELINK_CHAR_STATUS)
 
     return {}
 
