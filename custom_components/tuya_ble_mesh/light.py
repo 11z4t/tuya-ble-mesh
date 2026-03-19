@@ -14,7 +14,7 @@ import logging
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.light import (  # type: ignore[attr-defined]
+from homeassistant.components.light import (
     ATTR_COLOR_TEMP_KELVIN,
     ATTR_RGB_COLOR,
     ATTR_TRANSITION,
@@ -53,6 +53,9 @@ _LOGGER = logging.getLogger(__name__)
 
 # BLE mesh serializes commands — limit to one concurrent update
 PARALLEL_UPDATES = 1
+
+# Reverse lookup: scene name → scene ID (inverse of MESH_SCENES)
+_SCENES_BY_NAME: dict[str, int] = {v: k for k, v in MESH_SCENES.items()}
 
 # Debounce window for coalescing rapid slider commands (e.g. brightness drag)
 _COMMAND_DEBOUNCE_INTERVAL = 0.05  # 50 ms
@@ -353,7 +356,6 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
         # Handle scene/effect activation immediately (no debounce needed)
         effect: str | None = kwargs.get("effect")
         if effect is not None:
-            _SCENES_BY_NAME = {v: k for k, v in MESH_SCENES.items()}
             scene_id = _SCENES_BY_NAME.get(effect)
             if scene_id is not None:
                 await self.coordinator.device.send_scene(scene_id)
