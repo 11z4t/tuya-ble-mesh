@@ -251,7 +251,7 @@ class SIGMeshBridgeDevice(BridgeHTTPMixin):
                         self._bridge_port,
                     )
                     return
-            except Exception as exc:
+            except (MeshConnectionError, ValueError, OSError) as exc:
                 _LOGGER.warning(
                     "Bridge connection attempt %d/%d failed: %s",
                     attempt,
@@ -536,7 +536,7 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
                         self._bridge_port,
                     )
                     return
-            except (TimeoutError, aiohttp.ClientError, OSError) as exc:
+            except (MeshConnectionError, ValueError, OSError) as exc:
                 _LOGGER.warning(
                     "Bridge attempt %d/%d failed: %s",
                     attempt,
