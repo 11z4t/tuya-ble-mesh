@@ -19,11 +19,11 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import (
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
+    EntityCategory,
     UnitOfEnergy,
     UnitOfPower,
 )
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity import EntityCategory  # type: ignore[attr-defined]
 from homeassistant.helpers.typing import StateType
 
 from custom_components.tuya_ble_mesh.helpers import connection_quality

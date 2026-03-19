@@ -12,8 +12,8 @@ import logging
 from typing import TYPE_CHECKING
 
 from homeassistant.components.button import ButtonDeviceClass, ButtonEntity
+from homeassistant.const import EntityCategory
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity import EntityCategory  # type: ignore[attr-defined]
 
 from custom_components.tuya_ble_mesh.entity import TuyaBLEMeshEntity
 

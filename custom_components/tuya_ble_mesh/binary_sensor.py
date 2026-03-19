@@ -14,8 +14,8 @@ from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
     BinarySensorEntity,
 )
+from homeassistant.const import EntityCategory
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity import EntityCategory  # type: ignore[attr-defined]
 
 from custom_components.tuya_ble_mesh.entity import TuyaBLEMeshEntity
 
