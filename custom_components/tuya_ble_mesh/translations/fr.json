@@ -83,12 +83,22 @@
       "timeout": "La connexion a expiré. Vérifiez que l’appareil est allumé et à proximité, puis réessayez.",
       "device_not_found": "Appareil introuvable. Vérifiez qu’il est allumé et à portée Bluetooth, puis réessayez.",
       "invalid_iv_index": "Saisissez un nombre entre 0 et 4 294 967 295.",
-      "invalid_unicast_address": "Saisissez une adresse hexadécimale à 4 caractères entre 0001 et 7FFF (p.ex. 00B0)."
+      "invalid_unicast_address": "Saisissez une adresse hexadécimale à 4 caractères entre 0001 et 7FFF (p.ex. 00B0).",
+      "invalid_bridge_host": "Please enter a valid address, like 192.168.1.100 or raspberrypi.local.",
+      "verify_failed": "Could not verify the device. Try again, or contact support if the problem persists.",
+      "cannot_connect_ble": "Could not connect via Bluetooth. Make sure the device is powered on and within range, then try again.",
+      "ble_adapter_busy": "Your Bluetooth adapter is busy. Another app is using it. To fix this: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter. See the integration documentation for details.",
+      "unknown_device_type": "Could not identify the device type automatically. Select the device type manually.",
+      "device_type_mismatch": "This device doesn't match the selected type. Choose the correct device type or let the system detect it automatically.",
+      "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again."
     },
     "abort": {
       "already_configured": "Cet appareil est déjà configuré dans Home Assistant.",
       "reauth_successful": "Paramètres mis à jour. Reconnexion de votre appareil en cours.",
-      "device_not_available": "L’appareil n’est plus à proximité. Réessayez de l’ajouter quand il est à portée."
+      "device_not_available": "L’appareil n’est plus à proximité. Réessayez de l’ajouter quand il est à portée.",
+      "reconfigure_successful": "Settings updated. The integration will restart now.",
+      "not_in_pairing_mode": "Device is not in pairing mode. Factory-reset it and try again.",
+      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again."
     }
   },
   "options": {

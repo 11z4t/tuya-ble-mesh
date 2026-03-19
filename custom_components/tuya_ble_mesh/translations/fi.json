@@ -83,12 +83,22 @@
       "timeout": "Yhteys aikakatkaistiin. Varmista, että laite on päällä ja lähellä, ja yritä uudelleen.",
       "device_not_found": "Laitetta ei löydy. Varmista, että se on päällä ja Bluetooth-kantaman sisällä, ja yritä uudelleen.",
       "invalid_iv_index": "Syötä luku välillä 0–4 294 967 295.",
-      "invalid_unicast_address": "Syötä 4-merkkinen heksadesimaalisosoite välillä 0001–7FFF (esim. 00B0)."
+      "invalid_unicast_address": "Syötä 4-merkkinen heksadesimaalisosoite välillä 0001–7FFF (esim. 00B0).",
+      "invalid_bridge_host": "Please enter a valid address, like 192.168.1.100 or raspberrypi.local.",
+      "verify_failed": "Could not verify the device. Try again, or contact support if the problem persists.",
+      "cannot_connect_ble": "Could not connect via Bluetooth. Make sure the device is powered on and within range, then try again.",
+      "ble_adapter_busy": "Your Bluetooth adapter is busy. Another app is using it. To fix this: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter. See the integration documentation for details.",
+      "unknown_device_type": "Could not identify the device type automatically. Select the device type manually.",
+      "device_type_mismatch": "This device doesn't match the selected type. Choose the correct device type or let the system detect it automatically.",
+      "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again."
     },
     "abort": {
       "already_configured": "Tämä laite on jo määritetty Home Assistantissa.",
       "reauth_successful": "Asetukset päivitetty. Muodostetaan yhteys laitteeseesi nyt.",
-      "device_not_available": "Laite ei ole enää lähellä. Yritä lisätä se uudelleen, kun se on kantaman sisällä."
+      "device_not_available": "Laite ei ole enää lähellä. Yritä lisätä se uudelleen, kun se on kantaman sisällä.",
+      "reconfigure_successful": "Settings updated. The integration will restart now.",
+      "not_in_pairing_mode": "Device is not in pairing mode. Factory-reset it and try again.",
+      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again."
     }
   },
   "options": {

@@ -83,12 +83,22 @@
       "timeout": "Verbindungsversuch abgebrochen. Stellen Sie sicher, dass das Gerät eingeschaltet und in der Nähe ist, und versuchen Sie es erneut.",
       "device_not_found": "Gerät nicht gefunden. Stellen Sie sicher, dass es eingeschaltet und in Bluetooth-Reichweite ist, und versuchen Sie es erneut.",
       "invalid_iv_index": "Geben Sie eine Zahl zwischen 0 und 4.294.967.295 ein.",
-      "invalid_unicast_address": "Geben Sie eine 4-stellige Hex-Adresse zwischen 0001 und 7FFF ein (z.B. 00B0)."
+      "invalid_unicast_address": "Geben Sie eine 4-stellige Hex-Adresse zwischen 0001 und 7FFF ein (z.B. 00B0).",
+      "invalid_bridge_host": "Please enter a valid address, like 192.168.1.100 or raspberrypi.local.",
+      "verify_failed": "Could not verify the device. Try again, or contact support if the problem persists.",
+      "cannot_connect_ble": "Could not connect via Bluetooth. Make sure the device is powered on and within range, then try again.",
+      "ble_adapter_busy": "Your Bluetooth adapter is busy. Another app is using it. To fix this: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter. See the integration documentation for details.",
+      "unknown_device_type": "Could not identify the device type automatically. Select the device type manually.",
+      "device_type_mismatch": "This device doesn't match the selected type. Choose the correct device type or let the system detect it automatically.",
+      "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again."
     },
     "abort": {
       "already_configured": "Dieses Gerät ist bereits in Home Assistant eingerichtet.",
       "reauth_successful": "Einstellungen aktualisiert. Verbindung mit Ihrem Gerät wird wiederhergestellt.",
-      "device_not_available": "Das Gerät ist nicht mehr in der Nähe. Versuchen Sie, es erneut hinzuzufügen, wenn es in Reichweite ist."
+      "device_not_available": "Das Gerät ist nicht mehr in der Nähe. Versuchen Sie, es erneut hinzuzufügen, wenn es in Reichweite ist.",
+      "reconfigure_successful": "Settings updated. The integration will restart now.",
+      "not_in_pairing_mode": "Device is not in pairing mode. Factory-reset it and try again.",
+      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again."
     }
   },
   "options": {
