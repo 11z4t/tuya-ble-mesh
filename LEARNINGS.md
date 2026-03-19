@@ -2,7 +2,102 @@
 
 This document captures insights, patterns, and lessons learned during development and testing of the Tuya BLE Mesh Home Assistant integration.
 
-**Last updated**: 2026-03-09 by Thor (VM 903) — 100% test coverage achieved
+**Last updated**: 2026-03-19 by Thor (VM 903) — v0.36.0: Telink pairing root cause fixed
+
+---
+
+## Session 2026-03-19 — v0.36.0: Telink Pairing Root Cause + Translation Fix
+
+### Critical Bug: `TELINK_CHAR_NOTIFY` does not exist (root cause of TBM-PAIRING-DEBUG)
+
+**Symptom:** ALL Telink LED driver pairing failed silently.
+
+**Root cause:** `config_flow_telink.py:98` imported `TELINK_CHAR_NOTIFY` from
+`tuya_ble_mesh.const` — but this constant **does not exist**. This caused an
+`ImportError` at runtime before the pairing handshake even started.
+
+**Correct constant:** `TELINK_CHAR_STATUS = "00010203-0405-0607-0809-0a0b0c0d1911"`
+
+Telink GATT characteristics (UUID suffix):
+- `1911` = STATUS (notify) ← correct one for `start_notify` / `stop_notify`
+- `1912` = COMMAND (write)
+- `1913` = OTA
+- `1914` = PAIRING
+
+**Fix:** Replace all 3 occurrences (import + start_notify + stop_notify):
+```python
+# BROKEN → raises ImportError at runtime:
+from tuya_ble_mesh.const import TELINK_CHAR_COMMAND, TELINK_CHAR_NOTIFY, TELINK_CMD_STATUS_QUERY
+await client.start_notify(TELINK_CHAR_NOTIFY, handler)
+await client.stop_notify(TELINK_CHAR_NOTIFY)
+
+# FIXED:
+from tuya_ble_mesh.const import TELINK_CHAR_COMMAND, TELINK_CHAR_STATUS, TELINK_CMD_STATUS_QUERY
+await client.start_notify(TELINK_CHAR_STATUS, handler)
+await client.stop_notify(TELINK_CHAR_STATUS)
+```
+
+**Lesson:** Import errors in HA config flows fail silently from the user's perspective.
+Always run the full HA startup + pairing flow in a test environment after any import change.
+
+### Log message: 0xE0 vs 0xDA
+
+In config_flow_telink.py a log message said "status query (0xE0)".
+- `TELINK_CMD_STATUS_QUERY = 0xDA` — the status query command
+- `0xE0 = TELINK_CMD_MESH_ADDRESS` — completely different!
+
+Lesson: Log hex constants by name (`TELINK_CMD_STATUS_QUERY`) not hardcoded value to avoid confusion.
+
+### Translation keys — must be symmetric across all language files
+
+en.json defines the master key set. All other language files must contain the same keys.
+Missing keys in non-English files → blank UI errors (not fallback to English automatically).
+
+Pattern: write a Python comparison script:
+```python
+import json, pathlib
+en = json.loads((base / "en.json").read_text())
+en_errors = en["config"]["error"]
+en_aborts = en["config"]["abort"]
+for lang_file in base.glob("*.json"):
+    if lang_file.stem == "en": continue
+    data = json.loads(lang_file.read_text())
+    err = data["config"]["error"]
+    abort = data["config"]["abort"]
+    for k in en_errors:
+        if k not in err: err[k] = en_errors[k]   # English fallback
+    for k in en_aborts:
+        if k not in abort: abort[k] = en_aborts[k]
+    lang_file.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+```
+
+### Python AST import auditing — AnnAssign vs Assign
+
+When auditing constants via AST:
+- `ast.Assign`: `X = value` (captured by standard name extraction)
+- `ast.AnnAssign`: `X: Type = value` — also defines a name, but DIFFERENT AST node type
+
+If your audit script only checks `ast.Assign`, it will falsely report annotated assignments
+(like `PLATFORMS: list[Platform] = [...]`) as missing. Always handle both node types.
+
+### GitHub push — HTTPS credentials required
+
+VM 903 cannot push to GitHub (no HTTPS credentials, no `gh` CLI, no registered SSH key).
+Workaround: write request to `/mnt/solutions/Root/platform/global/agent-comms/outbox-903/`
+and let VM 900 handle the GitHub push + release creation.
+
+### Factory reset via Shelly HTTP API
+
+To factory-reset a BLE plug for re-pairing:
+```bash
+for i in {1..5}; do
+  curl -s -X POST http://192.168.1.50/relay/0 -d "turn=on" > /dev/null
+  sleep 0.6
+  curl -s -X POST http://192.168.1.50/relay/0 -d "turn=off" > /dev/null
+  sleep 0.6
+done
+```
+5 rapid power cycles resets most Tuya BLE Mesh devices to factory state.
 
 ---
 
