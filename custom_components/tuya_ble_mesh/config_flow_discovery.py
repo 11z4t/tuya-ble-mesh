@@ -58,8 +58,7 @@ async def async_step_bluetooth(
     # If device already has a config entry, signal reconnect and abort discovery
     flow._abort_if_unique_id_configured()
 
-    # DEBUG: Log exactly what the device advertises
-    _LOGGER.warning(
+    _LOGGER.debug(
         "BLE Discovery: name=%s addr=%s uuids=%s rssi=%s",
         name,
         address,
