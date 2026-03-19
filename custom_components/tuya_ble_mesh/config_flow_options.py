@@ -178,7 +178,9 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):
         )
 
 
-async def async_step_bridge_config(flow, user_input: dict[str, Any] | None = None) -> FlowResult:
+async def async_step_bridge_config(
+    flow: Any, user_input: dict[str, Any] | None = None
+) -> FlowResult:
     """Handle generic bridge configuration (alias used by tests).
 
     Args:

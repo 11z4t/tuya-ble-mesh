@@ -36,7 +36,7 @@ from custom_components.tuya_ble_mesh.const import (
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_step_reconfigure(flow, user_input: dict[str, Any] | None = None) -> FlowResult:
+async def async_step_reconfigure(flow: Any, user_input: dict[str, Any] | None = None) -> FlowResult:
     """Handle reconfiguration of an existing entry.
 
     Called from the HA device page -> 'Reconfigure' menu item.
@@ -145,7 +145,7 @@ async def async_step_reconfigure(flow, user_input: dict[str, Any] | None = None)
     )
 
 
-async def async_step_reauth(flow, entry_data: dict[str, Any]) -> FlowResult:
+async def async_step_reauth(flow: Any, entry_data: dict[str, Any]) -> FlowResult:
     """Handle reauth when mesh credentials fail.
 
     Triggered by the coordinator when auth errors occur (e.g. wrong mesh
@@ -161,7 +161,9 @@ async def async_step_reauth(flow, entry_data: dict[str, Any]) -> FlowResult:
     return await flow.async_step_reauth_confirm()
 
 
-async def async_step_reauth_confirm(flow, user_input: dict[str, Any] | None = None) -> FlowResult:
+async def async_step_reauth_confirm(
+    flow: Any, user_input: dict[str, Any] | None = None
+) -> FlowResult:
     """Re-enter mesh credentials after authentication failure.
 
     Args:
