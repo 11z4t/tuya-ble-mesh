@@ -54,8 +54,12 @@ class TuyaBLEMeshRuntimeData:
     registry: TuyaBLEMeshDeviceRegistry | None = None
 
 
-# Type alias for typed config entry access in platform files
-TuyaBLEMeshConfigEntry: TypeAlias = ConfigEntry[TuyaBLEMeshRuntimeData]
+# Type alias for typed config entry access in platform files.
+# ConfigEntry became generic in HA 2024.x — guard for older versions.
+if TYPE_CHECKING:
+    TuyaBLEMeshConfigEntry: TypeAlias = ConfigEntry[TuyaBLEMeshRuntimeData]
+else:
+    TuyaBLEMeshConfigEntry = ConfigEntry
 
 
 async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) -> bool:
