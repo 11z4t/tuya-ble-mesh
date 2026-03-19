@@ -11,11 +11,11 @@ import asyncio
 import contextlib
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any, Union
+from typing import TYPE_CHECKING, Any, Union, cast
 
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
@@ -842,6 +842,37 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):  # type: ignore[misc]
         self._conn_mgr.handle_disconnect()
         self._dispatch_update()
 
+    # --- Helpers ---
+
+    def _create_background_task(
+        self,
+        coro: Coroutine[Any, Any, Any],
+        name: str,
+    ) -> asyncio.Task[Any]:
+        """Create a background task using HA lifecycle management when available.
+
+        Prefers entry.async_create_background_task (PLAT-747) for proper
+        lifecycle tracking; falls back to asyncio.create_task for standalone/test mode.
+
+        Args:
+            coro: Coroutine to run as background task.
+            name: Task name for logging and HA task registry.
+
+        Returns:
+            The created asyncio.Task.
+        """
+        if self._entry is not None and self._hass is not None:
+            return cast(
+                asyncio.Task[Any],
+                self._entry.async_create_background_task(
+                    self._hass,
+                    coro,
+                    name,
+                    eager_start=True,
+                ),
+            )
+        return asyncio.create_task(coro)
+
     # --- Sequence persistence ---
 
     def _maybe_persist_seq(self) -> None:
@@ -850,17 +881,9 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):  # type: ignore[misc]
             self._seq_command_count = 0
             try:
                 asyncio.get_running_loop()
-                # PLAT-747: Use entry.async_create_background_task for tracked task lifecycle
-                if self._entry is not None and self._hass is not None:
-                    self._seq_persist_task = self._entry.async_create_background_task(
-                        self._hass,
-                        self._save_seq(),
-                        "persist_seq",
-                        eager_start=True,
-                    )
-                else:
-                    # Fallback for standalone mode
-                    self._seq_persist_task = asyncio.create_task(self._save_seq())
+                self._seq_persist_task = self._create_background_task(
+                    self._save_seq(), "persist_seq"
+                )
             except RuntimeError:
                 pass
 
@@ -931,16 +954,9 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):  # type: ignore[misc]
 
         # Start staleness watchdog (PLAT-746, PLAT-747)
         if self._staleness_task is None or self._staleness_task.done():
-            if self._entry is not None and self._hass is not None:
-                self._staleness_task = self._entry.async_create_background_task(
-                    self._hass,
-                    self._staleness_watchdog_loop(),
-                    "staleness_watchdog",
-                    eager_start=True,
-                )
-            else:
-                # Fallback for standalone mode
-                self._staleness_task = asyncio.create_task(self._staleness_watchdog_loop())
+            self._staleness_task = self._create_background_task(
+                self._staleness_watchdog_loop(), "staleness_watchdog"
+            )
 
         self._dispatch_update()
 
@@ -974,16 +990,9 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):  # type: ignore[misc]
 
             # Start staleness watchdog (PLAT-746, PLAT-747)
             if self._staleness_task is None or self._staleness_task.done():
-                if self._entry is not None and self._hass is not None:
-                    self._staleness_task = self._entry.async_create_background_task(
-                        self._hass,
-                        self._staleness_watchdog_loop(),
-                        "staleness_watchdog",
-                        eager_start=True,
-                    )
-                else:
-                    # Fallback for standalone mode
-                    self._staleness_task = asyncio.create_task(self._staleness_watchdog_loop())
+                self._staleness_task = self._create_background_task(
+                    self._staleness_watchdog_loop(), "staleness_watchdog"
+                )
 
         except Exception as err:
             self._conn_mgr.record_connection_error(err)
@@ -1010,21 +1019,24 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):  # type: ignore[misc]
             self._seq_persist_task.cancel()
             await asyncio.gather(self._seq_persist_task, return_exceptions=True)
             self._seq_persist_task = None
-        await self._conn_mgr.async_cancel_tasks()
-        for attr, cb in (
-            ("unregister_onoff_callback", self._on_onoff_update),
-            ("unregister_vendor_callback", self._on_vendor_update),
-            ("unregister_composition_callback", self._on_composition_update),
-            ("unregister_status_callback", self._on_status_update),
-        ):
-            if hasattr(self._device, attr):
-                with contextlib.suppress(ValueError, AttributeError):
-                    getattr(self._device, attr)(cb)
-        with contextlib.suppress(ValueError, AttributeError):
-            self._device.unregister_disconnect_callback(self._on_disconnect)
-        await self._conn_mgr.async_disconnect()
-        self._state = replace(self._state, available=False)
-        _LOGGER.info("Coordinator stopped for %s", self._device.address)
+        try:
+            await self._conn_mgr.async_cancel_tasks()
+        finally:
+            # Always unregister callbacks and disconnect — even if cancel_tasks raises.
+            for attr, cb in (
+                ("unregister_onoff_callback", self._on_onoff_update),
+                ("unregister_vendor_callback", self._on_vendor_update),
+                ("unregister_composition_callback", self._on_composition_update),
+                ("unregister_status_callback", self._on_status_update),
+            ):
+                if hasattr(self._device, attr):
+                    with contextlib.suppress(ValueError, AttributeError):
+                        getattr(self._device, attr)(cb)
+            with contextlib.suppress(ValueError, AttributeError):
+                self._device.unregister_disconnect_callback(self._on_disconnect)
+            await self._conn_mgr.async_disconnect()
+            self._state = replace(self._state, available=False)
+            _LOGGER.info("Coordinator stopped for %s", self._device.address)
 
     # --- State management ---
 
