@@ -72,16 +72,31 @@ async def run_provision(hass: Any, mac: str) -> tuple[str, str, str]:
     # ESPHome BLE proxies, devices discovered by proxies will be in HA's bluetooth
     # registry and establish_connection will route traffic via the proxy.
     def _ble_device_cb(address: str) -> Any:
-        """Look up BLEDevice via HA bluetooth registry (connectable=True required)."""
+        """Look up BLEDevice via HA bluetooth registry.
+
+        Tries connectable=True first (preferred for direct BLE connections).
+        Falls back to connectable=False for devices seen only via passive scan
+        — bleak-retry-connector will handle the actual connection attempt.
+        """
         device = ha_bluetooth.async_ble_device_from_address(hass, address.upper(), connectable=True)
         if device is None:
-            _LOGGER.warning(
-                "BLEDevice not found in HA bluetooth registry for %s. "
-                "Ensure device is in range of a BLE adapter or ESPHome BLE proxy.",
-                address,
+            device = ha_bluetooth.async_ble_device_from_address(
+                hass, address.upper(), connectable=False
             )
+            if device is not None:
+                _LOGGER.info(
+                    "BLEDevice %s found via passive scan only (connectable=False) — "
+                    "will attempt connection anyway",
+                    address,
+                )
+            else:
+                _LOGGER.warning(
+                    "BLEDevice not found in HA bluetooth registry for %s. "
+                    "Ensure device is in range of a BLE adapter or ESPHome BLE proxy.",
+                    address,
+                )
         else:
-            _LOGGER.debug("Found BLEDevice for %s: %s", address, device)
+            _LOGGER.debug("Found BLEDevice for %s (connectable): %s", address, device)
         return device
 
     async def _ble_connect_cb(ble_device: Any) -> BleakClient:
@@ -114,7 +129,7 @@ async def run_provision(hass: Any, mac: str) -> tuple[str, str, str]:
         ble_connect_callback=_ble_connect_cb,
     )
     try:
-        result = await asyncio.wait_for(provisioner.provision(mac), timeout=20.0)
+        result = await asyncio.wait_for(provisioner.provision(mac), timeout=60.0)
     except TimeoutError:
         raise TimeoutError("Provisioning timed out after 20s") from None
     _LOGGER.info(
