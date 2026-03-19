@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.36.1] — 2026-03-19
+
+### Fixed
+- SIG Mesh plug provisioning timeout: `async_ble_device_from_address(connectable=True)`
+  returned `None` for devices seen only via passive BLE scan — fallback to
+  `connectable=False` added so bleak-retry-connector can still attempt the connection
+- Provisioning outer timeout increased 20 s → 60 s to accommodate all 5 retry
+  attempts with exponential backoff before being cancelled
+
+---
+
 ## [0.36.0] — 2026-03-19
 
 ### Fixed
