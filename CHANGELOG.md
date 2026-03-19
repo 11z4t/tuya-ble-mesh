@@ -12,6 +12,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.36.0] — 2026-03-19
 
 ### Fixed
+- **Critical:** Telink LED driver pairing completely broken — `TELINK_CHAR_NOTIFY`
+  does not exist; replaced with correct constant `TELINK_CHAR_STATUS`
+  (`00010203-0405-0607-0809-0a0b0c0d1911`). All Telink pairing threw `ImportError`
+  before the handshake even started (root cause of TBM-PAIRING-DEBUG)
 - Missing error/abort translation keys in all 9 translation files (`en`, `sv`, `da`,
   `de`, `fi`, `fr`, `kl`, `nb`, `nl`, `uk`): `cannot_connect_ble`, `pairing_failed`,
   `verify_failed`, `device_type_mismatch`, `unknown_device_type`, `ble_adapter_busy`,
