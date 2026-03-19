@@ -6,6 +6,15 @@ Provides local BLE mesh control of Tuya/Telink-based devices
 
 from __future__ import annotations
 
+import pathlib
+import sys
+
+# Ensure the bundled lib/ directory is importable as top-level packages.
+# HA does not automatically add custom_components/<domain>/lib/ to sys.path.
+_LIB_DIR = str(pathlib.Path(__file__).parent / "lib")
+if _LIB_DIR not in sys.path:
+    sys.path.insert(0, _LIB_DIR)  # ADR-012: approved sys.path manipulation for lib/ loading
+
 import asyncio
 import contextlib
 import logging

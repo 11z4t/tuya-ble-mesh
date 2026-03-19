@@ -26,6 +26,11 @@ line-length = 100
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
 
+[tool.ruff.lint.per-file-ignores]
+# ADR-012: sys.path.insert in __init__.py is required to make lib/ importable in HA.
+# All imports following the sys.path manipulation are intentionally after non-import code.
+"custom_components/tuya_ble_mesh/__init__.py" = ["E402"]
+
 [tool.mypy]
 python_version = "3.11"
 strict = true

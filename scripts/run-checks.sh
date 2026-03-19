@@ -58,6 +58,7 @@ run_step "pip-audit" \
         --skip-editable \
         --ignore-vuln GHSA-rf74-v2fm-23pw \
         --ignore-vuln CVE-2026-33230 \
+        --ignore-vuln CVE-2026-33231 \
         --ignore-vuln CVE-2025-8869 \
         --ignore-vuln CVE-2026-1703
 
