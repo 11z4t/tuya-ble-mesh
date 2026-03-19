@@ -10,10 +10,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    pass
+from typing import Any
 
 from custom_components.tuya_ble_mesh.config_flow_telink import perform_telink_pairing
 from custom_components.tuya_ble_mesh.const import (
@@ -23,11 +20,6 @@ from custom_components.tuya_ble_mesh.const import (
     SIG_MESH_PROV_UUID,
     SIG_MESH_PROXY_UUID,
 )
-
-try:
-    from tuya_ble_mesh.scanner import mac_to_bytes
-except ImportError:
-    mac_to_bytes = None  # type: ignore[assignment]
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -137,13 +129,13 @@ async def validate_and_connect(
             raise ValueError("cannot_connect_ble") from exc
 
         try:
-            # Step 3: GATT service discovery to detect device type (if not provided)
+            # Step 3: GATT service discovery (always needed — for auto-detection
+            # and/or SIG Mesh verification). bleak-retry-connector caches services
+            # so this incurs no extra BLE round-trip when use_services_cache=True.
+            service_uuids = [str(s.uuid).lower() for s in client.services]
+            _LOGGER.debug("Discovered services for %s: %s", mac, service_uuids)
+
             if device_type is None:
-                services = client.services
-                service_uuids = [str(s.uuid).lower() for s in services]
-
-                _LOGGER.debug("Discovered services for %s: %s", mac, service_uuids)
-
                 # SIG Mesh detection (0x1827 Provisioning or 0x1828 Proxy)
                 if SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids:
                     detected_type = DEVICE_TYPE_SIG_PLUG
@@ -168,10 +160,8 @@ async def validate_and_connect(
             extra_data: dict[str, Any] = {}
 
             if detected_type == DEVICE_TYPE_SIG_PLUG:
-                # SIG Mesh: full provisioning handled by _run_provision
-                # (we'll call that later, for now just verify it's a SIG device)
-                services = client.services
-                service_uuids = [str(s.uuid).lower() for s in services]
+                # SIG Mesh: full provisioning handled by _run_provision.
+                # Verify the device actually exposes a SIG Mesh service first.
                 if (
                     SIG_MESH_PROV_UUID not in service_uuids
                     and SIG_MESH_PROXY_UUID not in service_uuids
