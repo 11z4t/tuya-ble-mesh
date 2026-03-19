@@ -5,6 +5,7 @@ config_flow tests that call async_step_confirm / async_step_sig_plug work withou
 a real HA BluetoothManager.  Tests that specifically need the function to return
 None (e.g. stale-device tests) override with their own ``patch`` context manager.
 """
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -36,6 +37,7 @@ def mock_validate_and_connect():
     was attempting real bleak connections, which fail without bluez daemon.
     This fixture mocks the function globally for all unit tests.
     """
+
     async def _mock_validate(
         hass,
         mac: str,
@@ -50,14 +52,18 @@ def mock_validate_and_connect():
         return (detected, {})
 
     # Patch both the original location and where it's imported to
-    with patch(
-        "custom_components.tuya_ble_mesh.config_flow_ble.validate_and_connect",
-        new=AsyncMock(side_effect=_mock_validate),
-    ), patch(
-        "custom_components.tuya_ble_mesh.config_flow.validate_and_connect",
-        new=AsyncMock(side_effect=_mock_validate),
-    ), patch(
-        "custom_components.tuya_ble_mesh.config_flow_discovery.validate_and_connect",
-        new=AsyncMock(side_effect=_mock_validate),
+    with (
+        patch(
+            "custom_components.tuya_ble_mesh.config_flow_ble.validate_and_connect",
+            new=AsyncMock(side_effect=_mock_validate),
+        ),
+        patch(
+            "custom_components.tuya_ble_mesh.config_flow.validate_and_connect",
+            new=AsyncMock(side_effect=_mock_validate),
+        ),
+        patch(
+            "custom_components.tuya_ble_mesh.config_flow_discovery.validate_and_connect",
+            new=AsyncMock(side_effect=_mock_validate),
+        ),
     ):
         yield

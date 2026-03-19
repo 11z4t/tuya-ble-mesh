@@ -57,14 +57,14 @@ _LOGGER = MeshLogAdapter(logging.getLogger(__name__), {})
 PROV_DATA_OUT = "00002adc-0000-1000-8000-00805f9b34fb"
 
 # BLE adapter slot release delay after disconnect (seconds)
-_BLE_SLOT_RELEASE_DELAY = 1.0  # Increased from 0.5s — see 
+_BLE_SLOT_RELEASE_DELAY = 1.0  # Increased from 0.5s — see
 
 
 # Re-export for backward compatibility
 __all__ = ["ProvisioningResult", "SIGMeshProvisioner", "_wrap_provisioning_pdu"]
 
 
-class SIGMeshProvisioner(ProvisionerConnectionMixin, ProvisionerExchangeMixin):
+class SIGMeshProvisioner(ProvisionerConnectionMixin, ProvisionerExchangeMixin):  # type: ignore[misc]
     """PB-GATT provisioner for SIG Mesh devices.
 
     Implements the full provisioning protocol (Mesh Profile 5.4).

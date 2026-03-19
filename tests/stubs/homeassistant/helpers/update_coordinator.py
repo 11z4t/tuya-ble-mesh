@@ -1,4 +1,5 @@
 """Minimal stub for homeassistant.helpers.update_coordinator."""
+
 from __future__ import annotations
 
 import contextlib

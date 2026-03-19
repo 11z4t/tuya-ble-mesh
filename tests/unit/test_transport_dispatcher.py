@@ -91,9 +91,7 @@ async def test_dispatcher_per_device_limit():
 
     try:
         # Enqueue 5 commands to same device
-        requests = [
-            CommandRequest(opcode=0xD0, target_node=0x0001) for _ in range(5)
-        ]
+        requests = [CommandRequest(opcode=0xD0, target_node=0x0001) for _ in range(5)]
         futures = [await dispatcher.enqueue(req) for req in requests]
 
         # At most 2 should be in-flight at any time
@@ -132,7 +130,7 @@ async def test_dispatcher_coalesce_identical():
         future3 = await dispatcher.enqueue(req3)
 
         # Wait for all futures
-        results = await asyncio.gather(future1, future2, future3)
+        await asyncio.gather(future1, future2, future3)
 
         # Only 1 should have been sent (others coalesced)
         # NOTE: coalescing only happens if first request is in-flight when next arrives
@@ -215,9 +213,7 @@ async def test_dispatcher_metrics_accuracy():
 
     try:
         # Send 5 successful commands
-        requests = [
-            CommandRequest(opcode=0xD0, target_node=0x0001) for _ in range(5)
-        ]
+        requests = [CommandRequest(opcode=0xD0, target_node=0x0001) for _ in range(5)]
         futures = [await dispatcher.enqueue(req) for req in requests]
         await asyncio.gather(*futures)
 
@@ -279,8 +275,7 @@ async def test_dispatcher_20_concurrent_turn_on():
     try:
         # 20 different devices
         requests = [
-            CommandRequest(opcode=0xD0, target_node=0x0001 + i, params=b"\x01")
-            for i in range(20)
+            CommandRequest(opcode=0xD0, target_node=0x0001 + i, params=b"\x01") for i in range(20)
         ]
         futures = [await dispatcher.enqueue(req) for req in requests]
         results = await asyncio.gather(*futures)
@@ -307,9 +302,7 @@ async def test_dispatcher_10_brightness_same_group():
     try:
         # 10 brightness commands to same group (0xC001)
         requests = [
-            CommandRequest(
-                opcode=0xD2, target_node=0xC001, params=bytes([50 + i * 10])
-            )
+            CommandRequest(opcode=0xD2, target_node=0xC001, params=bytes([50 + i * 10]))
             for i in range(10)
         ]
         futures = [await dispatcher.enqueue(req) for req in requests]

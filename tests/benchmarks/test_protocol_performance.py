@@ -12,7 +12,15 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "custom_components" / "tuya_ble_mesh" / "lib"))
+sys.path.insert(
+    0,
+    str(
+        Path(__file__).resolve().parent.parent.parent
+        / "custom_components"
+        / "tuya_ble_mesh"
+        / "lib"
+    ),
+)
 
 pytest.importorskip("pytest_benchmark")
 
@@ -64,7 +72,7 @@ class TestProtocolDecodingPerformance:
         """Benchmark status response parsing."""
         # Valid 20-byte status buffer with correct offsets per STATUS_OFFSET_* constants
         status_data = bytearray(20)
-        status_data[3] = 0x01   # mesh_id at offset 3
+        status_data[3] = 0x01  # mesh_id at offset 3
         status_data[12] = 0x02  # mode at offset 12
         status_data[13] = 0x64  # white_brightness at offset 13
         status_data[14] = 0x32  # white_temp at offset 14

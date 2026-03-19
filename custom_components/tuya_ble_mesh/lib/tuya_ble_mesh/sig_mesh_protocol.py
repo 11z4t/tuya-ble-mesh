@@ -189,7 +189,7 @@ def encrypt_network_pdu(
     pecb = aes_ecb(priv_key, pecb_input)
     obfuscated = bytes(a ^ b for a, b in zip(header[1:7], pecb[:6], strict=True))
 
-    return bytes([ivi_nid]) + obfuscated + encrypted
+    return bytes(bytes([ivi_nid]) + obfuscated + encrypted)
 
 
 @dataclass(frozen=True)
@@ -297,7 +297,7 @@ def make_access_unsegmented(
     nonce = _make_app_nonce(akf, 0, seq, src, dst, iv_index)
     encrypted = mesh_aes_ccm_encrypt(key, nonce, access_payload, MIC_LEN_ACCESS)
     hdr = (akf << MESH_AKF_SHIFT) | (aid & MESH_AID_MASK)
-    return bytes([hdr]) + encrypted
+    return bytes(bytes([hdr]) + encrypted)
 
 
 def make_access_segmented(
@@ -417,7 +417,7 @@ def reassemble_and_decrypt_segments(
     nonce = _make_app_nonce(akf, szmic, seq_zero, src, dst, keys.iv_index)
 
     try:
-        return mesh_aes_ccm_decrypt(key, nonce, upper_transport, mic_len)
+        return bytes(mesh_aes_ccm_decrypt(key, nonce, upper_transport, mic_len))
     except CryptoError:
         _LOGGER.debug("Segmented upper transport decryption failed (akf=%d)", akf)
         return None

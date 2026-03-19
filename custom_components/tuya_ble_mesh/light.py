@@ -186,7 +186,7 @@ def _build_turn_on_command(
 
     dev_brightness: int | None = None
     if brightness is not None:
-            dev_brightness = brightness if use_color else brightness_to_device(brightness)
+        dev_brightness = brightness if use_color else brightness_to_device(brightness)
 
     dev_color_temp: int | None = None
     if color_temp is not None:
@@ -436,7 +436,9 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
                 else:
                     device_brightness = brightness_to_device(brightness)
                     await device.send_brightness(device_brightness)
-                    _LOGGER.debug("Set brightness: HA %d -> device %d", brightness, device_brightness)
+                    _LOGGER.debug(
+                        "Set brightness: HA %d -> device %d", brightness, device_brightness
+                    )
 
             if not has_target:
                 await device.send_power(True)

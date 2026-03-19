@@ -20,22 +20,11 @@ from typing import TYPE_CHECKING, Any, Union
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator
 
 from custom_components.tuya_ble_mesh.connection_manager import (
-    BACKOFF_MULTIPLIER as _BACKOFF_MULTIPLIER,
-    BRIDGE_INITIAL_BACKOFF as _BRIDGE_INITIAL_BACKOFF,
-    BRIDGE_MAX_BACKOFF as _BRIDGE_MAX_BACKOFF,
-    COMMAND_CONCURRENCY_LIMIT as _COMMAND_CONCURRENCY_LIMIT,
     ConnectionManager,
     ConnectionStatistics,
-    MAX_BACKOFF as _MAX_BACKOFF,
-    RSSI_DEFAULT_INTERVAL as _RSSI_DEFAULT_INTERVAL,
-    RSSI_MAX_INTERVAL as _RSSI_MAX_INTERVAL,
-    RSSI_MIN_INTERVAL as _RSSI_MIN_INTERVAL,
-    RSSI_STABILITY_THRESHOLD as _RSSI_STABILITY_THRESHOLD,
-    STORM_DEFAULT_THRESHOLD as _STORM_DEFAULT_THRESHOLD,
-    STORM_WINDOW_SECONDS as _STORM_WINDOW_SECONDS,
 )
-from custom_components.tuya_ble_mesh.error_classifier import ErrorClass
 from custom_components.tuya_ble_mesh.device_capabilities import DeviceCapabilities
+from custom_components.tuya_ble_mesh.error_classifier import ErrorClass
 
 if TYPE_CHECKING:
     from homeassistant.config_entries import ConfigEntry
@@ -58,10 +47,22 @@ _INITIAL_BACKOFF = 5.0  # backward-compat alias
 _DEBOUNCE_DELAY = 1.5  # PLAT-754: backward-compat alias for connection_manager.DEBOUNCE_DELAY
 _STALENESS_THRESHOLD_SECONDS = 300  # 5 minutes
 _STALENESS_CHECK_INTERVAL = 60  # Check every minute
+# Backward-compat aliases — sourced from connection_manager, re-exported for tests
+_BACKOFF_MULTIPLIER: float = 2.0
+_BRIDGE_INITIAL_BACKOFF: float = 3.0
+_BRIDGE_MAX_BACKOFF: float = 120.0
+_MAX_BACKOFF: float = 300.0
+_STORM_WINDOW_SECONDS: int = 300
+_RSSI_DEFAULT_INTERVAL: float = 60.0
+_RSSI_MAX_INTERVAL: float = 300.0
+_RSSI_MIN_INTERVAL: float = 30.0
+_RSSI_STABILITY_THRESHOLD: int = 3
+_COMMAND_CONCURRENCY_LIMIT: int = 5
 
 
 class StateUpdateSource(StrEnum):
     """Source of a device state update for confidence tracking."""
+
     NOTIFY = "notify"
     POLL = "poll"
     COMMAND_ECHO = "command_echo"
@@ -70,6 +71,7 @@ class StateUpdateSource(StrEnum):
 
 class DeviceAvailabilityState(StrEnum):
     """Per-device availability state (Phase 1 Task 1.3)."""
+
     UNKNOWN = "unknown"
     AVAILABLE = "available"
     STALE = "stale"
@@ -81,6 +83,7 @@ class DeviceAvailabilityState(StrEnum):
 @dataclass(frozen=True, slots=True)
 class TuyaBLEMeshDeviceState:
     """Immutable snapshot of a Tuya BLE Mesh device state."""
+
     is_on: bool = False
     brightness: int = 0
     color_temp: int = 0
@@ -98,9 +101,11 @@ class TuyaBLEMeshDeviceState:
     last_seen: float | None = None
     desired_state: MappingProxyType[str, Any] = field(default_factory=lambda: MappingProxyType({}))
     last_sent_state: MappingProxyType[str, Any] = field(
-        default_factory=lambda: MappingProxyType({}))
+        default_factory=lambda: MappingProxyType({})
+    )
     last_confirmed_state: MappingProxyType[str, Any] = field(
-        default_factory=lambda: MappingProxyType({}))
+        default_factory=lambda: MappingProxyType({})
+    )
     state_confidence: float = 0.0
     last_update_source: str = StateUpdateSource.ASSUMED.value
     last_update_time: float | None = None
@@ -109,17 +114,21 @@ class TuyaBLEMeshDeviceState:
     degraded_reason: str | None = None
 
 
-class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
+class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):  # type: ignore[misc]
     """Push-based coordinator for a single BLE mesh device."""
 
     def __init__(
-        self, device: AnyMeshDevice, *,
-        hass: HomeAssistant | None = None, entry_id: str | None = None,
+        self,
+        device: AnyMeshDevice,
+        *,
+        hass: HomeAssistant | None = None,
+        entry_id: str | None = None,
         entry: ConfigEntry | None = None,
     ) -> None:
         if hass is not None:
-            super().__init__(hass, _LOGGER,
-                             name=f"tuya_ble_mesh_{device.address}", update_interval=None)
+            super().__init__(
+                hass, _LOGGER, name=f"tuya_ble_mesh_{device.address}", update_interval=None
+            )
         self._device: AnyMeshDevice = device
         self.capabilities = DeviceCapabilities.from_device(device)
         self._state = TuyaBLEMeshDeviceState()
@@ -132,7 +141,9 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         self._standalone_listeners: list[Callable[[], None]] = []
         self._listener_error_counts: dict[int, int] = {}
         self._conn_mgr = ConnectionManager(
-            device, hass=hass, entry_id=entry_id,
+            device,
+            hass=hass,
+            entry_id=entry_id,
             on_connected=self._handle_reconnected,
             on_state_update=self._handle_conn_state_update,
         )
@@ -495,19 +506,24 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                 if time_since_update > _STALENESS_THRESHOLD_SECONDS:
                     _LOGGER.warning(
                         "Device %s is stale (%.1fs since last update, threshold: %.1fs)",
-                        self._device.address, time_since_update, _STALENESS_THRESHOLD_SECONDS
+                        self._device.address,
+                        time_since_update,
+                        _STALENESS_THRESHOLD_SECONDS,
                     )
 
                     # Try to probe device before marking unavailable
                     probe_success = await self._probe_device()
 
                     if not probe_success:
-                        _LOGGER.warning("Device %s probe failed, marking unavailable", self._device.address)
+                        _LOGGER.warning(
+                            "Device %s probe failed, marking unavailable",
+                            self._device.address,
+                        )
                         self._state = replace(
                             self._state,
                             available=False,
                             device_availability=DeviceAvailabilityState.STALE.value,
-                            degraded_reason="No updates received in 5 minutes"
+                            degraded_reason="No updates received in 5 minutes",
                         )
                         self._dispatch_update()
                     else:
@@ -537,16 +553,15 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
                     return True
 
             # For devices without RSSI, try connection check
-            if hasattr(self._device, "is_connected"):
-                if self._device.is_connected:
-                    _LOGGER.debug("Device %s probe: connection active", self._device.address)
-                    now = time.time()
-                    self._state = replace(self._state, last_seen=now)
-                    return True
+            if hasattr(self._device, "is_connected") and self._device.is_connected:
+                _LOGGER.debug("Device %s probe: connection active", self._device.address)
+                now = time.time()
+                self._state = replace(self._state, last_seen=now)
+                return True
 
             return False
 
-        except asyncio.TimeoutError:
+        except TimeoutError:
             _LOGGER.debug("Device %s probe timeout", self._device.address)
             return False
         except Exception:
@@ -598,22 +613,27 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         self._conn_mgr.schedule_reconnect()
 
     async def send_command_with_retry(
-        self, coro_func: Callable[[], Any], *,
-        max_retries: int | None = None, base_delay: float | None = None,
+        self,
+        coro_func: Callable[[], Any],
+        *,
+        max_retries: int | None = None,
+        base_delay: float | None = None,
         description: str = "command",
     ) -> None:
         await self._conn_mgr.send_command_with_retry(
-            coro_func, max_retries=max_retries,
-            base_delay=base_delay, description=description)
+            coro_func, max_retries=max_retries, base_delay=base_delay, description=description
+        )
 
     # --- Listeners ---
 
     def add_listener(self, listener: Callable[[], None]) -> Callable[[], None]:
         self._standalone_listeners.append(listener)
+
         def _remove() -> None:
             with contextlib.suppress(ValueError):
                 self._standalone_listeners.remove(listener)
             self._listener_error_counts.pop(id(listener), None)
+
         return _remove
 
     def _notify_listeners(self) -> None:
@@ -645,7 +665,8 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             else:
                 # Fallback for standalone mode (no entry)
                 self._hass.loop.call_soon_threadsafe(
-                    lambda: self._hass.async_create_task(self.async_set_updated_data(None)))
+                    lambda: self._hass.async_create_task(self.async_set_updated_data(None))
+                )
         else:
             self._notify_listeners()
 
@@ -653,8 +674,8 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
     def _handle_reconnected(self, response_time: float) -> None:
         self._state = replace(
-            self._state, available=True,
-            firmware_version=self._device.firmware_version)
+            self._state, available=True, firmware_version=self._device.firmware_version
+        )
         self.start_rssi_polling()
         self._dispatch_update()
 
@@ -662,16 +683,21 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         ec = self._conn_mgr.statistics.last_error_class
         if ec == ErrorClass.PERMANENT.value:
             self._state = replace(
-                self._state, available=False,
+                self._state,
+                available=False,
                 device_availability=DeviceAvailabilityState.REPROVISION_REQUIRED.value,
-                degraded_reason=f"Permanent error: {ec}")
+                degraded_reason=f"Permanent error: {ec}",
+            )
         elif not self._state.available and self._conn_mgr.consecutive_failures > 0:
             avail = DeviceAvailabilityState.UNREACHABLE.value
             if ec == ErrorClass.MESH_AUTH.value:
                 avail = DeviceAvailabilityState.REPROVISION_REQUIRED.value
             self._state = replace(
-                self._state, available=False, device_availability=avail,
-                degraded_reason=f"{ec}: {(self._conn_mgr.statistics.last_error or '')[:100]}")
+                self._state,
+                available=False,
+                device_availability=avail,
+                degraded_reason=f"{ec}: {(self._conn_mgr.statistics.last_error or '')[:100]}",
+            )
         rssi = self._conn_mgr.latest_rssi
         if rssi is not None and rssi != self._state.rssi:
             self._state = replace(self._state, rssi=rssi)
@@ -682,20 +708,25 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
     def _make_notify_state(self, now: float, **fields: Any) -> TuyaBLEMeshDeviceState:
         """Build state update with standard notify fields."""
         return replace(
-            self._state, available=True, last_seen=now,
+            self._state,
+            available=True,
+            last_seen=now,
             state_confidence=1.0,
             last_update_source=StateUpdateSource.NOTIFY.value,
             last_update_time=now,
             device_availability=DeviceAvailabilityState.AVAILABLE.value,
-            consecutive_write_failures=0, degraded_reason=None, **fields)
+            consecutive_write_failures=0,
+            degraded_reason=None,
+            **fields,
+        )
 
     def _on_onoff_update(self, on: bool) -> None:
         was_available = self._state.available
         changed = self._state.is_on != on
         now = time.time()
         self._state = self._make_notify_state(
-            now, is_on=on,
-            last_confirmed_state=MappingProxyType({"is_on": on}))
+            now, is_on=on, last_confirmed_state=MappingProxyType({"is_on": on})
+        )
         self._conn_mgr.backoff = _INITIAL_BACKOFF
         if changed:
             self._conn_mgr.record_state_change()
@@ -710,20 +741,36 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             self._state.mode != status.mode
             or self._state.brightness != status.white_brightness
             or self._state.color_temp != status.white_temp
-            or self._state.red != status.red or self._state.green != status.green
+            or self._state.red != status.red
+            or self._state.green != status.green
             or self._state.blue != status.blue
-            or self._state.color_brightness != status.color_brightness)
+            or self._state.color_brightness != status.color_brightness
+        )
         is_on = status.white_brightness > 0 or status.color_brightness > 0
-        confirmed = MappingProxyType({
-            "is_on": is_on, "mode": status.mode,
-            "brightness": status.white_brightness, "color_temp": status.white_temp,
-            "red": status.red, "green": status.green, "blue": status.blue,
-            "color_brightness": status.color_brightness})
+        confirmed = MappingProxyType(
+            {
+                "is_on": is_on,
+                "mode": status.mode,
+                "brightness": status.white_brightness,
+                "color_temp": status.white_temp,
+                "red": status.red,
+                "green": status.green,
+                "blue": status.blue,
+                "color_brightness": status.color_brightness,
+            }
+        )
         self._state = self._make_notify_state(
-            now, mode=status.mode, brightness=status.white_brightness,
-            color_temp=status.white_temp, red=status.red, green=status.green,
-            blue=status.blue, color_brightness=status.color_brightness,
-            is_on=is_on, last_confirmed_state=confirmed)
+            now,
+            mode=status.mode,
+            brightness=status.white_brightness,
+            color_temp=status.white_temp,
+            red=status.red,
+            green=status.green,
+            blue=status.blue,
+            color_brightness=status.color_brightness,
+            is_on=is_on,
+            last_confirmed_state=confirmed,
+        )
         self._conn_mgr.backoff = _INITIAL_BACKOFF
         if changed:
             self._conn_mgr.record_state_change()
@@ -732,8 +779,13 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
     def _on_vendor_update(self, opcode: int, params: bytes) -> None:
         from tuya_ble_mesh.sig_mesh_protocol import (
-            DP_ID_ENERGY_KWH, DP_ID_POWER_W, TUYA_CMD_TIMESTAMP_SYNC,
-            TUYA_VENDOR_OPCODE, parse_tuya_vendor_frame)
+            DP_ID_ENERGY_KWH,
+            DP_ID_POWER_W,
+            TUYA_CMD_TIMESTAMP_SYNC,
+            TUYA_VENDOR_OPCODE,
+            parse_tuya_vendor_frame,
+        )
+
         if opcode != TUYA_VENDOR_OPCODE:
             return
         frame = parse_tuya_vendor_frame(params)
@@ -757,13 +809,20 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             if energy_kwh is not None:
                 cd["energy_kwh"] = energy_kwh
             self._state = replace(
-                self._state, power_w=power_w, energy_kwh=energy_kwh, available=True,
-                last_confirmed_state=MappingProxyType(cd), state_confidence=1.0,
-                last_update_source=StateUpdateSource.NOTIFY.value, last_update_time=now)
+                self._state,
+                power_w=power_w,
+                energy_kwh=energy_kwh,
+                available=True,
+                last_confirmed_state=MappingProxyType(cd),
+                state_confidence=1.0,
+                last_update_source=StateUpdateSource.NOTIFY.value,
+                last_update_time=now,
+            )
             self._dispatch_update()
 
     async def _send_timestamp_response(self) -> None:
         from tuya_ble_mesh.sig_mesh_protocol import tuya_vendor_timestamp_response
+
         try:
             await self._device.send_vendor_command(tuya_vendor_timestamp_response())
         except Exception:
@@ -811,14 +870,17 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         if not self.capabilities.has_sig_sequence:
             return
         from homeassistant.helpers.storage import Store
-        self._seq_store = Store(self._hass, _SEQ_STORE_VERSION,
-                                f"tuya_ble_mesh.seq.{self._entry_id}")
+
+        self._seq_store = Store(
+            self._hass, _SEQ_STORE_VERSION, f"tuya_ble_mesh.seq.{self._entry_id}"
+        )
         data = await self._seq_store.async_load()
         if data is not None and "seq" in data:
             restored = data["seq"] + _SEQ_SAFETY_MARGIN
             self._device.set_seq(restored)
-            _LOGGER.info("Restored seq=%d (stored=%d + margin=%d)",
-                         restored, data["seq"], _SEQ_SAFETY_MARGIN)
+            _LOGGER.info(
+                "Restored seq=%d (stored=%d + margin=%d)", restored, data["seq"], _SEQ_SAFETY_MARGIN
+            )
 
     async def _save_seq(self) -> None:
         if self._seq_store is None or not self.capabilities.has_sig_sequence:
@@ -903,10 +965,12 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
         try:
             response_time = await self._conn_mgr.async_connect()
             self._state = replace(
-                self._state, available=True,
-                firmware_version=self._device.firmware_version, last_seen=time.time())
-            _LOGGER.info("Coordinator started for %s (%.2fs)",
-                         self._device.address, response_time)
+                self._state,
+                available=True,
+                firmware_version=self._device.firmware_version,
+                last_seen=time.time(),
+            )
+            _LOGGER.info("Coordinator started for %s (%.2fs)", self._device.address, response_time)
 
             # Start staleness watchdog (PLAT-746, PLAT-747)
             if self._staleness_task is None or self._staleness_task.done():
@@ -923,8 +987,11 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
 
         except Exception as err:
             self._conn_mgr.record_connection_error(err)
-            _LOGGER.warning("Initial connection failed for %s, scheduling reconnect",
-                            self._device.address, exc_info=True)
+            _LOGGER.warning(
+                "Initial connection failed for %s, scheduling reconnect",
+                self._device.address,
+                exc_info=True,
+            )
             self._state = replace(self._state, available=False)
             self._conn_mgr.schedule_reconnect()
         self._dispatch_update()
@@ -975,8 +1042,16 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):
             "last_update_time": now,
             "device_availability": DeviceAvailabilityState.ASSUMED_ONLINE.value,
         }
-        for key in ("is_on", "brightness", "color_temp", "red", "green", "blue",
-                     "color_brightness", "mode"):
+        for key in (
+            "is_on",
+            "brightness",
+            "color_temp",
+            "red",
+            "green",
+            "blue",
+            "color_brightness",
+            "mode",
+        ):
             if key in sent:
                 updates[key] = sent[key]
         self._state = replace(self._state, **updates)

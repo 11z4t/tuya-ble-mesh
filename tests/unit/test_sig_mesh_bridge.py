@@ -120,7 +120,9 @@ class TestSIGBridgeSendPower:
             patch.object(
                 dev,
                 "_http_get",
-                new=AsyncMock(return_value={"action": "on", "success": True, "status": "ON", "timestamp": 123}),
+                new=AsyncMock(
+                    return_value={"action": "on", "success": True, "status": "ON", "timestamp": 123}
+                ),
             ),
             patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
         ):
@@ -145,7 +147,9 @@ class TestSIGBridgeSendPower:
             patch.object(
                 dev,
                 "_http_get",
-                new=AsyncMock(return_value={"action": "on", "success": True, "status": "ON", "timestamp": 1}),
+                new=AsyncMock(
+                    return_value={"action": "on", "success": True, "status": "ON", "timestamp": 1}
+                ),
             ),
             patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
         ):
@@ -163,7 +167,14 @@ class TestSIGBridgeSendPower:
             patch.object(
                 dev,
                 "_http_get",
-                new=AsyncMock(return_value={"action": "on", "success": False, "error": "BLE timeout", "timestamp": 1}),
+                new=AsyncMock(
+                    return_value={
+                        "action": "on",
+                        "success": False,
+                        "error": "BLE timeout",
+                        "timestamp": 1,
+                    }
+                ),
             ),
             patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
             pytest.raises(SIGMeshError, match="Bridge command failed"),
@@ -430,7 +441,14 @@ class TestTelinkBridgeCallbacks:
             patch.object(
                 dev,
                 "_http_get",
-                new=AsyncMock(return_value={"action": "on", "device_type": "telink", "success": True, "timestamp": 1}),
+                new=AsyncMock(
+                    return_value={
+                        "action": "on",
+                        "device_type": "telink",
+                        "success": True,
+                        "timestamp": 1,
+                    }
+                ),
             ),
             patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
         ):
@@ -472,7 +490,14 @@ class TestTelinkBridgeDefaultBrightness:
             patch.object(
                 dev,
                 "_http_get",
-                new=AsyncMock(return_value={"action": "on", "device_type": "telink", "success": True, "timestamp": 1}),
+                new=AsyncMock(
+                    return_value={
+                        "action": "on",
+                        "device_type": "telink",
+                        "success": True,
+                        "timestamp": 1,
+                    }
+                ),
             ),
             patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
         ):
@@ -491,7 +516,14 @@ class TestTelinkBridgeDefaultBrightness:
             patch.object(
                 dev,
                 "_http_get",
-                new=AsyncMock(return_value={"action": "on", "device_type": "telink", "success": True, "timestamp": 1}),
+                new=AsyncMock(
+                    return_value={
+                        "action": "on",
+                        "device_type": "telink",
+                        "success": True,
+                        "timestamp": 1,
+                    }
+                ),
             ),
             patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
         ):

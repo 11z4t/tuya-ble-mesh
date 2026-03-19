@@ -25,15 +25,14 @@ _LIB = str(Path(_ROOT) / "custom_components" / "tuya_ble_mesh" / "lib")
 if _LIB not in sys.path:
     sys.path.insert(0, _LIB)
 
-from homeassistant.config_entries import HANDLERS, ConfigFlow
+from homeassistant.config_entries import HANDLERS, ConfigFlow  # noqa: E402
 
-from custom_components.tuya_ble_mesh.config_flow import TuyaBLEMeshConfigFlow
-from custom_components.tuya_ble_mesh.const import (
+from custom_components.tuya_ble_mesh.config_flow import TuyaBLEMeshConfigFlow  # noqa: E402
+from custom_components.tuya_ble_mesh.const import (  # noqa: E402
     CONF_BRIDGE_HOST,
     CONF_BRIDGE_PORT,
     CONF_DEVICE_TYPE,
     CONF_MAC_ADDRESS,
-    CONF_MESH_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
     CONF_UNICAST_TARGET,
@@ -46,7 +45,6 @@ from custom_components.tuya_ble_mesh.const import (
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
     DOMAIN,
 )
-
 
 # ---------------------------------------------------------------------------
 # Lightweight FlowManager — real flow lifecycle (init → configure → finish)
@@ -332,7 +330,11 @@ class TestSIGBridgePlugConfigFlow:
 
         result = await flow_mgr.async_configure(
             result["flow_id"],
-            {CONF_BRIDGE_HOST: "192.168.1.100", CONF_BRIDGE_PORT: 8099, CONF_UNICAST_TARGET: "00B0"},
+            {
+                CONF_BRIDGE_HOST: "192.168.1.100",
+                CONF_BRIDGE_PORT: 8099,
+                CONF_UNICAST_TARGET: "00B0",
+            },
         )
         assert result["type"] == "create_entry"
         assert result["data"][CONF_DEVICE_TYPE] == DEVICE_TYPE_SIG_BRIDGE_PLUG
@@ -357,7 +359,11 @@ class TestSIGBridgePlugConfigFlow:
         )
         result = await flow_mgr.async_configure(
             result["flow_id"],
-            {CONF_BRIDGE_HOST: "192.168.1.200", CONF_BRIDGE_PORT: 8099, CONF_UNICAST_TARGET: "00B0"},
+            {
+                CONF_BRIDGE_HOST: "192.168.1.200",
+                CONF_BRIDGE_PORT: 8099,
+                CONF_UNICAST_TARGET: "00B0",
+            },
         )
         assert result["type"] == "form"
         assert result["errors"]["base"] == "cannot_connect"
@@ -370,7 +376,11 @@ class TestSIGBridgePlugConfigFlow:
         )
         result = await flow_mgr.async_configure(
             result["flow_id"],
-            {CONF_BRIDGE_HOST: "http://evil.com/path", CONF_BRIDGE_PORT: 8099, CONF_UNICAST_TARGET: "00B0"},
+            {
+                CONF_BRIDGE_HOST: "http://evil.com/path",
+                CONF_BRIDGE_PORT: 8099,
+                CONF_UNICAST_TARGET: "00B0",
+            },
         )
         assert result["type"] == "form"
         assert CONF_BRIDGE_HOST in result["errors"]
@@ -383,7 +393,11 @@ class TestSIGBridgePlugConfigFlow:
         )
         result = await flow_mgr.async_configure(
             result["flow_id"],
-            {CONF_BRIDGE_HOST: "192.168.1.100", CONF_BRIDGE_PORT: 8099, CONF_UNICAST_TARGET: "ZZXX"},
+            {
+                CONF_BRIDGE_HOST: "192.168.1.100",
+                CONF_BRIDGE_PORT: 8099,
+                CONF_UNICAST_TARGET: "ZZXX",
+            },
         )
         assert result["type"] == "form"
         assert CONF_UNICAST_TARGET in result["errors"]
@@ -402,7 +416,10 @@ class TestTelinkBridgeLightConfigFlow:
         result = await flow_mgr.async_init(DOMAIN, context={"source": "user"})
         result = await flow_mgr.async_configure(
             result["flow_id"],
-            {CONF_MAC_ADDRESS: "DC:23:4D:21:43:C7", CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT},
+            {
+                CONF_MAC_ADDRESS: "DC:23:4D:21:43:C7",
+                CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
+            },
         )
         assert result["type"] == "form"
         assert result["step_id"] == "telink_bridge"
@@ -418,7 +435,10 @@ class TestTelinkBridgeLightConfigFlow:
         result = await flow_mgr.async_init(DOMAIN, context={"source": "user"})
         result = await flow_mgr.async_configure(
             result["flow_id"],
-            {CONF_MAC_ADDRESS: "DC:23:4D:21:43:C7", CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT},
+            {
+                CONF_MAC_ADDRESS: "DC:23:4D:21:43:C7",
+                CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
+            },
         )
         assert result["step_id"] == "telink_bridge"
 
@@ -444,7 +464,10 @@ class TestTelinkBridgeLightConfigFlow:
         result = await flow_mgr.async_init(DOMAIN, context={"source": "user"})
         result = await flow_mgr.async_configure(
             result["flow_id"],
-            {CONF_MAC_ADDRESS: "DC:23:4D:21:43:C7", CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT},
+            {
+                CONF_MAC_ADDRESS: "DC:23:4D:21:43:C7",
+                CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
+            },
         )
         result = await flow_mgr.async_configure(
             result["flow_id"],
@@ -457,7 +480,10 @@ class TestTelinkBridgeLightConfigFlow:
         result = await flow_mgr.async_init(DOMAIN, context={"source": "user"})
         result = await flow_mgr.async_configure(
             result["flow_id"],
-            {CONF_MAC_ADDRESS: "DC:23:4D:21:43:C7", CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT},
+            {
+                CONF_MAC_ADDRESS: "DC:23:4D:21:43:C7",
+                CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
+            },
         )
         result = await flow_mgr.async_configure(
             result["flow_id"],
@@ -477,7 +503,10 @@ class TestTelinkBridgeLightConfigFlow:
         result = await flow_mgr.async_init(DOMAIN, context={"source": "user"})
         result = await flow_mgr.async_configure(
             result["flow_id"],
-            {CONF_MAC_ADDRESS: "DC:23:4D:21:43:C7", CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT},
+            {
+                CONF_MAC_ADDRESS: "DC:23:4D:21:43:C7",
+                CONF_DEVICE_TYPE: DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
+            },
         )
         result = await flow_mgr.async_configure(
             result["flow_id"],
@@ -507,7 +536,13 @@ class TestCrossDeviceValidation:
         )
         assert result["type"] == "create_entry"
         data = result["data"]
-        for key in (CONF_MAC_ADDRESS, CONF_DEVICE_TYPE, CONF_MESH_NAME, CONF_MESH_PASSWORD, CONF_VENDOR_ID):
+        for key in (
+            CONF_MAC_ADDRESS,
+            CONF_DEVICE_TYPE,
+            CONF_MESH_NAME,
+            CONF_MESH_PASSWORD,
+            CONF_VENDOR_ID,
+        ):
             assert key in data, f"Missing {key}"
         assert data[CONF_DEVICE_TYPE] == device_type
 
@@ -531,11 +566,14 @@ class TestCrossDeviceValidation:
 
     @pytest.mark.parametrize(
         "device_type",
-        [DEVICE_TYPE_LIGHT, DEVICE_TYPE_PLUG, DEVICE_TYPE_SIG_BRIDGE_PLUG, DEVICE_TYPE_TELINK_BRIDGE_LIGHT],
+        [
+            DEVICE_TYPE_LIGHT,
+            DEVICE_TYPE_PLUG,
+            DEVICE_TYPE_SIG_BRIDGE_PLUG,
+            DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
+        ],
     )
-    async def test_empty_mac_rejected(
-        self, flow_mgr: ConfigFlowManager, device_type: str
-    ) -> None:
+    async def test_empty_mac_rejected(self, flow_mgr: ConfigFlowManager, device_type: str) -> None:
         result = await flow_mgr.async_init(DOMAIN, context={"source": "user"})
         result = await flow_mgr.async_configure(
             result["flow_id"],

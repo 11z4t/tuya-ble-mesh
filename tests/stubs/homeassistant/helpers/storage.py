@@ -1,4 +1,5 @@
 """Minimal stub for homeassistant.helpers.storage."""
+
 from __future__ import annotations
 
 from typing import Any

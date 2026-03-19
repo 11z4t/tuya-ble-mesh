@@ -10,6 +10,13 @@ import voluptuous as vol
 if TYPE_CHECKING:
     from homeassistant.data_entry_flow import FlowResult
 
+from custom_components.tuya_ble_mesh.config_flow_validators import (
+    _test_bridge_with_session,
+    _validate_bridge_host,
+    _validate_iv_index,
+    _validate_mesh_credential,
+    _validate_unicast_address,
+)
 from custom_components.tuya_ble_mesh.const import (
     CONF_BRIDGE_HOST,
     CONF_BRIDGE_PORT,
@@ -25,20 +32,11 @@ from custom_components.tuya_ble_mesh.const import (
     DEVICE_TYPE_SIG_PLUG,
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
 )
-from custom_components.tuya_ble_mesh.config_flow_validators import (
-    _test_bridge_with_session,
-    _validate_bridge_host,
-    _validate_iv_index,
-    _validate_mesh_credential,
-    _validate_unicast_address,
-)
 
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_step_reconfigure(
-    flow, user_input: dict[str, Any] | None = None
-) -> FlowResult:
+async def async_step_reconfigure(flow, user_input: dict[str, Any] | None = None) -> FlowResult:
     """Handle reconfiguration of an existing entry.
 
     Called from the HA device page -> 'Reconfigure' menu item.
@@ -94,9 +92,7 @@ async def async_step_reconfigure(
                     errors[CONF_MESH_PASSWORD] = pass_error
 
         if not errors:
-            flow.hass.config_entries.async_update_entry(
-                entry, data={**entry.data, **user_input}
-            )
+            flow.hass.config_entries.async_update_entry(entry, data={**entry.data, **user_input})
             await flow.hass.config_entries.async_reload(entry.entry_id)
             return flow.async_abort(reason="reconfigure_successful")
 
@@ -165,9 +161,7 @@ async def async_step_reauth(flow, entry_data: dict[str, Any]) -> FlowResult:
     return await flow.async_step_reauth_confirm()
 
 
-async def async_step_reauth_confirm(
-    flow, user_input: dict[str, Any] | None = None
-) -> FlowResult:
+async def async_step_reauth_confirm(flow, user_input: dict[str, Any] | None = None) -> FlowResult:
     """Re-enter mesh credentials after authentication failure.
 
     Args:

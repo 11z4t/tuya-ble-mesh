@@ -144,6 +144,7 @@ class TestReconnectionStormDetection:
         coord._storm_threshold = 5
 
         import time
+
         now = time.time()
 
         # Add reconnects within storm window
@@ -160,6 +161,7 @@ class TestReconnectionStormDetection:
         coord._storm_threshold = 10
 
         import time
+
         now = time.time()
 
         # Add only a few reconnects
@@ -176,6 +178,7 @@ class TestReconnectionStormDetection:
         coord._storm_threshold = 5
 
         import time
+
         now = time.time()
 
         # Add old reconnects (outside storm window)
@@ -327,6 +330,7 @@ class TestReconnectionStatistics:
         coord = TuyaBLEMeshCoordinator(device)
 
         import time
+
         now = time.time()
 
         coord._stats.reconnect_times.append(now)
@@ -363,6 +367,7 @@ class TestReconnectionStatistics:
         coord = TuyaBLEMeshCoordinator(device)
 
         import time
+
         now = time.time()
 
         coord._stats.last_disconnect_time = now

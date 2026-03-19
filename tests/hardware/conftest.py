@@ -16,7 +16,15 @@ from pathlib import Path
 import pytest
 
 # Add lib/ to path
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "custom_components" / "tuya_ble_mesh" / "lib"))
+sys.path.insert(
+    0,
+    str(
+        Path(__file__).resolve().parent.parent.parent
+        / "custom_components"
+        / "tuya_ble_mesh"
+        / "lib"
+    ),
+)
 
 # Default target device
 TARGET_MAC = "DC:23:4D:21:43:A5"

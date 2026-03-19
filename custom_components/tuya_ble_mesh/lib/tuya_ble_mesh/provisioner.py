@@ -129,8 +129,7 @@ async def pair(
     session_key = make_session_key(mesh_name, mesh_password, client_random, device_random)
 
     _LOGGER.info(
-        "Pairing handshake complete: 0x0C → 0x0D, "
-        "session key derived (%d bytes) [REDACTED]",
+        "Pairing handshake complete: 0x0C → 0x0D, session key derived (%d bytes) [REDACTED]",
         len(session_key),
     )
     return session_key, client_random
@@ -163,7 +162,8 @@ async def set_mesh_credentials(
     name_packet = bytes([PAIR_OPCODE_SET_NAME]) + enc_name
     _LOGGER.debug(
         "Writing SET_MESH_NAME (0x04, %d bytes) to %s",
-        len(name_packet), TELINK_CHAR_PAIRING,
+        len(name_packet),
+        TELINK_CHAR_PAIRING,
     )
     await asyncio.wait_for(
         client.write_gatt_char(TELINK_CHAR_PAIRING, name_packet, response=True),
@@ -176,7 +176,8 @@ async def set_mesh_credentials(
     pass_packet = bytes([PAIR_OPCODE_SET_PASS]) + enc_pass
     _LOGGER.debug(
         "Writing SET_MESH_PASSWORD (0x05, %d bytes) to %s",
-        len(pass_packet), TELINK_CHAR_PAIRING,
+        len(pass_packet),
+        TELINK_CHAR_PAIRING,
     )
     await asyncio.wait_for(
         client.write_gatt_char(TELINK_CHAR_PAIRING, pass_packet, response=True),
@@ -193,15 +194,10 @@ async def set_mesh_credentials(
     _LOGGER.debug("Credential confirmation opcode: 0x%02X", confirm.opcode)
 
     if confirm.opcode != PAIR_OPCODE_SET_OK:
-        msg = (
-            f"Credential set failed, expected SET_OK (0x07), "
-            f"got 0x{confirm.opcode:02X}"
-        )
+        msg = f"Credential set failed, expected SET_OK (0x07), got 0x{confirm.opcode:02X}"
         raise ProvisioningError(msg)
 
-    _LOGGER.info(
-        "Mesh credentials set successfully (SET_OK 0x07 confirmed)"
-    )
+    _LOGGER.info("Mesh credentials set successfully (SET_OK 0x07 confirmed)")
 
 
 async def enable_notifications(client: BleakClient) -> None:

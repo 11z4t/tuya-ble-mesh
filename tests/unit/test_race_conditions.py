@@ -45,32 +45,158 @@ async def test_cf1_concurrent_segment_reassembly():
     # These would normally decrypt to different segment headers
     segment_data_src1 = [
         # Segment 0/2 from source 0x0010
-        bytes([0x01, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-               0x00, 0x10, 0x00, 0xAA, 0x00, 0x00, 0x00, 0x01,
-               0x80, 0x00, 0x00, 0x00]),
+        bytes(
+            [
+                0x01,
+                0x80,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x10,
+                0x00,
+                0xAA,
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x80,
+                0x00,
+                0x00,
+                0x00,
+            ]
+        ),
         # Segment 1/2 from source 0x0010
-        bytes([0x01, 0x80, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
-               0x00, 0x10, 0x00, 0xAA, 0x00, 0x00, 0x00, 0x01,
-               0x80, 0x01, 0x00, 0x00]),
+        bytes(
+            [
+                0x01,
+                0x80,
+                0x01,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x10,
+                0x00,
+                0xAA,
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x80,
+                0x01,
+                0x00,
+                0x00,
+            ]
+        ),
         # Segment 2/2 from source 0x0010
-        bytes([0x01, 0x80, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
-               0x00, 0x10, 0x00, 0xAA, 0x00, 0x00, 0x00, 0x01,
-               0x80, 0x02, 0x00, 0x00]),
+        bytes(
+            [
+                0x01,
+                0x80,
+                0x02,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x10,
+                0x00,
+                0xAA,
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x80,
+                0x02,
+                0x00,
+                0x00,
+            ]
+        ),
     ]
 
     segment_data_src2 = [
         # Segment 0/2 from source 0x0020
-        bytes([0x01, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-               0x00, 0x20, 0x00, 0xAA, 0x00, 0x00, 0x00, 0x01,
-               0x80, 0x00, 0x00, 0x00]),
+        bytes(
+            [
+                0x01,
+                0x80,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x20,
+                0x00,
+                0xAA,
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x80,
+                0x00,
+                0x00,
+                0x00,
+            ]
+        ),
         # Segment 1/2 from source 0x0020
-        bytes([0x01, 0x80, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00,
-               0x00, 0x20, 0x00, 0xAA, 0x00, 0x00, 0x00, 0x01,
-               0x80, 0x01, 0x00, 0x00]),
+        bytes(
+            [
+                0x01,
+                0x80,
+                0x01,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x20,
+                0x00,
+                0xAA,
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x80,
+                0x01,
+                0x00,
+                0x00,
+            ]
+        ),
         # Segment 2/2 from source 0x0020
-        bytes([0x01, 0x80, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00,
-               0x00, 0x20, 0x00, 0xAA, 0x00, 0x00, 0x00, 0x01,
-               0x80, 0x02, 0x00, 0x00]),
+        bytes(
+            [
+                0x01,
+                0x80,
+                0x02,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x00,
+                0x20,
+                0x00,
+                0xAA,
+                0x00,
+                0x00,
+                0x00,
+                0x01,
+                0x80,
+                0x02,
+                0x00,
+                0x00,
+            ]
+        ),
     ]
 
     # Mock _process_notify to track concurrent calls
@@ -124,7 +250,7 @@ async def test_cf2_concurrent_provisioning_notify():
     Simulates rapid SAR-segmented provisioning responses arriving concurrently.
     Without proper locking, this could corrupt rx_buffer or rx_sar_buffer.
     """
-    provisioner = SIGMeshProvisioner(b"\x00" * 16, b"\x01" * 16, 0x00B0)
+    SIGMeshProvisioner(b"\x00" * 16, b"\x01" * 16, 0x00B0)
 
     # Mock a connected client
     mock_client = MagicMock()
@@ -154,6 +280,7 @@ async def test_cf2_concurrent_provisioning_notify():
         # Inject rapid SAR sequence
         tasks = []
         for seg in [sar_first, sar_cont, sar_last]:
+
             async def send_seg(s):
                 nonlocal concurrent_calls, max_concurrent, current_concurrent
                 async with concurrent_lock:
@@ -168,6 +295,7 @@ async def test_cf2_concurrent_provisioning_notify():
                 finally:
                     async with concurrent_lock:
                         current_concurrent -= 1
+
             tasks.append(asyncio.create_task(send_seg(seg)))
         await asyncio.gather(*tasks)
 

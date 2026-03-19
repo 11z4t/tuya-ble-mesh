@@ -24,11 +24,11 @@ _LOGGER = logging.getLogger(__name__)
 # --- Custom exceptions ---
 
 
-class BridgeUnreachableError(PowerControlError):
+class BridgeUnreachableError(PowerControlError):  # type: ignore[misc]
     """Bridge device is not reachable on the network."""
 
 
-class BridgeCommandError(PowerControlError):
+class BridgeCommandError(PowerControlError):  # type: ignore[misc]
     """Bridge device returned an error for a command."""
 
 

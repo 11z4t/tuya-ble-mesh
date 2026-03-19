@@ -29,13 +29,13 @@ from tuya_ble_mesh.exceptions import (
 from tuya_ble_mesh.logging_context import MeshLogAdapter, mesh_operation
 from tuya_ble_mesh.sig_mesh_bridge_http import (
     BRIDGE_CONNECT_RETRY_DELAY,
+    DEFAULT_BRIDGE_PORT,
     DEFAULT_MAX_RETRIES,
     MAX_POLL_ATTEMPTS,
     POLL_INTERVAL,
     RETRY_BACKOFF_MULTIPLIER,
     RETRY_INITIAL_BACKOFF,
     BridgeHTTPMixin,
-    DEFAULT_BRIDGE_PORT,
 )
 
 _LOGGER = MeshLogAdapter(logging.getLogger(__name__), {})
@@ -45,7 +45,7 @@ StatusCallback = Callable[[Any], Any]
 DisconnectCallback = Callable[[], Any]
 
 
-class TelinkBridgeDevice(BridgeHTTPMixin):
+class TelinkBridgeDevice(BridgeHTTPMixin):  # type: ignore[misc]
     """Telink proprietary mesh device controlled via BLE bridge daemon.
 
     Same bridge HTTP API as SIGMeshBridgeDevice but sends Telink-type
@@ -394,7 +394,7 @@ class TelinkBridgeDevice(BridgeHTTPMixin):
                         and result.get("timestamp")
                     ):
                         if result.get("success"):
-                            return result
+                            return dict(result)
                         error = result.get("error", "Unknown error")
                         msg = f"Telink command failed: {error}"
                         raise SIGMeshError(msg)

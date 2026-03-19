@@ -478,7 +478,7 @@ class TestTaskCleanup:
         await asyncio.sleep(0.05)
 
         # Get tasks after start
-        running_tasks = asyncio.all_tasks()
+        asyncio.all_tasks()
 
         # Stop coordinator
         await coord.async_stop()

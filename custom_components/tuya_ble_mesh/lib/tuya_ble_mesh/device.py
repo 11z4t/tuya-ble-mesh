@@ -70,7 +70,7 @@ StatusCallback = Callable[[StatusResponse], Any]
 DisconnectCallback = Callable[[], Any]
 
 
-class MeshDevice(DeviceCommandsMixin):
+class MeshDevice(DeviceCommandsMixin):  # type: ignore[misc]
     """High-level interface to a Telink BLE mesh device.
 
     Composes BLEConnection for transport. Provides command queue with
@@ -156,7 +156,7 @@ class MeshDevice(DeviceCommandsMixin):
         Returns:
             bool: True if device is connected and provisioned.
         """
-        return self._conn.is_ready
+        return bool(self._conn.is_ready)
 
     @property
     def firmware_version(self) -> str | None:
@@ -165,7 +165,8 @@ class MeshDevice(DeviceCommandsMixin):
         Returns:
             str | None: Device firmware version, or None if not read.
         """
-        return self._conn.firmware_version
+        val = self._conn.firmware_version
+        return str(val) if val is not None else None
 
     @property
     def notify_active(self) -> bool:
@@ -174,7 +175,7 @@ class MeshDevice(DeviceCommandsMixin):
         Returns:
             bool: True if GATT push notifications are active.
         """
-        return self._conn.notify_active
+        return bool(self._conn.notify_active)
 
     @property
     def rssi(self) -> int | None:
@@ -186,7 +187,8 @@ class MeshDevice(DeviceCommandsMixin):
         Returns:
             int | None: RSSI in dBm, or None if not connected or unavailable.
         """
-        return self._conn.rssi
+        val = self._conn.rssi
+        return int(val) if val is not None else None
 
     @property
     def connection(self) -> BLEConnection:
@@ -388,9 +390,7 @@ class MeshDevice(DeviceCommandsMixin):
 
     # --- High-level commands (0xD2 compact DP format) ---
 
-    async def wait_for_status(
-        self, timeout: float = DEFAULT_STATUS_WAIT_TIMEOUT
-    ) -> StatusResponse:
+    async def wait_for_status(self, timeout: float = DEFAULT_STATUS_WAIT_TIMEOUT) -> StatusResponse:
         """Wait for a single status notification.
 
         Args:

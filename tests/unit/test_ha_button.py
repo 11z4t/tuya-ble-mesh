@@ -86,7 +86,9 @@ class TestIdentifyButtonPress:
         coord = make_mock_coordinator()
         btn = TuyaBLEMeshIdentifyButton(coord, "entry1")
 
-        with patch("custom_components.tuya_ble_mesh.button.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        with patch(
+            "custom_components.tuya_ble_mesh.button.asyncio.sleep", new_callable=AsyncMock
+        ) as mock_sleep:
             await btn.async_press()
 
         assert coord.device.send_power.call_count == _IDENTIFY_FLASH_COUNT * 2
@@ -106,7 +108,7 @@ class TestIdentifyButtonPress:
         # Each cycle: False then True
         for i in range(0, len(calls), 2):
             assert calls[i] is False, f"Expected False at index {i}"
-            assert calls[i + 1] is True, f"Expected True at index {i+1}"
+            assert calls[i + 1] is True, f"Expected True at index {i + 1}"
 
     @pytest.mark.asyncio
     async def test_press_skips_if_no_send_power(self) -> None:
@@ -115,7 +117,9 @@ class TestIdentifyButtonPress:
         del coord.device.send_power  # remove the attribute
         btn = TuyaBLEMeshIdentifyButton(coord, "entry1")
 
-        with patch("custom_components.tuya_ble_mesh.button.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        with patch(
+            "custom_components.tuya_ble_mesh.button.asyncio.sleep", new_callable=AsyncMock
+        ) as mock_sleep:
             await btn.async_press()  # should not raise
 
         mock_sleep.assert_not_called()

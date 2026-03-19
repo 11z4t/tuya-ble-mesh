@@ -1,5 +1,4 @@
 """Unit tests for SIG Mesh PB-GATT Provisioner."""
-from bleak.exc import BleakError
 
 import asyncio
 import sys
@@ -7,8 +6,17 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, Mock, patch
 
 import pytest
+from bleak.exc import BleakError
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "custom_components" / "tuya_ble_mesh" / "lib"))
+sys.path.insert(
+    0,
+    str(
+        Path(__file__).resolve().parent.parent.parent
+        / "custom_components"
+        / "tuya_ble_mesh"
+        / "lib"
+    ),
+)
 
 from tuya_ble_mesh.exceptions import ProvisioningError
 from tuya_ble_mesh.sig_mesh_provisioner import (
@@ -70,7 +78,7 @@ class TestProvisioningResult:
             num_elements=1,
         )
         with pytest.raises(AttributeError):
-            result.dev_key = b"\xFF" * 16  # type: ignore
+            result.dev_key = b"\xff" * 16  # type: ignore
 
 
 # ============================================================
@@ -103,13 +111,13 @@ class TestWrapProvisioningPdu:
     def test_exact_chunk_boundary(self) -> None:
         mtu = 23
         max_chunk = mtu - 4
-        pdu = b"\xAA" * max_chunk
+        pdu = b"\xaa" * max_chunk
         segments = _wrap_provisioning_pdu(pdu, mtu=mtu)
         assert len(segments) == 1
         assert segments[0][0] == ((_SAR_COMPLETE << 6) | _PROXY_TYPE_PROVISIONING)
 
     def test_mtu_minimum(self) -> None:
-        pdu = b"\xBB" * 10
+        pdu = b"\xbb" * 10
         segments = _wrap_provisioning_pdu(pdu, mtu=5)
         assert len(segments) > 1
         # Should still produce segments
@@ -165,16 +173,12 @@ class TestSIGMeshProvisionerInit:
 
     def test_ble_device_callback(self) -> None:
         callback = Mock()
-        prov = SIGMeshProvisioner(
-            b"\x00" * 16, b"\x01" * 16, 0x00B0, ble_device_callback=callback
-        )
+        prov = SIGMeshProvisioner(b"\x00" * 16, b"\x01" * 16, 0x00B0, ble_device_callback=callback)
         assert prov._ble_device_callback == callback
 
     def test_ble_connect_callback(self) -> None:
         callback = AsyncMock()
-        prov = SIGMeshProvisioner(
-            b"\x00" * 16, b"\x01" * 16, 0x00B0, ble_connect_callback=callback
-        )
+        prov = SIGMeshProvisioner(b"\x00" * 16, b"\x01" * 16, 0x00B0, ble_connect_callback=callback)
         assert prov._ble_connect_callback == callback
 
 
@@ -202,12 +206,15 @@ class TestProvisionerConnect:
         mock_services.services = {1: mock_service}
         mock_client.get_services = AsyncMock(return_value=mock_services)
 
-        with patch(
-            "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakScanner.find_device_by_address",
-            return_value=mock_device,
-        ), patch(
-            "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakClient",
-            return_value=mock_client,
+        with (
+            patch(
+                "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakScanner.find_device_by_address",
+                return_value=mock_device,
+            ),
+            patch(
+                "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakClient",
+                return_value=mock_client,
+            ),
         ):
             client = await prov._connect("AA:BB:CC:DD:EE:FF", timeout=5.0, max_retries=3)
             assert client == mock_client
@@ -217,11 +224,14 @@ class TestProvisionerConnect:
     async def test_connect_device_not_found(self) -> None:
         prov = SIGMeshProvisioner(b"\x00" * 16, b"\x01" * 16, 0x00B0)
 
-        with patch(
-            "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakScanner.find_device_by_address",
-            return_value=None,
-        ), patch("asyncio.sleep", new_callable=AsyncMock
-        ), pytest.raises(ProvisioningError, match="Failed to connect"):
+        with (
+            patch(
+                "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakScanner.find_device_by_address",
+                return_value=None,
+            ),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+            pytest.raises(ProvisioningError, match="Failed to connect"),
+        ):
             await prov._connect("AA:BB:CC:DD:EE:FF", timeout=5.0, max_retries=3)
 
     @pytest.mark.asyncio
@@ -240,9 +250,7 @@ class TestProvisionerConnect:
         mock_services.services = {1: mock_service}
         mock_client.get_services = AsyncMock(return_value=mock_services)
 
-        prov = SIGMeshProvisioner(
-            b"\x00" * 16, b"\x01" * 16, 0x00B0, ble_device_callback=callback
-        )
+        prov = SIGMeshProvisioner(b"\x00" * 16, b"\x01" * 16, 0x00B0, ble_device_callback=callback)
 
         with patch(
             "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakClient",
@@ -297,10 +305,13 @@ class TestProvisionerConnect:
     async def test_connect_raises_provisioning_error_immediately(self) -> None:
         prov = SIGMeshProvisioner(b"\x00" * 16, b"\x01" * 16, 0x00B0)
 
-        with patch(
-            "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakScanner.find_device_by_address",
-            side_effect=ProvisioningError("Critical error"),
-        ), pytest.raises(ProvisioningError, match="Critical error"):
+        with (
+            patch(
+                "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakScanner.find_device_by_address",
+                side_effect=ProvisioningError("Critical error"),
+            ),
+            pytest.raises(ProvisioningError, match="Critical error"),
+        ):
             await prov._connect("AA:BB:CC:DD:EE:FF", timeout=5.0, max_retries=3)
 
     @pytest.mark.asyncio
@@ -312,13 +323,17 @@ class TestProvisionerConnect:
         # Simulate "out of connection slots" error
         slot_error = BleakError("BleakOutOfConnectionSlotsError: out of connection slots")
 
-        with patch(
-            "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakScanner.find_device_by_address",
-            return_value=mock_device,
-        ), patch(
-            "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakClient",
-            side_effect=[slot_error, slot_error],
-        ), patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        with (
+            patch(
+                "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakScanner.find_device_by_address",
+                return_value=mock_device,
+            ),
+            patch(
+                "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakClient",
+                side_effect=[slot_error, slot_error],
+            ),
+            patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+        ):
             with pytest.raises(ProvisioningError, match="out of connection slots"):
                 await prov._connect("AA:BB:CC:DD:EE:FF", timeout=1.0, max_retries=2)
             # Verify backoff was called
@@ -333,15 +348,19 @@ class TestProvisionerConnect:
         mock_client.is_connected = False  # Connection failed
         mock_client.connect = AsyncMock()
 
-        with patch(
-            "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakScanner.find_device_by_address",
-            return_value=mock_device,
-        ), patch(
-            "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakClient",
-            return_value=mock_client,
-        ), patch("asyncio.sleep", new_callable=AsyncMock):
-            with pytest.raises(ProvisioningError, match="is_connected=False"):
-                await prov._connect("AA:BB:CC:DD:EE:FF", timeout=1.0, max_retries=1)
+        with (
+            patch(
+                "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakScanner.find_device_by_address",
+                return_value=mock_device,
+            ),
+            patch(
+                "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakClient",
+                return_value=mock_client,
+            ),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+            pytest.raises(ProvisioningError, match="is_connected=False"),
+        ):
+            await prov._connect("AA:BB:CC:DD:EE:FF", timeout=1.0, max_retries=1)
 
     @pytest.mark.asyncio
     async def test_connect_no_provisioning_service(self) -> None:
@@ -360,15 +379,19 @@ class TestProvisionerConnect:
         mock_services.services = {1: mock_service}
         mock_client.get_services = AsyncMock(return_value=mock_services)
 
-        with patch(
-            "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakScanner.find_device_by_address",
-            return_value=mock_device,
-        ), patch(
-            "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakClient",
-            return_value=mock_client,
-        ), patch("asyncio.sleep", new_callable=AsyncMock):
-            with pytest.raises(ProvisioningError, match="does not expose Provisioning Service"):
-                await prov._connect("AA:BB:CC:DD:EE:FF", timeout=1.0, max_retries=1)
+        with (
+            patch(
+                "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakScanner.find_device_by_address",
+                return_value=mock_device,
+            ),
+            patch(
+                "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakClient",
+                return_value=mock_client,
+            ),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+            pytest.raises(ProvisioningError, match="does not expose Provisioning Service"),
+        ):
+            await prov._connect("AA:BB:CC:DD:EE:FF", timeout=1.0, max_retries=1)
 
     @pytest.mark.asyncio
     async def test_connect_get_services_timeout(self) -> None:
@@ -381,12 +404,15 @@ class TestProvisionerConnect:
         mock_client.mtu_size = 23
         mock_client.get_services = AsyncMock(side_effect=TimeoutError())
 
-        with patch(
-            "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakScanner.find_device_by_address",
-            return_value=mock_device,
-        ), patch(
-            "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakClient",
-            return_value=mock_client,
+        with (
+            patch(
+                "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakScanner.find_device_by_address",
+                return_value=mock_device,
+            ),
+            patch(
+                "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakClient",
+                return_value=mock_client,
+            ),
         ):
             # Should succeed despite timeout (warning logged, but continues)
             client = await prov._connect("AA:BB:CC:DD:EE:FF", timeout=1.0, max_retries=1)
@@ -398,13 +424,17 @@ class TestProvisionerConnect:
         prov = SIGMeshProvisioner(b"\x00" * 16, b"\x01" * 16, 0x00B0)
         mock_device = Mock()
 
-        with patch(
-            "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakScanner.find_device_by_address",
-            return_value=mock_device,
-        ), patch(
-            "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakClient",
-            side_effect=TimeoutError(),
-        ), patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        with (
+            patch(
+                "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakScanner.find_device_by_address",
+                return_value=mock_device,
+            ),
+            patch(
+                "tuya_ble_mesh.sig_mesh_provisioner_connection.BleakClient",
+                side_effect=TimeoutError(),
+            ),
+            patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+        ):
             with pytest.raises(ProvisioningError, match="Failed to connect"):
                 await prov._connect("AA:BB:CC:DD:EE:FF", timeout=1.0, max_retries=2)
             # Verify backoff was called (exponential backoff: 3.0, 4.5, ...)
@@ -441,7 +471,7 @@ class TestProvisionerExchange:
 
         # Mock the entire exchange with a fake result
         mock_result = ProvisioningResult(
-            dev_key=b"\xAA" * 16,
+            dev_key=b"\xaa" * 16,
             net_key=b"\x00" * 16,
             app_key=b"\x01" * 16,
             unicast_addr=0x00B0,
@@ -508,7 +538,6 @@ class TestProvisionerExchange:
             await prov._run_exchange(client)
 
 
-
 # ============================================================
 # Full provision() method tests
 # ============================================================
@@ -528,7 +557,7 @@ class TestProvisionMethod:
         mock_client.write_gatt_char = AsyncMock()
 
         mock_result = ProvisioningResult(
-            dev_key=b"\xAA" * 16,
+            dev_key=b"\xaa" * 16,
             net_key=b"\x00" * 16,
             app_key=b"\x01" * 16,
             unicast_addr=0x00B0,
@@ -536,8 +565,9 @@ class TestProvisionMethod:
             num_elements=1,
         )
 
-        with patch.object(prov, "_connect", return_value=mock_client), patch.object(
-            prov, "_run_exchange", return_value=mock_result
+        with (
+            patch.object(prov, "_connect", return_value=mock_client),
+            patch.object(prov, "_run_exchange", return_value=mock_result),
         ):
             result = await prov.provision("AA:BB:CC:DD:EE:FF")
             assert result == mock_result
@@ -551,8 +581,9 @@ class TestProvisionMethod:
         mock_client.stop_notify = AsyncMock()
         mock_client.disconnect = AsyncMock()
 
-        with patch.object(prov, "_connect", return_value=mock_client), patch.object(
-            prov, "_run_exchange", side_effect=ProvisioningError("Exchange failed")
+        with (
+            patch.object(prov, "_connect", return_value=mock_client),
+            patch.object(prov, "_run_exchange", side_effect=ProvisioningError("Exchange failed")),
         ):
             with pytest.raises(ProvisioningError, match="Exchange failed"):
                 await prov.provision("AA:BB:CC:DD:EE:FF")
@@ -568,9 +599,11 @@ class TestProvisionMethod:
         mock_client.stop_notify = AsyncMock(side_effect=BleakError("Stop notify failed"))
         mock_client.disconnect = AsyncMock(side_effect=BleakError("Disconnect failed"))
 
-        with patch.object(prov, "_connect", return_value=mock_client), patch.object(
-            prov, "_run_exchange", side_effect=ProvisioningError("Exchange failed")
-        ), patch("asyncio.sleep", new_callable=AsyncMock):
+        with (
+            patch.object(prov, "_connect", return_value=mock_client),
+            patch.object(prov, "_run_exchange", side_effect=ProvisioningError("Exchange failed")),
+            patch("asyncio.sleep", new_callable=AsyncMock),
+        ):
             with pytest.raises(ProvisioningError, match="Exchange failed"):
                 await prov.provision("AA:BB:CC:DD:EE:FF")
             # Should have attempted to disconnect despite errors
@@ -587,7 +620,7 @@ class TestProvisionMethod:
         mock_client.write_gatt_char = AsyncMock()
 
         mock_result = ProvisioningResult(
-            dev_key=b"\xAA" * 16,
+            dev_key=b"\xaa" * 16,
             net_key=b"\x00" * 16,
             app_key=b"\x01" * 16,
             unicast_addr=0x00B0,
@@ -595,9 +628,11 @@ class TestProvisionMethod:
             num_elements=1,
         )
 
-        with patch.object(prov, "_connect", return_value=mock_client), patch.object(
-            prov, "_run_exchange", return_value=mock_result
-        ), patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        with (
+            patch.object(prov, "_connect", return_value=mock_client),
+            patch.object(prov, "_run_exchange", return_value=mock_result),
+            patch("asyncio.sleep", new_callable=AsyncMock) as mock_sleep,
+        ):
             result = await prov.provision("AA:BB:CC:DD:EE:FF")
             assert result == mock_result
             # Verify 0.5s sleep was called after disconnect

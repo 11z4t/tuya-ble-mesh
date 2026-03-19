@@ -48,6 +48,15 @@ ignore_missing_imports = true
 follow_imports = "skip"
 
 [[tool.mypy.overrides]]
+module = [
+    "aiohttp",
+    "aiohttp.*",
+    "yaml",
+    "voluptuous",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = ["custom_components.tuya_ble_mesh.config_flow"]
 disable_error_code = ["return-value"]
 

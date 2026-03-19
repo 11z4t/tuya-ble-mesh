@@ -12,26 +12,17 @@ import asyncio
 import logging
 from typing import TYPE_CHECKING, Any
 
-from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
-
 if TYPE_CHECKING:
-    from homeassistant.data_entry_flow import FlowResult
+    pass
 
+from custom_components.tuya_ble_mesh.config_flow_telink import perform_telink_pairing
 from custom_components.tuya_ble_mesh.const import (
-    CONF_DEVICE_TYPE,
-    CONF_MESH_ADDRESS,
-    CONF_MESH_NAME,
-    CONF_MESH_PASSWORD,
-    CONF_VENDOR_ID,
-    DEFAULT_MESH_ADDRESS,
-    DEFAULT_VENDOR_ID,
     DEVICE_TYPE_LIGHT,
     DEVICE_TYPE_PLUG,
     DEVICE_TYPE_SIG_PLUG,
     SIG_MESH_PROV_UUID,
     SIG_MESH_PROXY_UUID,
 )
-from custom_components.tuya_ble_mesh.config_flow_telink import perform_telink_pairing
 
 try:
     from tuya_ble_mesh.scanner import mac_to_bytes
@@ -39,6 +30,7 @@ except ImportError:
     mac_to_bytes = None  # type: ignore[assignment]
 
 _LOGGER = logging.getLogger(__name__)
+
 
 def _rssi_to_signal_quality(rssi: int | None) -> str:
     """Convert RSSI dBm value to a human-readable signal quality label.
@@ -58,6 +50,7 @@ def _rssi_to_signal_quality(rssi: int | None) -> str:
     if rssi >= -85:
         return "Fair"
     return "Weak"
+
 
 async def validate_and_connect(
     hass: Any,
@@ -102,15 +95,12 @@ async def validate_and_connect(
     # PLAT-740 AC6: 30s total timeout for entire flow
     async def _validate_inner() -> tuple[str, dict[str, Any]]:
         # Step 1: Check device is advertising
-        ble_device = ha_bluetooth.async_ble_device_from_address(
-            hass, mac.upper(), connectable=True
-        )
+        ble_device = ha_bluetooth.async_ble_device_from_address(hass, mac.upper(), connectable=True)
         if ble_device is None:
             _LOGGER.warning("Device %s not found in HA bluetooth registry", mac)
             raise ValueError("device_not_found")
 
         # Step 2: Connect via Bleak
-        from bleak import BleakClient
         from bleak_retry_connector import (
             BleakClientWithServiceCache,
             close_stale_connections_by_address,
@@ -131,7 +121,9 @@ async def validate_and_connect(
             # PLAT-737: Detect BLE adapter busy (0x0a) errors
             exc_str = str(exc).lower()
             if "busy" in exc_str or "0x0a" in exc_str or "in progress" in exc_str:
-                from custom_components.tuya_ble_mesh.repairs import async_create_issue_ble_adapter_busy
+                from custom_components.tuya_ble_mesh.repairs import (
+                    async_create_issue_ble_adapter_busy,
+                )
 
                 _LOGGER.error(
                     "BLE adapter busy for %s — another integration is monopolizing the adapter. "
@@ -157,11 +149,17 @@ async def validate_and_connect(
                     detected_type = DEVICE_TYPE_SIG_PLUG
                     _LOGGER.info("Auto-detected %s as SIG Mesh plug", mac)
                 # Telink detection (00010203-... UUID prefix)
-                elif any(uuid.startswith("00010203-0405-0607-0809-0a0b0c0d") for uuid in service_uuids):
+                elif any(
+                    uuid.startswith("00010203-0405-0607-0809-0a0b0c0d") for uuid in service_uuids
+                ):
                     detected_type = DEVICE_TYPE_LIGHT
                     _LOGGER.info("Auto-detected %s as Telink light", mac)
                 else:
-                    _LOGGER.warning("Could not auto-detect device type for %s (services=%s)", mac, service_uuids)
+                    _LOGGER.warning(
+                        "Could not auto-detect device type for %s (services=%s)",
+                        mac,
+                        service_uuids,
+                    )
                     raise ValueError("unknown_device_type")
             else:
                 detected_type = device_type
@@ -174,14 +172,19 @@ async def validate_and_connect(
                 # (we'll call that later, for now just verify it's a SIG device)
                 services = client.services
                 service_uuids = [str(s.uuid).lower() for s in services]
-                if SIG_MESH_PROV_UUID not in service_uuids and SIG_MESH_PROXY_UUID not in service_uuids:
+                if (
+                    SIG_MESH_PROV_UUID not in service_uuids
+                    and SIG_MESH_PROXY_UUID not in service_uuids
+                ):
                     _LOGGER.warning("%s claims to be SIG plug but lacks SIG Mesh services", mac)
                     raise ValueError("device_type_mismatch")
                 # Provisioning will be done in async_step_sig_plug (no change to existing flow)
 
             elif detected_type in (DEVICE_TYPE_LIGHT, DEVICE_TYPE_PLUG):
                 # PLAT-740: Telink pairing — delegated to config_flow_telink
-                extra_data = await perform_telink_pairing(client, mac, mesh_name, mesh_password, detected_type)
+                extra_data = await perform_telink_pairing(
+                    client, mac, mesh_name, mesh_password, detected_type
+                )
 
             else:
                 # Unknown device type
@@ -196,7 +199,6 @@ async def validate_and_connect(
     # PLAT-740 AC6: Wrap entire flow in 30s timeout
     try:
         return await asyncio.wait_for(_validate_inner(), timeout=30.0)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         _LOGGER.warning("Validation timed out for %s after 30s", mac)
-        raise ValueError("timeout_validation")
-
+        raise ValueError("timeout_validation") from None

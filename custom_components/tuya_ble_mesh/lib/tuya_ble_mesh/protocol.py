@@ -213,7 +213,7 @@ def encode_command_packet(
     checksum = make_checksum(key, nonce, payload)
     encrypted = crypt_payload(key, nonce, payload)
 
-    return seq_bytes + checksum[:CHECKSUM_SIZE] + encrypted
+    return bytes(seq_bytes + checksum[:CHECKSUM_SIZE] + encrypted)
 
 
 # --- Command packet decoding ---
@@ -361,7 +361,7 @@ def decrypt_notification(
     payload = crypt_payload(key, nonce, encrypted)
     verify_checksum(key, nonce, payload, expected_mac)
 
-    return data[:_NOTIFICATION_PAYLOAD_OFFSET] + payload
+    return bytes(data[:_NOTIFICATION_PAYLOAD_OFFSET] + payload)
 
 
 # --- Status parsing ---

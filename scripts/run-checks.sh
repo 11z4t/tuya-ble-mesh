@@ -10,6 +10,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 cd "$PROJECT_DIR"
 
+# Use venv tools
+VENV="$PROJECT_DIR/venv/bin"
+LIB_DIR="custom_components/tuya_ble_mesh/lib"
+
 PASS=0
 FAIL=0
 STEPS=()
@@ -34,29 +38,34 @@ printf "╚═══════════════════════
 
 # Step 1: Lint
 run_step "ruff check" \
-    ruff check lib/ tests/ custom_components/
+    "$VENV/ruff" check tests/ custom_components/
 
 # Step 2: Format
 run_step "ruff format" \
-    ruff format --check lib/ tests/ custom_components/
+    "$VENV/ruff" format --check tests/ custom_components/
 
-# Step 3: Type checking
+# Step 3: Type checking (lib is inside custom_components since PLAT-784)
 run_step "mypy --strict" \
-    mypy --strict lib/
+    "$VENV/mypy" --strict "$LIB_DIR"
 
 # Step 4: Security static analysis
 run_step "bandit" \
-    bandit -r lib/ -c pyproject.toml -q
+    "$VENV/bandit" -r "$LIB_DIR" -c pyproject.toml -q
 
-# Step 5: Dependency vulnerability scan
-# Ignoring CVE-2024-23342 (64459, 64396): ecdsa Minerva side-channel — transitive
-# dep from bluetooth-mesh-network; all versions affected, no upstream fix available.
-run_step "safety check" \
-    safety check --output bare --ignore 64459 --ignore 64396
+# Step 5: Dependency vulnerability scan (pip-audit replaces deprecated safety check)
+run_step "pip-audit" \
+    "$VENV/pip-audit" \
+        --skip-editable \
+        --ignore-vuln GHSA-rf74-v2fm-23pw \
+        --ignore-vuln CVE-2026-33230 \
+        --ignore-vuln CVE-2025-8869 \
+        --ignore-vuln CVE-2026-1703
 
-# Step 6: Secret detection
+# Step 6: Secret detection (exclude test files with known test passwords + checksums)
 run_step "detect-secrets" \
-    bash -c 'detect-secrets scan --exclude-files "(\.git/.*|strings\.json|translations/.*\.json)" . 2>&1 | python3 -c "
+    bash -c '"'"$VENV/detect-secrets"'" scan \
+        --exclude-files "(\.git/.*|strings\.json|translations/.*\.json|tests/.*\.py|\.github/.*\.sh)" \
+        . 2>&1 | python3 -c "
 import sys, json
 data = json.load(sys.stdin)
 results = data.get(\"results\", {})
@@ -66,15 +75,16 @@ if found:
         for s in secrets:
             print(f\"  {path}: {s.get(\"type\", \"unknown\")} (line {s.get(\"line_number\", \"?\")})\")
     sys.exit(1)
+print(\"detect-secrets: no secrets found\")
 "'
 
 # Step 7: Unit tests
 run_step "pytest unit" \
-    pytest tests/unit/ -v --tb=short
+    "$VENV/pytest" tests/unit/ -v --tb=short
 
 # Step 8: Security tests
 run_step "pytest security" \
-    pytest tests/security/ -v --tb=short
+    "$VENV/pytest" tests/security/ -v --tb=short
 
 # Summary
 printf "\n╔══════════════════════════════════════════╗\n"

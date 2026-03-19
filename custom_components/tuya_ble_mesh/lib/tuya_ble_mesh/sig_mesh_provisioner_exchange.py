@@ -476,7 +476,9 @@ class ProvisionerExchangeMixin:
         # Some devices (Tuya SIG Mesh plugs) continue blinking in pairing mode if
         # disconnected immediately after Complete PDU. This delay allows the device
         # to write state and transition out of provisioning mode gracefully.
-        _LOGGER.debug("Waiting %.1fs for device to save provisioning state...", _POST_COMPLETE_DELAY)
+        _LOGGER.debug(
+            "Waiting %.1fs for device to save provisioning state...", _POST_COMPLETE_DELAY
+        )
         await asyncio.sleep(_POST_COMPLETE_DELAY)
 
         return ProvisioningResult(

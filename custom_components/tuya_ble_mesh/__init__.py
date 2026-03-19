@@ -283,7 +283,7 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         _logging.getLogger("tuya_ble_mesh").setLevel(level)
         _LOGGER.info("Log level set to %s", level_str)
 
-    async def handle_get_diagnostics(call: ServiceCall) -> None:
+    async def handle_get_diagnostics(call: ServiceCall) -> dict[str, Any]:
         """Get diagnostic information for a device.
 
         Args:
@@ -308,9 +308,7 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             "connection_errors": stats.connection_errors,
             "command_errors": stats.command_errors,
             "avg_response_time": (
-                f"{stats.avg_response_time:.3f}s"
-                if stats.response_times
-                else "N/A"
+                f"{stats.avg_response_time:.3f}s" if stats.response_times else "N/A"
             ),
             "rssi_dbm": coordinator.state.rssi,
             "firmware_version": coordinator.state.firmware_version,
@@ -336,6 +334,7 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             }
         ),
     )
+
     async def handle_reconnect(call: ServiceCall) -> None:
         """Force reconnect a device.
 

@@ -387,7 +387,7 @@ class AsyncCommandDispatcher:
 
                     # Add jitter
                     if request.retry_policy.jitter > 0:
-                        jitter = backoff * request.retry_policy.jitter * (random.random() * 2 - 1)
+                        jitter = backoff * request.retry_policy.jitter * (random.random() * 2 - 1)  # nosec B311
                         backoff += jitter
 
                     _LOGGER.warning(

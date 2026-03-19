@@ -1153,7 +1153,7 @@ class TestRunProvision:
             mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
             mock_prov_cls.return_value = mock_provisioner
 
-            net_key, dev_key, app_key = await run_provision(flow.hass,"AA:BB:CC:DD:EE:FF")
+            net_key, dev_key, app_key = await run_provision(flow.hass, "AA:BB:CC:DD:EE:FF")
 
         # Verify keys are 32-char hex strings
         assert len(net_key) == 32
@@ -1186,7 +1186,7 @@ class TestRunProvision:
             mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
             mock_prov_cls.return_value = mock_provisioner
 
-            net_key, dev_key, _app_key = await run_provision(flow.hass,"AA:BB:CC:DD:EE:FF")
+            net_key, dev_key, _app_key = await run_provision(flow.hass, "AA:BB:CC:DD:EE:FF")
 
         # Should still return keys (warning logged)
         assert len(net_key) == 32
@@ -1216,7 +1216,7 @@ class TestRunProvision:
             mock_provisioner.provision = AsyncMock(return_value=mock_prov_result)
             mock_prov_cls.return_value = mock_provisioner
 
-            net_key, dev_key, _app_key = await run_provision(flow.hass,"AA:BB:CC:DD:EE:FF")
+            net_key, dev_key, _app_key = await run_provision(flow.hass, "AA:BB:CC:DD:EE:FF")
 
         # Should still return keys
         assert len(net_key) == 32
@@ -1245,7 +1245,7 @@ class TestRunProvision:
             mock_prov_cls.return_value = mock_provisioner
 
             # Should still return keys despite post-config failure
-            net_key, dev_key, _app_key = await run_provision(flow.hass,"AA:BB:CC:DD:EE:FF")
+            net_key, dev_key, _app_key = await run_provision(flow.hass, "AA:BB:CC:DD:EE:FF")
 
         assert len(net_key) == 32
         assert dev_key == _TEST_DEV_KEY
@@ -1290,7 +1290,7 @@ class TestRunProvision:
             patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device),
             patch("asyncio.sleep", new_callable=AsyncMock),
         ):
-            await run_provision(flow.hass,"AA:BB:CC:DD:EE:FF")
+            await run_provision(flow.hass, "AA:BB:CC:DD:EE:FF")
 
         # Verify callbacks were passed
         assert "ble_device_callback" in captured_provisioner_kwargs
@@ -1364,7 +1364,7 @@ class TestRunProvision:
             patch("tuya_ble_mesh.sig_mesh_device.SIGMeshDevice", return_value=mock_device),
             patch("asyncio.sleep", new_callable=AsyncMock),
         ):
-            await run_provision(flow.hass,"AA:BB:CC:DD:EE:FF")
+            await run_provision(flow.hass, "AA:BB:CC:DD:EE:FF")
 
         # Verify callbacks were passed
         assert "ble_device_callback" in captured_provisioner_kwargs
@@ -1374,9 +1374,7 @@ class TestRunProvision:
         _ble_connect_cb = captured_provisioner_kwargs["ble_connect_callback"]
 
         # Test ble_device_cb when device not found (both connectable=True and False return None)
-        with patch(
-            "homeassistant.components.bluetooth.async_ble_device_from_address"
-        ) as mock_bt:
+        with patch("homeassistant.components.bluetooth.async_ble_device_from_address") as mock_bt:
             mock_bt.return_value = None  # Both calls return None
             result = ble_device_cb("AA:BB:CC:DD:EE:FF")
             assert result is None
@@ -2081,9 +2079,7 @@ class TestOptionsFlowValidation:
         config_entry.data = {CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG}
         flow = TuyaBLEMeshOptionsFlow(config_entry)
         flow.hass = MagicMock()
-        result = await flow.async_step_init(
-            {CONF_UNICAST_TARGET: "0000", CONF_IV_INDEX: 0}
-        )
+        result = await flow.async_step_init({CONF_UNICAST_TARGET: "0000", CONF_IV_INDEX: 0})
         assert result["type"] == "form"
         assert CONF_UNICAST_TARGET in result["errors"]
 
@@ -2094,9 +2090,7 @@ class TestOptionsFlowValidation:
         config_entry.data = {CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG}
         flow = TuyaBLEMeshOptionsFlow(config_entry)
         flow.hass = MagicMock()
-        result = await flow.async_step_init(
-            {CONF_UNICAST_TARGET: "00B0", CONF_IV_INDEX: -1}
-        )
+        result = await flow.async_step_init({CONF_UNICAST_TARGET: "00B0", CONF_IV_INDEX: -1})
         assert result["type"] == "form"
         assert CONF_IV_INDEX in result["errors"]
 
@@ -2109,9 +2103,7 @@ class TestOptionsFlowValidation:
         hass = MagicMock()
         hass.config_entries = MagicMock()
         flow.hass = hass
-        result = await flow.async_step_init(
-            {CONF_UNICAST_TARGET: "00B0", CONF_IV_INDEX: 0}
-        )
+        result = await flow.async_step_init({CONF_UNICAST_TARGET: "00B0", CONF_IV_INDEX: 0})
         assert result["type"] == "create_entry"
 
     @pytest.mark.asyncio
@@ -2125,9 +2117,7 @@ class TestOptionsFlowValidation:
         config_entry.data.__contains__ = lambda self, k: False
         flow = TuyaBLEMeshOptionsFlow(config_entry)
         flow.hass = MagicMock()
-        result = await flow.async_step_init(
-            {CONF_BRIDGE_HOST: "127.0.0.1", CONF_BRIDGE_PORT: 8099}
-        )
+        result = await flow.async_step_init({CONF_BRIDGE_HOST: "127.0.0.1", CONF_BRIDGE_PORT: 8099})
         assert result["type"] == "form"
         assert CONF_BRIDGE_HOST in result["errors"]
 
@@ -2153,9 +2143,7 @@ class TestOptionsFlowValidation:
         """Mesh name > 16 bytes in options shows error."""
         config_entry = MagicMock()
         config_entry.data = MagicMock()
-        config_entry.data.get = lambda k, d=None: (
-            DEVICE_TYPE_LIGHT if k == CONF_DEVICE_TYPE else d
-        )
+        config_entry.data.get = lambda k, d=None: DEVICE_TYPE_LIGHT if k == CONF_DEVICE_TYPE else d
         flow = TuyaBLEMeshOptionsFlow(config_entry)
         flow.hass = MagicMock()
         result = await flow.async_step_init(
@@ -2169,9 +2157,7 @@ class TestOptionsFlowValidation:
         """Mesh password > 16 bytes in options shows error."""
         config_entry = MagicMock()
         config_entry.data = MagicMock()
-        config_entry.data.get = lambda k, d=None: (
-            DEVICE_TYPE_LIGHT if k == CONF_DEVICE_TYPE else d
-        )
+        config_entry.data.get = lambda k, d=None: DEVICE_TYPE_LIGHT if k == CONF_DEVICE_TYPE else d
         flow = TuyaBLEMeshOptionsFlow(config_entry)
         flow.hass = MagicMock()
         result = await flow.async_step_init(
@@ -2306,7 +2292,9 @@ class TestSigPlugErrorHandling:
             ),
         ):
             # Simulate ImportError by patching import inside the except block
-            original_import = __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
+            original_import = (
+                __builtins__.__import__ if hasattr(__builtins__, "__import__") else __import__
+            )
 
             def mock_import(name: str, *args: Any, **kwargs: Any) -> Any:
                 if name == "tuya_ble_mesh.exceptions":
@@ -2400,10 +2388,12 @@ class TestReconfigureFlow:
     async def test_reconfigure_direct_ble_success(self) -> None:
         """Valid mesh credentials update the config entry and trigger reload."""
         flow = _make_reconfigure_flow(DEVICE_TYPE_LIGHT)
-        result = await flow.async_step_reconfigure({
-            CONF_MESH_NAME: "new_mesh",
-            CONF_MESH_PASSWORD: "newpass",  # pragma: allowlist secret
-        })
+        result = await flow.async_step_reconfigure(
+            {
+                CONF_MESH_NAME: "new_mesh",
+                CONF_MESH_PASSWORD: "newpass",  # pragma: allowlist secret
+            }
+        )
         assert result["type"] == "abort"
         assert result["reason"] == "reconfigure_successful"
         flow.hass.config_entries.async_update_entry.assert_called_once()
@@ -2425,10 +2415,12 @@ class TestReconfigureFlow:
             "custom_components.tuya_ble_mesh.config_flow_reconfigure._test_bridge_with_session",
             new=AsyncMock(return_value=True),
         ):
-            result = await flow.async_step_reconfigure({
-                CONF_BRIDGE_HOST: "192.168.1.200",
-                CONF_BRIDGE_PORT: 9000,
-            })
+            result = await flow.async_step_reconfigure(
+                {
+                    CONF_BRIDGE_HOST: "192.168.1.200",
+                    CONF_BRIDGE_PORT: 9000,
+                }
+            )
         assert result["type"] == "abort"
         assert result["reason"] == "reconfigure_successful"
 
@@ -2448,10 +2440,12 @@ class TestReconfigureFlow:
             "custom_components.tuya_ble_mesh.config_flow_reconfigure._test_bridge_with_session",
             new=AsyncMock(return_value=False),
         ):
-            result = await flow.async_step_reconfigure({
-                CONF_BRIDGE_HOST: "192.168.1.200",
-                CONF_BRIDGE_PORT: 9000,
-            })
+            result = await flow.async_step_reconfigure(
+                {
+                    CONF_BRIDGE_HOST: "192.168.1.200",
+                    CONF_BRIDGE_PORT: 9000,
+                }
+            )
         assert result["type"] == "form"
         assert result["errors"]["base"] == "cannot_connect"
 
@@ -2467,10 +2461,12 @@ class TestReconfigureFlow:
                 CONF_BRIDGE_PORT: 8099,
             },
         )
-        result = await flow.async_step_reconfigure({
-            CONF_BRIDGE_HOST: "not a valid host!!",
-            CONF_BRIDGE_PORT: 8099,
-        })
+        result = await flow.async_step_reconfigure(
+            {
+                CONF_BRIDGE_HOST: "not a valid host!!",
+                CONF_BRIDGE_PORT: 8099,
+            }
+        )
         assert result["type"] == "form"
         assert CONF_BRIDGE_HOST in result["errors"]
 
@@ -2478,10 +2474,12 @@ class TestReconfigureFlow:
     async def test_reconfigure_mesh_credential_too_long(self) -> None:
         """Mesh credential exceeding 16 bytes shows validation error."""
         flow = _make_reconfigure_flow(DEVICE_TYPE_LIGHT)
-        result = await flow.async_step_reconfigure({
-            CONF_MESH_NAME: "this_is_way_too_long_for_mesh",
-            CONF_MESH_PASSWORD: "short",  # pragma: allowlist secret
-        })
+        result = await flow.async_step_reconfigure(
+            {
+                CONF_MESH_NAME: "this_is_way_too_long_for_mesh",
+                CONF_MESH_PASSWORD: "short",  # pragma: allowlist secret
+            }
+        )
         assert result["type"] == "form"
         assert CONF_MESH_NAME in result["errors"]
 
@@ -2511,10 +2509,12 @@ class TestReconfigureFlow:
                 CONF_IV_INDEX: 0,
             },
         )
-        result = await flow.async_step_reconfigure({
-            CONF_UNICAST_TARGET: "00C0",
-            CONF_IV_INDEX: 1,
-        })
+        result = await flow.async_step_reconfigure(
+            {
+                CONF_UNICAST_TARGET: "00C0",
+                CONF_IV_INDEX: 1,
+            }
+        )
         assert result["type"] == "abort"
         assert result["reason"] == "reconfigure_successful"
 
@@ -2530,9 +2530,11 @@ class TestReconfigureFlow:
                 CONF_IV_INDEX: 0,
             },
         )
-        result = await flow.async_step_reconfigure({
-            CONF_UNICAST_TARGET: "FFFF",  # out of valid unicast range
-            CONF_IV_INDEX: 0,
-        })
+        result = await flow.async_step_reconfigure(
+            {
+                CONF_UNICAST_TARGET: "FFFF",  # out of valid unicast range
+                CONF_IV_INDEX: 0,
+            }
+        )
         assert result["type"] == "form"
         assert CONF_UNICAST_TARGET in result["errors"]

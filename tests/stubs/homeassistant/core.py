@@ -1,4 +1,5 @@
 """Minimal stub for homeassistant.core."""
+
 from __future__ import annotations
 
 from enum import StrEnum

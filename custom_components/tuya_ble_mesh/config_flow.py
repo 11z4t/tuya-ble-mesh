@@ -5,19 +5,23 @@ This module routes config flow steps to specialized handlers:
 - config_flow_options: Bridge + reconfigure + reauth
 - config_flow_validators: Validation helpers
 """
+
 from __future__ import annotations
+
 import logging
 from typing import TYPE_CHECKING, Any
+
 import voluptuous as vol
 from homeassistant import config_entries
 from homeassistant.config_entries import ConfigFlow
 
 # Import for test patching (used in config_flow_sig/config_flow_telink submodules)
 try:
-    from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice  # noqa: F401
-    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # noqa: F401
-    from bleak import BleakScanner  # noqa: F401
-    find_device_by_address = BleakScanner.find_device_by_address  # noqa: F401
+    from bleak import BleakScanner
+    from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice
+    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
+
+    find_device_by_address = BleakScanner.find_device_by_address
 except ImportError:
     SIGMeshBridgeDevice = None  # type: ignore[misc,assignment]
     SIGMeshDevice = None  # type: ignore[misc,assignment]
@@ -27,6 +31,41 @@ if TYPE_CHECKING:
     from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
     from homeassistant.data_entry_flow import FlowResult
 
+# Import handlers from specialized modules
+from custom_components.tuya_ble_mesh.config_flow_ble import validate_and_connect
+from custom_components.tuya_ble_mesh.config_flow_discovery import (
+    async_step_bluetooth as ble_bluetooth_handler,
+)
+from custom_components.tuya_ble_mesh.config_flow_discovery import (
+    async_step_confirm_impl,
+)
+from custom_components.tuya_ble_mesh.config_flow_options import TuyaBLEMeshOptionsFlow
+from custom_components.tuya_ble_mesh.config_flow_options import (
+    async_step_bridge_config as bridge_config_handler,
+)
+from custom_components.tuya_ble_mesh.config_flow_reconfigure import (
+    async_step_reauth as reauth_handler,
+)
+from custom_components.tuya_ble_mesh.config_flow_reconfigure import (
+    async_step_reauth_confirm as reauth_confirm_handler,
+)
+from custom_components.tuya_ble_mesh.config_flow_reconfigure import (
+    async_step_reconfigure as reconfigure_handler,
+)
+from custom_components.tuya_ble_mesh.config_flow_sig import (
+    async_step_sig_bridge as sig_bridge_handler,
+)
+from custom_components.tuya_ble_mesh.config_flow_sig import (
+    async_step_sig_plug as sig_plug_handler,
+)
+from custom_components.tuya_ble_mesh.config_flow_telink import (
+    async_step_telink_bridge as telink_bridge_handler,
+)
+from custom_components.tuya_ble_mesh.config_flow_validators import (
+    _validate_mac,
+    _validate_mesh_credential,
+    _validate_vendor_id,
+)
 from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
     CONF_BRIDGE_HOST,
@@ -42,8 +81,6 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_UNICAST_OUR,
     CONF_UNICAST_TARGET,
     CONF_VENDOR_ID,
-    DEFAULT_BRIDGE_PORT,
-    DEFAULT_IV_INDEX,
     DEFAULT_MESH_ADDRESS,
     DEFAULT_VENDOR_ID,
     DEVICE_TYPE_LIGHT,
@@ -54,36 +91,8 @@ from custom_components.tuya_ble_mesh.const import (
     DOMAIN,
 )
 
-# Import handlers from specialized modules
-from custom_components.tuya_ble_mesh.config_flow_ble import validate_and_connect
-from custom_components.tuya_ble_mesh.config_flow_discovery import (
-    async_step_bluetooth as ble_bluetooth_handler,
-    async_step_confirm_impl,
-)
-from custom_components.tuya_ble_mesh.config_flow_sig import (
-    async_step_sig_bridge as sig_bridge_handler,
-    async_step_sig_plug as sig_plug_handler,
-)
-from custom_components.tuya_ble_mesh.config_flow_options import (
-    async_step_bridge_config as bridge_config_handler,
-)
-from custom_components.tuya_ble_mesh.config_flow_reconfigure import (
-    async_step_reconfigure as reconfigure_handler,
-    async_step_reauth as reauth_handler,
-    async_step_reauth_confirm as reauth_confirm_handler,
-)
-from custom_components.tuya_ble_mesh.config_flow_telink import (
-    async_step_telink_bridge as telink_bridge_handler,
-)
-from custom_components.tuya_ble_mesh.config_flow_validators import (
-    _validate_mac,
-    _validate_mesh_credential,
-    _validate_vendor_id,
-)
-
-from custom_components.tuya_ble_mesh.config_flow_options import TuyaBLEMeshOptionsFlow
-
 _LOGGER = logging.getLogger(__name__)
+
 
 class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
     """Handle a config flow for Tuya BLE Mesh."""
@@ -155,7 +164,12 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             conf_key = key_map.get(key, key)
             data[conf_key] = value
 
-        _LOGGER.info("Creating config entry: %s (type=%s, data keys=%s)", title, device_type, list(data.keys()))
+        _LOGGER.info(
+            "Creating config entry: %s (type=%s, data keys=%s)",
+            title,
+            device_type,
+            list(data.keys()),
+        )
         return self.async_create_entry(title=title, data=data)
 
     async def async_step_bluetooth(self, discovery_info: BluetoothServiceInfoBleak) -> FlowResult:
@@ -174,11 +188,15 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         """Delegate SIG bridge config to SIG handler."""
         return await sig_bridge_handler(self, user_input)
 
-    async def async_step_telink_bridge(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_telink_bridge(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         """Delegate Telink bridge config to options handler."""
         return await telink_bridge_handler(self, user_input)
 
-    async def async_step_bridge_config(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_bridge_config(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         """Delegate bridge config to options handler."""
         return await bridge_config_handler(self, user_input)
 
@@ -190,7 +208,9 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
         """Delegate reauth to options handler."""
         return await reauth_handler(self, entry_data)
 
-    async def async_step_reauth_confirm(self, user_input: dict[str, Any] | None = None) -> FlowResult:
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
         """Delegate reauth_confirm to options handler."""
         return await reauth_confirm_handler(self, user_input)
 
@@ -265,7 +285,7 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                 mesh_password = user_input.get(CONF_MESH_PASSWORD, "123456")
 
                 try:
-                    validated_type, extra_data = await validate_and_connect(
+                    validated_type, _extra_data = await validate_and_connect(
                         self.hass, mac.upper(), device_type, mesh_name, mesh_password
                     )
                     device_type = validated_type

@@ -115,10 +115,13 @@ class TestSendCommandRetry:
         async def always_fails() -> None:
             raise TimeoutError("stuck")
 
-        with patch(
-            "custom_components.tuya_ble_mesh.coordinator.asyncio.sleep",
-            new_callable=AsyncMock,
-        ), pytest.raises(TimeoutError, match="stuck"):
+        with (
+            patch(
+                "custom_components.tuya_ble_mesh.coordinator.asyncio.sleep",
+                new_callable=AsyncMock,
+            ),
+            pytest.raises(TimeoutError, match="stuck"),
+        ):
             await c.send_command_with_retry(always_fails, max_retries=2, base_delay=0.001)
 
     @pytest.mark.asyncio
@@ -129,10 +132,13 @@ class TestSendCommandRetry:
         async def always_fails() -> None:
             raise OSError("boom")
 
-        with patch(
-            "custom_components.tuya_ble_mesh.coordinator.asyncio.sleep",
-            new_callable=AsyncMock,
-        ), pytest.raises(OSError):
+        with (
+            patch(
+                "custom_components.tuya_ble_mesh.coordinator.asyncio.sleep",
+                new_callable=AsyncMock,
+            ),
+            pytest.raises(OSError),
+        ):
             await c.send_command_with_retry(always_fails, max_retries=2, base_delay=0.001)
 
         assert c._stats.command_errors == 2
@@ -156,9 +162,7 @@ class TestSendCommandRetry:
             active_concurrent[0] -= 1
 
         tasks = [
-            asyncio.create_task(
-                c.send_command_with_retry(slow_cmd, max_retries=1, base_delay=0.0)
-            )
+            asyncio.create_task(c.send_command_with_retry(slow_cmd, max_retries=1, base_delay=0.0))
             for _ in range(_COMMAND_CONCURRENCY_LIMIT + 3)
         ]
         await asyncio.gather(*tasks)

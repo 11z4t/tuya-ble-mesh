@@ -1,4 +1,5 @@
 """Minimal stub for homeassistant.config_entries."""
+
 from __future__ import annotations
 
 from typing import Any, Generic, TypeVar
@@ -120,9 +121,7 @@ class ConfigFlow(metaclass=_ConfigFlowMeta):
         """Store unique_id for later duplicate checking."""
         self._unique_id = unique_id
 
-    def _abort_if_unique_id_configured(
-        self, updates: dict[str, Any] | None = None
-    ) -> None:
+    def _abort_if_unique_id_configured(self, updates: dict[str, Any] | None = None) -> None:
         """No-op in stub — no config entries to check against in unit tests."""
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> Any:

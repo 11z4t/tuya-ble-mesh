@@ -27,7 +27,6 @@ from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
     _RSSI_STABILITY_THRESHOLD,
     _SEQ_PERSIST_INTERVAL,
     _SEQ_SAFETY_MARGIN,
-    _STALENESS_CHECK_INTERVAL,
     _STALENESS_THRESHOLD_SECONDS,
     DeviceAvailabilityState,
     TuyaBLEMeshCoordinator,
@@ -1650,7 +1649,6 @@ class TestLogConnectMetrics:
 
     def test_notify_listeners_logs_count(self, caplog: Any) -> None:
         """_notify_listeners logs the number of listeners."""
-        import logging
 
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
@@ -1798,9 +1796,9 @@ class TestSkipUnchangedNotifications:
         listener = MagicMock()
         coord.add_listener(listener)
 
-        coord._on_onoff_update(True)   # fires: availability changed
+        coord._on_onoff_update(True)  # fires: availability changed
         listener.reset_mock()
-        coord._on_onoff_update(True)   # same value, no fire
+        coord._on_onoff_update(True)  # same value, no fire
 
         listener.assert_not_called()
 
@@ -1811,7 +1809,7 @@ class TestSkipUnchangedNotifications:
         listener = MagicMock()
         coord.add_listener(listener)
 
-        coord._on_onoff_update(True)   # fires
+        coord._on_onoff_update(True)  # fires
         listener.reset_mock()
         coord._on_onoff_update(False)  # changed: fires
 
@@ -1837,8 +1835,17 @@ class TestCommandDebouncing:
     async def test_rapid_turn_on_coalesces_to_last_command(self) -> None:
         """Rapid turn_on calls should coalesce — only last command fires."""
         import sys
+
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-        sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "custom_components" / "tuya_ble_mesh" / "lib"))
+        sys.path.insert(
+            0,
+            str(
+                Path(__file__).resolve().parent.parent.parent
+                / "custom_components"
+                / "tuya_ble_mesh"
+                / "lib"
+            ),
+        )
         import asyncio
         from unittest.mock import AsyncMock, MagicMock
 
@@ -1876,8 +1883,17 @@ class TestCommandDebouncing:
     async def test_turn_off_cancels_pending_command(self) -> None:
         """async_turn_off should cancel a pending debounced turn_on."""
         import sys
+
         sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
-        sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "custom_components" / "tuya_ble_mesh" / "lib"))
+        sys.path.insert(
+            0,
+            str(
+                Path(__file__).resolve().parent.parent.parent
+                / "custom_components"
+                / "tuya_ble_mesh"
+                / "lib"
+            ),
+        )
         import asyncio
         from unittest.mock import AsyncMock, MagicMock
 
@@ -1915,8 +1931,8 @@ class TestStalenessDetection:
     async def test_device_marked_unavailable_after_timeout(self) -> None:
         """Device should be marked unavailable if no updates for 5 minutes."""
         import time
+
         from custom_components.tuya_ble_mesh.coordinator import (
-            _STALENESS_THRESHOLD_SECONDS,
             DeviceAvailabilityState,
         )
 
@@ -1931,7 +1947,7 @@ class TestStalenessDetection:
             coord._state,
             available=True,
             last_seen=now - (_STALENESS_THRESHOLD_SECONDS + 10),  # 5m10s ago
-            device_availability=DeviceAvailabilityState.AVAILABLE.value
+            device_availability=DeviceAvailabilityState.AVAILABLE.value,
         )
         coord._conn_mgr.running = True
 
@@ -1951,7 +1967,7 @@ class TestStalenessDetection:
             coord._state,
             available=False,
             device_availability=DeviceAvailabilityState.STALE.value,
-            degraded_reason="No updates received in 5 minutes"
+            degraded_reason="No updates received in 5 minutes",
         )
         coord._dispatch_update()
 
@@ -1975,7 +1991,7 @@ class TestStalenessDetection:
             coord._state,
             available=True,
             last_seen=now - 30,
-            device_availability=DeviceAvailabilityState.AVAILABLE.value
+            device_availability=DeviceAvailabilityState.AVAILABLE.value,
         )
         coord._conn_mgr.running = True
 
@@ -1985,7 +2001,6 @@ class TestStalenessDetection:
         # Run staleness check - should not trigger
         # We can't run the full loop, so we check the logic manually
         time_since_update = now - coord._state.last_seen
-        from custom_components.tuya_ble_mesh.coordinator import _STALENESS_THRESHOLD_SECONDS
         assert time_since_update < _STALENESS_THRESHOLD_SECONDS
 
         # Device should still be available
@@ -1996,8 +2011,8 @@ class TestStalenessDetection:
     async def test_successful_probe_keeps_device_available(self) -> None:
         """Successful probe should keep device available even after timeout."""
         import time
+
         from custom_components.tuya_ble_mesh.coordinator import (
-            _STALENESS_THRESHOLD_SECONDS,
             DeviceAvailabilityState,
         )
 
@@ -2011,7 +2026,7 @@ class TestStalenessDetection:
             coord._state,
             available=True,
             last_seen=now - (_STALENESS_THRESHOLD_SECONDS + 10),
-            device_availability=DeviceAvailabilityState.AVAILABLE.value
+            device_availability=DeviceAvailabilityState.AVAILABLE.value,
         )
 
         # Test probe directly
@@ -2025,9 +2040,6 @@ class TestStalenessDetection:
     async def test_failed_probe_marks_unavailable(self) -> None:
         """Failed probe should mark device unavailable."""
         import time
-        from custom_components.tuya_ble_mesh.coordinator import (
-            _STALENESS_THRESHOLD_SECONDS,
-        )
 
         device = make_mock_device()
         device.get_rssi = AsyncMock(side_effect=asyncio.TimeoutError)

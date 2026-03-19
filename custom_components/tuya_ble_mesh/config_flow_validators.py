@@ -69,7 +69,6 @@ def _parse_json_body(body: str) -> dict[str, object]:
     Returns:
         Parsed dict, or empty dict on parse error.
     """
-    import json
 
     try:
         result = json.loads(body)
@@ -233,8 +232,6 @@ def _validate_unicast_address(value: str) -> str | None:
     return None
 
 
-
-
 async def _test_bridge_with_session(hass: Any, host: str, port: int) -> bool:
     """Test if bridge daemon is reachable using HA's aiohttp websession.
 
@@ -262,4 +259,3 @@ async def _test_bridge_with_session(hass: Any, host: str, port: int) -> bool:
     except Exception:
         _LOGGER.debug("Bridge test failed for %s:%d", host, port, exc_info=True)
     return False
-

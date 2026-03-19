@@ -131,7 +131,7 @@ class InMemorySeqStore:
         self._seq = seq
 
 
-class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceSegmentsMixin):
+class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceSegmentsMixin):  # type: ignore[misc]
     """High-level interface to a SIG Mesh device via GATT Proxy.
 
     Provides the same duck-type interface as ``MeshDevice`` for use

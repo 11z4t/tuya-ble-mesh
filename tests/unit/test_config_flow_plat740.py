@@ -13,7 +13,6 @@ Tests cover:
 
 from __future__ import annotations
 
-import asyncio
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -34,7 +33,6 @@ from custom_components.tuya_ble_mesh.const import (  # noqa: E402
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
     DEVICE_TYPE_LIGHT,
-    DEVICE_TYPE_PLUG,
     DEVICE_TYPE_SIG_PLUG,
 )
 
@@ -197,7 +195,7 @@ class TestPLAT740ValidationFlow:
 
             # Call async_step_user without device_type
             # (In real flow, this would trigger auto-detect in validate_and_connect)
-            result = await flow.async_step_user(user_input)
+            await flow.async_step_user(user_input)
 
             # Depending on schema, may show form first or create entry
             # If form shown first (due to required DEVICE_TYPE), this is expected
@@ -214,13 +212,6 @@ class TestPLAT740ValidationFlow:
         # Mock validate_and_connect to auto-detect as SIG_PLUG (PLAT-749)
         with patch(VALIDATE_AND_CONNECT_PATH, new_callable=AsyncMock) as mock_validate:
             mock_validate.return_value = (DEVICE_TYPE_SIG_PLUG, {})
-
-            user_input = {
-                CONF_MAC_ADDRESS: "DC:23:4D:21:43:A5",
-                CONF_DEVICE_TYPE: DEVICE_TYPE_SIG_PLUG,
-                CONF_MESH_NAME: "out_of_mesh",
-                CONF_MESH_PASSWORD: "123456",
-            }
 
             # For SIG plug, flow redirects to async_step_sig_plug
             # We test that the flow correctly handles SIG devices

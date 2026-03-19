@@ -15,7 +15,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.util import dt as dt_util
 
 from custom_components.tuya_ble_mesh import TuyaBLEMeshConfigEntry
-from custom_components.tuya_ble_mesh.helpers import connection_quality
 from custom_components.tuya_ble_mesh.const import (
     CONF_APP_KEY,
     CONF_BRIDGE_HOST,
@@ -24,6 +23,7 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_MESH_PASSWORD,
     CONF_NET_KEY,
 )
+from custom_components.tuya_ble_mesh.helpers import connection_quality
 
 REDACTED = "**REDACTED**"
 

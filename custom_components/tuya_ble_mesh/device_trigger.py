@@ -5,10 +5,8 @@ from __future__ import annotations
 from typing import Final
 
 import voluptuous as vol
-
 from homeassistant.components.device_automation import (
     DEVICE_TRIGGER_BASE_SCHEMA,
-    InvalidDeviceAutomationConfig,
 )
 from homeassistant.components.homeassistant.triggers import event as event_trigger
 from homeassistant.const import (
@@ -39,16 +37,12 @@ TRIGGER_SCHEMA: Final = DEVICE_TRIGGER_BASE_SCHEMA.extend(
 )
 
 
-async def async_validate_trigger_config(
-    hass: HomeAssistant, config: ConfigType
-) -> ConfigType:
+async def async_validate_trigger_config(hass: HomeAssistant, config: ConfigType) -> ConfigType:
     """Validate trigger config."""
     return TRIGGER_SCHEMA(config)
 
 
-async def async_get_triggers(
-    hass: HomeAssistant, device_id: str
-) -> list[dict[str, str]]:
+async def async_get_triggers(hass: HomeAssistant, device_id: str) -> list[dict[str, str]]:
     """List device triggers for Tuya BLE Mesh devices."""
     triggers: list[dict[str, str]] = []
 

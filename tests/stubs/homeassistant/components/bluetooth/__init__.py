@@ -1,4 +1,5 @@
 """Minimal stub for homeassistant.components.bluetooth."""
+
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -21,7 +22,5 @@ class BluetoothServiceInfoBleak:
     time: float = 0.0
 
 
-def async_ble_device_from_address(
-    hass: Any, address: str, connectable: bool = True
-) -> Any:
+def async_ble_device_from_address(hass: Any, address: str, connectable: bool = True) -> Any:
     return MagicMock()

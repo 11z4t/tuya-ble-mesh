@@ -34,12 +34,12 @@ from custom_components.tuya_ble_mesh.const import (
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
 
-    from tuya_ble_mesh.device import MeshDevice  # type: ignore[import-not-found]
-    from tuya_ble_mesh.sig_mesh_bridge import (  # type: ignore[import-not-found]
+    from tuya_ble_mesh.device import MeshDevice
+    from tuya_ble_mesh.sig_mesh_bridge import (
         SIGMeshBridgeDevice,
         TelinkBridgeDevice,
     )
-    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
+    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
 
 # Union type alias for all mesh device types returned by device_factory
 AnyMeshDevice: TypeAlias = Union[
@@ -57,10 +57,10 @@ def _create_sig_bridge_plug(
     data: Mapping[str, Any],
     ble_device_callback: Callable[[str], Any] | None,
     ble_connect_callback: Callable[[Any], Any] | None = None,
-) -> "SIGMeshBridgeDevice":
+) -> SIGMeshBridgeDevice:
     """Create a SIG Mesh Bridge device."""
     from tuya_ble_mesh.sig_mesh_bridge import (
-        SIGMeshBridgeDevice,  # type: ignore[import-not-found]
+        SIGMeshBridgeDevice,
     )
 
     target_addr = int(data.get(CONF_UNICAST_TARGET, "00B0"), 16)
@@ -80,10 +80,10 @@ def _create_telink_bridge_light(
     data: Mapping[str, Any],
     ble_device_callback: Callable[[str], Any] | None,
     ble_connect_callback: Callable[[Any], Any] | None = None,
-) -> "TelinkBridgeDevice":
+) -> TelinkBridgeDevice:
     """Create a Telink Bridge device."""
     from tuya_ble_mesh.sig_mesh_bridge import (
-        TelinkBridgeDevice,  # type: ignore[import-not-found]
+        TelinkBridgeDevice,
     )
 
     bridge_host: str = data[CONF_BRIDGE_HOST]
@@ -101,14 +101,14 @@ def _create_sig_plug(
     data: Mapping[str, Any],
     ble_device_callback: Callable[[str], Any] | None,
     ble_connect_callback: Callable[[Any], Any] | None = None,
-) -> "SIGMeshDevice":
+) -> SIGMeshDevice:
     """Create a SIG Mesh direct device.
 
     Raises:
         ValueError: If required SIG Mesh keys (net_key, dev_key, app_key) are missing.
     """
-    from tuya_ble_mesh.secrets import DictSecretsManager  # type: ignore[import-not-found]
-    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice  # type: ignore[import-not-found]
+    from tuya_ble_mesh.secrets import DictSecretsManager
+    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
 
     # PLAT-739: Validate required keys are present
     net_key = data.get(CONF_NET_KEY, "")
@@ -158,13 +158,13 @@ def _create_default_mesh_device(
     data: Mapping[str, Any],
     ble_device_callback: Callable[[str], Any] | None,
     ble_connect_callback: Callable[[Any], Any] | None = None,
-) -> "MeshDevice":
+) -> MeshDevice:
     """Create a standard Tuya BLE Mesh device (light or plug).
 
     Note: MeshDevice does not support ble_connect_callback parameter.
     Only ble_device_callback is passed through.
     """
-    from tuya_ble_mesh.device import MeshDevice  # type: ignore[import-not-found]
+    from tuya_ble_mesh.device import MeshDevice
 
     mesh_name: str = data[CONF_MESH_NAME]
     mesh_password: str = data[CONF_MESH_PASSWORD]

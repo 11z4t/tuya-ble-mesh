@@ -1,4 +1,5 @@
 """Minimal stub for homeassistant.util.dt."""
+
 from __future__ import annotations
 
 from datetime import UTC, datetime

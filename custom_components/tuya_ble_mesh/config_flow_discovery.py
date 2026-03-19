@@ -61,7 +61,9 @@ async def async_step_bluetooth(
     # DEBUG: Log exactly what the device advertises
     _LOGGER.warning(
         "BLE Discovery: name=%s addr=%s uuids=%s rssi=%s",
-        name, address, getattr(discovery_info, "service_uuids", []),
+        name,
+        address,
+        getattr(discovery_info, "service_uuids", []),
         getattr(discovery_info, "rssi", None),
     )
 
@@ -117,9 +119,7 @@ async def async_step_bluetooth(
     try:
         ble_device = async_ble_device_from_address(flow.hass, address, connectable=True)
         if ble_device is None:
-            _LOGGER.debug(
-                "Ignoring stale discovery for %s (device no longer advertising)", address
-            )
+            _LOGGER.debug("Ignoring stale discovery for %s (device no longer advertising)", address)
             return flow.async_abort(reason="device_not_available")
     except RuntimeError:
         # BluetoothManager not initialized (e.g. in tests) -- skip stale check
@@ -129,9 +129,7 @@ async def async_step_bluetooth(
     # PLAT-694: Accept both Provisioning (0x1827) and Proxy (0x1828) services
     # PLAT-739: S17* devices are SIG Mesh plugs identified by name, not UUID
     is_sig_mesh = (
-        is_s17_plug
-        or SIG_MESH_PROV_UUID in service_uuids
-        or SIG_MESH_PROXY_UUID in service_uuids
+        is_s17_plug or SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids
     )
     device_category = "Smart Plug" if is_sig_mesh else "LED Light"
     rssi = getattr(discovery_info, "rssi", None)
@@ -146,9 +144,7 @@ async def async_step_bluetooth(
     elif is_sig_mesh:  # Match both Provisioning (0x1827) and Proxy (0x1828)
         # SIG Mesh device -> Plug
         auto_device_type = DEVICE_TYPE_SIG_PLUG
-    elif any(
-        uuid.startswith("00010203-0405-0607-0809-0a0b0c0d") for uuid in service_uuids
-    ):
+    elif any(uuid.startswith("00010203-0405-0607-0809-0a0b0c0d") for uuid in service_uuids):
         # Telink mesh UUID prefix -> Light
         auto_device_type = DEVICE_TYPE_LIGHT
 
@@ -179,11 +175,13 @@ async def async_step_bluetooth(
         _LOGGER.info("SIG Mesh device in pairing mode: %s", address)
         # Delegate to SIG plug flow (will be imported from config_flow_sig)
         from custom_components.tuya_ble_mesh.config_flow_sig import async_step_sig_plug
+
         return await async_step_sig_plug(flow, None)
 
     # Delegate to confirm step
     # Import to avoid circular dependency
     return await async_step_confirm_impl(flow, None)
+
 
 async def async_step_confirm_impl(flow: Any, user_input: dict[str, Any] | None) -> FlowResult:
     """Confirm bluetooth discovery and choose device type.
@@ -202,7 +200,6 @@ async def async_step_confirm_impl(flow: Any, user_input: dict[str, Any] | None) 
     Returns:
         Flow result dict.
     """
-    import voluptuous as vol
 
     errors: dict[str, str] = {}
 
@@ -217,6 +214,7 @@ async def async_step_confirm_impl(flow: Any, user_input: dict[str, Any] | None) 
     if user_input is not None and flow._discovery_info:
         # Validate vendor_id if provided
         from custom_components.tuya_ble_mesh.config_flow_validators import _validate_vendor_id
+
         vendor_id_str = user_input.get(CONF_VENDOR_ID, DEFAULT_VENDOR_ID)
         vendor_id_error = _validate_vendor_id(str(vendor_id_str))
         if vendor_id_error:
@@ -231,7 +229,7 @@ async def async_step_confirm_impl(flow: Any, user_input: dict[str, Any] | None) 
 
             # PLAT-740: CRITICAL — Connect and validate BEFORE creating entry
             try:
-                validated_type, extra_data = await validate_and_connect(
+                validated_type, _extra_data = await validate_and_connect(
                     flow.hass, mac, device_type, mesh_name, mesh_password
                 )
                 # Update device_type with validated type (in case auto-detected)
@@ -277,9 +275,7 @@ async def async_step_confirm_impl(flow: Any, user_input: dict[str, Any] | None) 
         data_schema=vol.Schema(confirm_schema),
         description_placeholders={
             "name": (
-                flow._discovery_info.get("name", "Unknown")
-                if flow._discovery_info
-                else "Unknown"
+                flow._discovery_info.get("name", "Unknown") if flow._discovery_info else "Unknown"
             ),
             # Human-readable signal quality label (used in current strings.json)
             "signal_quality": _rssi_to_signal_quality(rssi_int),
@@ -290,9 +286,7 @@ async def async_step_confirm_impl(flow: Any, user_input: dict[str, Any] | None) 
             ),
             # Legacy placeholders kept for older translated strings that reference them
             "rssi": str(rssi_raw) if rssi_raw is not None else "?",
-            "mac": (
-                flow._discovery_info.get("address", "") if flow._discovery_info else ""
-            ),
+            "mac": (flow._discovery_info.get("address", "") if flow._discovery_info else ""),
         },
         errors=errors,
     )

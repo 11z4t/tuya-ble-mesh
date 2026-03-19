@@ -109,7 +109,9 @@ class TestAsyncSetupEntry:
             vendor_id=b"\x01\x10",
             ble_device_callback=ANY,
         )
-        coord_cls.assert_called_once_with(mock_device, hass=hass, entry_id=entry.entry_id, entry=entry)
+        coord_cls.assert_called_once_with(
+            mock_device, hass=hass, entry_id=entry.entry_id, entry=entry
+        )
 
     @pytest.mark.asyncio
     async def test_setup_starts_coordinator(self) -> None:
@@ -593,9 +595,7 @@ class TestServiceHandlers:
         call.data = {"device_id": "test_device_id"}
 
         with (
-            patch(
-                "homeassistant.helpers.device_registry.async_get"
-            ) as mock_reg_getter,
+            patch("homeassistant.helpers.device_registry.async_get") as mock_reg_getter,
         ):
             mock_dev_reg = MagicMock()
             mock_device_entry = MagicMock()
@@ -639,9 +639,7 @@ class TestServiceHandlers:
         call.data = {"device_id": "nonexistent_device"}
 
         with (
-            patch(
-                "homeassistant.helpers.device_registry.async_get"
-            ) as mock_reg_getter,
+            patch("homeassistant.helpers.device_registry.async_get") as mock_reg_getter,
         ):
             mock_dev_reg = MagicMock()
             mock_dev_reg.async_get = MagicMock(return_value=None)
@@ -726,9 +724,7 @@ class TestServiceHandlers:
         call.data = {"device_id": "test_device_id"}
 
         with (
-            patch(
-                "homeassistant.helpers.device_registry.async_get"
-            ) as mock_reg_getter,
+            patch("homeassistant.helpers.device_registry.async_get") as mock_reg_getter,
         ):
             mock_dev_reg = MagicMock()
             mock_device_entry = MagicMock()
@@ -771,9 +767,7 @@ class TestServiceHandlers:
         call.data = {"device_id": "test_device_id"}
 
         with (
-            patch(
-                "homeassistant.helpers.device_registry.async_get"
-            ) as mock_reg_getter,
+            patch("homeassistant.helpers.device_registry.async_get") as mock_reg_getter,
         ):
             mock_dev_reg = MagicMock()
             mock_device_entry = MagicMock()
@@ -822,6 +816,7 @@ class TestDeviceRegistryIntegration:
 
         # Simulate connection failure: state.available = False after start
         from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshDeviceState
+
         mock_coord.state = TuyaBLEMeshDeviceState(available=False)
 
         with (
@@ -842,6 +837,7 @@ class TestDeviceRegistryIntegration:
         mock_device, mock_coord = _make_patches()
 
         from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshDeviceState
+
         mock_coord.state = TuyaBLEMeshDeviceState(available=True)
 
         with (

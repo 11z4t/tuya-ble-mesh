@@ -5,7 +5,15 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "custom_components" / "tuya_ble_mesh" / "lib"))
+sys.path.insert(
+    0,
+    str(
+        Path(__file__).resolve().parent.parent.parent
+        / "custom_components"
+        / "tuya_ble_mesh"
+        / "lib"
+    ),
+)
 
 from tuya_ble_mesh.exceptions import ProtocolError
 from tuya_ble_mesh.scanner import (
@@ -201,8 +209,9 @@ class TestScanForDevices:
         from tuya_ble_mesh.scanner import scan_for_devices
 
         # Mock BleakScanner
-        with patch("tuya_ble_mesh.scanner.BleakScanner") as mock_scanner_class, patch(
-            "tuya_ble_mesh.scanner.asyncio.sleep", new_callable=AsyncMock
+        with (
+            patch("tuya_ble_mesh.scanner.BleakScanner") as mock_scanner_class,
+            patch("tuya_ble_mesh.scanner.asyncio.sleep", new_callable=AsyncMock),
         ):
             mock_scanner = MagicMock()
             mock_scanner.__aenter__ = AsyncMock(return_value=mock_scanner)

@@ -81,11 +81,11 @@ def mock_validate_and_connect() -> Generator[AsyncMock, None, None]:
     with patch(VALIDATE_AND_CONNECT_PATH, new_callable=AsyncMock) as mock_validate:
         # Default: succeed with detected device type matching input
         async def _mock_validate(
-            hass,  # noqa: ARG001
-            mac: str,  # noqa: ARG001
+            hass,
+            mac: str,
             device_type: str | None = None,
-            mesh_name: str = "out_of_mesh",  # noqa: ARG001
-            mesh_password: str = "123456",  # noqa: ARG001
+            mesh_name: str = "out_of_mesh",
+            mesh_password: str = "123456",
         ) -> tuple[str, dict]:
             # Return the requested device type (or auto-detect as LIGHT if None)
             detected_type = device_type if device_type is not None else "light"

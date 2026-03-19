@@ -11,6 +11,12 @@ from homeassistant import config_entries
 if TYPE_CHECKING:
     from homeassistant.data_entry_flow import FlowResult
 
+from custom_components.tuya_ble_mesh.config_flow_validators import (
+    _validate_bridge_host,
+    _validate_iv_index,
+    _validate_mesh_credential,
+    _validate_unicast_address,
+)
 from custom_components.tuya_ble_mesh.const import (
     CONF_BRIDGE_HOST,
     CONF_BRIDGE_PORT,
@@ -29,15 +35,9 @@ from custom_components.tuya_ble_mesh.const import (
     DEVICE_TYPE_SIG_PLUG,
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
 )
-from custom_components.tuya_ble_mesh.config_flow_validators import (
-    _test_bridge_with_session,
-    _validate_bridge_host,
-    _validate_iv_index,
-    _validate_mesh_credential,
-    _validate_unicast_address,
-)
 
 _LOGGER = logging.getLogger(__name__)
+
 
 class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):
     """Handle options for a Tuya BLE Mesh entry."""
@@ -178,32 +178,30 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):
         )
 
 
-async def async_step_bridge_config(
-        flow, user_input: dict[str, Any] | None = None
-    ) -> FlowResult:
-        """Handle generic bridge configuration (alias used by tests).
+async def async_step_bridge_config(flow, user_input: dict[str, Any] | None = None) -> FlowResult:
+    """Handle generic bridge configuration (alias used by tests).
 
-        Args:
-            user_input: User-provided bridge parameters.
+    Args:
+        user_input: User-provided bridge parameters.
 
-        Returns:
-            Flow result dict.
-        """
-        errors: dict[str, str] = {}
-        if user_input is not None:
-            host = user_input.get(CONF_BRIDGE_HOST, "")
-            user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
-            host_error = _validate_bridge_host(host)
-            if host_error:
-                errors[CONF_BRIDGE_HOST] = host_error
+    Returns:
+        Flow result dict.
+    """
+    errors: dict[str, str] = {}
+    if user_input is not None:
+        host = user_input.get(CONF_BRIDGE_HOST, "")
+        user_input.get(CONF_BRIDGE_PORT, DEFAULT_BRIDGE_PORT)
+        host_error = _validate_bridge_host(host)
+        if host_error:
+            errors[CONF_BRIDGE_HOST] = host_error
 
-        return flow.async_show_form(
-            step_id="bridge_config",
-            data_schema=vol.Schema(
-                {
-                    vol.Required(CONF_BRIDGE_HOST): str,
-                    vol.Optional(CONF_BRIDGE_PORT, default=DEFAULT_BRIDGE_PORT): int,
-                }
-            ),
-            errors=errors,
-        )
+    return flow.async_show_form(
+        step_id="bridge_config",
+        data_schema=vol.Schema(
+            {
+                vol.Required(CONF_BRIDGE_HOST): str,
+                vol.Optional(CONF_BRIDGE_PORT, default=DEFAULT_BRIDGE_PORT): int,
+            }
+        ),
+        errors=errors,
+    )

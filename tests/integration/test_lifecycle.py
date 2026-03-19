@@ -182,6 +182,7 @@ class TestFullLifecycle:
 
         # Mark as connected
         from dataclasses import replace as _dc_replace
+
         coord._state = _dc_replace(coord._state, available=True)
 
         # Entity should now be available

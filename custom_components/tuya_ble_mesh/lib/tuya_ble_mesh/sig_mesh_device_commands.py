@@ -86,8 +86,11 @@ class SIGMeshDeviceCommandsMixin:
     _segment_lock: asyncio.Lock
     _pending_responses: dict[tuple[int, int], asyncio.Future[bytes]]
 
-    async def _next_seq(self) -> int: ...
-    async def _next_seqs(self, n: int) -> int: ...
+    async def _next_seq(self) -> int:
+        raise NotImplementedError
+
+    async def _next_seqs(self, n: int) -> int:
+        raise NotImplementedError
 
     async def send_power(
         self, on: bool, *, max_retries: int = DEFAULT_SIG_MESH_MAX_RETRIES
@@ -478,4 +481,4 @@ class SIGMeshDeviceCommandsMixin:
 try:
     from bleak.exc import BleakError
 except ImportError:  # pragma: no cover
-    BleakError = OSError  # type: ignore[assignment,misc]
+    BleakError = OSError

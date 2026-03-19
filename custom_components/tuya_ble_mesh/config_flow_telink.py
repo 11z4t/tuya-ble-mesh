@@ -17,17 +17,15 @@ if TYPE_CHECKING:
     from bleak import BleakClient
     from homeassistant.data_entry_flow import FlowResult
 
+from custom_components.tuya_ble_mesh.config_flow_validators import (
+    _test_bridge_with_session,
+    _validate_bridge_host,
+)
 from custom_components.tuya_ble_mesh.const import (
     CONF_BRIDGE_HOST,
     CONF_BRIDGE_PORT,
     DEFAULT_BRIDGE_PORT,
-    DEVICE_TYPE_LIGHT,
-    DEVICE_TYPE_PLUG,
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
-)
-from custom_components.tuya_ble_mesh.config_flow_validators import (
-    _test_bridge_with_session,
-    _validate_bridge_host,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -80,14 +78,19 @@ async def perform_telink_pairing(
 
     _LOGGER.info("Starting Telink mesh pairing for %s", mac)
     try:
-        session_key, _ = await pair(client, mesh_name.encode("utf-8"), mesh_password.encode("utf-8"))
-        _LOGGER.info("Telink pairing succeeded for %s (session_key=%d bytes)", mac, len(session_key))
+        session_key, _ = await pair(
+            client, mesh_name.encode("utf-8"), mesh_password.encode("utf-8")
+        )
+        _LOGGER.info(
+            "Telink pairing succeeded for %s (session_key=%d bytes)", mac, len(session_key)
+        )
     except Exception as exc:
         _LOGGER.warning("Telink pairing failed for %s: %s", mac, exc, exc_info=True)
         # Map provisioning errors to user-friendly keys
         from tuya_ble_mesh.exceptions import ProvisioningError
+
         if isinstance(exc, ProvisioningError):
-            raise ValueError("pairing_failed")
+            raise ValueError("pairing_failed") from None
         raise ValueError("pairing_failed") from exc
 
     # PLAT-740 QC BRIST 2: Verify — send status query and VALIDATE RESPONSE
@@ -141,9 +144,9 @@ async def perform_telink_pairing(
             else:
                 _LOGGER.warning("Device %s: response event set but no data captured", mac)
                 raise ValueError("verify_failed")
-        except asyncio.TimeoutError:
+        except TimeoutError:
             _LOGGER.warning("Device %s did not respond to verify command within 5s", mac)
-            raise ValueError("verify_failed")
+            raise ValueError("verify_failed") from None
     finally:
         await client.stop_notify(TELINK_CHAR_NOTIFY)
 

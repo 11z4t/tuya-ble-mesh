@@ -5,7 +5,15 @@ from pathlib import Path
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent / "custom_components" / "tuya_ble_mesh" / "lib"))
+sys.path.insert(
+    0,
+    str(
+        Path(__file__).resolve().parent.parent.parent
+        / "custom_components"
+        / "tuya_ble_mesh"
+        / "lib"
+    ),
+)
 
 from tuya_ble_mesh.exceptions import (
     AuthenticationError,
@@ -182,7 +190,6 @@ class TestCatchSemantics:
 
 
 class TestBackwardCompatibility:
-
     def test_ble_error_is_tuya_ble_mesh_error(self) -> None:
         assert BLEError is TuyaBLEMeshError
 

@@ -8,7 +8,6 @@ command retry. Extracted from coordinator.py (PLAT-667).
 from __future__ import annotations
 
 import asyncio
-import contextlib
 import logging
 import statistics
 import time
@@ -27,9 +26,6 @@ __all__ = ["ConnectionManager", "ErrorClass", "classify_error"]
 
 if TYPE_CHECKING:
     from homeassistant.core import HomeAssistant
-    from tuya_ble_mesh.device import MeshDevice
-    from tuya_ble_mesh.sig_mesh_bridge import SIGMeshBridgeDevice, TelinkBridgeDevice
-    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
 
     from custom_components.tuya_ble_mesh.coordinator import AnyMeshDevice
 
@@ -227,9 +223,7 @@ class ConnectionManager:
         response_time = time.monotonic() - start_time
         self._stats.response_times.append(response_time)
         self._stats.connect_time = time.time()
-        self._backoff = (
-            BRIDGE_INITIAL_BACKOFF if self.is_bridge_device() else INITIAL_BACKOFF
-        )
+        self._backoff = BRIDGE_INITIAL_BACKOFF if self.is_bridge_device() else INITIAL_BACKOFF
         # PLAT-695: Populate RSSI immediately after connect (from BleakClient.rssi)
         rssi = getattr(self._device, "rssi", None)
         if rssi is not None:
@@ -364,9 +358,7 @@ class ConnectionManager:
                 if rssi is not None:
                     self._latest_rssi = rssi
                     self._stats.rssi_history.append((time.time(), rssi))
-                _LOGGER.info(
-                    "Reconnected to %s (%.2fs)", self._device.address, response_time
-                )
+                _LOGGER.info("Reconnected to %s (%.2fs)", self._device.address, response_time)
                 self._log_connect_metrics(response_time)
                 self._clear_repair_issues_on_recovery()
 
@@ -587,8 +579,8 @@ class ConnectionManager:
                             self._device.address, timeout=10.0
                         )
 
-                    if ble_device is not None and ble_device.rssi is not None:  # type: ignore[attr-defined]
-                        rssi = ble_device.rssi  # type: ignore[attr-defined]
+                    if ble_device is not None and ble_device.rssi is not None:
+                        rssi = ble_device.rssi
                         self._stats.rssi_history.append((time.time(), rssi))
                         # Return RSSI to coordinator via callback with special marker
                         if self._on_state_update:

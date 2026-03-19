@@ -80,10 +80,7 @@ def classify_error(err: Exception) -> ErrorClass:
         # MeshConnectionError — check message for bridge-specific patterns
         if isinstance(err, MeshConnectionError):
             err_msg = str(err).lower()
-            if any(
-                keyword in err_msg
-                for keyword in ["refused", "unreachable", "no route"]
-            ):
+            if any(keyword in err_msg for keyword in ["refused", "unreachable", "no route"]):
                 return ErrorClass.BRIDGE_DOWN
             # Generic connection error → transient
             return ErrorClass.TRANSIENT
@@ -102,8 +99,7 @@ def classify_error(err: Exception) -> ErrorClass:
 
     # Authentication and credential failures
     if any(
-        keyword in err_type or keyword in err_msg
-        for keyword in ["auth", "password", "credential"]
+        keyword in err_type or keyword in err_msg for keyword in ["auth", "password", "credential"]
     ):
         return ErrorClass.MESH_AUTH
 
@@ -112,10 +108,7 @@ def classify_error(err: Exception) -> ErrorClass:
         return ErrorClass.PROTOCOL
 
     # Bridge connectivity issues (HTTP/network)
-    if any(
-        keyword in err_msg
-        for keyword in ["connection refused", "unreachable", "no route"]
-    ):
+    if any(keyword in err_msg for keyword in ["connection refused", "unreachable", "no route"]):
         return ErrorClass.BRIDGE_DOWN
 
     # Device not found on the mesh
@@ -128,5 +121,3 @@ def classify_error(err: Exception) -> ErrorClass:
 
     # Default to unknown if no pattern matches
     return ErrorClass.UNKNOWN
-
-

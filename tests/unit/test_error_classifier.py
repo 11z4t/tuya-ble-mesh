@@ -6,21 +6,14 @@ extracted from ConnectionManager / coordinator.
 
 from __future__ import annotations
 
-import asyncio
 import sys
 from pathlib import Path
-
-import pytest
 
 # Add project root and lib for imports
 _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
 sys.path.insert(0, str(Path(_ROOT) / "custom_components" / "tuya_ble_mesh" / "lib"))
 
-from custom_components.tuya_ble_mesh.error_classifier import (  # noqa: E402
-    ErrorClass,
-    classify_error,
-)
 from tuya_ble_mesh.exceptions import (  # noqa: E402
     AuthenticationError,
     CryptoError,
@@ -31,6 +24,10 @@ from tuya_ble_mesh.exceptions import (  # noqa: E402
     SIGMeshKeyError,
 )
 
+from custom_components.tuya_ble_mesh.error_classifier import (  # noqa: E402
+    ErrorClass,
+    classify_error,
+)
 
 # ---------------------------------------------------------------------------
 # ErrorClass enum
@@ -89,29 +86,17 @@ class TestClassifyLibExceptions:
         assert classify_error(DeviceNotFoundError("DC:23")) == ErrorClass.DEVICE_OFFLINE
 
     def test_mesh_connection_error_refused(self) -> None:
-        assert (
-            classify_error(MeshConnectionError("Connection refused"))
-            == ErrorClass.BRIDGE_DOWN
-        )
+        assert classify_error(MeshConnectionError("Connection refused")) == ErrorClass.BRIDGE_DOWN
 
     def test_mesh_connection_error_unreachable(self) -> None:
-        assert (
-            classify_error(MeshConnectionError("Host unreachable"))
-            == ErrorClass.BRIDGE_DOWN
-        )
+        assert classify_error(MeshConnectionError("Host unreachable")) == ErrorClass.BRIDGE_DOWN
 
     def test_mesh_connection_error_no_route(self) -> None:
-        assert (
-            classify_error(MeshConnectionError("No route to host"))
-            == ErrorClass.BRIDGE_DOWN
-        )
+        assert classify_error(MeshConnectionError("No route to host")) == ErrorClass.BRIDGE_DOWN
 
     def test_mesh_connection_error_generic(self) -> None:
         """Generic MeshConnectionError (no bridge keyword) → TRANSIENT."""
-        assert (
-            classify_error(MeshConnectionError("BLE link lost"))
-            == ErrorClass.TRANSIENT
-        )
+        assert classify_error(MeshConnectionError("BLE link lost")) == ErrorClass.TRANSIENT
 
 
 # ---------------------------------------------------------------------------
@@ -126,7 +111,7 @@ class TestClassifyStringHeuristics:
         assert classify_error(TimeoutError("timed out")) == ErrorClass.TRANSIENT
 
     def test_asyncio_timeout(self) -> None:
-        assert classify_error(asyncio.TimeoutError()) == ErrorClass.TRANSIENT
+        assert classify_error(TimeoutError()) == ErrorClass.TRANSIENT
 
     def test_timeout_by_message(self) -> None:
         assert classify_error(Exception("Request timeout after 30s")) == ErrorClass.TRANSIENT
@@ -217,9 +202,7 @@ class TestRealWorldScenarios:
         assert classify_error(err) == ErrorClass.TRANSIENT
 
     def test_http_bridge_connection_pool(self) -> None:
-        err = Exception(
-            "HTTPConnectionPool: Failed to establish connection - Connection refused"
-        )
+        err = Exception("HTTPConnectionPool: Failed to establish connection - Connection refused")
         assert classify_error(err) == ErrorClass.BRIDGE_DOWN
 
     def test_mesh_credential_mismatch(self) -> None:

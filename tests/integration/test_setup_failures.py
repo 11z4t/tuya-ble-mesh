@@ -4,8 +4,9 @@ Tests that ConfigEntryNotReady and ConfigEntryAuthFailed are raised correctly
 when initial connection fails, giving HA Core visibility into integration health.
 """
 
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
 
 from custom_components.tuya_ble_mesh.const import (
     CONF_MAC_ADDRESS,
@@ -20,8 +21,9 @@ class TestSetupFailureHandling:
     @pytest.mark.asyncio
     async def test_ble_connection_failure_raises_config_entry_not_ready(self) -> None:
         """BLE connection failure should raise ConfigEntryNotReady."""
-        from custom_components.tuya_ble_mesh import async_setup_entry
         from homeassistant.exceptions import ConfigEntryNotReady
+
+        from custom_components.tuya_ble_mesh import async_setup_entry
 
         mock_hass = MagicMock()
         mock_hass.config_entries = MagicMock()
@@ -38,7 +40,9 @@ class TestSetupFailureHandling:
 
         # Mock device creation and coordinator with failing connect
         with (
-            patch("custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.device.MeshDevice") as mock_device_cls,
+            patch(
+                "custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.device.MeshDevice"
+            ) as mock_device_cls,
             patch(
                 "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator.async_initial_connect"
             ) as mock_connect,
@@ -62,8 +66,9 @@ class TestSetupFailureHandling:
     @pytest.mark.asyncio
     async def test_mesh_auth_failure_raises_config_entry_auth_failed(self) -> None:
         """Mesh authentication failure should raise ConfigEntryAuthFailed."""
-        from custom_components.tuya_ble_mesh import async_setup_entry
         from homeassistant.exceptions import ConfigEntryAuthFailed
+
+        from custom_components.tuya_ble_mesh import async_setup_entry
         from custom_components.tuya_ble_mesh.error_classifier import ErrorClass
 
         mock_hass = MagicMock()
@@ -81,7 +86,9 @@ class TestSetupFailureHandling:
 
         # Mock device creation and coordinator with mesh auth failure
         with (
-            patch("custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.device.MeshDevice") as mock_device_cls,
+            patch(
+                "custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.device.MeshDevice"
+            ) as mock_device_cls,
             patch(
                 "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator.async_initial_connect"
             ) as mock_connect,
@@ -109,9 +116,10 @@ class TestSetupFailureHandling:
     @pytest.mark.asyncio
     async def test_timeout_raises_config_entry_not_ready(self) -> None:
         """Connection timeout should raise ConfigEntryNotReady."""
-        from custom_components.tuya_ble_mesh import async_setup_entry
+
         from homeassistant.exceptions import ConfigEntryNotReady
-        import asyncio
+
+        from custom_components.tuya_ble_mesh import async_setup_entry
 
         mock_hass = MagicMock()
         mock_hass.config_entries = MagicMock()
@@ -128,7 +136,9 @@ class TestSetupFailureHandling:
 
         # Mock device creation and coordinator with timeout
         with (
-            patch("custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.device.MeshDevice") as mock_device_cls,
+            patch(
+                "custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.device.MeshDevice"
+            ) as mock_device_cls,
             patch(
                 "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator.async_initial_connect"
             ) as mock_connect,
@@ -139,7 +149,7 @@ class TestSetupFailureHandling:
             mock_device_cls.return_value = mock_device
 
             # Simulate connection timeout
-            mock_connect.side_effect = asyncio.TimeoutError("Connection timed out")
+            mock_connect.side_effect = TimeoutError("Connection timed out")
 
             # Verify ConfigEntryNotReady is raised
             with pytest.raises(ConfigEntryNotReady) as exc_info:
@@ -174,7 +184,9 @@ class TestSetupFailureHandling:
 
         # Mock device creation and successful connection
         with (
-            patch("custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.device.MeshDevice") as mock_device_cls,
+            patch(
+                "custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.device.MeshDevice"
+            ) as mock_device_cls,
             patch(
                 "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator.async_initial_connect"
             ) as mock_connect,
@@ -201,9 +213,11 @@ class TestSetupFailureHandling:
     @pytest.mark.asyncio
     async def test_device_offline_logs_warning(self) -> None:
         """Device offline should log warning and raise ConfigEntryNotReady."""
-        from custom_components.tuya_ble_mesh import async_setup_entry
-        from homeassistant.exceptions import ConfigEntryNotReady
         import logging
+
+        from homeassistant.exceptions import ConfigEntryNotReady
+
+        from custom_components.tuya_ble_mesh import async_setup_entry
 
         # Capture log output
         logger = logging.getLogger("custom_components.tuya_ble_mesh")
@@ -223,7 +237,9 @@ class TestSetupFailureHandling:
 
             # Mock device creation and offline device
             with (
-                patch("custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.device.MeshDevice") as mock_device_cls,
+                patch(
+                    "custom_components.tuya_ble_mesh.lib.tuya_ble_mesh.device.MeshDevice"
+                ) as mock_device_cls,
                 patch(
                     "custom_components.tuya_ble_mesh.coordinator.TuyaBLEMeshCoordinator.async_initial_connect"
                 ) as mock_connect,

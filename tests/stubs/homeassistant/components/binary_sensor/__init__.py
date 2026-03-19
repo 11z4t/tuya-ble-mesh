@@ -1,8 +1,8 @@
 """Minimal stub for homeassistant.components.binary_sensor."""
+
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Any
 
 
 class BinarySensorDeviceClass(StrEnum):

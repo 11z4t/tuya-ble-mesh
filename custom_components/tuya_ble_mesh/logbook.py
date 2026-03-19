@@ -24,16 +24,14 @@ def async_describe_events(
     @callback
     def async_describe_state_change(event: Event) -> dict[str, str]:
         """Describe state change event for a Tuya BLE Mesh device."""
-        device_id = event.data.get(ATTR_DEVICE_ID, "unknown")
+        event.data.get(ATTR_DEVICE_ID, "unknown")
         entity_name = event.data.get(ATTR_FRIENDLY_NAME, "Device")
         old_state = event.data.get("old_state", "unknown")
         new_state = event.data.get("new_state", "unknown")
 
         return {
             LOGBOOK_ENTRY_NAME: "Tuya BLE Mesh",
-            LOGBOOK_ENTRY_MESSAGE: (
-                f"{entity_name} changed from {old_state} to {new_state}"
-            ),
+            LOGBOOK_ENTRY_MESSAGE: (f"{entity_name} changed from {old_state} to {new_state}"),
         }
 
     # Register the state change event

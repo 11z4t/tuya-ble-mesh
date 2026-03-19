@@ -320,9 +320,7 @@ class SIGMeshDeviceSegmentsMixin:
         async with self._segment_lock:
             await self._dispatch_access_payload_unlocked(src, opcode, params)
 
-    async def _dispatch_access_payload_unlocked(
-        self, src: int, opcode: int, params: bytes
-    ) -> None:
+    async def _dispatch_access_payload_unlocked(self, src: int, opcode: int, params: bytes) -> None:
         """Dispatch access payload without acquiring lock (lock must be held by caller).
 
         CF-1: Called while holding _segment_lock. Do not call directly unless lock is held.

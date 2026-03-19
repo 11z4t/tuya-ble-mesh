@@ -29,7 +29,7 @@ from tuya_ble_mesh.exceptions import ProtocolError
 from tuya_ble_mesh.protocol import encode_compact_dp
 
 if TYPE_CHECKING:
-    from collections.abc import Awaitable
+    from collections.abc import Awaitable, Callable
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,7 +43,7 @@ class DeviceCommandsMixin:
     """
 
     _address: str
-    send_command: callable[[int, bytes], Awaitable[None]]
+    send_command: Callable[[int, bytes], Awaitable[None]]
 
     async def send_power(self, on: bool) -> None:
         """Turn the device on or off.

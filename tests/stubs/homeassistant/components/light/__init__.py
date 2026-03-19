@@ -1,4 +1,5 @@
 """Minimal stub for homeassistant.components.light."""
+
 from __future__ import annotations
 
 from enum import IntFlag, StrEnum

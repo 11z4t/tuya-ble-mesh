@@ -49,9 +49,7 @@ class BridgeHTTPMixin:
             await self._session.close()
             self._session = None
 
-    async def _http_get(
-        self, path: str, timeout: float = DEFAULT_HTTP_TIMEOUT
-    ) -> dict[str, Any]:
+    async def _http_get(self, path: str, timeout: float = DEFAULT_HTTP_TIMEOUT) -> dict[str, Any]:
         """Make an HTTP GET request to the bridge daemon."""
         url = f"{self._bridge_url}{path}"
         try:
