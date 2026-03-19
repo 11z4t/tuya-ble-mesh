@@ -164,6 +164,9 @@ class ConnectionManager:
         # Command concurrency
         self._command_semaphore = asyncio.Semaphore(COMMAND_CONCURRENCY_LIMIT)
 
+        # Strong references to fire-and-forget tasks (prevents premature GC)
+        self._background_tasks: set[asyncio.Task[Any]] = set()
+
     # --- Properties ---
 
     @property
@@ -417,6 +420,8 @@ class ConnectionManager:
                             STORM_WINDOW_SECONDS // 60,
                         )
                     )
+                    self._background_tasks.add(storm_task)
+                    storm_task.add_done_callback(self._background_tasks.discard)
                     storm_task.add_done_callback(self._log_task_exception)
 
                 # Record timeline event
@@ -494,6 +499,8 @@ class ConnectionManager:
                 await async_create_issue_timeout(hass, name, entry_id)
 
         task = asyncio.create_task(_create())
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
         task.add_done_callback(self._log_task_exception)
 
     def _clear_repair_issues_on_recovery(self) -> None:
@@ -754,3 +761,5 @@ class ConnectionManager:
 
         if tasks_to_cancel:
             await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
+
+        self._background_tasks.clear()

@@ -791,7 +791,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):  # type: ignore[misc]
         frame = parse_tuya_vendor_frame(params)
         if frame.command == TUYA_CMD_TIMESTAMP_SYNC:
             _LOGGER.info("Device requested timestamp sync — sending response")
-            self.hass.async_create_task(self._send_timestamp_response())
+            self._create_background_task(self._send_timestamp_response(), "timestamp_sync_response")
             return
         power_w, energy_kwh, updated = self._state.power_w, self._state.energy_kwh, False
         for dp in frame.dps:
