@@ -12,12 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.36.0] — 2026-03-19
 
 ### Fixed
-- Missing error translation keys in `en.json` (`cannot_connect_ble`, `pairing_failed`,
-  `verify_failed`, `device_type_mismatch`, `unknown_device_type`, `ble_adapter_busy`)
-  — users no longer see blank or Swedish error messages when pairing fails in English HA
-- Missing abort translation keys in `en.json` (`reconfigure_successful`,
-  `not_in_pairing_mode`, `entry_not_found`)
-- Added `ble_adapter_busy` to Swedish translations (`sv.json`)
+- Missing error/abort translation keys in all 9 translation files (`en`, `sv`, `da`,
+  `de`, `fi`, `fr`, `kl`, `nb`, `nl`, `uk`): `cannot_connect_ble`, `pairing_failed`,
+  `verify_failed`, `device_type_mismatch`, `unknown_device_type`, `ble_adapter_busy`,
+  `invalid_bridge_host` (error), `reconfigure_successful`, `not_in_pairing_mode`,
+  `entry_not_found` (abort) — users no longer see blank errors during pairing
 
 ### Changed
 - Full linting, type checking, and security pipeline green (ruff, mypy --strict,
