@@ -285,10 +285,9 @@ class ConnectionManager:
             return
 
         try:
-            loop = asyncio.get_running_loop()
+            asyncio.get_running_loop()
         except RuntimeError:
             return
-        _ = loop  # used implicitly by create_task
 
         if self._reconnect_task is not None:
             self._reconnect_task.cancel()
@@ -598,10 +597,14 @@ class ConnectionManager:
                             else:
                                 self._stable_cycles = 0
 
-                except Exception:
-                    _LOGGER.debug("RSSI update failed (ignored)", exc_info=True)
+                except Exception as exc:
+                    _LOGGER.debug(
+                        "RSSI update failed for %s (will retry): %s",
+                        self._device.address,
+                        exc,
+                    )
         except asyncio.CancelledError:
-            pass
+            _LOGGER.debug("RSSI polling stopped for %s", self._device.address)
 
     def adjust_polling_interval(self) -> None:
         """Adjust RSSI polling interval based on state change frequency."""
@@ -722,7 +725,7 @@ class ConnectionManager:
                 response_time * 1000,
             )
 
-    def _log_task_exception(self, task: asyncio.Task) -> None:  # type: ignore[type-arg]
+    def _log_task_exception(self, task: asyncio.Task[Any]) -> None:
         """Log exceptions from background tasks."""
         if task.cancelled():
             return
