@@ -89,7 +89,8 @@
       "unknown_device_type": "Kunde inte identifiera enhetstyp. Kontrollera att det är en kompatibel enhet.",
       "device_type_mismatch": "Enheten stödjer inte vald typ. Välj rätt enhetstyp eller låt systemet auto-detektera.",
       "invalid_iv_index": "Ange ett tal mellan 0 och 4 294 967 295.",
-      "invalid_unicast_address": "Ange en 4-siffrig hex-adress mellan 0001 och 7FFF (t.ex. 00B0)."
+      "invalid_unicast_address": "Ange en 4-siffrig hex-adress mellan 0001 och 7FFF (t.ex. 00B0).",
+      "ble_adapter_busy": "Din Bluetooth-adapter är upptagen. En annan app använder den. För att lösa detta: (1) Lägg till en ESPHome Bluetooth Proxy, eller (2) Installera en andra USB Bluetooth-adapter. Se dokumentationen för mer information."
     },
     "abort": {
       "already_configured": "Den här enheten är redan konfigurerad i Home Assistant.",

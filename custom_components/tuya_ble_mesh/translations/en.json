@@ -79,16 +79,25 @@
       "invalid_credential_length": "Network name and password must each be 16 characters or fewer.",
       "invalid_vendor_id": "Invalid vendor code — use 1 to 4 hex digits (e.g. 0x1001).",
       "cannot_connect": "Could not reach the device. Check that it's powered on and connected to your network.",
+      "cannot_connect_ble": "Could not connect via Bluetooth. Make sure the device is powered on and within range, then try again.",
       "provisioning_failed": "Could not connect to the device. Make sure it's powered on and close to your Bluetooth adapter, then try again.",
+      "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again.",
+      "verify_failed": "Could not verify the device. Try again, or contact support if the problem persists.",
       "timeout": "Connection timed out. Make sure the device is powered on and close by, then try again.",
       "device_not_found": "Device not found. Make sure it's powered on and within Bluetooth range, then try again.",
+      "device_type_mismatch": "This device doesn't match the selected type. Choose the correct device type or let the system detect it automatically.",
+      "unknown_device_type": "Could not identify the device type automatically. Select the device type manually.",
+      "ble_adapter_busy": "Your Bluetooth adapter is busy. Another app is using it. To fix this: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter. See the integration documentation for details.",
       "invalid_iv_index": "Enter a number between 0 and 4,294,967,295.",
       "invalid_unicast_address": "Enter a 4-character hex address between 0001 and 7FFF (e.g. 00B0)."
     },
     "abort": {
       "already_configured": "This device is already set up in Home Assistant.",
       "reauth_successful": "Settings updated. Reconnecting your device now.",
-      "device_not_available": "Device is no longer nearby. Try adding it again when it's in range."
+      "reconfigure_successful": "Settings updated. The integration will restart now.",
+      "device_not_available": "Device is no longer nearby. Try adding it again when it's in range.",
+      "not_in_pairing_mode": "Device is not in pairing mode. Factory-reset it and try again.",
+      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again."
     }
   },
   "options": {
