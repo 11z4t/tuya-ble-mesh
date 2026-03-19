@@ -9,6 +9,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.36.3] — 2026-03-19
+
+### Fixed
+- **SIG plug pairing: "does not expose Provisioning Service (0x1827)"** — root cause was
+  `use_services_cache=True` in `establish_connection` returning stale GATT services cached
+  from when the device was in Proxy mode (0x1828) before factory-reset. Changed to
+  `use_services_cache=False` so provisioning always does fresh service discovery and
+  correctly sees the Provisioning Service (0x1827) after reset
+- **Swedish (`sv`) translation placeholder validation errors** — 7 errors logged by HA on
+  every startup:
+  - `config.step.confirm.description`: removed unsupported `{category}` placeholder
+  - `issues.bridge_unreachable.title`: removed `{host}:{port}` (placeholders not allowed in
+    issue title); moved to description which now uses both `{host}` and `{port}`
+  - `issues.connection_timeout.title`: removed `{device}` (not allowed in title); added
+    `{device}` to description instead
+  - `issues.reconnect_storm.title`: removed `{device}` (not allowed in title); description
+    now includes both `{device}` and `{count}`
+
+---
+
 ## [0.36.2] — 2026-03-19
 
 ### Fixed

@@ -111,12 +111,15 @@ async def run_provision(hass: Any, mac: str) -> tuple[str, str, str]:
 
         # Clean up stale connections before connecting
         await close_stale_connections_by_address(ble_device.address)
+        # PLAT-760: use_services_cache=False forces fresh GATT service discovery.
+        # Old cache may contain Proxy (0x1828) services from before factory-reset;
+        # provisioning requires seeing Provisioning (0x1827) after reset.
         return await establish_connection(
             BleakClientWithServiceCache,
             ble_device,
             f"Provisioning {ble_device.address}",
             max_attempts=5,
-            use_services_cache=True,
+            use_services_cache=False,
         )
 
     # Phase 1: PB-GATT provisioning
