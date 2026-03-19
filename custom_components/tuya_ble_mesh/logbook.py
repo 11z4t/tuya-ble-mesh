@@ -5,7 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from homeassistant.components.logbook import LOGBOOK_ENTRY_MESSAGE, LOGBOOK_ENTRY_NAME
-from homeassistant.const import ATTR_DEVICE_ID, ATTR_FRIENDLY_NAME
+from homeassistant.const import ATTR_FRIENDLY_NAME
 from homeassistant.core import Event, HomeAssistant, callback
 
 from .const import DOMAIN
@@ -24,7 +24,6 @@ def async_describe_events(
     @callback
     def async_describe_state_change(event: Event) -> dict[str, str]:
         """Describe state change event for a Tuya BLE Mesh device."""
-        event.data.get(ATTR_DEVICE_ID, "unknown")
         entity_name = event.data.get(ATTR_FRIENDLY_NAME, "Device")
         old_state = event.data.get("old_state", "unknown")
         new_state = event.data.get("new_state", "unknown")
