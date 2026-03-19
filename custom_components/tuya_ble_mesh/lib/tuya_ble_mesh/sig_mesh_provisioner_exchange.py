@@ -204,6 +204,8 @@ class ProvisionerExchangeMixin:
         rx_event: asyncio.Event = asyncio.Event()
         rx_buffer: bytearray = bytearray()
         rx_sar_buffer: bytearray = bytearray()
+        # Strong references to notify tasks (prevents premature GC by asyncio)
+        _notify_tasks: set[asyncio.Task[None]] = set()
 
         def _on_notify(_sender: object, data: bytearray) -> None:
             """Handle Provisioning Data Out notifications with SAR reassembly.
@@ -217,8 +219,8 @@ class ProvisionerExchangeMixin:
             try:
                 loop = asyncio.get_running_loop()
                 task = loop.create_task(_process_notify(data_copy))
-                # Store task reference to prevent garbage collection
-                task.add_done_callback(lambda _: None)
+                _notify_tasks.add(task)
+                task.add_done_callback(_notify_tasks.discard)
             except RuntimeError:
                 # No running event loop (shutdown)
                 _LOGGER.debug("No running event loop for provisioning notify")
