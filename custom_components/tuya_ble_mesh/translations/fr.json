@@ -68,7 +68,35 @@
           "mesh_name": "Nom du réseau",
           "mesh_password": "Mot de passe du réseau",
           "device_host": "Adresse du concentrateur",
-          "device_port": "Port du concentrateur"
+          "device_port": "Port du concentrateur",
+          "bridge_host": "Device Address",
+          "bridge_port": "Device Port"
+        }
+      },
+      "sig_bridge": {
+        "title": "Connect to Device Connection",
+        "description": "Enter the address of the device that connects to **{name}**.",
+        "data": {
+          "bridge_host": "Device Address",
+          "bridge_port": "Device Port",
+          "unicast_target": "Device ID"
+        },
+        "data_description": {
+          "bridge_host": "The IP address or hostname of your device (e.g. your Raspberry Pi).",
+          "bridge_port": "Port the device is listening on. Default is 8099.",
+          "unicast_target": "Only change if instructed."
+        }
+      },
+      "telink_bridge": {
+        "title": "Connect to Device Connection",
+        "description": "Enter the address of the device that connects to **{name}**.",
+        "data": {
+          "bridge_host": "Device Address",
+          "bridge_port": "Device Port"
+        },
+        "data_description": {
+          "bridge_host": "The IP address or hostname of your device (e.g. your Raspberry Pi).",
+          "bridge_port": "Port the device is listening on. Default is 8099."
         }
       }
     },
@@ -113,7 +141,9 @@
           "device_host": "Adresse du concentrateur",
           "device_port": "Port du concentrateur",
           "unicast_target": "Identifiant de l’appareil",
-          "iv_index": "Compteur de sécurité"
+          "iv_index": "Compteur de sécurité",
+          "bridge_host": "Device Address",
+          "bridge_port": "Device Port"
         },
         "data_description": {
           "mesh_name": "Le nom du réseau pour votre appareil.",
@@ -122,7 +152,9 @@
           "device_host": "L’adresse IP ou le nom d’hôte de votre concentrateur.",
           "device_port": "Port sur lequel écoute le concentrateur. La valeur par défaut est 8099.",
           "unicast_target": "Ne modifier que si vous en avez reçu l’instruction.",
-          "iv_index": "Ne modifier que si vous en avez reçu l’instruction."
+          "iv_index": "Ne modifier que si vous en avez reçu l’instruction.",
+          "bridge_host": "The IP address or hostname of your device.",
+          "bridge_port": "Port the device is listening on. Default is 8099."
         }
       }
     }
@@ -206,6 +238,12 @@
     },
     "switch_off_failed": {
       "message": "Impossible d'éteindre l'interrupteur"
+    },
+    "device_connection_failed": {
+      "message": "Could not connect to device. Check that it's powered on and within Bluetooth range. Home Assistant will retry automatically."
+    },
+    "mesh_auth_failed": {
+      "message": "Mesh authentication failed. The device may need to be removed and re-provisioned with the correct network credentials."
     }
   },
   "services": {
@@ -248,6 +286,26 @@
     "device_unreachable": {
       "title": "Le concentrateur ne répond pas",
       "description": "Impossible d’atteindre le concentrateur à {host}:{port}. Vérifiez qu’il est allumé et connecté à votre réseau."
+    },
+    "bridge_unreachable": {
+      "title": "Device not responding",
+      "description": "Cannot reach the device at {host}:{port}. Check that it's powered on and connected to your network."
+    },
+    "auth_failed": {
+      "title": "Authentication failed",
+      "description": "Could not authenticate with {device}. The device may need to be removed and re-added with the correct network credentials."
+    },
+    "device_not_found": {
+      "title": "Device not found",
+      "description": "Cannot find {device}. Make sure it's powered on and within Bluetooth range."
+    },
+    "connection_timeout": {
+      "title": "Connection timeout",
+      "description": "Connection to {device} timed out. Make sure the device is powered on and close to your Bluetooth adapter."
+    },
+    "reconnect_storm": {
+      "title": "Reconnection loop detected",
+      "description": "{device} has reconnected {count} times recently. This may indicate a power or signal issue."
     }
   }
 }
