@@ -270,6 +270,10 @@
     "reconnect_storm": {
       "title": "Reconnection loop detected",
       "description": "{device} has reconnected {count} times recently. This may indicate a power or signal issue."
+    },
+    "ble_adapter_busy": {
+      "title": "Bluetooth-адаптер зайнятий",
+      "description": "Не вдалось підключитись до {device}: інша програма монополізує Bluetooth-адаптер. Рішення: (1) Додайте ESPHome Bluetooth Proxy або (2) встановіть другий USB Bluetooth-адаптер."
     }
   }
 }

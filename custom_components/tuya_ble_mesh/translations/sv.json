@@ -270,6 +270,10 @@
     "device_not_found": {
       "title": "Enheten hittades inte",
       "description": "Kan inte hitta {device}. Kontrollera att enheten är påslagen och inom Bluetooth-räckvidd."
+    },
+    "ble_adapter_busy": {
+      "title": "Bluetooth-adapter upptagen",
+      "description": "Kunde inte ansluta till {device} eftersom en annan app blockerar Bluetooth-adaptern. Åtgärd: (1) Lägg till en ESPHome Bluetooth-proxy, eller (2) installera en andra USB-Bluetooth-adapter."
     }
   }
 }

@@ -270,6 +270,10 @@
     "reconnect_storm": {
       "title": "Reconnection loop detected",
       "description": "{device} has reconnected {count} times recently. This may indicate a power or signal issue."
+    },
+    "ble_adapter_busy": {
+      "title": "Bluetooth adapter busy",
+      "description": "Could not connect to {device} because another app is monopolizing the Bluetooth adapter. Fix: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter."
     }
   }
 }
