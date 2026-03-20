@@ -9,6 +9,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.36.4] — 2026-03-20
+
+### Fixed
+- **asyncio task GC** — four fire-and-forget tasks were silently dropped by the
+  garbage collector before completing:
+  - `transport/dispatcher.py`: `_send_with_retry` tasks (fixed in previous session)
+  - `sig_mesh_provisioner_exchange.py`: `_process_notify` tasks created in `_on_notify()`
+    callback — comment even said "prevent garbage collection" but the no-op lambda achieved
+    nothing; replaced with `_notify_tasks: set` + add/discard pattern
+  - `connection_manager.py`: reconnect-storm issue task and repair-issue task were local
+    variables that went out of scope; added `_background_tasks: set` to `__init__` with
+    proper lifecycle management
+  - `coordinator.py`: `self.hass.async_create_task()` in `_on_vendor_update()` crashed
+    with `AttributeError` in standalone/test mode (hass=None skips `super().__init__()`);
+    replaced with `self._create_background_task()`
+- **Rule S7 compliance** — `ValueError` in `power.py` replaced with `PowerControlError`;
+  overly-broad `except Exception` in `sig_mesh_bridge.py` narrowed to specific types
+- **Dead code removed** — `sig_mesh_bridge_telink.py`, `sig_mesh_bridge_http.py`,
+  `logbook.py` dead branches, unused `type: ignore` comments
+- **Translation** — `ble_adapter_busy` key added to issues namespace in all 9 language
+  files; config flow type hints added for mypy --strict compliance
+- **Coordinator refactor** — `_create_background_task()` helper extracted to unify
+  HA-lifecycle-tracked vs standalone task creation across the coordinator
+
+### Internal
+- Full lib/ + HA integration code review completed (58 files)
+- All 8 CI checks passing: ruff, mypy --strict, bandit, pip-audit, detect-secrets,
+  pytest unit (1664 tests), pytest security (136 tests), pytest benchmark
+
+---
+
 ## [0.36.3] — 2026-03-19
 
 ### Fixed
