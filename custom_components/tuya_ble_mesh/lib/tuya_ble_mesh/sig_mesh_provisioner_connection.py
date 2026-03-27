@@ -218,10 +218,11 @@ class ProvisionerConnectionMixin:
                     msg = "BleakClient reported connected but is_connected=False"
                     raise ProvisioningError(msg)
 
-                # Verify Provisioning Service is present
+                # Verify Provisioning Service is present.
+                # Use client.services directly (populated after connect() in Bleak >= 0.20;
+                # fall back to get_services() for older versions).
                 services = None
                 try:
-                    # HA's HaBleakClientWrapper uses .services property, not .get_services()
                     if hasattr(client, "get_services"):
                         services = await asyncio.wait_for(
                             client.get_services(),
@@ -230,23 +231,14 @@ class ProvisionerConnectionMixin:
                     else:
                         services = client.services
                     if services and not any(
-                        str(s.uuid) == PROV_SERVICE
-                        for s in (
-                            services.services.values()
-                            if hasattr(services, "services")
-                            else services
-                        )
+                        str(s.uuid) == PROV_SERVICE for s in services
                     ):
                         msg = f"Device {address} does not expose Provisioning Service (0x1827)"
                         raise ProvisioningError(msg)
                 except TimeoutError:
                     _LOGGER.warning("Service enumeration timed out, continuing anyway")
 
-                svc_count = (
-                    len(services.services)
-                    if services is not None and hasattr(services, "services")
-                    else 0
-                )
+                svc_count = sum(1 for _ in services) if services is not None else 0
                 _LOGGER.info(
                     "PB-GATT connected to %s (MTU=%d, services=%d)",
                     address,

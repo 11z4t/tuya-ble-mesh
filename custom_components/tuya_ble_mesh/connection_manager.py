@@ -368,6 +368,8 @@ class ConnectionManager:
                     self.start_rssi_polling()
                 return
             except Exception as err:
+                if isinstance(err, (AttributeError, TypeError, NameError)):
+                    raise  # Programming error — not a transient connection failure
                 self._stats.total_errors += 1
                 self._stats.connection_errors += 1
                 self._stats.last_error = str(err)
@@ -681,6 +683,8 @@ class ConnectionManager:
                     await coro_func()
                     return
                 except Exception as exc:
+                    if isinstance(exc, (AttributeError, TypeError, NameError)):
+                        raise  # Programming error — not a transient command failure
                     last_exc = exc
                     self._stats.command_errors += 1
                     self._stats.total_errors += 1

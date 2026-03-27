@@ -202,9 +202,7 @@ class TestProvisionerConnect:
         # Mock get_services to return service collection with PROV_SERVICE
         mock_service = Mock()
         mock_service.uuid = "00001827-0000-1000-8000-00805f9b34fb"  # PROV_SERVICE
-        mock_services = Mock()
-        mock_services.services = {1: mock_service}
-        mock_client.get_services = AsyncMock(return_value=mock_services)
+        mock_client.get_services = AsyncMock(return_value=[mock_service])
 
         with (
             patch(
@@ -246,9 +244,7 @@ class TestProvisionerConnect:
         # Mock get_services
         mock_service = Mock()
         mock_service.uuid = "00001827-0000-1000-8000-00805f9b34fb"
-        mock_services = Mock()
-        mock_services.services = {1: mock_service}
-        mock_client.get_services = AsyncMock(return_value=mock_services)
+        mock_client.get_services = AsyncMock(return_value=[mock_service])
 
         prov = SIGMeshProvisioner(b"\x00" * 16, b"\x01" * 16, 0x00B0, ble_device_callback=callback)
 
@@ -271,9 +267,7 @@ class TestProvisionerConnect:
         # Mock get_services
         mock_service = Mock()
         mock_service.uuid = "00001827-0000-1000-8000-00805f9b34fb"
-        mock_services = Mock()
-        mock_services.services = {1: mock_service}
-        mock_client.get_services = AsyncMock(return_value=mock_services)
+        mock_client.get_services = AsyncMock(return_value=[mock_service])
 
         prov = SIGMeshProvisioner(
             b"\x00" * 16,
@@ -375,9 +369,7 @@ class TestProvisionerConnect:
         # Mock get_services to return services WITHOUT PROV_SERVICE
         mock_service = Mock()
         mock_service.uuid = "00001828-0000-1000-8000-00805f9b34fb"  # Wrong service
-        mock_services = Mock()
-        mock_services.services = {1: mock_service}
-        mock_client.get_services = AsyncMock(return_value=mock_services)
+        mock_client.get_services = AsyncMock(return_value=[mock_service])
 
         with (
             patch(
