@@ -48,7 +48,19 @@ PARALLEL_UPDATES = 1
 
 
 def _last_seen_datetime(state: TuyaBLEMeshDeviceState) -> datetime | None:
-    """Convert last_seen Unix timestamp to a UTC-aware datetime, or None."""
+    """Convert last_seen Unix timestamp to a UTC-aware datetime, or None.
+
+    The returned datetime is always UTC (timezone-aware). Home Assistant
+    automatically converts UTC timestamps to the local timezone configured
+    in the HA instance when displaying them in the UI.
+
+    Args:
+        state: Current device state from the coordinator.
+
+    Returns:
+        UTC-aware datetime of the last successful contact, or None if
+        the device has not yet been seen.
+    """
     if state.last_seen is None:
         return None
     return datetime.fromtimestamp(state.last_seen, tz=UTC)
@@ -82,7 +94,7 @@ SENSOR_DESCRIPTIONS: tuple[TuyaBLEMeshSensorEntityDescription, ...] = (
         native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
-        value_fn=lambda state: state.rssi,
+        value_fn=lambda state: state.rssi if state.rssi != 0 else None,
         # PLAT-695: Mark unavailable when RSSI is None (e.g. SIG Mesh devices)
         # instead of showing "unknown"
         available_fn=lambda state: state.rssi is not None,

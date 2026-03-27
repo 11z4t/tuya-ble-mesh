@@ -90,7 +90,10 @@
       "unknown_device_type": "Could not identify the device type automatically. Select the device type manually.",
       "device_type_mismatch": "This device doesn't match the selected type. Choose the correct device type or let the system detect it automatically.",
       "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again.",
-      "timeout_validation": "Validering fik timeout (over 30 sekunder). Sørg for at enheden er tændt og tæt på Bluetooth-adapteren, og prøv derefter igen."
+      "timeout_validation": "Validering fik timeout (over 30 sekunder). Sørg for at enheden er tændt og tæt på Bluetooth-adapteren, og prøv derefter igen.",
+      "provisioning_appkey_failed": "Kunne ikke binde applikationsnøglen. Prøv at nulstille enheden til fabriksindstillinger og tilføj den igen.",
+      "provisioning_proxy_failed": "Proxy Service-trinnet mislykkedes. Sørg for at Proxy Service er aktiveret på enheden og prøv igen.",
+      "provisioning_pbgatt_failed": "PB-GATT-forbindelsen mislykkedes. Flyt enheden tættere på Bluetooth-adapteren og prøv igen."
     },
     "abort": {
       "already_configured": "Denne enhed er allerede konfigureret i Home Assistant.",
@@ -154,9 +157,9 @@
       "connection_quality": {
         "name": "Forbindelseskvalitet",
         "state": {
-          "good": "God",
-          "marginal": "Marginal",
-          "poor": "Dårlig"
+          "good": "God (≥-60 dBm)",
+          "marginal": "Marginal (-60 til -80 dBm)",
+          "poor": "Dårlig (<-80 dBm)"
         }
       },
       "last_seen": {

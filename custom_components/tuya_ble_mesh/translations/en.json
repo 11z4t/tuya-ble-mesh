@@ -90,7 +90,10 @@
       "ble_adapter_busy": "Your Bluetooth adapter is busy. Another app is using it. To fix this: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter. See the integration documentation for details.",
       "invalid_iv_index": "Enter a number between 0 and 4,294,967,295.",
       "invalid_unicast_address": "Enter a 4-character hex address between 0001 and 7FFF (e.g. 00B0).",
-      "timeout_validation": "Validation timed out (over 30 seconds). Make sure the device is powered on and close to the Bluetooth adapter, then try again."
+      "timeout_validation": "Validation timed out (over 30 seconds). Make sure the device is powered on and close to the Bluetooth adapter, then try again.",
+      "provisioning_appkey_failed": "Could not bind the application key. Try factory resetting the device, then add it again.",
+      "provisioning_proxy_failed": "Proxy Service step failed. Make sure the device has Proxy Service enabled, then try again.",
+      "provisioning_pbgatt_failed": "PB-GATT connection failed. Move the device closer to your Bluetooth adapter and try again."
     },
     "abort": {
       "already_configured": "This device is already set up in Home Assistant.",
@@ -154,9 +157,9 @@
       "connection_quality": {
         "name": "Connection quality",
         "state": {
-          "good": "Good",
-          "marginal": "Marginal",
-          "poor": "Poor"
+          "good": "Good (≥-60 dBm)",
+          "marginal": "Marginal (-60 to -80 dBm)",
+          "poor": "Poor (<-80 dBm)"
         }
       },
       "last_seen": {

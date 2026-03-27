@@ -92,3 +92,11 @@ MESH_SCENES: dict[int, str] = {
     4: "Sunset Glow",
     5: "Arctic Aurora",
 }
+
+# Known vendor IDs: normalized hex string (no '0x', lowercase) → manufacturer name
+KNOWN_VENDOR_IDS: dict[str, str] = {
+    "1001": "Tuya / Telink",
+    "1002": "Malmbergs",
+    "1003": "Tuya",
+    "1004": "Telink",
+}

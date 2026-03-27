@@ -340,6 +340,25 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
         """Return list of supported scene/effect names."""
         return list(MESH_SCENES.values())
 
+    @property
+    def extra_state_attributes(self) -> dict[str, object]:
+        """Return extra state attributes for the light entity.
+
+        Returns:
+            Dict with brightness_mode ('rgb' or 'white') and device_brightness
+            (raw device brightness value: 0-255 for RGB, 1-100 for white mode).
+        """
+        state = self._coordinator.state
+        if state.mode == 1:
+            return {
+                "brightness_mode": "rgb",
+                "device_brightness": state.color_brightness,
+            }
+        return {
+            "brightness_mode": "white",
+            "device_brightness": state.brightness,
+        }
+
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Turn on the light.
 

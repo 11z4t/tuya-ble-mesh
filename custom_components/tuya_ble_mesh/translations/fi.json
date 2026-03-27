@@ -90,7 +90,10 @@
       "unknown_device_type": "Could not identify the device type automatically. Select the device type manually.",
       "device_type_mismatch": "This device doesn't match the selected type. Choose the correct device type or let the system detect it automatically.",
       "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again.",
-      "timeout_validation": "Vahvistus aikakatkaistiin (yli 30 sekuntia). Varmista, että laite on päällä ja lähellä Bluetooth-adapteria, ja yritä uudelleen."
+      "timeout_validation": "Vahvistus aikakatkaistiin (yli 30 sekuntia). Varmista, että laite on päällä ja lähellä Bluetooth-adapteria, ja yritä uudelleen.",
+      "provisioning_appkey_failed": "Sovellustunnisteen sitominen epäonnistui. Yritä tehdasasetusten palautusta ja lisää laite uudelleen.",
+      "provisioning_proxy_failed": "Välityspalveluaskel epäonnistui. Varmista, että Proxy Service on käytössä laitteessa, ja yritä uudelleen.",
+      "provisioning_pbgatt_failed": "PB-GATT-yhteys epäonnistui. Siirrä laite lähemmäksi Bluetooth-sovitintasi ja yritä uudelleen."
     },
     "abort": {
       "already_configured": "Tämä laite on jo määritetty Home Assistantissa.",
@@ -154,9 +157,9 @@
       "connection_quality": {
         "name": "Yhteyslaatu",
         "state": {
-          "good": "Hyvä",
-          "marginal": "Kohtalainen",
-          "poor": "Heikko"
+          "good": "Hyvä (≥-60 dBm)",
+          "marginal": "Kohtalainen (-60 - -80 dBm)",
+          "poor": "Heikko (<-80 dBm)"
         }
       },
       "last_seen": {

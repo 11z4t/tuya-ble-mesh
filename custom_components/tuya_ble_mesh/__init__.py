@@ -33,6 +33,7 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_MAC_ADDRESS,
     DEVICE_MODEL_NAMES,
     DOMAIN,
+    KNOWN_VENDOR_IDS,
     PLATFORMS,
 )
 from custom_components.tuya_ble_mesh.device_factory import create_device
@@ -130,10 +131,19 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
     from homeassistant.helpers.device_registry import DeviceInfo
 
     # Create device_info (firmware version will be updated by coordinator after connection)
+    # Look up manufacturer name from vendor ID
+    _vid_normalized = vendor_id_hex.lower().lstrip("0x") or "0"
+    # Normalize: strip '0x' prefix if present, keep lowercase hex
+    if vendor_id_hex.lower().startswith("0x"):
+        _vid_normalized = vendor_id_hex[2:].lower()
+    else:
+        _vid_normalized = vendor_id_hex.lower()
+    vendor_name = KNOWN_VENDOR_IDS.get(_vid_normalized, "Tuya / Telink")
+
     device_info = DeviceInfo(
         identifiers={(DOMAIN, mac_address)},
         name=entry.title,
-        manufacturer="Tuya",
+        manufacturer=vendor_name,
         model=DEVICE_MODEL_NAMES.get(device_type, "BLE Mesh Device"),
         sw_version=None,  # Will be populated by coordinator after connection
         connections={("mac", mac_address)},

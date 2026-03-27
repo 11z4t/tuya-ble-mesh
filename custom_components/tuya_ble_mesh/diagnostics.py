@@ -231,6 +231,7 @@ async def async_get_config_entry_diagnostics(
         if response_times:
             percentiles = _calculate_percentiles(response_times)
             diag["response_times"] = {
+                "_info": "Percentiles in seconds: p50=median, p95/p99=tail latencies.",
                 "avg_seconds": round(sum(response_times) / len(response_times), 3),
                 "p50_seconds": percentiles["p50"],
                 "p95_seconds": percentiles["p95"],
@@ -239,6 +240,7 @@ async def async_get_config_entry_diagnostics(
             }
         else:
             diag["response_times"] = {
+                "_info": "Percentiles in seconds: p50=median, p95/p99=tail latencies.",
                 "avg_seconds": 0.0,
                 "p50_seconds": 0.0,
                 "p95_seconds": 0.0,

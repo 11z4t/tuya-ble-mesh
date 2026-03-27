@@ -88,9 +88,12 @@
       "device_not_found": "Enheten hittades inte. Kontrollera att den är påslagen och inom Bluetooth-räckvidd, försök sedan igen.",
       "unknown_device_type": "Kunde inte identifiera enhetstyp. Kontrollera att det är en kompatibel enhet.",
       "device_type_mismatch": "Enheten stödjer inte vald typ. Välj rätt enhetstyp eller låt systemet auto-detektera.",
-      "invalid_iv_index": "Ange ett tal mellan 0 och 4 294 967 295.",
+      "invalid_iv_index": "Ange ett tal mellan 0 och 4 294 967 295.",
       "invalid_unicast_address": "Ange en 4-siffrig hex-adress mellan 0001 och 7FFF (t.ex. 00B0).",
-      "ble_adapter_busy": "Din Bluetooth-adapter är upptagen. En annan app använder den. För att lösa detta: (1) Lägg till en ESPHome Bluetooth Proxy, eller (2) Installera en andra USB Bluetooth-adapter. Se dokumentationen för mer information."
+      "ble_adapter_busy": "Din Bluetooth-adapter är upptagen. En annan app använder den. För att lösa detta: (1) Lägg till en ESPHome Bluetooth Proxy, eller (2) Installera en andra USB Bluetooth-adapter. Se dokumentationen för mer information.",
+      "provisioning_appkey_failed": "Kunde inte binda applikationsnyckeln. Prova att fabriksåterställa enheten och lägg till den igen.",
+      "provisioning_proxy_failed": "Proxy Service-steget misslyckades. Kontrollera att Proxy Service är aktiverat på enheten och försök igen.",
+      "provisioning_pbgatt_failed": "PB-GATT-anslutning misslyckades. Flytta enheten närmare Bluetooth-adaptern och försök igen."
     },
     "abort": {
       "already_configured": "Den här enheten är redan konfigurerad i Home Assistant.",
@@ -154,9 +157,9 @@
       "connection_quality": {
         "name": "Anslutningskvalitet",
         "state": {
-          "good": "Bra",
-          "marginal": "Acceptabel",
-          "poor": "Dålig"
+          "good": "Bra (≥-60 dBm)",
+          "marginal": "Marginell (-60 till -80 dBm)",
+          "poor": "Svag (<-80 dBm)"
         }
       },
       "last_seen": {

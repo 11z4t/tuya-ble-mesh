@@ -90,7 +90,10 @@
       "unknown_device_type": "Could not identify the device type automatically. Select the device type manually.",
       "device_type_mismatch": "This device doesn't match the selected type. Choose the correct device type or let the system detect it automatically.",
       "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again.",
-      "timeout_validation": "La validation a expiré (plus de 30 secondes). Vérifiez que l'appareil est allumé et proche de l'adaptateur Bluetooth, puis réessayez."
+      "timeout_validation": "La validation a expiré (plus de 30 secondes). Vérifiez que l'appareil est allumé et proche de l'adaptateur Bluetooth, puis réessayez.",
+      "provisioning_appkey_failed": "Impossible de lier la clé d'application. Essayez de réinitialiser l'appareil aux paramètres d'usine, puis ajoutez-le à nouveau.",
+      "provisioning_proxy_failed": "L'étape du service proxy a échoué. Assurez-vous que le service proxy est activé sur l'appareil, puis réessayez.",
+      "provisioning_pbgatt_failed": "La connexion PB-GATT a échoué. Rapprochez l'appareil de votre adaptateur Bluetooth et réessayez."
     },
     "abort": {
       "already_configured": "Cet appareil est déjà configuré dans Home Assistant.",
@@ -154,9 +157,9 @@
       "connection_quality": {
         "name": "Qualité de connexion",
         "state": {
-          "good": "Bonne",
-          "marginal": "Marginale",
-          "poor": "Mauvaise"
+          "good": "Bonne (≥-60 dBm)",
+          "marginal": "Marginale (-60 à -80 dBm)",
+          "poor": "Mauvaise (<-80 dBm)"
         }
       },
       "last_seen": {
