@@ -93,6 +93,20 @@ from custom_components.tuya_ble_mesh.const import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Allowlist of ValueError message strings that are valid HA translation keys.
+# validate_and_connect raises ValueError("<key>") — any unrecognised key would
+# expose raw exception text in the UI (CR-019).  Add new keys here as needed.
+_KNOWN_BLE_ERROR_KEYS: frozenset[str] = frozenset({
+    "device_not_found",
+    "ble_adapter_busy",
+    "cannot_connect_ble",
+    "unknown_device_type",
+    "device_type_mismatch",
+    "timeout_validation",
+    "pairing_failed",
+    "verify_failed",
+})
+
 
 class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
     """Handle a config flow for Tuya BLE Mesh."""
@@ -290,8 +304,8 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
                     )
                     device_type = validated_type
                 except ValueError as exc:
-                    error_key = str(exc).strip("'\"")
-                    errors["base"] = error_key
+                    raw = str(exc).strip("'\"")
+                    errors["base"] = raw if raw in _KNOWN_BLE_ERROR_KEYS else "cannot_connect_ble"
                 except Exception as exc:
                     _LOGGER.warning("Validation failed for %s: %s", mac, exc, exc_info=True)
                     errors["base"] = "cannot_connect_ble"

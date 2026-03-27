@@ -268,8 +268,12 @@ class ProvisionerExchangeMixin:
             """Receive provisioning PDU with timeout and context.
 
             CF-2: Read rx_buffer with lock protection.
+            CR-006: Create a fresh Event per recv call instead of clear/wait,
+            eliminating the TOCTOU window where a notification arriving between
+            clear() and wait() would be silently dropped.
             """
-            rx_event.clear()
+            nonlocal rx_event
+            rx_event = asyncio.Event()
             try:
                 await asyncio.wait_for(rx_event.wait(), timeout=recv_timeout)
                 # CF-2: Lock access to rx_buffer to prevent race with concurrent notify

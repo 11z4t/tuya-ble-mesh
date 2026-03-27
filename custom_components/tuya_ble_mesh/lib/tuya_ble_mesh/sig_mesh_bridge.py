@@ -60,8 +60,8 @@ class BridgeHTTPMixin:
     _bridge_url: str
     _session: aiohttp.ClientSession | None
 
-    def _get_session(self) -> aiohttp.ClientSession:
-        """Get or create a shared aiohttp session."""
+    async def _get_session(self) -> aiohttp.ClientSession:
+        """Get or create a shared aiohttp session (async context required for aiohttp)."""
         if self._session is None or self._session.closed:
             self._session = aiohttp.ClientSession()
         return self._session
@@ -76,7 +76,7 @@ class BridgeHTTPMixin:
         """Make an HTTP GET request to the bridge daemon."""
         url = f"{self._bridge_url}{path}"
         try:
-            session = self._get_session()
+            session = await self._get_session()
             async with session.get(url, timeout=aiohttp.ClientTimeout(total=timeout)) as resp:
                 result: dict[str, Any] = await resp.json()
                 return result
@@ -93,7 +93,7 @@ class BridgeHTTPMixin:
         """Make an HTTP POST request to the bridge daemon."""
         url = f"{self._bridge_url}{path}"
         try:
-            session = self._get_session()
+            session = await self._get_session()
             async with session.post(
                 url, json=data, timeout=aiohttp.ClientTimeout(total=timeout)
             ) as resp:
