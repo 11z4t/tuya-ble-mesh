@@ -811,7 +811,7 @@ class TestTelinkBridgeStep:
         flow = _make_flow()
 
         with patch(
-            "custom_components.tuya_ble_mesh.config_flow_validators._test_bridge_with_session",
+            "custom_components.tuya_ble_mesh.config_flow_telink._test_bridge_with_session",
             new_callable=AsyncMock,
             return_value=True,
         ):

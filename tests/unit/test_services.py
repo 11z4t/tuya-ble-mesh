@@ -249,7 +249,7 @@ class TestGetDiagnosticsService:
 
         # Should return diagnostics dict
         assert isinstance(result, dict)
-        assert result["device_address"] == "DC:23:4D:21:43:A5"
+        assert result["device_address"] == "DC:23:4D:xx:xx:xx"
         assert result["available"] is True
         assert result["total_reconnects"] == 2
         assert result["rssi_dbm"] == -65
