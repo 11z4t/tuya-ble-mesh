@@ -212,10 +212,8 @@ async def async_step_sig_plug(flow: Any, user_input: dict[str, Any] | None) -> F
             try:
                 from tuya_ble_mesh.exceptions import (  # type: ignore[import-not-found]
                     DeviceNotFoundError,
+                    MeshTimeoutError,
                     ProvisioningError,
-                )
-                from tuya_ble_mesh.exceptions import (
-                    TimeoutError as MeshTimeoutError,
                 )
 
                 if isinstance(exc, DeviceNotFoundError):

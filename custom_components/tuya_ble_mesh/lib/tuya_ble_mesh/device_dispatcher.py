@@ -16,8 +16,8 @@ from typing import TYPE_CHECKING
 from tuya_ble_mesh.const import CONNECTION_EVENT_WAIT_TIMEOUT
 from tuya_ble_mesh.exceptions import (
     CommandQueueFullError,
-    ConnectionError,
     DisconnectedError,
+    MeshConnectionError,
 )
 
 if TYPE_CHECKING:
@@ -187,7 +187,7 @@ class _CommandDispatcher:
                 # Send the command
                 try:
                     await self._device._send_now(cmd.opcode, cmd.params, cmd.dest_id)
-                except (ConnectionError, DisconnectedError):
+                except (MeshConnectionError, DisconnectedError):
                     _LOGGER.warning(
                         "Command 0x%02X send failed, dropping",
                         cmd.opcode,

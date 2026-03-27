@@ -25,9 +25,7 @@ from tuya_ble_mesh.const import (
     STATUS_WAIT_POLL_INTERVAL,
 )
 from tuya_ble_mesh.exceptions import (
-    ConnectionError as MeshConnectionError,
-)
-from tuya_ble_mesh.exceptions import (
+    MeshConnectionError,
     SIGMeshError,
     SIGMeshKeyError,
 )

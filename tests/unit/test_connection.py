@@ -25,7 +25,7 @@ from tuya_ble_mesh.connection import (
     ConnectionState,
 )
 from tuya_ble_mesh.const import TELINK_VENDOR_ID
-from tuya_ble_mesh.exceptions import ConnectionError, DisconnectedError
+from tuya_ble_mesh.exceptions import DisconnectedError, MeshConnectionError
 
 MAC = "DC:23:4D:21:43:A5"
 MESH_NAME = b"out_of_mesh"
@@ -177,7 +177,7 @@ class TestConnect:
                 "tuya_ble_mesh.connection.BleakScanner.find_device_by_address",
                 return_value=None,
             ),
-            pytest.raises(ConnectionError, match="not found"),
+            pytest.raises(MeshConnectionError, match="not found"),
         ):
             await conn.connect()
 
@@ -202,7 +202,7 @@ class TestConnect:
                 "tuya_ble_mesh.connection.provision",
                 side_effect=OSError("pair failed"),
             ),
-            pytest.raises(ConnectionError, match="Provisioning failed"),
+            pytest.raises(MeshConnectionError, match="Provisioning failed"),
         ):
             await conn.connect()
 
@@ -271,7 +271,7 @@ class TestConnect:
 
     @pytest.mark.asyncio
     async def test_all_retries_cancelled_raises_connection_error(self) -> None:
-        """All retries hitting CancelledError should raise ConnectionError."""
+        """All retries hitting CancelledError should raise MeshConnectionError."""
         conn = _make_conn()
         mock_client = AsyncMock()
         mock_client.connect = AsyncMock(side_effect=asyncio.CancelledError())
@@ -286,7 +286,7 @@ class TestConnect:
             ),
             patch("tuya_ble_mesh.connection.BleakClient", return_value=mock_client),
             patch("asyncio.sleep", new_callable=AsyncMock),
-            pytest.raises(ConnectionError, match="Failed to connect"),
+            pytest.raises(MeshConnectionError, match="Failed to connect"),
         ):
             await conn.connect(max_retries=3)
 
@@ -350,7 +350,7 @@ class TestWriteCommand:
         conn, client = _make_ready_conn()
         client.write_gatt_char = AsyncMock(side_effect=OSError("BLE write failed"))
 
-        with pytest.raises(ConnectionError, match="Write failed"):
+        with pytest.raises(MeshConnectionError, match="Write failed"):
             await conn.write_command(b"\x00" * 20)
 
         assert conn.state == ConnectionState.DISCONNECTED
@@ -362,7 +362,7 @@ class TestWriteCommand:
         callback = MagicMock()
         conn.register_disconnect_callback(callback)
 
-        with pytest.raises(ConnectionError):
+        with pytest.raises(MeshConnectionError):
             await conn.write_command(b"\x00" * 20)
 
         callback.assert_called_once()
@@ -395,7 +395,7 @@ class TestDisconnectCallbacks:
         conn.register_disconnect_callback(bad_cb)
         conn.register_disconnect_callback(good_cb)
 
-        with pytest.raises(ConnectionError):
+        with pytest.raises(MeshConnectionError):
             await conn.write_command(b"\x00" * 20)
 
         # Second callback still called despite first raising

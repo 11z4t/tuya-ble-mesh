@@ -31,9 +31,7 @@ from tuya_ble_mesh.const import (
     DEFAULT_MAX_RETRIES,
 )
 from tuya_ble_mesh.exceptions import (
-    ConnectionError as MeshConnectionError,
-)
-from tuya_ble_mesh.exceptions import (
+    MeshConnectionError,
     SecretAccessError,
     SIGMeshError,
     SIGMeshKeyError,

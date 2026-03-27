@@ -37,10 +37,10 @@ from tuya_ble_mesh.device_dispatcher import (
     _CommandDispatcher,
 )
 from tuya_ble_mesh.exceptions import (
-    ConnectionError,
     CryptoError,
     DisconnectedError,
     MalformedPacketError,
+    MeshConnectionError,
     ProtocolError,
 )
 from tuya_ble_mesh.protocol import (
@@ -368,7 +368,7 @@ class MeshDevice(DeviceCommandsMixin):  # type: ignore[misc]
                 return
             except DisconnectedError:
                 raise
-            except (ConnectionError, OSError) as exc:
+            except (MeshConnectionError, OSError) as exc:
                 last_error = exc
                 if attempt >= max_retries:
                     break
@@ -386,7 +386,7 @@ class MeshDevice(DeviceCommandsMixin):  # type: ignore[misc]
         if last_error is not None:
             raise last_error
         msg = f"Command 0x{opcode:02X} failed after {max_retries} attempts"
-        raise ConnectionError(msg)
+        raise MeshConnectionError(msg)
 
     # --- High-level commands (0xD2 compact DP format) ---
 
@@ -421,7 +421,7 @@ class MeshDevice(DeviceCommandsMixin):  # type: ignore[misc]
             await asyncio.wait_for(event.wait(), timeout=timeout)
         except TimeoutError:
             msg = f"No status received within {timeout}s"
-            raise _exc.TimeoutError(msg) from None
+            raise _exc.MeshTimeoutError(msg) from None
         finally:
             self.unregister_status_callback(on_status)
 

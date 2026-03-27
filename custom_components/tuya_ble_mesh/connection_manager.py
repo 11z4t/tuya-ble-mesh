@@ -75,8 +75,6 @@ class ReconnectEvent:
     attempt: int  # Consecutive failure count at time of this event
 
 
-__all__ = ["ErrorClass", "classify_error"]  # Re-exported from error_classifier
-
 
 @dataclass
 class ConnectionStatistics:

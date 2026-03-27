@@ -20,10 +20,8 @@ _ROOT = str(Path(__file__).resolve().parent.parent.parent)
 sys.path.insert(0, _ROOT)
 sys.path.insert(0, str(Path(_ROOT) / "custom_components" / "tuya_ble_mesh" / "lib"))
 
-from tuya_ble_mesh.exceptions import (  # noqa: E402
-    ConnectionError as MeshConnectionError,
-)
-from tuya_ble_mesh.exceptions import (  # noqa: E402
+from tuya_ble_mesh.exceptions import (  # noqa: E402  # noqa: E402
+    MeshConnectionError,
     SIGMeshError,
     SIGMeshKeyError,
 )

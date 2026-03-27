@@ -2238,7 +2238,7 @@ class TestSigPlugErrorHandling:
     @pytest.mark.asyncio
     async def test_mesh_timeout_error_returns_timeout_key(self) -> None:
         """tuya_ble_mesh.TimeoutError → error key 'timeout' (line 748-749)."""
-        from tuya_ble_mesh.exceptions import TimeoutError as MeshTimeoutError
+        from tuya_ble_mesh.exceptions import MeshTimeoutError
 
         flow = self._make_sig_plug_flow()
         with patch(

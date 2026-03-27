@@ -28,11 +28,9 @@ from tuya_ble_mesh.device_dispatcher import (  # noqa: E402
     _CommandDispatcher,
     _QueuedCommand,
 )
-from tuya_ble_mesh.exceptions import (  # noqa: E402
-    ConnectionError as MeshConnectionError,
-)
-from tuya_ble_mesh.exceptions import (  # noqa: E402
+from tuya_ble_mesh.exceptions import (  # noqa: E402  # noqa: E402
     DisconnectedError,
+    MeshConnectionError,
 )
 
 

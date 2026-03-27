@@ -37,9 +37,9 @@ from tuya_ble_mesh.device_dispatcher import (
 )
 from tuya_ble_mesh.exceptions import (
     CommandQueueFullError,
-    ConnectionError,
+    MeshConnectionError,
+    MeshTimeoutError,
     ProtocolError,
-    TimeoutError,
 )
 from tuya_ble_mesh.protocol import StatusResponse, encode_compact_dp
 
@@ -202,7 +202,7 @@ class TestConnect:
                 return_value=mock_ble_device,
             ),
             patch("tuya_ble_mesh.connection.BleakClient", return_value=mock_client),
-            pytest.raises(ConnectionError, match="Failed to connect"),
+            pytest.raises(MeshConnectionError, match="Failed to connect"),
         ):
             await device.connect(max_retries=1)
 
@@ -228,7 +228,7 @@ class TestConnect:
                 "tuya_ble_mesh.connection.provision",
                 side_effect=Exception("pair failed"),
             ),
-            pytest.raises(ConnectionError, match="Provisioning failed"),
+            pytest.raises(MeshConnectionError, match="Provisioning failed"),
         ):
             await device.connect()
 
@@ -762,5 +762,5 @@ class TestWaitForStatus:
     @pytest.mark.asyncio
     async def test_timeout_raises(self) -> None:
         device, _ = _make_connected_device()
-        with pytest.raises(TimeoutError, match="No status"):
+        with pytest.raises(MeshTimeoutError, match="No status"):
             await device.wait_for_status(timeout=0.01)

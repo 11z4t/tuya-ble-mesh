@@ -23,16 +23,16 @@ from tuya_ble_mesh.exceptions import (
     BLETimeoutError,
     CommandExpiredError,
     CommandQueueFullError,
-    ConnectionError,
     CryptoError,
     DeviceNotFoundError,
     DisconnectedError,
     MalformedPacketError,
+    MeshConnectionError,
+    MeshTimeoutError,
     PowerControlError,
     ProtocolError,
     ProvisioningError,
     SecretAccessError,
-    TimeoutError,
     TuyaBLEMeshError,
 )
 
@@ -48,9 +48,9 @@ class TestInheritance:
     @pytest.mark.parametrize(
         "exc_cls",
         [
-            ConnectionError,
+            MeshConnectionError,
             DeviceNotFoundError,
-            TimeoutError,
+            MeshTimeoutError,
             ProvisioningError,
             ProtocolError,
             CryptoError,
@@ -78,7 +78,7 @@ class TestInheritance:
         assert len(direct) == 14
 
     def test_disconnected_inherits_from_connection_error(self) -> None:
-        assert issubclass(DisconnectedError, ConnectionError)
+        assert issubclass(DisconnectedError, MeshConnectionError)
         assert issubclass(DisconnectedError, TuyaBLEMeshError)
 
     def test_command_queue_full_inherits_from_base(self) -> None:
@@ -98,9 +98,9 @@ class TestMessageFormatting:
         ("exc_cls", "msg"),
         [
             (TuyaBLEMeshError, "base error"),
-            (ConnectionError, "connection lost"),
+            (MeshConnectionError, "connection lost"),
             (DeviceNotFoundError, "DC:23:4D:21:43:A5 not found"),
-            (TimeoutError, "scan timed out after 15s"),
+            (MeshTimeoutError, "scan timed out after 15s"),
             (ProvisioningError, "handshake step 2 failed"),
             (ProtocolError, "unexpected opcode 0xFF"),
             (MalformedPacketError, "packet too short: 3 bytes"),
@@ -126,9 +126,9 @@ class TestCatchSemantics:
 
     def test_catch_base_catches_all(self) -> None:
         for exc_cls in [
-            ConnectionError,
+            MeshConnectionError,
             DeviceNotFoundError,
-            TimeoutError,
+            MeshTimeoutError,
             ProvisioningError,
             ProtocolError,
             MalformedPacketError,
@@ -144,7 +144,7 @@ class TestCatchSemantics:
                 raise exc_cls("test")
 
     def test_catch_connection_catches_disconnected(self) -> None:
-        with pytest.raises(ConnectionError):
+        with pytest.raises(MeshConnectionError):
             raise DisconnectedError("not connected")
 
     def test_catch_protocol_catches_malformed(self) -> None:
@@ -159,15 +159,15 @@ class TestCatchSemantics:
         with pytest.raises(DeviceNotFoundError):
             try:
                 raise DeviceNotFoundError("not found")
-            except ConnectionError:
+            except MeshConnectionError:
                 pytest.fail("Sibling exception should not be caught")
 
     @pytest.mark.parametrize(
         "exc_cls",
         [
-            ConnectionError,
+            MeshConnectionError,
             DeviceNotFoundError,
-            TimeoutError,
+            MeshTimeoutError,
             ProvisioningError,
             ProtocolError,
             MalformedPacketError,
@@ -194,21 +194,21 @@ class TestBackwardCompatibility:
         assert BLEError is TuyaBLEMeshError
 
     def test_ble_connection_error_is_connection_error(self) -> None:
-        assert BLEConnectionError is ConnectionError
+        assert BLEConnectionError is MeshConnectionError
 
     def test_ble_device_not_found_is_device_not_found(self) -> None:
         assert BLEDeviceNotFoundError is DeviceNotFoundError
 
     def test_ble_timeout_is_timeout(self) -> None:
-        assert BLETimeoutError is TimeoutError
+        assert BLETimeoutError is MeshTimeoutError
 
     def test_catch_alias_catches_new_name(self) -> None:
         with pytest.raises(BLEError):
-            raise ConnectionError("test")
+            raise MeshConnectionError("test")
 
     def test_catch_malmbergs_alias_catches_new_name(self) -> None:
-        with pytest.raises(ConnectionError):
-            raise ConnectionError("test")
+        with pytest.raises(MeshConnectionError):
+            raise MeshConnectionError("test")
 
     def test_catch_new_name_catches_alias_raise(self) -> None:
         with pytest.raises(TuyaBLEMeshError):

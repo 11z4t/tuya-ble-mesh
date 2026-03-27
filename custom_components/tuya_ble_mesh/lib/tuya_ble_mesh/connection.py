@@ -493,7 +493,7 @@ class BLEConnection:
         CF-3: Now async to properly await _stop_keep_alive.
         """
         await self._stop_keep_alive()  # CF-3: Await for clean shutdown
-        self._keep_alive_task = asyncio.ensure_future(self._keep_alive_loop())
+        self._keep_alive_task = asyncio.create_task(self._keep_alive_loop())
 
     async def _stop_keep_alive(self) -> None:
         """Stop the keep-alive timer.
