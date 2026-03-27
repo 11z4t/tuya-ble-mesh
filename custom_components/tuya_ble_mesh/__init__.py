@@ -31,6 +31,7 @@ from homeassistant.exceptions import (
 from custom_components.tuya_ble_mesh.const import (
     CONF_DEVICE_TYPE,
     CONF_MAC_ADDRESS,
+    CONF_VENDOR_ID,
     DEVICE_MODEL_NAMES,
     DOMAIN,
     KNOWN_VENDOR_IDS,
@@ -132,8 +133,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
 
     # Create device_info (firmware version will be updated by coordinator after connection)
     # Look up manufacturer name from vendor ID
-    _vid_normalized = vendor_id_hex.lower().lstrip("0x") or "0"
-    # Normalize: strip '0x' prefix if present, keep lowercase hex
+    vendor_id_hex: str = entry.data.get(CONF_VENDOR_ID, "")
     if vendor_id_hex.lower().startswith("0x"):
         _vid_normalized = vendor_id_hex[2:].lower()
     else:
