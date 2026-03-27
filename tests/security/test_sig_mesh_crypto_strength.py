@@ -156,3 +156,37 @@ class TestMeshKeysValidation:
         )
         assert keys.nid is not None
         assert keys.aid is not None
+
+
+class TestConstantTimeConfirmation:
+    """CR-026: Verify SIG Mesh provisioning uses constant-time confirmation comparison.
+
+    This test statically inspects the source code to ensure that the ECDH
+    provisioning confirmation MAC is compared with hmac.compare_digest (which is
+    constant-time) rather than Python's == or != operators (which are not).
+    """
+
+    def test_confirmation_uses_hmac_compare_digest(self) -> None:
+        """The provisioner exchange MUST use hmac.compare_digest for confirmation."""
+        import inspect
+
+        from tuya_ble_mesh.sig_mesh_provisioner_exchange import ProvisionerExchangeMixin
+
+        source = inspect.getsource(ProvisionerExchangeMixin)
+        assert "hmac.compare_digest" in source, (
+            "SIG Mesh provisioner confirmation check must use hmac.compare_digest "
+            "to avoid timing oracle attacks; '!=' or '==' are not acceptable."
+        )
+
+    def test_no_raw_inequality_on_dev_confirmation(self) -> None:
+        """The source must NOT use != for comparing dev_confirmation bytes."""
+        import inspect
+
+        from tuya_ble_mesh.sig_mesh_provisioner_exchange import ProvisionerExchangeMixin
+
+        source = inspect.getsource(ProvisionerExchangeMixin)
+        # If dev_confirmation appears in an != comparison that is the timing oracle
+        assert "!= dev_confirmation" not in source, (
+            "dev_confirmation must not be compared with != (timing oracle). "
+            "Use hmac.compare_digest instead."
+        )

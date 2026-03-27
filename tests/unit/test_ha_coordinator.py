@@ -2074,3 +2074,82 @@ class TestStalenessDetection:
 
         assert probe_success is True
         assert coord.state.last_seen > old_time + 50  # Updated recently
+
+
+class TestBLENotificationCallbacks:
+    """CR-033: Unit tests for BLE notification callback path.
+
+    Verifies that the primary data path — BLE notification → coordinator
+    state update — works correctly in isolation.
+    """
+
+    def test_on_onoff_update_true_marks_available_and_on(self) -> None:
+        """_on_onoff_update(True) must set available=True, is_on=True."""
+        coord = TuyaBLEMeshCoordinator(make_mock_device())
+
+        coord._on_onoff_update(True)
+
+        assert coord.state.available is True
+        assert coord.state.is_on is True
+
+    def test_on_onoff_update_false_marks_available_and_off(self) -> None:
+        """_on_onoff_update(False) must set available=True, is_on=False."""
+        coord = TuyaBLEMeshCoordinator(make_mock_device())
+
+        coord._on_onoff_update(False)
+
+        assert coord.state.available is True
+        assert coord.state.is_on is False
+
+    def test_on_onoff_update_notifies_listeners(self) -> None:
+        """_on_onoff_update must fire registered listeners."""
+        coord = TuyaBLEMeshCoordinator(make_mock_device())
+        listener = MagicMock()
+        coord.add_listener(listener)
+
+        coord._on_onoff_update(True)
+
+        listener.assert_called_once()
+
+    def test_on_status_update_sets_brightness(self) -> None:
+        """_on_status_update must update brightness in coordinator state."""
+        coord = TuyaBLEMeshCoordinator(make_mock_device())
+
+        status = make_mock_status(white_brightness=75, mode=0)
+        coord._on_status_update(status)
+
+        assert coord.state.available is True
+        assert coord.state.brightness == 75
+
+    def test_on_status_update_notifies_listeners(self) -> None:
+        """_on_status_update must fire registered listeners."""
+        coord = TuyaBLEMeshCoordinator(make_mock_device())
+        listener = MagicMock()
+        coord.add_listener(listener)
+
+        coord._on_status_update(make_mock_status(white_brightness=50))
+
+        listener.assert_called_once()
+
+    def test_on_disconnect_marks_unavailable(self) -> None:
+        """_on_disconnect must set available=False in coordinator state."""
+        coord = TuyaBLEMeshCoordinator(make_mock_device())
+        # First mark as available
+        coord._on_onoff_update(True)
+        assert coord.state.available is True
+
+        coord._on_disconnect()
+
+        assert coord.state.available is False
+
+    def test_on_disconnect_notifies_listeners(self) -> None:
+        """_on_disconnect must fire registered listeners."""
+        coord = TuyaBLEMeshCoordinator(make_mock_device())
+        # First make available so disconnect triggers a state change
+        coord._on_onoff_update(True)
+        listener = MagicMock()
+        coord.add_listener(listener)
+
+        coord._on_disconnect()
+
+        listener.assert_called_once()

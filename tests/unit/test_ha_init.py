@@ -173,6 +173,54 @@ class TestAsyncSetupEntry:
 
         assert hass.services.async_register.call_count >= 2
 
+    @pytest.mark.asyncio
+    async def test_vendor_id_hex_prefix_parsed_correctly(self) -> None:
+        """Regression test for CR-001: vendor_id with 0x prefix must not crash."""
+        hass = make_mock_hass()
+        entry = make_mock_entry()
+        entry.data = {
+            "mac_address": "DC:23:4D:21:43:A5",
+            "mesh_name": "out_of_mesh",
+            "mesh_password": "123456",  # pragma: allowlist secret
+            "vendor_id": "0x1001",  # with 0x prefix
+        }
+        mock_device, mock_coord = _make_patches()
+
+        with (
+            patch(_PATCH_MESH_DEVICE, return_value=mock_device) as device_cls,
+            patch(_PATCH_COORDINATOR, return_value=mock_coord),
+        ):
+            result = await async_setup_entry(hass, entry)
+
+        assert result is True
+        device_cls.assert_called_once()
+        _, kwargs = device_cls.call_args
+        assert kwargs["vendor_id"] == b"\x01\x10"
+
+    @pytest.mark.asyncio
+    async def test_vendor_id_no_prefix_parsed_correctly(self) -> None:
+        """Regression test for CR-001: vendor_id without 0x prefix must not crash."""
+        hass = make_mock_hass()
+        entry = make_mock_entry()
+        entry.data = {
+            "mac_address": "DC:23:4D:21:43:A5",
+            "mesh_name": "out_of_mesh",
+            "mesh_password": "123456",  # pragma: allowlist secret
+            "vendor_id": "1001",  # without 0x prefix
+        }
+        mock_device, mock_coord = _make_patches()
+
+        with (
+            patch(_PATCH_MESH_DEVICE, return_value=mock_device) as device_cls,
+            patch(_PATCH_COORDINATOR, return_value=mock_coord),
+        ):
+            result = await async_setup_entry(hass, entry)
+
+        assert result is True
+        device_cls.assert_called_once()
+        _, kwargs = device_cls.call_args
+        assert kwargs["vendor_id"] == b"\x01\x10"
+
 
 @pytest.mark.requires_ha
 class TestAsyncSetupEntrySIGMesh:
