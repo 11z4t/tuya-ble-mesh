@@ -21,6 +21,7 @@ in exception messages. Only lengths, PDU types, and counts are safe to log.
 from __future__ import annotations
 
 import asyncio
+import hmac
 import logging
 import os
 import struct
@@ -416,8 +417,9 @@ class ProvisionerExchangeMixin:
         random_device = dev_random_pdu[1:]
 
         # Verify device confirmation (Mesh Profile 5.4.2.4)
+        # Use constant-time comparison to prevent timing oracle attacks.
         expected_conf = aes_cmac(conf_key, random_device + _NO_OOB_AUTH)
-        if expected_conf != dev_confirmation:
+        if not hmac.compare_digest(expected_conf, dev_confirmation):
             msg = (
                 "Device confirmation mismatch (authentication failed). "
                 "This indicates a crypto error or OOB authentication mismatch. "

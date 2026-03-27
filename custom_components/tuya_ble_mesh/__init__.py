@@ -322,8 +322,16 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             )
 
         stats = coordinator.statistics
+        raw_mac = coordinator.device.address
+        # Redact last 3 bytes of MAC (privacy — same policy as diagnostics.py)
+        mac_parts = raw_mac.upper().split(":")
+        masked_mac = (
+            ":".join([*mac_parts[:3], "xx", "xx", "xx"])
+            if len(mac_parts) == 6
+            else "xx:xx:xx:xx:xx:xx"
+        )
         diagnostics = {
-            "device_address": coordinator.device.address,
+            "device_address": masked_mac,
             "available": coordinator.state.available,
             "connection_uptime": f"{stats.connection_uptime:.1f}s",
             "total_reconnects": stats.total_reconnects,
@@ -338,7 +346,7 @@ async def _async_register_services(hass: HomeAssistant) -> None:
             "last_error": stats.last_error,
             "last_disconnect": stats.last_disconnect_time,
         }
-        _LOGGER.info("Diagnostics for %s: %s", device_id, diagnostics)
+        _LOGGER.debug("Diagnostics requested for device_id=%s", device_id)
         return diagnostics
 
     hass.services.async_register(

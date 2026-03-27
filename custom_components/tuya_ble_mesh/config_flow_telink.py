@@ -109,9 +109,9 @@ async def perform_telink_pairing(
     )
 
     _LOGGER.debug(
-        "VERIFY TX [%s] → 0xE0 status query: %s",
+        "VERIFY TX [%s] → 0xE0 status query: [%dB]",
         mac,
-        status_query.hex() if isinstance(status_query, bytes) else status_query,
+        len(status_query) if isinstance(status_query, (bytes, bytearray)) else 0,
     )
 
     # Subscribe to notifications BEFORE sending command
@@ -120,7 +120,7 @@ async def perform_telink_pairing(
 
     def notification_handler(sender: Any, data: bytes) -> None:
         """Capture response from device."""
-        _LOGGER.debug("VERIFY RX [%s] ← notification: %s", mac, data.hex())
+        _LOGGER.debug("VERIFY RX [%s] ← notification: [%dB]", mac, len(data))
         response_data.append(data)
         response_received.set()
 
@@ -136,9 +136,9 @@ async def perform_telink_pairing(
             await asyncio.wait_for(response_received.wait(), timeout=5.0)
             if response_data:
                 _LOGGER.info(
-                    "Device %s responded to verify command — device verified (response: %s)",
+                    "Device %s responded to verify command — device verified ([%dB])",
                     mac,
-                    response_data[0].hex()[:40],
+                    len(response_data[0]),
                 )
             else:
                 _LOGGER.warning("Device %s: response event set but no data captured", mac)
