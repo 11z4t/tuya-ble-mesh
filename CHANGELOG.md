@@ -9,6 +9,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.37.0] — 2026-03-27
+
+### Added
+- **Dynamic manufacturer name** (`__init__.py`, `const.py`) — `KNOWN_VENDOR_IDS` dict maps
+  vendor IDs to brand names (Malmbergs, AwoX, Dimond, …); `DeviceInfo.manufacturer` now
+  shows the actual brand instead of a hardcoded fallback
+- **Phase-specific provisioning errors** (`config_flow.py`, all 8 translations) — three new
+  error keys (`provisioning_appkey_failed`, `provisioning_proxy_failed`,
+  `provisioning_pbgatt_failed`) with actionable guidance for each failure phase
+- **Connection quality dBm thresholds** (all 8 translations) — state labels for
+  `good`/`marginal`/`poor` now include the dBm range so users understand the scale
+- **Light brightness mode attributes** (`light.py`) — `extra_state_attributes` property
+  exposes `brightness_mode` (`rgb`/`white`) and `device_brightness` for dashboards and
+  automations
+- **Bridge validation progress feedback** (`config_flow.py`) — `status` description
+  placeholder shown during SIG/Telink bridge connection test so the UI isn't silent
+- **Diagnostics response-time documentation** (`diagnostics.py`) — `_info` key in
+  `response_times` explains the p50/p95/p99 percentile semantics
+
+### Changed
+- **RSSI sensor** (`sensor.py`) — `value_fn` returns `None` for RSSI = 0 (BLE Mesh
+  placeholder) so the entity shows as unavailable rather than a misleading zero
+
+### Fixed
+- **Last-seen UTC docstring** (`sensor.py`) — clarifies that `_last_seen_datetime` returns
+  UTC and that HA auto-converts to local time for display
+
+---
+
 ## [0.36.4] — 2026-03-20
 
 ### Fixed
