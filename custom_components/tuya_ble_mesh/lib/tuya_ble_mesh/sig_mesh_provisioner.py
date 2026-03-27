@@ -57,7 +57,7 @@ _LOGGER = MeshLogAdapter(logging.getLogger(__name__), {})
 PROV_DATA_OUT = "00002adc-0000-1000-8000-00805f9b34fb"
 
 # BLE adapter slot release delay after disconnect (seconds)
-_BLE_SLOT_RELEASE_DELAY = 1.0  # Increased from 0.5s — see
+_BLE_SLOT_RELEASE_DELAY = 1.0  # Increased from 0.5s; BlueZ needs >1s to release GATT slot
 
 
 # Re-export for backward compatibility

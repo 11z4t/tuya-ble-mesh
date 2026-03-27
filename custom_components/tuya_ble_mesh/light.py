@@ -51,6 +51,13 @@ if TYPE_CHECKING:
 
 _LOGGER = logging.getLogger(__name__)
 
+
+def _log_task_exc(task: asyncio.Task[None]) -> None:
+    """Log exception from a background light task so it is not silently swallowed."""
+    if not task.cancelled() and (exc := task.exception()) is not None:
+        _LOGGER.warning("Light background task failed: %s", exc)
+
+
 # BLE mesh serializes commands — limit to one concurrent update
 PARALLEL_UPDATES = 1
 
@@ -395,7 +402,7 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
                 self._run_transition(target_bright, target_temp, transition, target_rgb=rgb_color)
             )
             self._transition_task.add_done_callback(
-                lambda t: t.exception() if not t.cancelled() else None
+                _log_task_exc
             )
             return
 
@@ -490,7 +497,7 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
                 )
             )
             self._transition_task.add_done_callback(
-                lambda t: t.exception() if not t.cancelled() else None
+                _log_task_exc
             )
             return
 

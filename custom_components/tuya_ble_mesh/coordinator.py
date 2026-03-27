@@ -11,6 +11,7 @@ import asyncio
 import contextlib
 import logging
 import time
+import warnings
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
@@ -532,7 +533,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):  # type: ignore[misc]
             except asyncio.CancelledError:
                 _LOGGER.debug("Staleness watchdog cancelled for %s", self._device.address)
                 raise
-            except Exception:
+            except (OSError, TimeoutError):
                 _LOGGER.exception("Error in staleness watchdog for %s", self._device.address)
 
     async def _probe_device(self) -> bool:
@@ -967,6 +968,12 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):  # type: ignore[misc]
         This method swallows exceptions, preventing HA Core from
         seeing connection failures.
         """
+        warnings.warn(
+            "async_start() is deprecated; use async_initial_connect() instead. "
+            "Removal target: next major version.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self._conn_mgr.running = True
         await self._load_seq()
         if self.capabilities.has_onoff_callback:

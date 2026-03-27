@@ -760,4 +760,10 @@ class ConnectionManager:
         if tasks_to_cancel:
             await asyncio.gather(*tasks_to_cancel, return_exceptions=True)
 
+        # Cancel any remaining background tasks (e.g. repair issue creators) and
+        # await them so they don't fire against a partially-shut-down hass instance.
+        for bg_task in list(self._background_tasks):
+            bg_task.cancel()
+        if self._background_tasks:
+            await asyncio.gather(*self._background_tasks, return_exceptions=True)
         self._background_tasks.clear()

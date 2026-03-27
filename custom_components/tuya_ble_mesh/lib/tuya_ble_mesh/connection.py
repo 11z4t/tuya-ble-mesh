@@ -251,7 +251,7 @@ class BLEConnection:
                 "GATT notification subscription active for %s (push mode)",
                 self._address,
             )
-        except Exception as exc:
+        except (BleakError, OSError, EOFError) as exc:
             self._notify_active = False
             _LOGGER.warning(
                 "start_notify failed for %s (%s) — running in poll-only mode. "

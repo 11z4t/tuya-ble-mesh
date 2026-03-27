@@ -601,13 +601,11 @@ class TestStartNotifySafe:
         client.start_notify.assert_called_once_with(TELINK_CHAR_STATUS, handler)
 
     @pytest.mark.asyncio
-    async def test_notify_active_false_on_generic_exception(self) -> None:
-        """Any exception from start_notify must result in poll-only mode."""
+    async def test_notify_active_propagates_unexpected_exception(self) -> None:
+        """Unexpected exceptions (not BleakError/OSError/EOFError) must propagate."""
         conn, client = _make_ready_conn()
         client.start_notify = AsyncMock(side_effect=RuntimeError("unexpected"))
         conn.set_notification_handler(MagicMock())
 
-        result = await conn._start_notify_safe()
-
-        assert result is False
-        assert conn.notify_active is False
+        with pytest.raises(RuntimeError, match="unexpected"):
+            await conn._start_notify_safe()

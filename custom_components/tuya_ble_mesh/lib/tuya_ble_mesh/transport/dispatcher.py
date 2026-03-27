@@ -305,6 +305,7 @@ class AsyncCommandDispatcher:
                 raise
             except (TuyaBLEMeshError, OSError, TimeoutError):
                 _LOGGER.error("AsyncCommandDispatcher worker error", exc_info=True)
+                raise
 
         _LOGGER.debug("AsyncCommandDispatcher worker stopped")
 

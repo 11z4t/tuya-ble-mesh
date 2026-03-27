@@ -283,7 +283,7 @@ def parse_tuya_vendor_frame(params: bytes) -> TuyaVendorFrame:
     data = params[2:]
 
     if command == TUYA_CMD_TIMESTAMP_SYNC:
-        _LOGGER.debug("Tuya timestamp sync request (%d data bytes): %s", len(data), data.hex())
+        _LOGGER.debug("Tuya timestamp sync request (%d data bytes)", len(data))
         return TuyaVendorFrame(command=command, data=data, dps=[])
 
     if command == TUYA_CMD_DP_DATA:

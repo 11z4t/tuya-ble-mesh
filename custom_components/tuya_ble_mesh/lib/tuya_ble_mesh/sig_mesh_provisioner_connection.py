@@ -40,7 +40,7 @@ PROV_SERVICE = "00001827-0000-1000-8000-00805f9b34fb"
 _BLUETOOTHCTL_TIMEOUT = 5.0
 
 # BLE adapter slot release delay after disconnect (seconds)
-_BLE_SLOT_RELEASE_DELAY = 1.0  # Increased from 0.5s — see
+_BLE_SLOT_RELEASE_DELAY = 1.0  # Increased from 0.5s; BlueZ needs >1s to release GATT slot
 
 # BlueZ device cache processing delay after bluetoothctl remove (seconds)
 _BLUEZ_CACHE_SETTLE_DELAY = 0.5
