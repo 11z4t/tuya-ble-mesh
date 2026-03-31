@@ -29,10 +29,11 @@ async function globalSetup(_config: FullConfig): Promise<void> {
   const page = await context.newPage();
 
   try {
-    // Navigate to HA and wait for it to fully settle (including auth redirect).
-    // HA redirects unauthenticated requests to /auth/authorize — we must wait
-    // for this redirect to complete before writing to localStorage.
-    await page.goto(haBaseUrl, { waitUntil: 'networkidle', timeout: 20000 });
+    // Navigate to HA and wait for it to settle (including auth redirect).
+    // HA maintains WebSocket connections so 'networkidle' never fires — use 'load'.
+    // After load, HA's SPA will redirect to /auth/authorize if not logged in.
+    await page.goto(haBaseUrl, { waitUntil: 'load', timeout: 20000 });
+    await page.waitForTimeout(2000); // Give HA time to run its client-side routing
 
     // Inject the long-lived token as hassTokens in localStorage.
     // localStorage is shared across the whole origin, so writing here
@@ -55,7 +56,8 @@ async function globalSetup(_config: FullConfig): Promise<void> {
     );
 
     // Reload so HA picks up the injected auth
-    await page.goto(haBaseUrl, { waitUntil: 'networkidle', timeout: 20000 });
+    await page.goto(haBaseUrl, { waitUntil: 'load', timeout: 20000 });
+    await page.waitForTimeout(2000);
 
     // Verify we're authenticated
     try {

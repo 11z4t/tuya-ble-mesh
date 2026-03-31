@@ -20,8 +20,8 @@ export default defineConfig({
   // Test execution settings
   fullyParallel: false, // Run tests sequentially to avoid HA state conflicts
   forbidOnly: !!process.env.CI, // Fail on .only() in CI
-  retries: process.env.CI ? 2 : 0, // Retry on CI
-  workers: process.env.CI ? 1 : 1, // Single worker to avoid conflicts
+  retries: 2, // Retry — HA can briefly refuse connections during periodic tasks
+  workers: 1, // Single worker to avoid HA connection conflicts
 
   // Reporter configuration
   reporter: [
