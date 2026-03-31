@@ -11,6 +11,9 @@ import { defineConfig, devices } from '@playwright/test';
 export default defineConfig({
   testDir: './tests/e2e',
 
+  // Auth setup: injects HA_TOKEN into browser localStorage before any test runs
+  globalSetup: './tests/e2e/auth.setup.ts',
+
   // Timeout for each test
   timeout: 60 * 1000,
 
@@ -30,6 +33,9 @@ export default defineConfig({
   use: {
     // Base URL for Home Assistant instance
     baseURL: process.env.HA_BASE_URL || 'http://localhost:8123',
+
+    // Reuse authenticated browser state created by globalSetup
+    storageState: './tests/e2e/storageState.json',
 
     // Capture screenshot on failure
     screenshot: 'only-on-failure',

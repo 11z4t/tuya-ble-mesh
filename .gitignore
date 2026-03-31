@@ -46,6 +46,7 @@ package-lock.json
 playwright-report/
 test-results/
 playwright/.cache/
+tests/e2e/storageState.json
 
 # OS
 .DS_Store
