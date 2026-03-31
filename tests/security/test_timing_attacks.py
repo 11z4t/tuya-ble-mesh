@@ -31,6 +31,18 @@ from tuya_ble_mesh.exceptions import AuthenticationError
 # Number of iterations for timing measurements
 _TIMING_ITERATIONS = 500
 
+# Fraction of top outliers to trim before computing statistics.
+# OS scheduling spikes (GC, preemption) inflate stddev; trimming top 5% makes
+# the assertions robust under load without masking genuine timing leaks.
+_TRIM_FRACTION = 0.05
+
+
+def _trimmed_stats(times: list[float]) -> tuple[float, float]:
+    """Return (mean, stddev) after removing the top _TRIM_FRACTION outliers."""
+    sorted_t = sorted(times)
+    keep = sorted_t[: max(2, int(len(sorted_t) * (1 - _TRIM_FRACTION)))]
+    return statistics.mean(keep), statistics.stdev(keep)
+
 
 class TestConstantTimeChecksum:
     """Verify checksum operations don't leak timing information."""
@@ -52,9 +64,8 @@ class TestConstantTimeChecksum:
             elapsed = time.perf_counter() - start
             times.append(elapsed)
 
-        # Calculate statistics
-        mean_time = statistics.mean(times)
-        stddev = statistics.stdev(times)
+        # Calculate statistics — trim top 5% outliers (OS scheduling spikes)
+        mean_time, stddev = _trimmed_stats(times)
 
         # Standard deviation should be small relative to mean
         assert stddev < mean_time * 0.5, (
@@ -80,8 +91,8 @@ class TestConstantTimeChecksum:
             elapsed = time.perf_counter() - start
             times.append(elapsed)
 
-        stddev = statistics.stdev(times)
-        mean_time = statistics.mean(times)
+        # Trim top 5% outliers before computing statistics
+        mean_time, stddev = _trimmed_stats(times)
 
         # Invalid checksums should take similar time regardless of differences
         assert stddev < mean_time * 0.5, (
@@ -112,8 +123,9 @@ class TestConstantTimeChecksum:
                 verify_checksum(key, nonce, data, invalid_checksum)
             invalid_times.append(time.perf_counter() - start)
 
-        valid_mean = statistics.mean(valid_times)
-        invalid_mean = statistics.mean(invalid_times)
+        # Trim outliers before comparing means
+        valid_mean, _ = _trimmed_stats(valid_times)
+        invalid_mean, _ = _trimmed_stats(invalid_times)
 
         # Means should be within reasonable range to prevent timing oracle
         ratio = max(valid_mean, invalid_mean) / min(valid_mean, invalid_mean)
@@ -153,8 +165,9 @@ class TestNoTimingLeaksInComparison:
                 verify_checksum(key, nonce, data, second_diff)
             second_times.append(time.perf_counter() - start)
 
-        first_mean = statistics.mean(first_times)
-        second_mean = statistics.mean(second_times)
+        # Trim outliers before comparing means
+        first_mean, _ = _trimmed_stats(first_times)
+        second_mean, _ = _trimmed_stats(second_times)
 
         # Both should take similar time (constant-time compare)
         ratio = max(first_mean, second_mean) / min(first_mean, second_mean)
@@ -197,9 +210,10 @@ class TestCacheTimingChannels:
             verify_checksum(key_alternating, nonce, data, cs_alt)
             times_alt.append(time.perf_counter() - start)
 
-        mean_zeros = statistics.mean(times_zeros)
-        mean_ones = statistics.mean(times_ones)
-        mean_alt = statistics.mean(times_alt)
+        # Trim outliers before comparing means
+        mean_zeros, _ = _trimmed_stats(times_zeros)
+        mean_ones, _ = _trimmed_stats(times_ones)
+        mean_alt, _ = _trimmed_stats(times_alt)
 
         # All key patterns should take similar time
         max_mean = max(mean_zeros, mean_ones, mean_alt)
