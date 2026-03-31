@@ -25,6 +25,24 @@ from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
 )
 
 
+def _make_mock_hass() -> MagicMock:
+    """Create a mock hass that properly schedules coroutines in async_create_task.
+
+    Without this, AsyncMock return values (coroutines) passed to a plain
+    MagicMock async_create_task are never awaited → RuntimeWarning.
+    """
+    mock_hass = MagicMock()
+    mock_hass.loop = asyncio.get_event_loop()
+
+    def _create_task(coro_or_future, name: str | None = None, eager_start: bool = False):
+        if asyncio.iscoroutine(coro_or_future):
+            return asyncio.ensure_future(coro_or_future)
+        return MagicMock()
+
+    mock_hass.async_create_task = _create_task
+    return mock_hass
+
+
 def make_mock_device() -> MagicMock:
     """Create a mock MeshDevice."""
     device = MagicMock()
@@ -71,8 +89,7 @@ class TestCoordinatorEventDispatch:
     async def test_status_update_triggers_async_set_updated_data(self) -> None:
         """Status update should call async_set_updated_data() in HA mode."""
         mock_device = make_mock_device()
-        mock_hass = MagicMock()
-        mock_hass.loop = asyncio.get_event_loop()
+        mock_hass = _make_mock_hass()
 
         coord = TuyaBLEMeshCoordinator(mock_device, hass=mock_hass, entry_id="test")
 
@@ -93,8 +110,7 @@ class TestCoordinatorEventDispatch:
     async def test_onoff_update_triggers_dispatch(self) -> None:
         """GenericOnOff update should trigger dispatcher."""
         mock_device = make_mock_device()
-        mock_hass = MagicMock()
-        mock_hass.loop = asyncio.get_event_loop()
+        mock_hass = _make_mock_hass()
 
         coord = TuyaBLEMeshCoordinator(mock_device, hass=mock_hass, entry_id="test")
         coord.async_set_updated_data = AsyncMock()
@@ -110,8 +126,7 @@ class TestCoordinatorEventDispatch:
     async def test_duplicate_status_does_not_trigger_dispatch(self) -> None:
         """Identical status updates should not trigger dispatch (optimization)."""
         mock_device = make_mock_device()
-        mock_hass = MagicMock()
-        mock_hass.loop = asyncio.get_event_loop()
+        mock_hass = _make_mock_hass()
 
         coord = TuyaBLEMeshCoordinator(mock_device, hass=mock_hass, entry_id="test")
         coord.async_set_updated_data = AsyncMock()
@@ -136,8 +151,7 @@ class TestCoordinatorEventDispatch:
     async def test_state_change_triggers_dispatch(self) -> None:
         """Changed status should trigger dispatch."""
         mock_device = make_mock_device()
-        mock_hass = MagicMock()
-        mock_hass.loop = asyncio.get_event_loop()
+        mock_hass = _make_mock_hass()
 
         coord = TuyaBLEMeshCoordinator(mock_device, hass=mock_hass, entry_id="test")
         coord.async_set_updated_data = AsyncMock()
@@ -166,9 +180,8 @@ class TestThreadSafeDispatcher:
     async def test_dispatch_from_background_thread_uses_call_soon_threadsafe(self) -> None:
         """BLE callbacks from background threads should use call_soon_threadsafe."""
         mock_device = make_mock_device()
-        mock_hass = MagicMock()
-        event_loop = asyncio.get_event_loop()
-        mock_hass.loop = event_loop
+        mock_hass = _make_mock_hass()
+        event_loop = mock_hass.loop
 
         coord = TuyaBLEMeshCoordinator(mock_device, hass=mock_hass, entry_id="test")
 
@@ -201,8 +214,7 @@ class TestThreadSafeDispatcher:
     async def test_multiple_concurrent_updates_are_serialized(self) -> None:
         """Multiple concurrent status updates should serialize correctly."""
         mock_device = make_mock_device()
-        mock_hass = MagicMock()
-        mock_hass.loop = asyncio.get_event_loop()
+        mock_hass = _make_mock_hass()
 
         coord = TuyaBLEMeshCoordinator(mock_device, hass=mock_hass, entry_id="test")
 
@@ -317,8 +329,7 @@ class TestConnectionStatistics:
     async def test_statistics_track_response_times(self) -> None:
         """Statistics should track response times correctly."""
         mock_device = make_mock_device()
-        mock_hass = MagicMock()
-        mock_hass.loop = asyncio.get_event_loop()
+        mock_hass = _make_mock_hass()
 
         coord = TuyaBLEMeshCoordinator(mock_device, hass=mock_hass, entry_id="test")
 
@@ -339,8 +350,7 @@ class TestConnectionStatistics:
     async def test_statistics_track_errors(self) -> None:
         """Statistics should increment error counts on failures."""
         mock_device = make_mock_device()
-        mock_hass = MagicMock()
-        mock_hass.loop = asyncio.get_event_loop()
+        mock_hass = _make_mock_hass()
 
         coord = TuyaBLEMeshCoordinator(mock_device, hass=mock_hass, entry_id="test")
 
@@ -363,8 +373,7 @@ class TestTaskCleanup:
     async def test_staleness_task_cancelled_on_stop(self) -> None:
         """Staleness watchdog task should be cancelled and cleaned up on async_stop."""
         mock_device = make_mock_device()
-        mock_hass = MagicMock()
-        mock_hass.loop = asyncio.get_event_loop()
+        mock_hass = _make_mock_hass()
 
         # Create mock config entry with async_create_background_task
         mock_entry = MagicMock()
@@ -415,8 +424,7 @@ class TestTaskCleanup:
         mock_device = make_mock_device()
         mock_device.get_seq = MagicMock(return_value=100)
         mock_device.set_seq = MagicMock()
-        mock_hass = MagicMock()
-        mock_hass.loop = asyncio.get_event_loop()
+        mock_hass = _make_mock_hass()
 
         mock_entry = MagicMock()
         created_tasks = []
@@ -457,8 +465,7 @@ class TestTaskCleanup:
     async def test_no_untracked_tasks_remain_after_stop(self) -> None:
         """Verify no asyncio tasks are left running after coordinator stop."""
         mock_device = make_mock_device()
-        mock_hass = MagicMock()
-        mock_hass.loop = asyncio.get_event_loop()
+        mock_hass = _make_mock_hass()
 
         mock_entry = MagicMock()
 
