@@ -154,8 +154,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
     await registry.async_load()
     registry.register_device(mac_address, entry.title, device_type or "unknown")
 
-    # Store runtime data BEFORE async_start to avoid race condition
-    # (callbacks may fire during async_start and need access to runtime_data)
+    # Store runtime data BEFORE async_initial_connect to avoid race condition
+    # (callbacks may fire during async_initial_connect and need access to runtime_data)
     entry.runtime_data = TuyaBLEMeshRuntimeData(
         coordinator=coordinator,
         device_info=device_info,

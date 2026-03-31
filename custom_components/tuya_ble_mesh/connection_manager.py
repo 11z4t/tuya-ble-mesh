@@ -75,7 +75,6 @@ class ReconnectEvent:
     attempt: int  # Consecutive failure count at time of this event
 
 
-
 @dataclass
 class ConnectionStatistics:
     """Connection and performance statistics for diagnostics."""

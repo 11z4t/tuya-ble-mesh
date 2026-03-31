@@ -76,7 +76,7 @@ def _make_patches() -> tuple[MagicMock, MagicMock]:
     mock_device_instance.address = "DC:23:4D:21:43:A5"
 
     mock_coord_instance = MagicMock()
-    mock_coord_instance.async_start = AsyncMock()
+    mock_coord_instance.async_initial_connect = AsyncMock()
     mock_coord_instance.async_stop = AsyncMock()
     mock_coord_instance.async_initial_connect = AsyncMock()
     mock_coord_instance.device = mock_device_instance
@@ -247,7 +247,7 @@ class TestAsyncSetupEntrySIGMesh:
         mock_device = MagicMock()
         mock_device.address = "AA:BB:CC:DD:EE:FF"
         mock_coord = MagicMock()
-        mock_coord.async_start = AsyncMock()
+        mock_coord.async_initial_connect = AsyncMock()
         mock_coord.async_stop = AsyncMock()
         mock_coord.async_initial_connect = AsyncMock()
         mock_coord.device = mock_device
@@ -289,7 +289,7 @@ class TestAsyncSetupEntrySIGMesh:
         mock_device = MagicMock()
         mock_device.address = "11:22:33:44:55:66"
         mock_coord = MagicMock()
-        mock_coord.async_start = AsyncMock()
+        mock_coord.async_initial_connect = AsyncMock()
         mock_coord.async_stop = AsyncMock()
         mock_coord.async_initial_connect = AsyncMock()
         mock_coord.device = mock_device
@@ -333,7 +333,7 @@ class TestAsyncSetupEntrySIGMesh:
         mock_device = MagicMock()
         mock_device.address = "BB:BB:CC:CC:DD:DD"
         mock_coord = MagicMock()
-        mock_coord.async_start = AsyncMock()
+        mock_coord.async_initial_connect = AsyncMock()
         mock_coord.async_stop = AsyncMock()
         mock_coord.async_initial_connect = AsyncMock()
         mock_coord.device = mock_device
@@ -391,7 +391,7 @@ class TestAsyncSetupEntrySIGMesh:
         mock_device = MagicMock()
         mock_device.address = "CC:CC:DD:DD:EE:EE"
         mock_coord = MagicMock()
-        mock_coord.async_start = AsyncMock()
+        mock_coord.async_initial_connect = AsyncMock()
         mock_coord.async_stop = AsyncMock()
         mock_coord.async_initial_connect = AsyncMock()
         mock_coord.device = mock_device
@@ -447,7 +447,7 @@ class TestAsyncSetupEntrySIGMesh:
         mock_device = MagicMock()
         mock_device.address = "DD:DD:EE:EE:FF:FF"
         mock_coord = MagicMock()
-        mock_coord.async_start = AsyncMock()
+        mock_coord.async_initial_connect = AsyncMock()
         mock_coord.async_stop = AsyncMock()
         mock_coord.async_initial_connect = AsyncMock()
         mock_coord.device = mock_device
@@ -496,7 +496,7 @@ class TestAsyncSetupEntrySIGMesh:
         mock_device = MagicMock()
         mock_device.address = "AA:AA:BB:BB:CC:CC"
         mock_coord = MagicMock()
-        mock_coord.async_start = AsyncMock()
+        mock_coord.async_initial_connect = AsyncMock()
         mock_coord.async_stop = AsyncMock()
         mock_coord.async_initial_connect = AsyncMock()
         mock_coord.device = mock_device
@@ -624,7 +624,7 @@ class TestServiceHandlers:
         mock_device.address = "DC:23:4D:21:43:A5"
         mock_device.send_power = AsyncMock()
         mock_coord = MagicMock()
-        mock_coord.async_start = AsyncMock()
+        mock_coord.async_initial_connect = AsyncMock()
         mock_coord.async_initial_connect = AsyncMock()
         mock_coord.device = mock_device
 
@@ -757,7 +757,7 @@ class TestServiceHandlers:
         # Make send_power fail
         mock_device.send_power = AsyncMock(side_effect=Exception("BLE timeout"))
         mock_coord = MagicMock()
-        mock_coord.async_start = AsyncMock()
+        mock_coord.async_initial_connect = AsyncMock()
         mock_coord.async_initial_connect = AsyncMock()
         mock_coord.device = mock_device
 

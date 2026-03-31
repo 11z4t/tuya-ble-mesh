@@ -60,14 +60,14 @@ def _validate_hex_key(value: str) -> bool:
 
 
 _PRIVATE_IP_NETS = (
-    ipaddress.ip_network("127.0.0.0/8"),    # loopback
-    ipaddress.ip_network("169.254.0.0/16"), # link-local / AWS EC2 metadata (169.254.169.254)
-    ipaddress.ip_network("::1/128"),        # IPv6 loopback
-    ipaddress.ip_network("fe80::/10"),      # IPv6 link-local
+    ipaddress.ip_network("127.0.0.0/8"),  # loopback
+    ipaddress.ip_network("169.254.0.0/16"),  # link-local / AWS EC2 metadata (169.254.169.254)
+    ipaddress.ip_network("::1/128"),  # IPv6 loopback
+    ipaddress.ip_network("fe80::/10"),  # IPv6 link-local
     ipaddress.ip_network("100.64.0.0/10"),  # CGNAT / Alibaba Cloud metadata (100.100.100.200)
-    ipaddress.ip_network("192.0.2.0/24"),   # TEST-NET-1 (RFC 5737)
-    ipaddress.ip_network("198.51.100.0/24"), # TEST-NET-2 (RFC 5737)
-    ipaddress.ip_network("203.0.113.0/24"), # TEST-NET-3 (RFC 5737)
+    ipaddress.ip_network("192.0.2.0/24"),  # TEST-NET-1 (RFC 5737)
+    ipaddress.ip_network("198.51.100.0/24"),  # TEST-NET-2 (RFC 5737)
+    ipaddress.ip_network("203.0.113.0/24"),  # TEST-NET-3 (RFC 5737)
     # NOTE: RFC-1918 ranges (10/8, 172.16/12, 192.168/16) are intentionally NOT blocked.
     # The bridge device (typically an RPi) lives on the local LAN. Blocking private
     # ranges would prevent the integration from connecting to any LAN bridge.

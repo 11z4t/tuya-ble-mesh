@@ -210,15 +210,15 @@ class TestListeners:
 
 
 @pytest.mark.requires_ha
-class TestAsyncStart:
-    """Test async_start method."""
+class TestAsyncInitialConnect:
+    """Test async_initial_connect method."""
 
     @pytest.mark.asyncio
     async def test_start_connects_device(self) -> None:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
 
-        await coord.async_start()
+        await coord.async_initial_connect()
 
         device.connect.assert_called_once()
         device.register_status_callback.assert_called_once()
@@ -226,19 +226,16 @@ class TestAsyncStart:
         assert coord.state.available is True
 
     @pytest.mark.asyncio
-    async def test_start_handles_connection_failure(self) -> None:
+    async def test_start_raises_on_connection_failure(self) -> None:
+        """async_initial_connect propagates exceptions so HA Core sees failures."""
         device = make_mock_device()
         device.connect = AsyncMock(side_effect=ConnectionError("fail"))
         coord = TuyaBLEMeshCoordinator(device)
 
-        await coord.async_start()
+        with pytest.raises(ConnectionError):
+            await coord.async_initial_connect()
 
         assert coord.state.available is False
-        # Should schedule reconnect (creates a task)
-        assert coord._reconnect_task is not None
-
-        # Clean up
-        await coord.async_stop()
 
 
 @pytest.mark.requires_ha
@@ -249,7 +246,7 @@ class TestAsyncStop:
     async def test_stop_disconnects_device(self) -> None:
         device = make_mock_device()
         coord = TuyaBLEMeshCoordinator(device)
-        await coord.async_start()
+        await coord.async_initial_connect()
 
         await coord.async_stop()
 
@@ -261,9 +258,11 @@ class TestAsyncStop:
     @pytest.mark.asyncio
     async def test_stop_cancels_reconnect_task(self) -> None:
         device = make_mock_device()
-        device.connect = AsyncMock(side_effect=ConnectionError("fail"))
         coord = TuyaBLEMeshCoordinator(device)
-        await coord.async_start()
+        await coord.async_initial_connect()
+        # Simulate disconnect → schedules reconnect
+        coord._running = True
+        coord._on_disconnect()
         assert coord._reconnect_task is not None
 
         await coord.async_stop()
@@ -382,7 +381,7 @@ class TestSIGMeshCoordinator:
         device.firmware_version = None
 
         coord = TuyaBLEMeshCoordinator(device)
-        await coord.async_start()
+        await coord.async_initial_connect()
 
         device.register_onoff_callback.assert_called_once()
         device.register_disconnect_callback.assert_called_once()
@@ -409,7 +408,7 @@ class TestSIGMeshCoordinator:
         device.firmware_version = None
 
         coord = TuyaBLEMeshCoordinator(device)
-        await coord.async_start()
+        await coord.async_initial_connect()
 
         device.register_onoff_callback.assert_called_once()
         device.register_status_callback.assert_called_once()
@@ -1284,13 +1283,13 @@ class TestLifecycleEdgeCases:
 
     @pytest.mark.asyncio
     async def test_double_start(self) -> None:
-        """Calling async_start twice should not raise."""
+        """Calling async_initial_connect twice should not raise."""
         device = make_mock_device()
         device.firmware_version = None
         coord = TuyaBLEMeshCoordinator(device)
 
-        await coord.async_start()
-        await coord.async_start()  # second start
+        await coord.async_initial_connect()
+        await coord.async_initial_connect()  # second start
 
         assert coord._running is True
         assert coord.state.available is True
@@ -1304,7 +1303,7 @@ class TestLifecycleEdgeCases:
         device.firmware_version = None
         coord = TuyaBLEMeshCoordinator(device)
 
-        await coord.async_start()
+        await coord.async_initial_connect()
         await coord.async_stop()
         await coord.async_stop()  # second stop
 
@@ -1327,24 +1326,23 @@ class TestLifecycleEdgeCases:
         device.firmware_version = None
         coord = TuyaBLEMeshCoordinator(device)
 
-        await coord.async_start()
+        await coord.async_initial_connect()
         await coord.async_stop()  # Should not raise
 
         assert coord.state.available is False
 
     @pytest.mark.asyncio
-    async def test_start_connection_failure_schedules_reconnect(self) -> None:
-        """Failed initial connect should schedule a reconnect task."""
+    async def test_initial_connect_failure_propagates(self) -> None:
+        """Failed initial connect raises — HA Core handles retry, not coordinator."""
         device = make_mock_device()
         device.connect = AsyncMock(side_effect=ConnectionError("fail"))
         coord = TuyaBLEMeshCoordinator(device)
 
-        await coord.async_start()
+        with pytest.raises(ConnectionError):
+            await coord.async_initial_connect()
 
         assert coord.state.available is False
-        assert coord._reconnect_task is not None
-
-        await coord.async_stop()
+        assert coord._reconnect_task is None
 
     @pytest.mark.asyncio
     async def test_stop_cancels_rssi_task(self) -> None:
@@ -1352,7 +1350,7 @@ class TestLifecycleEdgeCases:
         device = make_mock_device()
         device.firmware_version = None
         coord = TuyaBLEMeshCoordinator(device)
-        await coord.async_start()
+        await coord.async_initial_connect()
 
         # Verify rssi task was created (for non-bridge device)
         if coord._rssi_task is not None:
@@ -1373,7 +1371,7 @@ class TestLifecycleEdgeCases:
         coord = TuyaBLEMeshCoordinator(device, hass=MagicMock(), entry_id="entry1")
 
         with patch("homeassistant.helpers.storage.Store", return_value=mock_store):
-            await coord.async_start()
+            await coord.async_initial_connect()
 
         # Now stop — should call _save_seq
         await coord.async_stop()
@@ -1475,11 +1473,12 @@ class TestTaskCancellation:
     async def test_stop_cancels_reconnect_task_safely(self) -> None:
         """async_stop should cancel reconnect task without raising."""
         device = make_mock_device()
-        device.connect = AsyncMock(side_effect=ConnectionError("fail"))
         device.firmware_version = None
         coord = TuyaBLEMeshCoordinator(device)
-
-        await coord.async_start()
+        await coord.async_initial_connect()
+        # Simulate disconnect → schedules reconnect
+        coord._running = True
+        coord._on_disconnect()
         assert coord._reconnect_task is not None
 
         await coord.async_stop()

@@ -230,9 +230,7 @@ class ProvisionerConnectionMixin:
                         )
                     else:
                         services = client.services
-                    if services and not any(
-                        str(s.uuid) == PROV_SERVICE for s in services
-                    ):
+                    if services and not any(str(s.uuid) == PROV_SERVICE for s in services):
                         msg = f"Device {address} does not expose Provisioning Service (0x1827)"
                         raise ProvisioningError(msg)
                 except TimeoutError:

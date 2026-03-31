@@ -2,7 +2,7 @@
 
 Tests the full production lifecycle:
 - discovery → config_flow → config entry creation
-- setup → coordinator.async_start → entities available
+- setup → coordinator.async_initial_connect → entities available
 - HA restart (unload → reload) → config entry survives
 - unload → cleanup
 """
@@ -73,7 +73,7 @@ class TestFullLifecycle:
 
     @pytest.mark.asyncio
     async def test_setup_creates_coordinator_and_starts(self) -> None:
-        """Setup should create coordinator and call async_start."""
+        """Setup should create coordinator and call async_initial_connect."""
         from custom_components.tuya_ble_mesh import async_setup_entry
         from custom_components.tuya_ble_mesh.const import (
             CONF_MAC_ADDRESS,
@@ -126,7 +126,7 @@ class TestFullLifecycle:
 
     @pytest.mark.asyncio
     async def test_coordinator_start_lifecycle(self) -> None:
-        """Coordinator async_start should initialize device connection."""
+        """Coordinator async_initial_connect should initialize device connection."""
         from custom_components.tuya_ble_mesh.coordinator import TuyaBLEMeshCoordinator
 
         mock_device = MagicMock()
@@ -138,7 +138,7 @@ class TestFullLifecycle:
         coord = TuyaBLEMeshCoordinator(mock_device)
 
         # Start coordinator
-        await coord.async_start()
+        await coord.async_initial_connect()
 
         # Verify device connection was attempted
         mock_device.connect.assert_called()
@@ -178,7 +178,7 @@ class TestFullLifecycle:
 
         # Start coordinator (will attempt connect but we mock it)
         with patch.object(coord, "_reconnect_loop", new=AsyncMock()):
-            await coord.async_start()
+            await coord.async_initial_connect()
 
         # Mark as connected
         from dataclasses import replace as _dc_replace
@@ -279,7 +279,7 @@ class TestFullLifecycle:
         remove_listener = coord.add_listener(test_listener)
 
         # Start coordinator
-        await coord.async_start()
+        await coord.async_initial_connect()
 
         # Verify listener works
         coord._notify_listeners()
@@ -346,7 +346,10 @@ class TestRuntimeDataIntegrity:
 
     @pytest.mark.asyncio
     async def test_runtime_data_set_before_coordinator_start(self) -> None:
-        """Runtime data must be set BEFORE coordinator.async_start to avoid race conditions."""
+        """Runtime data must be set BEFORE coordinator.async_initial_connect.
+
+        Avoids race conditions when callbacks fire during initial connect.
+        """
         from custom_components.tuya_ble_mesh import async_setup_entry
         from custom_components.tuya_ble_mesh.const import (
             CONF_MAC_ADDRESS,

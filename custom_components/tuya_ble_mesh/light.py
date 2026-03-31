@@ -401,9 +401,7 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
             self._transition_task = asyncio.create_task(
                 self._run_transition(target_bright, target_temp, transition, target_rgb=rgb_color)
             )
-            self._transition_task.add_done_callback(
-                _log_task_exc
-            )
+            self._transition_task.add_done_callback(_log_task_exc)
             return
 
         # Debounce: schedule command after short window so rapid slider
@@ -496,9 +494,7 @@ class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):
                     power_off_after=True,
                 )
             )
-            self._transition_task.add_done_callback(
-                _log_task_exc
-            )
+            self._transition_task.add_done_callback(_log_task_exc)
             return
 
         await self.coordinator.device.send_power(False)

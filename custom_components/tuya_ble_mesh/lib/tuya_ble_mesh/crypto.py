@@ -218,7 +218,7 @@ def crypt_payload(key: bytes, nonce: bytes, payload: bytes) -> bytes:
         raise CryptoError(msg)
     # Defense-in-depth: assert preserves the invariant if the check+raise above is
     # ever refactored away.  Counter byte[0] wraps at 256 → keystream reuse at block 257.
-    assert blocks_needed <= _MAX_CTR_BLOCKS, "CTR counter would wrap — keystream reuse"
+    assert blocks_needed <= _MAX_CTR_BLOCKS, "CTR counter would wrap — keystream reuse"  # nosec B101
 
     base = bytearray(b"\x00" + nonce)
     base = bytearray(_pad_to_block(bytes(base)))

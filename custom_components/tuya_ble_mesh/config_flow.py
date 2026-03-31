@@ -96,16 +96,18 @@ _LOGGER = logging.getLogger(__name__)
 # Allowlist of ValueError message strings that are valid HA translation keys.
 # validate_and_connect raises ValueError("<key>") — any unrecognised key would
 # expose raw exception text in the UI (CR-019).  Add new keys here as needed.
-_KNOWN_BLE_ERROR_KEYS: frozenset[str] = frozenset({
-    "device_not_found",
-    "ble_adapter_busy",
-    "cannot_connect_ble",
-    "unknown_device_type",
-    "device_type_mismatch",
-    "timeout_validation",
-    "pairing_failed",
-    "verify_failed",
-})
+_KNOWN_BLE_ERROR_KEYS: frozenset[str] = frozenset(
+    {
+        "device_not_found",
+        "ble_adapter_busy",
+        "cannot_connect_ble",
+        "unknown_device_type",
+        "device_type_mismatch",
+        "timeout_validation",
+        "pairing_failed",
+        "verify_failed",
+    }
+)
 
 
 class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
@@ -347,4 +349,3 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             description_placeholders={},
             errors=errors,
         )
-

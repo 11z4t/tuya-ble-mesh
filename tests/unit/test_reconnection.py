@@ -108,11 +108,11 @@ class TestReconnectionBackoff:
         device = make_bridge_device()
         coord = TuyaBLEMeshCoordinator(device)
 
-        # Bridge-specific backoff is set in async_start (on disconnect callback)
+        # Bridge-specific backoff is set in async_initial_connect (on disconnect callback)
         # Verify that the constant is defined and shorter
         assert _BRIDGE_INITIAL_BACKOFF < _INITIAL_BACKOFF
 
-        # Simulate setting bridge backoff (happens in async_start)
+        # Simulate setting bridge backoff (happens in async_initial_connect)
         if coord.is_bridge_device():
             coord._backoff = _BRIDGE_INITIAL_BACKOFF
 

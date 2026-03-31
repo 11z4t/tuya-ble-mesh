@@ -18,14 +18,12 @@ class MeshConnectionError(TuyaBLEMeshError):
     """Failed to establish or maintain a BLE connection."""
 
 
-
 class DeviceNotFoundError(TuyaBLEMeshError):
     """Target BLE device was not discovered during scanning."""
 
 
 class MeshTimeoutError(TuyaBLEMeshError):
     """BLE operation exceeded the allowed time limit."""
-
 
 
 class ProvisioningError(TuyaBLEMeshError):

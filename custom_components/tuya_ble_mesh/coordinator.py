@@ -11,7 +11,6 @@ import asyncio
 import contextlib
 import logging
 import time
-import warnings
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass, field, replace
 from enum import StrEnum
@@ -959,57 +958,6 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):  # type: ignore[misc]
                 self._staleness_watchdog_loop(), "staleness_watchdog"
             )
 
-        self._dispatch_update()
-
-    async def async_start(self) -> None:
-        """Start coordinator (legacy method for backward compatibility).
-
-        DEPRECATED: Use async_initial_connect() for initial setup.
-        This method swallows exceptions, preventing HA Core from
-        seeing connection failures.
-        """
-        warnings.warn(
-            "async_start() is deprecated; use async_initial_connect() instead. "
-            "Removal target: next major version.",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        self._conn_mgr.running = True
-        await self._load_seq()
-        if self.capabilities.has_onoff_callback:
-            self._device.register_onoff_callback(self._on_onoff_update)
-        if self.capabilities.has_vendor_callback:
-            self._device.register_vendor_callback(self._on_vendor_update)
-        if self.capabilities.has_composition_callback:
-            self._device.register_composition_callback(self._on_composition_update)
-        if self.capabilities.has_status_callback:
-            self._device.register_status_callback(self._on_status_update)
-        self._device.register_disconnect_callback(self._on_disconnect)
-        try:
-            response_time = await self._conn_mgr.async_connect()
-            self._state = replace(
-                self._state,
-                available=True,
-                firmware_version=self._device.firmware_version,
-                last_seen=time.time(),
-            )
-            _LOGGER.info("Coordinator started for %s (%.2fs)", self._device.address, response_time)
-
-            # Start staleness watchdog (PLAT-746, PLAT-747)
-            if self._staleness_task is None or self._staleness_task.done():
-                self._staleness_task = self._create_background_task(
-                    self._staleness_watchdog_loop(), "staleness_watchdog"
-                )
-
-        except Exception as err:
-            self._conn_mgr.record_connection_error(err)
-            _LOGGER.warning(
-                "Initial connection failed for %s, scheduling reconnect",
-                self._device.address,
-                exc_info=True,
-            )
-            self._state = replace(self._state, available=False)
-            self._conn_mgr.schedule_reconnect()
         self._dispatch_update()
 
     async def async_stop(self) -> None:
