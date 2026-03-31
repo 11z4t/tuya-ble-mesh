@@ -9,6 +9,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [0.38.0] — 2026-03-31
+
+### Removed
+- **`async_start()` deprecated method** (`coordinator.py`) — was swallowing connection
+  exceptions, hiding failures from HA Core. Use `async_initial_connect()` which propagates
+  exceptions so HA shows "Retrying setup" and handles backoff correctly.
+
+### Fixed
+- **CI pipeline** (`scripts/run-checks.sh`) — corrected tool paths (`ruff`/`bandit` in
+  `~/.local/bin`), `detect-secrets` skips gracefully if not installed, `pip-audit` now
+  scans only production requirements from `manifest.json` (not the test venv)
+- **Crypto safety assert** (`crypto.py`) — added `# nosec B101` for intentional CTR-block
+  guard that must survive optimised builds
+
+---
+
 ## [0.37.0] — 2026-03-27
 
 ### Added
