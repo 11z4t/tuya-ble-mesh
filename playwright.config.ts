@@ -14,8 +14,8 @@ export default defineConfig({
   // Auth setup: injects HA_TOKEN into browser localStorage before any test runs
   globalSetup: './tests/e2e/auth.setup.ts',
 
-  // Timeout for each test
-  timeout: 60 * 1000,
+  // Timeout for each test — generous to allow for HA's slow config page routing
+  timeout: 90 * 1000,
 
   // Test execution settings
   fullyParallel: false, // Run tests sequentially to avoid HA state conflicts

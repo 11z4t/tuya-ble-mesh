@@ -158,21 +158,21 @@ test.describe('Browser Compatibility', () => {
   });
 
   test('touch interactions work on mobile', async ({ page, browserName, isMobile }) => {
-    if (!isMobile) {
-      test.skip();
-      return;
-    }
-
     await page.goto('/config/integrations');
     await waitForConfigPage(page, 'ha-config-integrations');
 
     const searchBox = page.locator('input[placeholder*="Search"]').first();
 
     if (await searchBox.count() > 0) {
-      await searchBox.tap();
+      // tap() works on both mobile and desktop in Playwright; click() as fallback for desktop
+      if (isMobile) {
+        await searchBox.tap();
+      } else {
+        await searchBox.click();
+      }
       await expect(searchBox).toBeFocused();
     }
 
-    console.log(`✓ Touch interactions work on ${browserName}`);
+    console.log(`✓ Touch/click interactions work on ${browserName}`);
   });
 });

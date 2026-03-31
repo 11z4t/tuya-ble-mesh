@@ -10,6 +10,10 @@ import { test, expect } from '@playwright/test';
  *
  * NOTE: Tests that require specific Tuya BLE Mesh devices configured in HA
  * will skip the screenshot if no devices are found (graceful degradation).
+ *
+ * Screenshot options used throughout:
+ *   timeout: 15000  — extra time for HA animations to stabilize
+ *   threshold: 0.3  — tolerates minor rendering differences
  */
 
 /** Wait for a HA config page element to become visible. Visual regression tests get longer timeout. */
@@ -17,6 +21,9 @@ async function waitForConfigPage(page: import('@playwright/test').Page, selector
   await page.waitForLoadState('domcontentloaded');
   await page.waitForSelector(selector, { state: 'visible', timeout: 45000 });
 }
+
+/** Standard screenshot options — enough time for HA animations to settle. */
+const SCREENSHOT_OPTS = { threshold: 0.3, timeout: 15000 } as const;
 
 test.describe('Visual Regression Tests', () => {
   test.beforeEach(async ({ page }) => {
@@ -43,9 +50,11 @@ test.describe('Visual Regression Tests', () => {
       await page.waitForTimeout(500);
     }
 
+    // Let page settle before screenshot
+    await page.waitForTimeout(2000);
     await expect(page).toHaveScreenshot('integrations-page.png', {
       maxDiffPixels: 500,
-      threshold: 0.3,
+      ...SCREENSHOT_OPTS,
     });
   });
 
@@ -65,8 +74,7 @@ test.describe('Visual Regression Tests', () => {
       await page.waitForTimeout(3000);
       await expect(entityTable).toHaveScreenshot('entity-list.png', {
         maxDiffPixels: 300,
-        threshold: 0.3,
-        timeout: 15000,
+        ...SCREENSHOT_OPTS,
       });
     } else {
       expect(true).toBeTruthy();
@@ -84,9 +92,10 @@ test.describe('Visual Regression Tests', () => {
 
       const deviceCard = page.locator('.device-card, ha-card').first();
       if (await deviceCard.count() > 0) {
+        await page.waitForTimeout(1000);
         await expect(deviceCard).toHaveScreenshot('device-card.png', {
           maxDiffPixels: 200,
-          threshold: 0.3,
+          ...SCREENSHOT_OPTS,
         });
         return;
       }
@@ -110,9 +119,10 @@ test.describe('Visual Regression Tests', () => {
       const dialog = page.locator('ha-more-info-dialog');
       if (await dialog.count() > 0) {
         await expect(dialog).toBeVisible({ timeout: 5000 });
+        await page.waitForTimeout(1000);
         await expect(dialog).toHaveScreenshot('light-more-info-dialog.png', {
           maxDiffPixels: 300,
-          threshold: 0.3,
+          ...SCREENSHOT_OPTS,
         });
 
         const closeButton = dialog.locator('button[aria-label*="close"]').first();
@@ -134,9 +144,10 @@ test.describe('Visual Regression Tests', () => {
     }).first();
 
     if (await sensorCard.count() > 0) {
+      await page.waitForTimeout(1000);
       await expect(sensorCard).toHaveScreenshot('sensor-card.png', {
         maxDiffPixels: 100,
-        threshold: 0.3,
+        ...SCREENSHOT_OPTS,
       });
     } else {
       expect(true).toBeTruthy();
@@ -159,9 +170,10 @@ test.describe('Visual Regression Tests', () => {
 
         const devicePage = page.locator('ha-config-device-page, ha-device-page');
         if (await devicePage.count() > 0) {
+          await page.waitForTimeout(1000);
           await expect(devicePage).toHaveScreenshot('device-detail-page.png', {
             maxDiffPixels: 300,
-            threshold: 0.3,
+            ...SCREENSHOT_OPTS,
           });
           return;
         }
@@ -179,9 +191,8 @@ test.describe('Visual Regression Tests', () => {
 
     await expect(page).toHaveScreenshot('overview-full-page.png', {
       fullPage: true,
-      maxDiffPixels: 1000,
-      threshold: 0.3,
-      timeout: 15000,
+      maxDiffPixelRatio: 0.1, // 10% — HA dashboard has dynamic sensor values
+      ...SCREENSHOT_OPTS,
     });
   });
 });

@@ -29,10 +29,18 @@ async function globalSetup(_config: FullConfig): Promise<void> {
   const page = await context.newPage();
 
   try {
-    // Navigate to HA and wait for it to settle (including auth redirect).
+    // Navigate to HA — retry on ERR_CONNECTION_REFUSED (HA briefly unavailable after restarts)
     // HA maintains WebSocket connections so 'networkidle' never fires — use 'load'.
-    // After load, HA's SPA will redirect to /auth/authorize if not logged in.
-    await page.goto(haBaseUrl, { waitUntil: 'load', timeout: 20000 });
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        await page.goto(haBaseUrl, { waitUntil: 'load', timeout: 20000 });
+        break;
+      } catch (err) {
+        if (attempt === 3) throw err;
+        console.log(`[auth.setup] HA unavailable (attempt ${attempt + 1}/4), retrying in 5s...`);
+        await page.waitForTimeout(5000);
+      }
+    }
     await page.waitForTimeout(2000); // Give HA time to run its client-side routing
 
     // Inject the long-lived token as hassTokens in localStorage.

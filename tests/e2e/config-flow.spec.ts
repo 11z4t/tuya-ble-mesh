@@ -18,11 +18,10 @@ async function waitForIntegrationsPage(page: import('@playwright/test').Page): P
 
 test.describe('Tuya BLE Mesh Config Flow', () => {
   test.beforeEach(async ({ page }) => {
-    // HA can briefly refuse connections — retry with backoff
+    // Quick HA ping — retry on ERR_CONNECTION_REFUSED without waiting for full load
     for (let attempt = 0; attempt < 3; attempt++) {
       try {
-        await page.goto('/');
-        await page.waitForSelector('home-assistant', { timeout: 30000 });
+        await page.goto('/', { waitUntil: 'domcontentloaded', timeout: 10000 });
         return;
       } catch (err) {
         if (attempt === 2) throw err;
