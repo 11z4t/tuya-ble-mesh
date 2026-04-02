@@ -536,3 +536,144 @@ class TestSendTelinkCmdOnce:
             pytest.raises(SIGMeshError, match="test error"),
         ):
             await dev._send_telink_cmd_once("power")
+
+
+# ── Additional SIGMeshBridgeDevice.send_power paths ───────────────────────────
+
+
+class TestSendPowerFinalRetryRaises:
+    """Line 301: SIGMeshError on last attempt → raises immediately."""
+
+    @pytest.mark.asyncio
+    async def test_sigmesherror_on_last_attempt_raises(self) -> None:
+        dev = _make_sig()
+        dev._connected = True
+
+        with (
+            patch.object(
+                dev,
+                "_send_and_wait",
+                new_callable=AsyncMock,
+                side_effect=SIGMeshError("always fail"),
+            ),
+            pytest.raises(SIGMeshError, match="always fail"),
+        ):
+            await dev.send_power(True, max_retries=1)
+
+    @pytest.mark.asyncio
+    async def test_onoff_callback_generic_exception_swallowed(self) -> None:
+        """Lines 321-322: generic Exception in onoff callback is swallowed."""
+        dev = _make_sig()
+        dev._connected = True
+
+        def raise_error(on: bool) -> None:
+            raise RuntimeError("callback boom")
+
+        dev.register_onoff_callback(raise_error)
+
+        with patch.object(
+            dev,
+            "_send_and_wait",
+            new_callable=AsyncMock,
+            return_value={"success": True, "status": "ON"},
+        ):
+            # Must not raise
+            await dev.send_power(True)
+
+
+class TestSendAndWaitPollNetworkError:
+    """Lines 369-375: aiohttp error during polling → continue, eventually timeout."""
+
+    @pytest.mark.asyncio
+    async def test_poll_client_error_continues_loop(self) -> None:
+        """Lines 369-375: ClientError during poll is logged and loop continues."""
+        import aiohttp
+
+        dev = _make_sig()
+
+        with (
+            patch.object(dev, "_http_post", new_callable=AsyncMock, return_value={}),
+            patch.object(
+                dev,
+                "_http_get",
+                new_callable=AsyncMock,
+                side_effect=aiohttp.ClientConnectionError("timeout"),
+            ),
+            patch("tuya_ble_mesh.sig_mesh_bridge._MAX_POLL_ATTEMPTS", 2),
+            patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
+        ):
+            result = await dev._send_and_wait("on")
+
+        # Timed out after ClientErrors
+        assert result["success"] is False
+
+    @pytest.mark.asyncio
+    async def test_disconnect_callback_generic_exception_swallowed(self) -> None:
+        """Lines 383-384: generic Exception in disconnect callback is swallowed."""
+        dev = _make_sig()
+        dev._connected = True
+
+        def raise_error() -> None:
+            raise RuntimeError("callback boom")
+
+        dev.register_disconnect_callback(raise_error)
+
+        with (
+            patch.object(dev, "_http_post", new_callable=AsyncMock, return_value={}),
+            patch.object(
+                dev,
+                "_http_get",
+                new_callable=AsyncMock,
+                return_value={"action": "on"},  # No timestamp → never matches
+            ),
+            patch("tuya_ble_mesh.sig_mesh_bridge._MAX_POLL_ATTEMPTS", 1),
+            patch("tuya_ble_mesh.sig_mesh_bridge._POLL_INTERVAL", 0),
+        ):
+            # RuntimeError in callback must not propagate
+            result = await dev._send_and_wait("on")
+
+        assert result["success"] is False
+
+
+# ── TelinkBridgeDevice callback exception swallowing ──────────────────────────
+
+
+class TestFireDisconnectExceptionSwallowed:
+    """Lines 564-565: generic Exception in disconnect callback is swallowed."""
+
+    def test_generic_exception_swallowed(self) -> None:
+        dev = _make_telink()
+
+        def raise_error() -> None:
+            raise RuntimeError("boom")
+
+        dev.register_disconnect_callback(raise_error)
+        # Must not raise
+        dev._fire_disconnect()
+
+
+class TestFireStatusExceptionSwallowed:
+    """Lines 586-587: generic Exception in status callback is swallowed."""
+
+    def test_generic_exception_swallowed(self) -> None:
+        dev = _make_telink()
+
+        def raise_error(status: object) -> None:
+            raise RuntimeError("boom")
+
+        dev.register_status_callback(raise_error)
+        # Must not raise
+        dev._fire_status()
+
+
+class TestSendTelinkCmdSafetyNet:
+    """Lines 725-726: safety net raise when loop exits with no retry attempts."""
+
+    @pytest.mark.asyncio
+    async def test_zero_max_retries_hits_safety_net(self) -> None:
+        """Lines 725-726: max_retries=0 → loop body never executes → safety net."""
+        dev = _make_telink()
+        dev._connected = True
+
+        with pytest.raises(SIGMeshError, match="failed after 0 attempts"):
+            await dev._send_telink_cmd("power", max_retries=0)
