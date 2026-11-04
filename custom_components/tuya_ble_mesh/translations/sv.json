@@ -113,7 +113,8 @@
       "reconfigure_successful": "Inställningarna har uppdaterats. Enheten har startats om med nya inställningar.",
       "entry_not_found": "Konfigurationen hittades inte. Starta om Home Assistant och försök igen.",
       "network_already_exists": "Ett SIG Mesh-nätverk finns redan. Endast ett stöds.",
-      "added_to_network": "Tillagd i ditt SIG Mesh-nätverk. Den visas under integrationsposten SIG Mesh Network."
+      "added_to_network": "Tillagd i ditt SIG Mesh-nätverk. Den visas under integrationsposten SIG Mesh Network.",
+      "not_supported": "Denna Bluetooth Mesh-enhet är inte en Tuya-enhet."
     }
   },
   "options": {

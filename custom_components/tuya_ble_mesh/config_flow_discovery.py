@@ -58,6 +58,31 @@ def sig_device_type_from_advertisement(discovery_info: Any) -> str:
     return DEVICE_TYPE_SIG_PLUG
 
 
+def is_tuya_device_uuid(discovery_info: Any) -> bool:
+    """Return True if the 0x1827 Device UUID has Tuya's layout.
+
+    Tuya SIG Mesh devices start their Device UUID with their own MAC address
+    (docs/DOMAIN.md "Device UUID Structure"). The manifest matches any
+    unprovisioned SIG Mesh device, so this keeps other vendors' devices from
+    being offered.
+
+    Args:
+        discovery_info: Bluetooth service info.
+
+    Returns:
+        True when the first six UUID bytes equal the advertised MAC.
+    """
+    service_data = getattr(discovery_info, "service_data", None) or {}
+    uuid_data = service_data.get(SIG_MESH_PROV_UUID) if isinstance(service_data, dict) else None
+    if not isinstance(uuid_data, bytes | bytearray) or len(uuid_data) < 6:
+        return False
+    try:
+        mac = bytes.fromhex(str(discovery_info.address).replace(":", ""))
+    except (AttributeError, ValueError):
+        return False
+    return len(mac) == 6 and bytes(uuid_data[:6]) == mac
+
+
 async def async_step_bluetooth(
     flow: Any,
     discovery_info: BluetoothServiceInfoBleak,
@@ -135,6 +160,12 @@ async def async_step_bluetooth(
                 service_uuids,
             )
             return flow.async_abort(reason="not_in_pairing_mode")
+        if has_prov and not has_proxy and not is_tuya_device_uuid(discovery_info):
+            # Unprovisioned SIG Mesh device of another vendor
+            _LOGGER.debug(
+                "Ignoring discovery for %s (not a Tuya Device UUID: name=%s)", address, name
+            )
+            return flow.async_abort(reason="not_supported")
 
     # A node already on the shared network can briefly look unprovisioned
     # (cached advert right after a migration/reset): don't offer it while it

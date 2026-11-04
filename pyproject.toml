@@ -15,7 +15,7 @@ test = [
     "pytest-asyncio>=0.23",
     "pytest-cov>=4.0",
     "pytest-benchmark>=4.0",
-    "homeassistant>=2024.1.0",
+    "homeassistant>=2025.3.0",
     "pyserial>=3.5",
 ]
 

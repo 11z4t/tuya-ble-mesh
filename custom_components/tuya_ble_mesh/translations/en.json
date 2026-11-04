@@ -113,7 +113,8 @@
       "not_in_pairing_mode": "Device is not in pairing mode. Factory-reset it and try again.",
       "entry_not_found": "Setup entry not found. Restart Home Assistant and try again.",
       "network_already_exists": "A SIG Mesh network already exists. Only one is supported.",
-      "added_to_network": "Added to your SIG Mesh network. It appears under the SIG Mesh Network integration entry."
+      "added_to_network": "Added to your SIG Mesh network. It appears under the SIG Mesh Network integration entry.",
+      "not_supported": "This Bluetooth Mesh device is not a Tuya device."
     }
   },
   "options": {

@@ -26,6 +26,7 @@ from tuya_ble_mesh.sig_mesh_light import SIGLightState, SIGMeshLight  # noqa: E4
 
 from custom_components.tuya_ble_mesh.config_flow import TuyaBLEMeshConfigFlow  # noqa: E402
 from custom_components.tuya_ble_mesh.config_flow_discovery import (  # noqa: E402
+    is_tuya_device_uuid,
     sig_device_type_from_advertisement,
 )
 from custom_components.tuya_ble_mesh.config_flow_sig import ProvisionedNode  # noqa: E402
@@ -83,6 +84,26 @@ class TestDiscoveryClassification:
     def test_missing_data_defaults_to_plug(self, service_data: Any) -> None:
         info = MagicMock(service_data=service_data)
         assert sig_device_type_from_advertisement(info) == DEVICE_TYPE_SIG_PLUG
+
+    def test_tuya_uuid_starts_with_mac(self) -> None:
+        info = MagicMock(
+            address="DC:23:53:DA:B3:D4", service_data={SIG_MESH_PROV_UUID: _VOLT_G4_SERVICE_DATA}
+        )
+        assert is_tuya_device_uuid(info)
+
+    @pytest.mark.parametrize(
+        ("address", "service_data"),
+        [
+            ("AA:BB:CC:DD:EE:FF", {SIG_MESH_PROV_UUID: _VOLT_G4_SERVICE_DATA}),
+            ("DC:23:53:DA:B3:D4", {SIG_MESH_PROV_UUID: b"\xdc\x23"}),
+            ("DC:23:53:DA:B3:D4", {}),
+            ("DC:23:53:DA:B3:D4", None),
+            ("not-a-mac", {SIG_MESH_PROV_UUID: _VOLT_G4_SERVICE_DATA}),
+        ],
+    )
+    def test_other_vendor_uuid_rejected(self, address: str, service_data: Any) -> None:
+        info = MagicMock(address=address, service_data=service_data)
+        assert not is_tuya_device_uuid(info)
 
 
 # ============================================================

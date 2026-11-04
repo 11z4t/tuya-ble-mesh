@@ -132,7 +132,8 @@
       "entry_not_found": "Integration entry not found.",
       "not_in_pairing_mode": "Device is not in pairing mode. Reset the device to pairing mode and try again.",
       "network_already_exists": "A SIG Mesh network already exists. Only one is supported.",
-      "added_to_network": "Added to your SIG Mesh network. It appears under the SIG Mesh Network integration entry."
+      "added_to_network": "Added to your SIG Mesh network. It appears under the SIG Mesh Network integration entry.",
+      "not_supported": "This Bluetooth Mesh device is not a Tuya device."
     }
   },
   "options": {

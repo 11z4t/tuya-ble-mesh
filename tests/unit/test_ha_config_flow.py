@@ -515,6 +515,24 @@ class TestAutoDiscovery:
         assert result["reason"] == "not_in_pairing_mode"
 
     @pytest.mark.asyncio
+    async def test_discovery_other_vendor_provisioning_aborts(self) -> None:
+        """Unprovisioned SIG Mesh device whose Device UUID isn't Tuya's → abort."""
+        flow = _make_flow()
+        flow.async_set_unique_id = AsyncMock()
+        flow._abort_if_unique_id_configured = lambda: None
+
+        service_info = MagicMock(spec=BluetoothServiceInfoBleak)
+        service_info.address = "AA:BB:CC:DD:EE:FF"
+        service_info.name = "Other Mesh Bulb"
+        service_info.service_uuids = [SIG_MESH_PROV_UUID]
+        service_info.service_data = {SIG_MESH_PROV_UUID: bytes(16)}
+
+        result = await flow.async_step_bluetooth(service_info)
+
+        assert result["type"] == "abort"
+        assert result["reason"] == "not_supported"
+
+    @pytest.mark.asyncio
     async def test_discovery_without_proxy_uuid_routes_to_confirm(self) -> None:
         """Device with out_of_mesh name and no UUID should route to confirm step."""
         flow = _make_flow()
