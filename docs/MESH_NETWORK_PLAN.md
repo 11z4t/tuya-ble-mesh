@@ -1,6 +1,8 @@
 # Plan: Shared SIG Mesh Network
 
 Status: **proposed** (2026-11-04). Nothing here is implemented yet.
+Decided: D1 = config subentries, D2 = Node Reset + reprovision, D7 = keys in
+HA `entry.data`, D8 = n/a (no other SIG devices in this install).
 
 ## Why
 
@@ -44,27 +46,49 @@ device addressed by unicast through it.
 
 ## 1. Data model
 
-**Recommended (D1 = A): a "SIG Mesh Network" config entry; device entries
-reference it.** Device entries stay one-per-MAC, so discovery, unique IDs and
-entities barely change, with no HA version bump. (Alternative B: config
-subentries — cleaner, but needs HA ≥ 2025.3 and registry moves.)
+**Decided (D1): one "SIG Mesh Network" config entry; each node is a config
+subentry (`subentry_type="node"`) of it.** Subentries have been stable since
+HA 2025.3/2025.4 (devices and entities attach via `config_subentry_id`);
+production runs 2026.10.4. Bump `hacs.json` minimum to 2025.6.
+
+Why subentries beat separate network + device entries:
+
+- The nodes really do share one lifecycle — one link, one key set, one SEQ
+  counter, one address space. One entry = one setup/unload; no cross-entry
+  ordering (`ConfigEntryNotReady` until the network loads) and no dangling
+  `network_id` references.
+- Allocation and SEQ reservation happen inside one entry, so there is no race
+  between entries setting up in parallel.
+- Native UI: "Add node" button on the network entry, nodes listed under it,
+  per-node delete → `async_remove_subentry` hook sends Config Node Reset.
+- Cost: subentry flows can only start from `user`/`reconfigure`, not
+  Bluetooth discovery. Bridge it: the discovery config flow confirms,
+  provisions, calls `hass.config_entries.async_add_subentry(network_entry,
+  …)`, then aborts with `added_to_network`. Reloading the network reloads all
+  nodes — acceptable, they share one link anyway.
 
 - **Network entry** (`entry_kind="sig_network"`, unique_id=`network_uuid`):
-  `name`, `net_key`(+index 0), `app_key`(+index 0), `provisioner_addr`=0x0001;
-  options `max_proxy_links`, `preferred_proxies`, `excluded_proxies`.
+  `name`, `net_key`(+index 0), `app_key`(+index 0), `provisioner_addr`=0x0001
+  — keys in `entry.data`, like today (D7); redacted in diagnostics, never
+  logged. Options `max_proxy_links`, `preferred_proxies`, `excluded_proxies`.
 - **Network runtime store** `Store("tuya_ble_mesh.network.<uuid>")` — changes
   often, so not in `entry.data` (updating that reloads the entry):
   `seq_reserved`, `iv_index`, `iv_update_active`, `reserved_ranges`,
   `last_proxy_mac`.
-- **Device entry** gains `network_id`, `element_count`, `features`,
-  `config_state` (`complete|pending`); keeps `dev_key`, `unicast_target`,
-  `model_elements`; drops `net_key`, `app_key`, `iv_index`, `unicast_our`,
-  `seq_start`.
-- **Address source of truth** = device entries' (`unicast_target`,
+- **Node subentry** (unique_id = MAC): `mac_address`, `dev_key`,
+  `unicast_target`, `element_count`, `features`, `model_elements`,
+  `config_state` (`complete|pending`).
+- **Address source of truth** = node subentries' (`unicast_target`,
   `element_count`) + `reserved_ranges`; the allocator derives free space each
   time, so nothing can drift.
-- **Legacy entries** (`net_key`, no `network_id`) keep working in direct mode
-  until migrated; `device_factory.create_device` branches on `network_id`.
+- **Legacy entries** (top-level entries with `net_key`) keep working in direct
+  mode until migrated; `__init__.py` branches on `entry_kind`.
+- Entity unique IDs stay MAC-based. Because unique IDs are per integration,
+  migration must **re-point** the existing device and entities to the new
+  subentry (`device_registry.async_update_device(add_config_entry_id=,
+  add_config_subentry_id=)`, `entity_registry.async_update_entity(
+  config_entry_id=, config_subentry_id=)`) before removing the legacy entry —
+  never recreate them.
 
 ## 2. Library (`lib/tuya_ble_mesh/`, no HA imports)
 
@@ -111,17 +135,18 @@ subentries — cleaner, but needs HA ≥ 2025.3 and registry moves.)
 
 ## 3. Home Assistant side
 
-- New `mesh_network.py` `MeshNetworkManager` (network entry runtime data, also
-  in `hass.data[DOMAIN]["networks"]`): store + shared SEQ reservation (move
+- New `mesh_network.py` `MeshNetworkManager` (network entry `runtime_data`): store + shared SEQ reservation (move
   `_ReservingSeqStore` out of `coordinator.py`); proxy candidates from HA
   bluetooth (0x1828 adverts matched to our Network ID = k3(NetKey)); single
   connect/failover loop (on drop, penalise and try the next candidate
   immediately; back off only after the whole list fails); repair issue when no
   proxy reachable.
-- `__init__.py`: branch on `entry_kind`. Device entries with `network_id` raise
-  `ConfigEntryNotReady` until the network is loaded; otherwise set up even if
-  the link is down. Advert callbacks for network nodes move to the manager (no
-  per-entry reconnects).
+- `__init__.py`: branch on `entry_kind`. The network entry builds one
+  coordinator per node subentry and forwards platforms once; platforms call
+  `async_add_entities(..., config_subentry_id=sub_id)` per node. Set up even
+  if the link is down. Advert callbacks for network nodes go to the manager (no
+  per-node reconnects). Subentry added/removed → entry update listener
+  reloads.
 - `coordinator.py` / `connection_manager.py`: an externally-managed mode — no
   own reconnect, advert RSSI instead of GATT RSSI, no per-entry SEQ, liveness =
   network up + recent message from this node's src.
@@ -144,7 +169,8 @@ targeting 0x0001.
 
 ## 5. Provisioning changes (`config_flow_sig.py` `run_provision`)
 
-1. Ensure a network exists (auto-create a default one via an import flow).
+1. Ensure a network entry exists (auto-create a default one on first
+   provision).
 2. Use the network's keys (not `os.urandom`) and its allocator.
 3. PB-GATT still needs one direct connection to the new device; optionally
    suspend the network link during it so only one slot is used.
@@ -154,8 +180,8 @@ targeting 0x0001.
 5. After PB-GATT succeeds we own the node, so a config failure is recoverable:
    create the entry as `config_state=pending` with a repair flow that re-runs
    configuration — no factory reset.
-6. Entry removal: Config Node Reset through the network, quarantine the
-   address range until confirmed.
+6. Node subentry removal: Config Node Reset through the network, quarantine
+   the address range until confirmed.
 7. *(Optional, Phase 7)* PB-ADV via a proxy node needs the Remote Provisioning
    Server model (0x0004). The bulbs' element 0 models seen tonight are
    `0x0000, 0x0002, 0x0003, 0x1000, 0x1001, 0x1300–0x130B` — **no 0x0004**, so
@@ -173,9 +199,15 @@ Both bulbs are 0x00B0 on separate networks. Options:
 | **Config Node Reset (sent with old keys) → reprovision** | **Recommended.** No physical reset/power cycling; one code path for all nodes. Loses Tuya-app scenes; new dev key + address. HA identity is MAC-based, so entities survive. |
 
 Flow: repair issue `legacy_sig_network` per legacy entry → confirm → ensure
-network → unload entry (frees its slot) → connect directly with legacy keys →
-Node Reset → wait for 0x1827 advert → provision into network → update entry
-(drop keys, add `network_id`, bump `minor_version`) → reload. One node at a time.
+network entry → unload legacy entry (frees its slot) → connect directly with
+legacy keys → Config Node Reset → wait for 0x1827 (unprovisioned) advert →
+provision into network → configure → add node subentry → re-point device and
+entities to it → remove legacy entry → reload network. One node at a time,
+~1 min each; entity IDs, names, areas and automations are kept.
+
+Fallback if a bulb ignores Node Reset: physical factory reset (Tuya bulbs:
+power-cycle off/on ~3× until fast blinking), then the same flow continues from
+"wait for 0x1827 advert".
 
 ## 7. SEQ and IV index
 
@@ -191,7 +223,7 @@ Node Reset → wait for 0x1827 advert → provision into network → update entr
 ## 8. Phases (each shippable)
 
 - **Phase 0 — hardware spikes (gate everything):** (a) dump composition +
-  features from both bulbs and the plug; (b) Node Reset + reprovision one bulb
+  features from both bulbs; (b) Node Reset + reprovision one bulb
   at a new address; (c) two nodes on one network — connect to A, control and
   read B, confirm relayed status arrives; is relay on by default?; (d) proxy
   filter behaviour on Tuya firmware; (e) does a non-proxy bulb still need
@@ -199,8 +231,9 @@ Node Reset → wait for 0x1827 advert → provision into network → update entr
 - **Phase 1:** lib generalisation (§2 Phase 1). No user-visible change.
 - **Phase 2:** `MeshNetwork`, `GattProxyLink`, node views, selector, allocator,
   provisioner allocator callback.
-- **Phase 3:** network entry, `MeshNetworkManager`, factory branching,
-  coordinator external mode, network entities, diagnostics, repairs.
+- **Phase 3:** network entry + node subentries, discovery → subentry bridge,
+  `MeshNetworkManager`, coordinator external mode, network entities,
+  diagnostics, repairs.
 - **Phase 4:** provisioning into the shared network (§5).
 - **Phase 5:** legacy migration repair flow (§6).
 - **Phase 6:** hardening — IV Update, SEQ-rewind detection, optional hot-standby
@@ -218,8 +251,8 @@ Node Reset → wait for 0x1827 advert → provision into network → update entr
   crypto, injecting relayed duplicates and link drops → end-to-end: two lights
   over one link, failover, status to the right coordinator, legacy + networked
   coexistence.
-- HA tests: network entry lifecycle, `ConfigEntryNotReady` ordering, factory
-  branching, coordinator external mode, migration and pending-config repair
+- HA tests: network entry + subentry lifecycle, discovery → subentry bridge,
+  registry re-pointing on migration, coordinator external mode, migration and pending-config repair
   flows, diagnostics redaction.
 - Hardware (`docs/MANUAL_TESTING.md`): Phase 0 spikes; failover by power-cutting
   the active proxy bulb (Shelly) and timing recovery; proxy slot use stays at 1;
@@ -239,13 +272,10 @@ Node Reset → wait for 0x1827 advert → provision into network → update entr
 
 ## 11. Decisions needed
 
-- **D1** Network entry (recommended) vs config subentries (HA ≥ 2025.3).
-- **D2** Node Reset + reprovision for all legacy nodes (recommended) vs Key
-  Refresh for one bulb.
+- ~~D1~~ Config subentries. ~~D2~~ Node Reset + reprovision.
 - **D3** Allocation start 0x0002 vs 0x0100; keep 0x00B0 reserved?
 - **D4** `max_proxy_links` default 1, or 2 (hot standby).
 - **D5** Entry removal sends Node Reset? When are quarantined addresses reused?
 - **D6** One default network now, or user-defined networks in the UX.
-- **D7** Network keys in `entry.data` or 1Password.
-- **D8** Does the Malmbergs SIG plug join the shared network?
+- ~~D7~~ `entry.data`. ~~D8~~ n/a.
 - **D9** Group addresses ("all lights") now or Phase 6.
