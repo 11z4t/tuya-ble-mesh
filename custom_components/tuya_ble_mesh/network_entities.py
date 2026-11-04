@@ -12,6 +12,7 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.components.button import ButtonEntity
 from homeassistant.components.sensor import SensorEntity
 from homeassistant.const import EntityCategory
+from homeassistant.core import callback
 from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.tuya_ble_mesh.const import DOMAIN
@@ -44,6 +45,7 @@ class _MeshNetworkEntity:
             async_dispatcher_connect(entity.hass, self._manager.signal, self._handle_update)
         )
 
+    @callback
     def _handle_update(self) -> None:
         entity: Any = self
         entity.async_write_ha_state()

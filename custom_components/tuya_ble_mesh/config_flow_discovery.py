@@ -136,6 +136,13 @@ async def async_step_bluetooth(
             )
             return flow.async_abort(reason="not_in_pairing_mode")
 
+    # A node already on the shared network can briefly look unprovisioned
+    # (cached advert right after a migration/reset): don't offer it while it
+    # is online over the mesh. A node reset by hand (offline) can be re-added.
+    if _is_online_network_node(flow.hass, address):
+        _LOGGER.debug("Ignoring discovery for %s (online node of the mesh network)", address)
+        return flow.async_abort(reason="already_configured")
+
     #  Check if device is still advertising (stale flow protection)
     # If the device is not currently available in HA's bluetooth stack, ignore the discovery.
     # This prevents stale discovery flows from persisting after a device stops advertising.
@@ -330,3 +337,21 @@ async def async_step_confirm_impl(flow: Any, user_input: dict[str, Any] | None) 
         },
         errors=errors,
     )
+
+
+def _is_online_network_node(hass: Any, address: str) -> bool:
+    """Return True if ``address`` is a node of the shared network and reachable."""
+    from custom_components.tuya_ble_mesh.entry_nodes import iter_entry_nodes
+    from custom_components.tuya_ble_mesh.mesh_network import network_entry
+
+    try:
+        entry = network_entry(hass)
+    except Exception:  # config entries unavailable (tests)
+        return False
+    if entry is None:
+        return False
+    for node in iter_entry_nodes(entry):
+        coordinator = node.runtime.coordinator
+        if coordinator.device.address.upper() == address.upper():
+            return bool(coordinator.state.available)
+    return False

@@ -330,3 +330,22 @@ class TestPendingRetryOnSetup:
             await _setup(entry, _hass([entry]))
         complete.assert_awaited_once()
         assert complete.await_args.args[2] == "sub_b"
+
+
+class TestDiscoveryOfNetworkNodes:
+    @pytest.mark.asyncio
+    async def test_online_node_not_offered_offline_node_is(
+        self, air: SimAir, entry: FakeEntry
+    ) -> None:
+        from dataclasses import replace
+
+        from custom_components.tuya_ble_mesh.config_flow_discovery import (
+            _is_online_network_node,
+        )
+
+        hass = await _ready(entry)
+        assert _is_online_network_node(hass, MAC_A.lower())
+        assert not _is_online_network_node(hass, MAC_NEW)
+        node_a = entry.runtime_data.nodes["sub_a"].coordinator
+        node_a._state = replace(node_a._state, available=False)
+        assert not _is_online_network_node(hass, MAC_A)

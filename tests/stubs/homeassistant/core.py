@@ -25,3 +25,8 @@ class State:
     def __init__(self, entity_id: str, state: str) -> None:
         self.entity_id = entity_id
         self.state = state
+
+
+def callback(func: Any) -> Any:
+    """Stub of HA's @callback decorator (marks event-loop-safe functions)."""
+    return func
