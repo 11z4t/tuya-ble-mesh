@@ -156,3 +156,27 @@ class TestTuyaVendorTimestampResponse:
         result = tuya_vendor_timestamp_response()
         ts = int.from_bytes(result[5:9], "big")
         assert abs(ts - int(time.time())) < 5  # Within 5 seconds
+
+    def test_tz_byte_uses_current_utc_offset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Offset comes from tm_gmtoff, so it is right whether or not DST is active."""
+        import time
+
+        real_localtime = time.localtime
+
+        class _FakeTm:
+            tm_gmtoff = -4 * 3600  # e.g. EDT
+
+        monkeypatch.setattr(time, "localtime", lambda *_a: _FakeTm())
+        try:
+            result = tuya_vendor_timestamp_response()
+        finally:
+            monkeypatch.setattr(time, "localtime", real_localtime)
+        assert int.from_bytes(result[9:10], "big", signed=True) == -4
+
+    def test_unknown_command_logged_with_hex(self, caplog: pytest.LogCaptureFixture) -> None:
+        import logging
+
+        with caplog.at_level(logging.INFO):
+            parse_tuya_vendor_frame(bytes([0x80, 0x05, 0x01, 0x02, 0x03, 0x04, 0x05]))
+        assert "0x80" in caplog.text
+        assert "80050102030405" in caplog.text

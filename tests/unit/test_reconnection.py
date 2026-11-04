@@ -34,6 +34,38 @@ from custom_components.tuya_ble_mesh.coordinator import (  # noqa: E402
 _PATCH_SLEEP = "custom_components.tuya_ble_mesh.coordinator.asyncio.sleep"
 
 
+class TestTimeSyncOnConnect:
+    """Tuya nodes drop the link after unanswered timestamp requests, so the
+    time is pushed as soon as a connection comes up."""
+
+    @pytest.mark.asyncio
+    async def test_time_pushed_after_reconnect(self) -> None:
+        device = make_mock_device()
+        device.send_vendor_command = AsyncMock()
+        device.refresh_state = AsyncMock()
+        coord = TuyaBLEMeshCoordinator(device)
+
+        coord._handle_reconnected(0.1)
+        for _ in range(5):
+            await asyncio.sleep(0)
+
+        device.send_vendor_command.assert_awaited_once()
+        payload = device.send_vendor_command.await_args.args[0]
+        assert payload[:3] == bytes.fromhex("cad007")
+
+    @pytest.mark.asyncio
+    async def test_no_time_push_without_vendor_model(self) -> None:
+        device = make_mock_device()
+        del device.register_vendor_callback
+        device.send_vendor_command = AsyncMock()
+        coord = TuyaBLEMeshCoordinator(device)
+
+        coord._schedule_time_sync()
+        await asyncio.sleep(0)
+
+        device.send_vendor_command.assert_not_awaited()
+
+
 def make_mock_device() -> MagicMock:
     """Create a mock MeshDevice."""
     device = MagicMock()
@@ -308,6 +340,59 @@ class TestReconnectionScheduling:
             await coord._reconnect_task
 
         assert coord._reconnect_task.cancelled()
+
+    @pytest.mark.asyncio
+    async def test_device_seen_starts_reconnect_when_idle(self) -> None:
+        coord = TuyaBLEMeshCoordinator(make_mock_device())
+        coord._running = True
+
+        coord.notify_device_seen()
+
+        task = coord._reconnect_task
+        assert task is not None and not task.done()
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
+
+    @pytest.mark.asyncio
+    async def test_device_seen_does_not_restart_running_reconnect(self) -> None:
+        """Advertisements arrive several times a second; restarting the reconnect
+        task on each one reset its timers so it never actually connected."""
+        coord = TuyaBLEMeshCoordinator(make_mock_device())
+        coord._running = True
+        coord.schedule_reconnect()
+        first = coord._reconnect_task
+
+        for _ in range(5):
+            coord.notify_device_seen()
+
+        assert coord._reconnect_task is first
+        assert first is not None and not first.cancelled()
+        first.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await first
+
+    @pytest.mark.asyncio
+    async def test_device_seen_shortens_long_backoff(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        import custom_components.tuya_ble_mesh.connection_manager as cm
+
+        monkeypatch.setattr(cm, "DEBOUNCE_DELAY", 0)
+        monkeypatch.setattr(cm, "INITIAL_BACKOFF", 0.01)
+        device = make_mock_device()
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._running = True
+        coord._conn_mgr.backoff = 300.0
+
+        coord.schedule_reconnect()
+        task = coord._reconnect_task
+        assert task is not None
+        await asyncio.sleep(0.05)  # loop is now in its 300s backoff wait
+        device.connect.assert_not_awaited()
+
+        coord.notify_device_seen()
+        await asyncio.wait_for(task, timeout=1.0)
+
+        device.connect.assert_awaited_once()
 
 
 @pytest.mark.requires_ha

@@ -652,6 +652,10 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):  # type: ignore[misc]
     def schedule_reconnect(self) -> None:
         self._conn_mgr.schedule_reconnect()
 
+    def notify_device_seen(self) -> None:
+        """Forward a device advertisement to the connection manager."""
+        self._conn_mgr.notify_device_seen()
+
     async def send_command_with_retry(
         self,
         coro_func: Callable[[], Any],
@@ -718,6 +722,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):  # type: ignore[misc]
             self._state, available=True, firmware_version=self._device.firmware_version
         )
         self.start_rssi_polling()
+        self._schedule_time_sync()
         self._schedule_sig_light_refresh()
         self._dispatch_update()
 
@@ -900,6 +905,23 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):  # type: ignore[misc]
         if changed or not was_available:
             self._dispatch_update()
 
+    def _schedule_time_sync(self) -> None:
+        """Push the current time to a Tuya SIG node right after (re)connecting.
+
+        Tuya nodes drop the proxy connection after a couple of unanswered
+        timestamp requests; sending the time up front means the node never
+        has to ask (requests are still answered in ``_on_vendor_update``).
+        """
+        if not self.capabilities.has_vendor_callback or not hasattr(
+            self._device, "send_vendor_command"
+        ):
+            return
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._create_background_task(self._send_timestamp_response(), "timestamp_sync_push")
+
     def _schedule_sig_light_refresh(self) -> None:
         """Query a SIG light's state after (re)connecting (non-blocking)."""
         refresh = getattr(self._device, "refresh_state", None)
@@ -1076,6 +1098,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):  # type: ignore[misc]
             self._device.address,
             response_time,
         )
+        self._schedule_time_sync()
         self._schedule_sig_light_refresh()
 
         # Start staleness watchdog (PLAT-746, PLAT-747)

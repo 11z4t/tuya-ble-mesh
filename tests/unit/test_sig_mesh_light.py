@@ -28,7 +28,13 @@ sys.path.insert(
     ),
 )
 
-from tuya_ble_mesh.exceptions import MalformedPacketError, ProtocolError, SIGMeshError
+from tuya_ble_mesh.exceptions import (
+    DisconnectedError,
+    MalformedPacketError,
+    MeshConnectionError,
+    ProtocolError,
+    SIGMeshError,
+)
 from tuya_ble_mesh.secrets import DictSecretsManager
 from tuya_ble_mesh.sig_mesh_light import (
     MODE_COLOR,
@@ -526,6 +532,49 @@ class TestConfigureNode:
         await configure_sig_node(dev, b"\x01" * 16, publish_to=_US)
         models = [c.args[3] for c in dev.send_config_model_pub_set.await_args_list]
         assert models == [0x1000, 0x1303, 0x1307]
+
+    @pytest.mark.asyncio
+    async def test_link_drop_mid_bind_reconnects_and_resumes(self) -> None:
+        """A dropped proxy link reconnects and retries the same bind."""
+        dev = _config_device(composition=_composition_params())
+        dev.is_connected = True
+        calls = 0
+
+        async def bind(addr: int, app_idx: int, model: int) -> bool:
+            nonlocal calls
+            calls += 1
+            if calls == 3:
+                dev.is_connected = False
+                raise DisconnectedError("link lost")
+            return True
+
+        async def reconnect(**_kwargs: object) -> None:
+            dev.is_connected = True
+
+        dev.send_config_model_app_bind = AsyncMock(side_effect=bind)
+        dev.connect = AsyncMock(side_effect=reconnect)
+
+        result = await configure_sig_node(dev, b"\x01" * 16, bind_vendor_models=False)
+
+        dev.connect.assert_awaited_once()
+        assert not result.failed_models
+        # The bind that hit the drop was retried, not skipped
+        assert calls == len(result.bound_models) + 1
+
+    @pytest.mark.asyncio
+    async def test_link_drop_unrecoverable_raises(self) -> None:
+        dev = _config_device(composition=_composition_params())
+        dev.is_connected = True
+
+        async def bind(addr: int, app_idx: int, model: int) -> bool:
+            dev.is_connected = False
+            raise DisconnectedError("link lost")
+
+        dev.send_config_model_app_bind = AsyncMock(side_effect=bind)
+        dev.connect = AsyncMock(side_effect=MeshConnectionError("not found"))
+
+        with pytest.raises(MeshConnectionError):
+            await configure_sig_node(dev, b"\x01" * 16, bind_vendor_models=False)
 
 
 class TestInactiveModelStatus:

@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from tuya_ble_mesh.exceptions import MalformedPacketError
+from tuya_ble_mesh.exceptions import DisconnectedError, MalformedPacketError
 from tuya_ble_mesh.logging_context import MeshLogAdapter
 from tuya_ble_mesh.sig_mesh_protocol import (
     _OPCODE_COMPOSITION_STATUS,
@@ -517,6 +517,11 @@ class SIGMeshDeviceSegmentsMixin:
         """
         _LOGGER.warning("SIG Mesh device disconnected: %s", self._address)
         self._client = None
+        # Fail in-flight requests now instead of letting each wait out its
+        # response timeout against a link that is gone.
+        for future in self._pending_responses.values():
+            if not future.done():
+                future.set_exception(DisconnectedError(f"Disconnected from {self._address}"))
         for callback in list(self._disconnect_callbacks):
             try:
                 callback()

@@ -233,7 +233,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
                     service_info.address,
                     service_info.rssi,
                 )
-                coordinator.schedule_reconnect()
+                coordinator.notify_device_seen()
 
         entry.async_on_unload(
             async_register_callback(

@@ -646,7 +646,14 @@ def parse_tuya_vendor_frame(params: bytes) -> TuyaVendorFrame:
     if command == TUYA_CMD_DP_DATA:
         return TuyaVendorFrame(command=command, data=data, dps=_parse_dp_bytes(data))
 
-    _LOGGER.debug("Unknown vendor command 0x%02X, trying raw DP parse on full params", command)
+    # Decrypted application payload (not key material) — logged so unknown
+    # Tuya commands can be identified.
+    _LOGGER.info(
+        "Unknown Tuya vendor command 0x%02X (%d bytes): %s — trying raw DP parse",
+        command,
+        len(params),
+        params.hex(),
+    )
     return TuyaVendorFrame(command=command, data=params, dps=_parse_dp_bytes(params))
 
 
@@ -657,7 +664,8 @@ def tuya_vendor_timestamp_response() -> bytes:
     now = int(time.time())
     opcode_bytes = TUYA_VENDOR_WRITE_UNACK.to_bytes(3, "big")
     ts_bytes = now.to_bytes(4, "big")
-    tz_offset = time.timezone // -3600 if not time.daylight else time.altzone // -3600
+    # tm_gmtoff reflects whether DST is currently in effect
+    tz_offset = time.localtime(now).tm_gmtoff // 3600
     tz_byte = tz_offset.to_bytes(1, "big", signed=True) if -12 <= tz_offset <= 14 else b"\x00"
     data = ts_bytes + tz_byte + b"\x00\x00\x00"
     frame = bytes([TUYA_CMD_TIMESTAMP_SYNC, len(data)]) + data

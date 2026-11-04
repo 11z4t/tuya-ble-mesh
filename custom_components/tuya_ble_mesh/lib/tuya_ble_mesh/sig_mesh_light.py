@@ -20,11 +20,12 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, replace
-from typing import Any
+from functools import partial
+from typing import Any, TypeVar
 
-from tuya_ble_mesh.exceptions import MalformedPacketError, SIGMeshError
+from tuya_ble_mesh.exceptions import MalformedPacketError, MeshConnectionError, SIGMeshError
 from tuya_ble_mesh.logging_context import MeshLogAdapter
 from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
 from tuya_ble_mesh.sig_mesh_protocol_codec import (
@@ -71,6 +72,11 @@ _SET_STATUS_TIMEOUT = 3.0
 
 # Pause between consecutive config messages (device-side processing time)
 _CONFIG_STEP_DELAY = 0.3
+# Reconnects allowed per configuration step when the proxy link drops
+_CONFIG_RECONNECT_ATTEMPTS = 2
+_CONFIG_RECONNECT_TIMEOUT = 20.0
+
+_T = TypeVar("_T")
 
 MODE_WHITE = "white"
 MODE_COLOR = "color"
@@ -371,6 +377,33 @@ class SIGMeshLight(SIGMeshDevice):  # type: ignore[misc]
         return bool(opcode != OP_GENERIC_ONOFF_STATUS)
 
 
+async def _with_reconnect(
+    device: SIGMeshDevice,
+    step: Callable[[], Awaitable[_T]],
+    attempts: int = _CONFIG_RECONNECT_ATTEMPTS,
+) -> _T:
+    """Run a configuration step, reconnecting and retrying if the link drops.
+
+    Errors raised while the device is still connected (e.g. a rejected or
+    unanswered request) are re-raised unchanged.
+    """
+    for attempt in range(attempts + 1):
+        if not device.is_connected:
+            await device.connect(timeout=_CONFIG_RECONNECT_TIMEOUT, max_retries=3)
+        try:
+            return await step()
+        except (SIGMeshError, MeshConnectionError):
+            if device.is_connected or attempt >= attempts:
+                raise
+            _LOGGER.warning(
+                "Link to %s lost during configuration — reconnecting (%d/%d)",
+                device.address,
+                attempt + 1,
+                attempts,
+            )
+    raise AssertionError("unreachable")  # pragma: no cover
+
+
 @dataclass(frozen=True)
 class NodeConfigResult:
     """Outcome of ``configure_sig_node``."""
@@ -410,15 +443,16 @@ async def configure_sig_node(
 
     Raises:
         SIGMeshError: If AppKey Add fails or times out.
+        MeshConnectionError: If the link drops and cannot be re-established.
     """
-    if not await device.send_config_appkey_add(app_key):
+    if not await _with_reconnect(device, lambda: device.send_config_appkey_add(app_key)):
         msg = "AppKey Add was rejected by the device"
         raise SIGMeshError(msg)
     await asyncio.sleep(_CONFIG_STEP_DELAY)
 
     composition: CompositionData | None = None
     try:
-        params = await device.get_composition_data()
+        params = await _with_reconnect(device, device.get_composition_data)
         composition = parse_composition_data(params)
     except (SIGMeshError, MalformedPacketError):
         _LOGGER.warning("Composition Data unavailable; binding fallback models", exc_info=True)
@@ -445,11 +479,15 @@ async def configure_sig_node(
         try:
             if isinstance(model_ref, tuple):
                 cid, mid = model_ref
-                ok = await device.send_config_model_app_bind_vendor(addr, 0, cid, mid)
                 key = (index, (cid << 16) | mid)
+                ok = await _with_reconnect(
+                    device, partial(device.send_config_model_app_bind_vendor, addr, 0, cid, mid)
+                )
             else:
-                ok = await device.send_config_model_app_bind(addr, 0, model_ref)
                 key = (index, model_ref)
+                ok = await _with_reconnect(
+                    device, partial(device.send_config_model_app_bind, addr, 0, model_ref)
+                )
         except SIGMeshError:
             ok = False
             key = (index, model_ref if isinstance(model_ref, int) else model_ref[1])
@@ -462,7 +500,12 @@ async def configure_sig_node(
                 continue
             await asyncio.sleep(_CONFIG_STEP_DELAY)
             try:
-                await device.send_config_model_pub_set(primary + index, publish_to, 0, model)
+                await _with_reconnect(
+                    device,
+                    partial(
+                        device.send_config_model_pub_set, primary + index, publish_to, 0, model
+                    ),
+                )
             except SIGMeshError:
                 _LOGGER.warning("Publication Set failed for model 0x%04X", model)
 

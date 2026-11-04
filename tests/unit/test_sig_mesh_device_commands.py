@@ -229,6 +229,17 @@ class TestSendVendorCommand:
         await dev.send_vendor_command(b"\xcd\xd0\x07\x01")
         assert dev.get_seq() == seq_before + 1
 
+    @pytest.mark.asyncio
+    async def test_long_payload_is_segmented(self) -> None:
+        """Payloads over 11 bytes (e.g. the 13-byte timestamp response) are segmented."""
+        from tuya_ble_mesh.sig_mesh_protocol_codec import tuya_vendor_timestamp_response
+
+        dev = _make_device()
+        payload = tuya_vendor_timestamp_response()
+        assert len(payload) > 11
+        await dev.send_vendor_command(payload)
+        assert dev._client.write_gatt_char.await_count == 2
+
 
 # ---------------------------------------------------------------------------
 # send_config_appkey_add
