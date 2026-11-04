@@ -19,6 +19,8 @@ def async_create_issue(
     severity: str = IssueSeverity.WARNING,
     translation_key: str = "",
     translation_placeholders: dict[str, str] | None = None,
+    is_persistent: bool = False,
+    data: dict[str, Any] | None = None,
 ) -> None:
     pass
 

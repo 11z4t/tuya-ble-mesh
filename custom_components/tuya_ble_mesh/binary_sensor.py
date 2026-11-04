@@ -38,15 +38,26 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Tuya BLE Mesh binary sensor entities."""
-    runtime_data = entry.runtime_data
-    coordinator: TuyaBLEMeshCoordinator = runtime_data.coordinator
-    device_info: DeviceInfo = runtime_data.device_info
-
-    async_add_entities(
-        [
-            TuyaBLEMeshConnectivitySensor(coordinator, entry.entry_id, device_info),
-        ]
+    from custom_components.tuya_ble_mesh.entry_nodes import (
+        add_node_entities,
+        iter_entry_nodes,
+        network_runtime,
     )
+
+    for node in iter_entry_nodes(entry):
+        coordinator: TuyaBLEMeshCoordinator = node.runtime.coordinator
+        device_info: DeviceInfo = node.runtime.device_info
+        add_node_entities(
+            async_add_entities,
+            node,
+            [TuyaBLEMeshConnectivitySensor(coordinator, node.entity_key, device_info)],
+        )
+
+    net = network_runtime(entry)
+    if net is not None:
+        from custom_components.tuya_ble_mesh.network_entities import MeshLinkSensor
+
+        async_add_entities([MeshLinkSensor(net.manager, net.hub_device_info)])
 
 
 class TuyaBLEMeshConnectivitySensor(TuyaBLEMeshEntity, BinarySensorEntity):

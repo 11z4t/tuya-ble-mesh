@@ -20,6 +20,7 @@ CONF_DEVICE_TYPE = "device_type"
 DEVICE_TYPE_LIGHT = "light"
 DEVICE_TYPE_PLUG = "plug"
 DEVICE_TYPE_SIG_PLUG = "sig_plug"
+DEVICE_TYPE_SIG_LIGHT = "sig_light"
 CONF_MESH_NAME = "mesh_name"
 CONF_MESH_PASSWORD = "mesh_password"  # pragma: allowlist secret
 CONF_MAC_ADDRESS = "mac_address"
@@ -45,17 +46,28 @@ CONF_NET_KEY = "net_key"
 CONF_DEV_KEY = "dev_key"
 CONF_APP_KEY = "app_key"
 
+# SIG Mesh node layout (from Composition Data, stored at provisioning time)
+CONF_ELEMENT_COUNT = "element_count"
+CONF_MODEL_ELEMENTS = "model_elements"  # {"1307": 0, ...} model id hex -> element index
+CONF_TEMP_MIN_K = "temp_min_k"
+CONF_SEQ_START = "seq_start"  # next mesh SEQ after provisioning (replay protection)
+CONF_TEMP_MAX_K = "temp_max_k"
+DEFAULT_SIG_TEMP_MIN_K = 2700
+DEFAULT_SIG_TEMP_MAX_K = 6500
+
 DEVICE_TYPE_SIG_BRIDGE_PLUG = "sig_bridge_plug"
 DEVICE_TYPE_TELINK_BRIDGE_LIGHT = "telink_bridge_light"
 
 PLUG_DEVICE_TYPES = {DEVICE_TYPE_PLUG, DEVICE_TYPE_SIG_PLUG, DEVICE_TYPE_SIG_BRIDGE_PLUG}
-LIGHT_DEVICE_TYPES = {DEVICE_TYPE_LIGHT, DEVICE_TYPE_TELINK_BRIDGE_LIGHT}
+LIGHT_DEVICE_TYPES = {DEVICE_TYPE_LIGHT, DEVICE_TYPE_TELINK_BRIDGE_LIGHT, DEVICE_TYPE_SIG_LIGHT}
+SIG_DIRECT_DEVICE_TYPES = {DEVICE_TYPE_SIG_PLUG, DEVICE_TYPE_SIG_LIGHT}
 
 # Human-readable model names shown in the HA device registry
 DEVICE_MODEL_NAMES: dict[str, str] = {
     DEVICE_TYPE_LIGHT: "LED Light",
     DEVICE_TYPE_PLUG: "Smart Plug",
     DEVICE_TYPE_SIG_PLUG: "Smart Plug",
+    DEVICE_TYPE_SIG_LIGHT: "Smart Light",
     DEVICE_TYPE_SIG_BRIDGE_PLUG: "Smart Plug (Bridge)",
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT: "LED Light (Bridge)",
 }
@@ -63,6 +75,13 @@ DEVICE_MODEL_NAMES: dict[str, str] = {
 # SIG Mesh service UUIDs (Bluetooth SIG assigned)
 SIG_MESH_PROV_UUID = "00001827-0000-1000-8000-00805f9b34fb"  # Provisioning Service
 SIG_MESH_PROXY_UUID = "00001828-0000-1000-8000-00805f9b34fb"  # Proxy Service
+
+# Tuya SIG Mesh unprovisioned Device UUID (0x1827 service data):
+# [MAC 6B][mesh category 2B][PID 8B] + OOB info 2B. Category high nibble of the
+# first byte identifies the product class (Tuya "Bluetooth Mesh category" doc):
+# 0x1x/0x5x = lighting, 0x2x/0x6x = electrical (plugs/switches).
+TUYA_MESH_CATEGORY_OFFSET = 6
+TUYA_MESH_CATEGORY_LIGHT_CLASSES = frozenset({0x1, 0x5})
 
 # Brightness mapping: device 1-100 ↔ HA 1-255
 DEVICE_BRIGHTNESS_MIN = 1
@@ -84,6 +103,9 @@ DEVICE_COLOR_BRIGHTNESS_MAX = 255
 DEFAULT_MAX_COMMAND_RETRIES = 3
 DEFAULT_COMMAND_RETRY_BASE_DELAY = 0.5
 
+# Seconds to wait at setup for a BLE proxy to see the device (HA start races ESPHome)
+STARTUP_ADVERT_TIMEOUT = 20.0
+
 # Mesh scene/effect presets: scene_id (1-based) → display name
 MESH_SCENES: dict[int, str] = {
     1: "Warm Candlelight",
@@ -100,3 +122,15 @@ KNOWN_VENDOR_IDS: dict[str, str] = {
     "1003": "Tuya",
     "1004": "Telink",
 }
+
+# --- Shared SIG Mesh network (config entry + node subentries) ---
+CONF_ENTRY_KIND = "entry_kind"
+ENTRY_KIND_SIG_NETWORK = "sig_network"
+SUBENTRY_TYPE_NODE = "node"
+CONF_NETWORK_UUID = "network_uuid"
+CONF_PROVISIONER_ADDR = "provisioner_addr"
+DEFAULT_NETWORK_NAME = "SIG Mesh Network"
+NETWORK_SEQ_RESERVE_BLOCK = 128
+# Seconds between the network link coming up and pushing it to every node
+NETWORK_NODE_STAGGER = 0.5
+SIGNAL_NETWORK_UPDATE = "tuya_ble_mesh_network_update_{}"

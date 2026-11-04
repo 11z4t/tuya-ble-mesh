@@ -229,6 +229,17 @@ class TestSendVendorCommand:
         await dev.send_vendor_command(b"\xcd\xd0\x07\x01")
         assert dev.get_seq() == seq_before + 1
 
+    @pytest.mark.asyncio
+    async def test_long_payload_is_segmented(self) -> None:
+        """Payloads over 11 bytes (e.g. the 13-byte timestamp response) are segmented."""
+        from tuya_ble_mesh.sig_mesh_protocol_codec import tuya_vendor_timestamp_response
+
+        dev = _make_device()
+        payload = tuya_vendor_timestamp_response()
+        assert len(payload) > 11
+        await dev.send_vendor_command(payload)
+        assert dev._client.write_gatt_char.await_count == 2
+
 
 # ---------------------------------------------------------------------------
 # send_config_appkey_add
@@ -482,3 +493,84 @@ class TestSendConfigModelAppBind:
         result = await dev.send_config_model_app_bind(0x0001, 0, 0x1000, response_timeout=1.0)
 
         assert result is False
+
+
+# ---------------------------------------------------------------------------
+# probe_node_features (read-only Config Get probes)
+# ---------------------------------------------------------------------------
+
+
+class TestProbeNodeFeatures:
+    """probe_node_features decodes each Status and tolerates per-probe failures."""
+
+    @staticmethod
+    def _replies(missing: set[int] | None = None, bad: set[int] | None = None):  # type: ignore[no-untyped-def]
+        from tuya_ble_mesh.sig_mesh_protocol_codec import (
+            OP_CONFIG_BEACON_STATUS,
+            OP_CONFIG_DEFAULT_TTL_STATUS,
+            OP_CONFIG_FRIEND_STATUS,
+            OP_CONFIG_GATT_PROXY_STATUS,
+            OP_CONFIG_NETWORK_TRANSMIT_STATUS,
+            OP_CONFIG_RELAY_STATUS,
+        )
+
+        table = {
+            OP_CONFIG_RELAY_STATUS: bytes([0x01, (1 << 3) | 2]),  # enabled, 3x @ 20ms
+            OP_CONFIG_GATT_PROXY_STATUS: b"\x01",
+            OP_CONFIG_FRIEND_STATUS: b"\x02",
+            OP_CONFIG_BEACON_STATUS: b"\x00",
+            OP_CONFIG_DEFAULT_TTL_STATUS: b"\x07",
+            OP_CONFIG_NETWORK_TRANSMIT_STATUS: bytes([(9 << 3) | 1]),  # 2x @ 100ms
+        }
+
+        async def _send(payload: bytes, **kwargs: object) -> bytes:
+            op = kwargs["expect_opcode"]
+            assert kwargs["use_dev_key"] is True
+            assert len(payload) == 2  # parameterless Get
+            if missing and op in missing:
+                raise SIGMeshError("Timeout")
+            if bad and op in bad:
+                return b""
+            return table[op]  # type: ignore[index]
+
+        return _send
+
+    @pytest.mark.asyncio
+    async def test_decodes_all_states(self) -> None:
+        dev = _make_device()
+        with patch.object(dev, "_send_access", side_effect=self._replies()):
+            result = await dev.probe_node_features()
+        assert result == {
+            "relay": "enabled (3x @ 20ms)",
+            "gatt_proxy": "enabled",
+            "friend": "not_supported",
+            "secure_beacon": "disabled",
+            "default_ttl": "7",
+            "network_transmit": "2x @ 100ms",
+        }
+
+    @pytest.mark.asyncio
+    async def test_timeout_and_malformed_reported_per_probe(self) -> None:
+        from tuya_ble_mesh.sig_mesh_protocol_codec import (
+            OP_CONFIG_FRIEND_STATUS,
+            OP_CONFIG_RELAY_STATUS,
+        )
+
+        dev = _make_device()
+        with patch.object(
+            dev,
+            "_send_access",
+            side_effect=self._replies(
+                missing={OP_CONFIG_FRIEND_STATUS}, bad={OP_CONFIG_RELAY_STATUS}
+            ),
+        ):
+            result = await dev.probe_node_features()
+        assert result["friend"] == "no_reply"
+        assert result["relay"] == "malformed"
+        assert result["gatt_proxy"] == "enabled"
+
+    @pytest.mark.asyncio
+    async def test_disconnect_aborts_probe(self) -> None:
+        dev = SIGMeshDevice("DC:23:4F:10:52:C4", 0x0001, 0x0010, MagicMock())
+        with pytest.raises(SIGMeshError, match="Not connected"):
+            await dev.probe_node_features()

@@ -25,11 +25,11 @@ from homeassistant.components.light import (
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from custom_components.tuya_ble_mesh.const import (
-    CONF_DEVICE_TYPE,
     DEVICE_BRIGHTNESS_MAX,
     DEVICE_BRIGHTNESS_MIN,
     DEVICE_COLOR_TEMP_MAX,
     DEVICE_COLOR_TEMP_MIN,
+    DEVICE_TYPE_SIG_LIGHT,
     HA_BRIGHTNESS_MAX,
     HA_BRIGHTNESS_MIN,
     HA_MIRED_MAX,
@@ -251,12 +251,28 @@ async def async_setup_entry(
         entry: Config entry being set up.
         async_add_entities: Callback to register new entities.
     """
-    if entry.data.get(CONF_DEVICE_TYPE) in PLUG_DEVICE_TYPES:
-        return
-    runtime_data = entry.runtime_data
-    coordinator: TuyaBLEMeshCoordinator = runtime_data.coordinator
-    device_info: DeviceInfo = runtime_data.device_info
-    async_add_entities([TuyaBLEMeshLight(coordinator, entry.entry_id, device_info)])
+    from custom_components.tuya_ble_mesh.entry_nodes import add_node_entities, iter_entry_nodes
+
+    for node in iter_entry_nodes(entry):
+        device_type = node.device_type
+        if device_type in PLUG_DEVICE_TYPES:
+            continue
+        coordinator: TuyaBLEMeshCoordinator = node.runtime.coordinator
+        device_info: DeviceInfo = node.runtime.device_info
+        if device_type == DEVICE_TYPE_SIG_LIGHT:
+            from custom_components.tuya_ble_mesh.light_sig import TuyaBLEMeshSIGLight
+
+            add_node_entities(
+                async_add_entities,
+                node,
+                [TuyaBLEMeshSIGLight(coordinator, node.entity_key, device_info)],
+            )
+            continue
+        add_node_entities(
+            async_add_entities,
+            node,
+            [TuyaBLEMeshLight(coordinator, node.entity_key, device_info)],
+        )
 
 
 class TuyaBLEMeshLight(TuyaBLEMeshEntity, LightEntity):

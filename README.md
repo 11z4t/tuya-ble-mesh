@@ -4,7 +4,7 @@
 [![CI](https://github.com/11z4t/tuya-ble-mesh/actions/workflows/ci.yml/badge.svg)](https://github.com/11z4t/tuya-ble-mesh/actions/workflows/ci.yml)
 [![Version](https://img.shields.io/badge/version-0.35.0-blue.svg)](CHANGELOG.md)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![HA 2024.1+](https://img.shields.io/badge/HA-2024.1%2B-blue.svg)](https://www.home-assistant.io)
+[![HA 2025.3+](https://img.shields.io/badge/HA-2025.3%2B-blue.svg)](https://www.home-assistant.io)
 [![Tests](https://img.shields.io/badge/tests-1922%20passing-brightgreen.svg)](https://github.com/11z4t/tuya-ble-mesh/actions)
 
 A fully local Home Assistant integration for controlling Tuya BLE Mesh devices. No cloud. No Tuya account required for daily use.
@@ -159,7 +159,7 @@ Each device creates:
 
 ### What you need
 
-- **Home Assistant** 2024.1 or later (any installation method)
+- **Home Assistant** 2025.3 or later (config subentries) (any installation method)
 - **Raspberry Pi** (3B+ or 4) with built-in Bluetooth — runs the bridge daemon
 - **Tuya BLE Mesh devices** — compatible devices (see Tested Devices section)
 

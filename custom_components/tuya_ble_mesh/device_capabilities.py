@@ -31,6 +31,8 @@ class DeviceCapabilities:
             indicating full light-control support (brightness/colour/temp).
         has_power_monitoring: True when the device reports
             ``supports_power_monitoring=True``.
+        has_sig_light: True for SIG Mesh lights (``SIGMeshLight``) exposing
+            ``register_light_callback`` (Lightness/CTL/HSL state).
         protocol: Human-readable protocol label — ``"SIG_Mesh"`` or
             ``"Tuya_BLE"``.
     """
@@ -43,6 +45,7 @@ class DeviceCapabilities:
     has_light_control: bool
     has_power_monitoring: bool
     protocol: str  # "SIG_Mesh" | "Tuya_BLE"
+    has_sig_light: bool = False
 
     @classmethod
     def from_device(cls, device: Any) -> DeviceCapabilities:
@@ -67,4 +70,5 @@ class DeviceCapabilities:
             has_light_control=hasattr(device, "send_brightness"),
             has_power_monitoring=bool(getattr(device, "supports_power_monitoring", False)),
             protocol="SIG_Mesh" if hasattr(device, "set_seq") else "Tuya_BLE",
+            has_sig_light=hasattr(device, "register_light_callback"),
         )

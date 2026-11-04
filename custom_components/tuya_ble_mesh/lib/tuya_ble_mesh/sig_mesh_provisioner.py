@@ -59,6 +59,9 @@ PROV_DATA_OUT = "00002adc-0000-1000-8000-00805f9b34fb"
 # BLE adapter slot release delay after disconnect (seconds)
 _BLE_SLOT_RELEASE_DELAY = 1.0  # Increased from 0.5s; BlueZ needs >1s to release GATT slot
 
+# Max seconds for each cleanup call (stop_notify / disconnect) after a session
+_CLEANUP_TIMEOUT = 5.0
+
 
 # Re-export for backward compatibility
 __all__ = ["ProvisioningResult", "SIGMeshProvisioner", "_wrap_provisioning_pdu"]
@@ -91,6 +94,7 @@ class SIGMeshProvisioner(ProvisionerConnectionMixin, ProvisionerExchangeMixin): 
         ble_device_callback: Any | None = None,
         ble_connect_callback: Callable[[Any], Awaitable[BleakClient]] | None = None,
         adapter: str | None = None,
+        unicast_allocator: Callable[[int], int] | None = None,
     ) -> None:
         """Initialize the provisioner.
 
@@ -111,6 +115,10 @@ class SIGMeshProvisioner(ProvisionerConnectionMixin, ProvisionerExchangeMixin): 
             adapter: BLE adapter name (e.g. "hci0"). If set, forces scan
                 and connect via this specific adapter, bypassing HA's
                 habluetooth routing.
+            unicast_allocator: Optional ``element_count -> primary address``
+                called once the device reports its element count
+                (Capabilities); overrides ``unicast_addr`` so a shared
+                network can fit the node's whole element range.
 
         Raises:
             ProvisioningError: If key lengths are invalid.
@@ -125,6 +133,7 @@ class SIGMeshProvisioner(ProvisionerConnectionMixin, ProvisionerExchangeMixin): 
         self._net_key = net_key
         self._app_key = app_key
         self._unicast_addr = unicast_addr
+        self._unicast_allocator = unicast_allocator
         self._net_key_index = net_key_index
         self._iv_index = iv_index
         self._flags = flags
@@ -171,11 +180,15 @@ class SIGMeshProvisioner(ProvisionerConnectionMixin, ProvisionerExchangeMixin): 
             try:
                 return await self._run_exchange(client)
             finally:
-                # HF-2: Suppress only expected BLE exceptions, not all exceptions
-                with contextlib.suppress(BleakError, OSError):
-                    await client.stop_notify(PROV_DATA_OUT)
-                with contextlib.suppress(BleakError, OSError):
-                    await client.disconnect()
+                # HF-2: Suppress only expected BLE exceptions, not all exceptions.
+                # Bounded: over a dead proxy link these can hang indefinitely,
+                # which would stall the caller (e.g. an expired config flow).
+                with contextlib.suppress(BleakError, OSError, TimeoutError):
+                    await asyncio.wait_for(
+                        client.stop_notify(PROV_DATA_OUT), timeout=_CLEANUP_TIMEOUT
+                    )
+                with contextlib.suppress(BleakError, OSError, TimeoutError):
+                    await asyncio.wait_for(client.disconnect(), timeout=_CLEANUP_TIMEOUT)
                 _LOGGER.info("Provisioning session disconnected from %s", address.upper())
                 #  Give BLE adapter time to release connection slot
                 await asyncio.sleep(_BLE_SLOT_RELEASE_DELAY)

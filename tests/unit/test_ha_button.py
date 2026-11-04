@@ -97,8 +97,11 @@ class TestIdentifyButtonPress:
 
     @pytest.mark.asyncio
     async def test_press_alternates_off_on(self) -> None:
-        """Verify press sends False then True on each flash cycle."""
+        """Verify press sends False then True on each flash cycle (light on)."""
+        from dataclasses import replace
+
         coord = make_mock_coordinator()
+        coord.state = replace(coord.state, is_on=True)
         btn = TuyaBLEMeshIdentifyButton(coord, "entry1")
 
         with patch("custom_components.tuya_ble_mesh.button.asyncio.sleep", new_callable=AsyncMock):
@@ -109,6 +112,18 @@ class TestIdentifyButtonPress:
         for i in range(0, len(calls), 2):
             assert calls[i] is False, f"Expected False at index {i}"
             assert calls[i + 1] is True, f"Expected True at index {i + 1}"
+
+    @pytest.mark.asyncio
+    async def test_press_restores_off_state(self) -> None:
+        """A light that was off flashes on and ends off again."""
+        coord = make_mock_coordinator()  # is_on defaults to False
+        btn = TuyaBLEMeshIdentifyButton(coord, "entry1")
+
+        with patch("custom_components.tuya_ble_mesh.button.asyncio.sleep", new_callable=AsyncMock):
+            await btn.async_press()
+
+        calls = [call.args[0] for call in coord.device.send_power.call_args_list]
+        assert calls == [True, False] * 3
 
     @pytest.mark.asyncio
     async def test_press_skips_if_no_send_power(self) -> None:

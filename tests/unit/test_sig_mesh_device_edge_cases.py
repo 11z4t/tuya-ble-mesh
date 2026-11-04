@@ -111,13 +111,61 @@ class TestConnectEdgeCases:
         client = _mock_client()
 
         with (
-            patch("tuya_ble_mesh.sig_mesh_device.BleakClient", return_value=client),
+            patch.object(
+                dev, "_establish_connection", new_callable=AsyncMock, return_value=client
+            ) as est,
             patch.object(dev, "request_composition_data", new_callable=AsyncMock),
         ):
             await dev.connect(max_retries=1)
 
         cb.assert_called_once_with(_MAC)
+        est.assert_awaited_once_with(mock_device, False)
         assert dev.is_connected is True
+
+    @pytest.mark.asyncio
+    async def test_connect_fresh_services_forwarded(self) -> None:
+        """fresh_services=True disables the service cache on the HA path."""
+        cb = MagicMock(return_value=MagicMock())
+        dev = SIGMeshDevice(_MAC, 0x00AA, 0x0001, _secrets(), ble_device_callback=cb)
+        client = _mock_client()
+        with (
+            patch.object(
+                dev, "_establish_connection", new_callable=AsyncMock, return_value=client
+            ) as est,
+            patch.object(dev, "request_composition_data", new_callable=AsyncMock),
+        ):
+            await dev.connect(max_retries=1, fresh_services=True)
+        assert est.await_args.args[1] is True
+
+    @pytest.mark.asyncio
+    async def test_connect_resolves_duplicate_proxy_characteristics(self) -> None:
+        """Duplicate 0x2ADE characteristics are addressed by object, not UUID."""
+        from tuya_ble_mesh.sig_mesh_device import (
+            SIG_MESH_PROXY_DATA_IN,
+            SIG_MESH_PROXY_DATA_OUT,
+            SIG_MESH_PROXY_SERVICE,
+        )
+
+        def _svc(handle_base: int) -> MagicMock:
+            din = MagicMock(uuid=SIG_MESH_PROXY_DATA_IN, handle=handle_base)
+            dout = MagicMock(uuid=SIG_MESH_PROXY_DATA_OUT, handle=handle_base + 2)
+            return MagicMock(uuid=SIG_MESH_PROXY_SERVICE, characteristics=[din, dout])
+
+        old_svc, live_svc = _svc(0x10), _svc(0x20)
+        cb = MagicMock(return_value=MagicMock())
+        dev = SIGMeshDevice(_MAC, 0x00AA, 0x0001, _secrets(), ble_device_callback=cb)
+        client = _mock_client()
+        client.services = [old_svc, live_svc]
+        with (
+            patch.object(dev, "_establish_connection", new_callable=AsyncMock, return_value=client),
+            patch.object(dev, "request_composition_data", new_callable=AsyncMock),
+        ):
+            await dev.connect(max_retries=1)
+
+        notify_target = client.start_notify.await_args.args[0]
+        assert notify_target.handle == 0x22
+        await dev._write_proxy(b"\x00\x01")
+        assert client.write_gatt_char.await_args.args[0].handle == 0x20
 
     @pytest.mark.asyncio
     async def test_connect_with_adapter_forwards_to_scanner_and_client(self) -> None:

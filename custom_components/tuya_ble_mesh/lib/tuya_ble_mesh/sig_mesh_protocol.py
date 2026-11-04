@@ -398,8 +398,16 @@ def reassemble_and_decrypt_segments(
     szmic: int,
     seq_zero: int,
     akf: int,
+    *,
+    seq_auth: int | None = None,
 ) -> bytes | None:
-    """Reassemble segmented transport PDU chunks and decrypt."""
+    """Reassemble segmented transport PDU chunks and decrypt.
+
+    The upper transport nonce uses SeqAuth — the full 24-bit sequence number
+    of the first segment — not the 13-bit SeqZero. Pass ``seq_auth`` (see
+    :func:`seq_auth_from_seq`); the SeqZero fallback is only correct while the
+    sender's sequence number is below 8192.
+    """
     segments_snapshot = dict(segments)
 
     upper_transport = b""
@@ -414,10 +422,28 @@ def reassemble_and_decrypt_segments(
         return None
 
     mic_len = MIC_LEN_CONTROL if szmic else MIC_LEN_ACCESS
-    nonce = _make_app_nonce(akf, szmic, seq_zero, src, dst, keys.iv_index)
+    nonce_seq = seq_auth if seq_auth is not None else seq_zero
+    nonce = _make_app_nonce(akf, szmic, nonce_seq, src, dst, keys.iv_index)
 
     try:
         return bytes(mesh_aes_ccm_decrypt(key, nonce, upper_transport, mic_len))
     except CryptoError:
         _LOGGER.debug("Segmented upper transport decryption failed (akf=%d)", akf)
         return None
+
+
+def seq_auth_from_seq(seq: int, seq_zero: int) -> int:
+    """Recover SeqAuth (first-segment sequence number) from any segment's SEQ.
+
+    Mesh Profile 3.5.3.1: SeqZero is the low 13 bits of SeqAuth, and every
+    segment's SEQ is at most 8191 above SeqAuth.
+
+    Args:
+        seq: Network-layer SEQ of a received segment.
+        seq_zero: SeqZero field from the segment header.
+
+    Returns:
+        24-bit SeqAuth.
+    """
+    mask: int = int(MESH_SEQ_ZERO_MASK)
+    return (seq - ((seq - seq_zero) & mask)) & 0xFFFFFF

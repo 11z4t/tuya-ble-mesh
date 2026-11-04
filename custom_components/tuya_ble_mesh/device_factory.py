@@ -14,19 +14,28 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_BRIDGE_HOST,
     CONF_BRIDGE_PORT,
     CONF_DEV_KEY,
+    CONF_DEVICE_TYPE,
+    CONF_ELEMENT_COUNT,
     CONF_IV_INDEX,
+    CONF_MAC_ADDRESS,
     CONF_MESH_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
+    CONF_MODEL_ELEMENTS,
     CONF_NET_KEY,
+    CONF_TEMP_MAX_K,
+    CONF_TEMP_MIN_K,
     CONF_UNICAST_OUR,
     CONF_UNICAST_TARGET,
     CONF_VENDOR_ID,
     DEFAULT_BRIDGE_PORT,
     DEFAULT_IV_INDEX,
     DEFAULT_MESH_ADDRESS,
+    DEFAULT_SIG_TEMP_MAX_K,
+    DEFAULT_SIG_TEMP_MIN_K,
     DEFAULT_VENDOR_ID,
     DEVICE_TYPE_SIG_BRIDGE_PLUG,
+    DEVICE_TYPE_SIG_LIGHT,
     DEVICE_TYPE_SIG_PLUG,
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
 )
@@ -40,6 +49,8 @@ if TYPE_CHECKING:
         TelinkBridgeDevice,
     )
     from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
+    from tuya_ble_mesh.sig_mesh_light import SIGMeshLight
+    from tuya_ble_mesh.sig_mesh_node import SIGMeshLightNode, SIGMeshNode
 
 # Union type alias for all mesh device types returned by device_factory
 AnyMeshDevice: TypeAlias = Union[
@@ -96,19 +107,15 @@ def _create_telink_bridge_light(
     )
 
 
-def _create_sig_plug(
-    mac_address: str,
-    data: Mapping[str, Any],
-    ble_device_callback: Callable[[str], Any] | None,
-    ble_connect_callback: Callable[[Any], Any] | None = None,
-) -> SIGMeshDevice:
-    """Create a SIG Mesh direct device.
+def _sig_direct_args(
+    mac_address: str, data: Mapping[str, Any]
+) -> tuple[tuple[Any, ...], dict[str, Any]]:
+    """Build the shared SIGMeshDevice constructor (args, kwargs) from entry data.
 
     Raises:
         ValueError: If required SIG Mesh keys (net_key, dev_key, app_key) are missing.
     """
     from tuya_ble_mesh.secrets import DictSecretsManager
-    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
 
     # PLAT-739: Validate required keys are present
     net_key = data.get(CONF_NET_KEY, "")
@@ -140,16 +147,112 @@ def _create_sig_plug(
         f"{op_prefix}-dev-key-{target_hex}/password": dev_key,
         f"{op_prefix}-app-key/password": app_key,
     }
+    args = (mac_address, target_addr, our_addr, DictSecretsManager(secrets_dict))
+    return args, {"op_item_prefix": op_prefix, "iv_index": iv_index}
 
-    return SIGMeshDevice(
-        mac_address,
-        target_addr,
-        our_addr,
-        DictSecretsManager(secrets_dict),
-        op_item_prefix=op_prefix,
-        iv_index=iv_index,
+
+def _create_sig_plug(
+    mac_address: str,
+    data: Mapping[str, Any],
+    ble_device_callback: Callable[[str], Any] | None,
+    ble_connect_callback: Callable[[Any], Any] | None = None,
+) -> SIGMeshDevice:
+    """Create a SIG Mesh direct device.
+
+    ``ble_connect_callback`` is accepted for factory-signature compatibility but
+    unused: SIGMeshDevice connects via bleak-retry-connector itself whenever a
+    ``ble_device_callback`` (HA Bluetooth) is supplied.
+
+    Raises:
+        ValueError: If required SIG Mesh keys (net_key, dev_key, app_key) are missing.
+    """
+    from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
+
+    args, kwargs = _sig_direct_args(mac_address, data)
+    return SIGMeshDevice(*args, **kwargs, ble_device_callback=ble_device_callback)
+
+
+def _create_sig_light(
+    mac_address: str,
+    data: Mapping[str, Any],
+    ble_device_callback: Callable[[str], Any] | None,
+    ble_connect_callback: Callable[[Any], Any] | None = None,
+) -> SIGMeshLight:
+    """Create a SIG Mesh light (OnOff / Lightness / CTL / HSL).
+
+    Raises:
+        ValueError: If required SIG Mesh keys are missing.
+    """
+    from tuya_ble_mesh.sig_mesh_light import SIGMeshLight
+
+    model_elements, temp_range = _light_options(data)
+    args, kwargs = _sig_direct_args(mac_address, data)
+    return SIGMeshLight(
+        *args,
+        **kwargs,
         ble_device_callback=ble_device_callback,
-        ble_connect_callback=ble_connect_callback,
+        model_elements=model_elements,
+        temp_range_k=temp_range,
+    )
+
+
+def _light_options(
+    data: Mapping[str, Any],
+) -> tuple[dict[int, int], tuple[int, int] | None]:
+    """Parse model->element map and device-reported CTL range from entry data."""
+    raw_elements: Mapping[str, Any] = data.get(CONF_MODEL_ELEMENTS) or {}
+    model_elements: dict[int, int] = {}
+    for model_hex, index in raw_elements.items():
+        try:
+            model_elements[int(model_hex, 16)] = int(index)
+        except (TypeError, ValueError):
+            _LOGGER.debug("Ignoring bad model element entry %r=%r", model_hex, index)
+
+    # Only a device-reported range is passed; without one the light scales
+    # its default display range onto the full mesh range (Tuya behaviour).
+    temp_range: tuple[int, int] | None = None
+    if CONF_TEMP_MIN_K in data and CONF_TEMP_MAX_K in data:
+        temp_range = (
+            int(data.get(CONF_TEMP_MIN_K, DEFAULT_SIG_TEMP_MIN_K)),
+            int(data.get(CONF_TEMP_MAX_K, DEFAULT_SIG_TEMP_MAX_K)),
+        )
+    return model_elements, temp_range
+
+
+def create_network_node(
+    network: Any,
+    data: Mapping[str, Any],
+    rssi_provider: Callable[[str], int | None] | None = None,
+) -> SIGMeshNode | SIGMeshLightNode:
+    """Create a node view on a shared ``MeshNetwork`` from node subentry data.
+
+    Raises:
+        ValueError: If the subentry lacks a MAC, unicast address or device key.
+    """
+    from tuya_ble_mesh.sig_mesh_node import SIGMeshLightNode, SIGMeshNode
+
+    mac = str(data.get(CONF_MAC_ADDRESS, "")).upper()
+    dev_key = str(data.get(CONF_DEV_KEY, ""))
+    unicast_hex = data.get(CONF_UNICAST_TARGET)
+    if not mac or not dev_key or not unicast_hex:
+        msg = "Node subentry is missing mac_address, dev_key or unicast_target"
+        raise ValueError(msg)
+    unicast = int(str(unicast_hex), 16)
+    element_count = int(data.get(CONF_ELEMENT_COUNT, 1) or 1)
+    if data.get(CONF_DEVICE_TYPE) == DEVICE_TYPE_SIG_LIGHT:
+        model_elements, temp_range = _light_options(data)
+        return SIGMeshLightNode(
+            mac,
+            network,
+            unicast,
+            dev_key,
+            element_count=element_count,
+            model_elements=model_elements,
+            temp_range_k=temp_range,
+            rssi_provider=rssi_provider,
+        )
+    return SIGMeshNode(
+        mac, network, unicast, dev_key, element_count=element_count, rssi_provider=rssi_provider
     )
 
 
@@ -194,6 +297,7 @@ _DEVICE_CREATORS: dict[
     DEVICE_TYPE_SIG_BRIDGE_PLUG: _create_sig_bridge_plug,
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT: _create_telink_bridge_light,
     DEVICE_TYPE_SIG_PLUG: _create_sig_plug,
+    DEVICE_TYPE_SIG_LIGHT: _create_sig_light,
 }
 
 

@@ -70,6 +70,15 @@
           "bridge_host": "The IP address or hostname of your device (e.g. your Raspberry Pi).",
           "bridge_port": "Port the device is listening on. Default is 8099."
         }
+      },
+      "sig_light": {
+        "title": "Setting Up {name}",
+        "description": "We'll automatically add your light to Home Assistant and set up a secure connection to it.\n\nMake sure the light is **powered on**, **freshly reset** and **close to your Bluetooth adapter or proxy**, then click **Submit**.",
+        "data": {}
+      },
+      "create_network": {
+        "title": "Opret SIG Mesh-netværk",
+        "description": "Opretter ét fælles Bluetooth-meshnetværk, så dine SIG Mesh-enheder kan videresende for hinanden og dele en enkelt Bluetooth-forbindelse."
       }
     },
     "error": {
@@ -93,7 +102,8 @@
       "timeout_validation": "Validering fik timeout (over 30 sekunder). Sørg for at enheden er tændt og tæt på Bluetooth-adapteren, og prøv derefter igen.",
       "provisioning_appkey_failed": "Kunne ikke binde applikationsnøglen. Prøv at nulstille enheden til fabriksindstillinger og tilføj den igen.",
       "provisioning_proxy_failed": "Proxy Service-trinnet mislykkedes. Sørg for at Proxy Service er aktiveret på enheden og prøv igen.",
-      "provisioning_pbgatt_failed": "PB-GATT-forbindelsen mislykkedes. Flyt enheden tættere på Bluetooth-adapteren og prøv igen."
+      "provisioning_pbgatt_failed": "PB-GATT-forbindelsen mislykkedes. Flyt enheden tættere på Bluetooth-adapteren og prøv igen.",
+      "configuration_failed": "The device accepted the secure connection but could not finish setup. Factory reset the device (usually by switching it off and on several times), then try again."
     },
     "abort": {
       "already_configured": "Denne enhed er allerede konfigureret i Home Assistant.",
@@ -101,7 +111,10 @@
       "device_not_available": "Enheden er ikke længere i nærheden. Prøv at tilføje den igen, når den er inden for rækkevidde.",
       "reconfigure_successful": "Settings updated. The integration will restart now.",
       "not_in_pairing_mode": "Device is not in pairing mode. Factory-reset it and try again.",
-      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again."
+      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again.",
+      "network_already_exists": "Der findes allerede et SIG Mesh-netværk. Kun ét understøttes.",
+      "added_to_network": "Tilføjet til dit SIG Mesh-netværk. Den vises under integrationsposten SIG Mesh Network.",
+      "not_supported": "Denne Bluetooth Mesh-enhed er ikke en Tuya-enhed."
     }
   },
   "options": {
@@ -164,11 +177,17 @@
       },
       "last_seen": {
         "name": "Sidst kontaktet"
+      },
+      "active_proxy": {
+        "name": "Aktiv proxy"
       }
     },
     "binary_sensor": {
       "connectivity": {
         "name": "Forbindelse"
+      },
+      "mesh_link": {
+        "name": "Meshforbindelse"
       }
     },
     "button": {
@@ -177,6 +196,9 @@
       },
       "reconnect": {
         "name": "Genopret forbindelsen"
+      },
+      "switch_proxy": {
+        "name": "Skift proxy"
       }
     },
     "update": {
@@ -215,6 +237,9 @@
     },
     "mesh_auth_failed": {
       "message": "Mesh authentication failed. The device may need to be removed and re-provisioned with the correct network credentials."
+    },
+    "mesh_switch_proxy_failed": {
+      "message": "Kunne ikke skifte meshproxy: {error}"
     }
   },
   "services": {
@@ -277,6 +302,40 @@
     "ble_adapter_busy": {
       "title": "Bluetooth adapter busy",
       "description": "Could not connect to {device} because another app is monopolizing the Bluetooth adapter. Fix: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter."
+    },
+    "legacy_sig_network": {
+      "title": "Flyt {name} til meshnetværket",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Flyt {name} til meshnetværket",
+            "description": "{name} har sit eget private netværk. I det fælles meshnetværk kan dine enheder videresende for hinanden og dele én Bluetooth-forbindelse.\n\nHome Assistant nulstiller enheden via Bluetooth og konfigurerer den igen — du behøver ikke slukke og tænde den. Entitetsnavne, områder og automatiseringer bevares; scener lavet i Tuya-appen går tabt. Det tager cirka et minut; lad enheden være tændt og tæt på en Bluetooth-proxy."
+          }
+        },
+        "error": {
+          "not_connected": "{name} er ikke forbundet lige nu. Vent, til den er online, og prøv igen.",
+          "reset_failed": "{name} blev ikke nulstillet, intet er ændret. Prøv igen, eller nulstil den manuelt (sluk og tænd cirka 3 gange, til den blinker hurtigt), og send derefter.",
+          "not_unprovisioned": "{name} blev nulstillet, men er endnu ikke klar til opsætning. Sørg for, at den er tændt og tæt på en Bluetooth-proxy, og prøv igen.",
+          "timeout": "Opsætningen af {name} tog for lang tid. Den er klar til opsætning — prøv igen.",
+          "provisioning_failed": "Opsætningen af {name} mislykkedes. Den er klar til opsætning — prøv igen.",
+          "network_unavailable": "SIG Mesh-netværket kunne ikke startes. Tjek logfilerne, og prøv igen.",
+          "not_legacy": "Denne enhed behøver ikke at blive flyttet."
+        },
+        "abort": {
+          "entry_not_found": "Enhedens integrationspost findes ikke længere."
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "node": {
+      "entry_type": "Meshknude",
+      "initiate_flow": {
+        "user": "Tilføj knude"
+      },
+      "abort": {
+        "add_via_discovery": "Nye enheder tilslutter sig netværket, når de findes via Bluetooth. Tænd enheden i nærheden af en Bluetooth-proxy, og bekræft fundet."
+      }
     }
   }
 }

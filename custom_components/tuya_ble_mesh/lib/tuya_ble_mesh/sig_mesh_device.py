@@ -175,6 +175,12 @@ class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceSegmentsMixin):  # 
         self._adapter = adapter
 
         self._client: BleakClient | None = None
+        # Resolved Proxy characteristics (BleakGATTCharacteristic) — None means
+        # "address by UUID string" (fallback / test doubles)
+        self._data_in_char: Any = None
+        self._data_out_char: Any = None
+        # Completed segmented messages (src, seq_auth) -> time, for re-acking retransmits
+        self._completed_segments: dict[tuple[int, int], float] = {}
         self._keys: MeshKeys | None = None
         self._seq_store: SeqStore = seq_store if seq_store is not None else InMemorySeqStore()
         self._seq_lock = asyncio.Lock()
@@ -231,6 +237,14 @@ class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceSegmentsMixin):  # 
             return None
         return getattr(self._client, "rssi", None)
 
+    def set_seq_store(self, seq_store: SeqStore) -> None:
+        """Replace the sequence number store (e.g. with a persistent one).
+
+        Args:
+            seq_store: New SeqStore; its current value is used from now on.
+        """
+        self._seq_store = seq_store
+
     def set_seq(self, seq: int) -> None:
         """Override the current sequence number (for restore on startup).
 
@@ -283,12 +297,17 @@ class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceSegmentsMixin):  # 
         self,
         timeout: float = DEFAULT_CONNECTION_TIMEOUT,
         max_retries: int = DEFAULT_MAX_RETRIES,
+        *,
+        fresh_services: bool = False,
     ) -> None:
         """Connect to the device, load keys, and subscribe to notifications.
 
         Args:
             timeout: Connection timeout per attempt in seconds.
             max_retries: Maximum number of connection attempts.
+            fresh_services: Force GATT service re-discovery (use right after
+                provisioning, when cached services still describe the
+                Provisioning Service).
 
         Raises:
             SIGMeshKeyError: If keys cannot be loaded from 1Password.
@@ -324,18 +343,30 @@ class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceSegmentsMixin):  # 
                         msg = f"Device {self._address} not found"
                         raise MeshConnectionError(msg)
 
-                    client_kwargs: dict[str, Any] = {
-                        "timeout": timeout,
-                        "disconnected_callback": self._on_ble_disconnect,
-                    }
-                    if self._adapter is not None:
-                        client_kwargs["adapter"] = self._adapter
-                    client = BleakClient(device, **client_kwargs)
-                    await client.connect()
+                    if self._ble_device_callback is not None and self._adapter is None:
+                        # HA / ESPHome proxy path: bleak-retry-connector handles
+                        # slot allocation, retries and service caching.
+                        client = await self._establish_connection(device, fresh_services)
+                    else:
+                        client_kwargs: dict[str, Any] = {
+                            "timeout": timeout,
+                            "disconnected_callback": self._on_ble_disconnect,
+                        }
+                        if self._adapter is not None:
+                            client_kwargs["adapter"] = self._adapter
+                        client = BleakClient(device, **client_kwargs)
+                        await client.connect()
+
+                    self._resolve_proxy_characteristics(client)
 
                     # Subscribe to Proxy Data Out notifications
                     try:
-                        await client.start_notify(SIG_MESH_PROXY_DATA_OUT, self._on_notify)
+                        await client.start_notify(
+                            self._data_out_char
+                            if self._data_out_char is not None
+                            else SIG_MESH_PROXY_DATA_OUT,
+                            self._on_notify,
+                        )
                     except (EOFError, BleakError, BleakDBusError, OSError) as notify_exc:
                         _LOGGER.warning(
                             "Notification subscription failed for %s: %s (%s) — "
@@ -378,10 +409,16 @@ class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceSegmentsMixin):  # 
         if self._client is not None:
             # HF-1: Suppress only expected BLE exceptions, not all exceptions
             with contextlib.suppress(BleakError, OSError):
-                await self._client.stop_notify(SIG_MESH_PROXY_DATA_OUT)
+                await self._client.stop_notify(
+                    self._data_out_char
+                    if self._data_out_char is not None
+                    else SIG_MESH_PROXY_DATA_OUT
+                )
             with contextlib.suppress(BleakError, OSError):
                 await self._client.disconnect()
             self._client = None
+        self._data_in_char = None
+        self._data_out_char = None
 
         # Zero-fill key material before clearing (defense in depth)
         if self._keys is not None:
@@ -404,6 +441,65 @@ class SIGMeshDevice(SIGMeshDeviceCommandsMixin, SIGMeshDeviceSegmentsMixin):  # 
         _LOGGER.info("Disconnected from %s", self._address)
 
     # --- Private helpers ---
+
+    async def _establish_connection(self, device: Any, fresh_services: bool) -> BleakClient:
+        """Connect via bleak-retry-connector (HA Bluetooth / ESPHome proxies)."""
+        from bleak_retry_connector import BleakClientWithServiceCache, establish_connection
+
+        client: BleakClient = await establish_connection(
+            BleakClientWithServiceCache,
+            device,
+            f"SIG Mesh {self._address}",
+            disconnected_callback=self._on_ble_disconnect,
+            max_attempts=3,
+            use_services_cache=not fresh_services,
+        )
+        return client
+
+    def _resolve_proxy_characteristics(self, client: Any) -> None:
+        """Find the Mesh Proxy Data In/Out characteristics on the 0x1828 service.
+
+        Some devices (or stale service caches) expose the same characteristic
+        UUID more than once, which makes UUID-string addressing ambiguous.
+        Resolving the characteristic objects lets Bleak address them by handle.
+        Falls back to UUID strings if services cannot be enumerated.
+        """
+        self._data_in_char = None
+        self._data_out_char = None
+        try:
+            services = list(client.services)
+        except (TypeError, AttributeError, BleakError):
+            return
+        candidates: list[tuple[Any, Any]] = []
+        for service in services:
+            if str(getattr(service, "uuid", "")).lower() != SIG_MESH_PROXY_SERVICE:
+                continue
+            data_in = data_out = None
+            for char in getattr(service, "characteristics", []):
+                uuid = str(getattr(char, "uuid", "")).lower()
+                if uuid == SIG_MESH_PROXY_DATA_IN:
+                    data_in = char
+                elif uuid == SIG_MESH_PROXY_DATA_OUT:
+                    data_out = char
+            if data_in is not None and data_out is not None:
+                candidates.append((data_in, data_out))
+        if not candidates:
+            _LOGGER.debug("No Mesh Proxy service found on %s; using UUID addressing", self._address)
+            return
+        if len(candidates) > 1:
+            # Stale cache: the last-discovered service is the live one
+            _LOGGER.warning(
+                "%s exposes %d Mesh Proxy services; using the last one",
+                self._address,
+                len(candidates),
+            )
+        self._data_in_char, self._data_out_char = candidates[-1]
+        _LOGGER.debug(
+            "Mesh Proxy characteristics on %s: in=handle %s, out=handle %s",
+            self._address,
+            getattr(self._data_in_char, "handle", "?"),
+            getattr(self._data_out_char, "handle", "?"),
+        )
 
     async def _next_seq(self) -> int:
         """Return and increment the sequence number (24-bit wrap).

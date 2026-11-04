@@ -32,8 +32,8 @@ from custom_components.tuya_ble_mesh.const import (
     DEVICE_TYPE_LIGHT,
     DEVICE_TYPE_PLUG,
     DEVICE_TYPE_SIG_BRIDGE_PLUG,
-    DEVICE_TYPE_SIG_PLUG,
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
+    SIG_DIRECT_DEVICE_TYPES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -66,7 +66,7 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):
             device_type = self._config_entry.data.get(CONF_DEVICE_TYPE, DEVICE_TYPE_LIGHT)
 
             # Validate SIG plug-specific options
-            if device_type == DEVICE_TYPE_SIG_PLUG:
+            if device_type in SIG_DIRECT_DEVICE_TYPES:
                 unicast_val = str(user_input.get(CONF_UNICAST_TARGET, "00B0"))
                 unicast_error = _validate_unicast_address(unicast_val)
                 if unicast_error:
@@ -131,7 +131,7 @@ class TuyaBLEMeshOptionsFlow(config_entries.OptionsFlow):
                         default=self._config_entry.data.get(CONF_UNICAST_TARGET, "00B0"),
                     )
                 ] = str
-        elif device_type == DEVICE_TYPE_SIG_PLUG:
+        elif device_type in SIG_DIRECT_DEVICE_TYPES:
             # SIG Mesh plug: unicast and iv_index are advanced network settings
             if self.show_advanced_options:
                 schema_dict[

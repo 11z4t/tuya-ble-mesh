@@ -141,6 +141,8 @@ class ConnectionManager:
         self._running = False
         self._backoff = INITIAL_BACKOFF
         self._reconnect_task: asyncio.Task[None] | None = None
+        # Set by notify_device_seen() to cut the current backoff wait short
+        self._wake_event = asyncio.Event()
         self._rssi_task: asyncio.Task[None] | None = None
 
         # Statistics
@@ -295,6 +297,20 @@ class ConnectionManager:
         self._reconnect_task = asyncio.create_task(self._reconnect_loop())
         self._reconnect_task.add_done_callback(self._log_task_exception)
 
+    def notify_device_seen(self) -> None:
+        """Handle an advertisement from the (disconnected) device.
+
+        Starts a reconnect if none is running. If one is already running,
+        it is left alone — restarting it on every advertisement (several per
+        second) would reset the debounce/backoff timers so that no connect
+        attempt is ever made. Instead, a pending backoff wait is cut short.
+        """
+        task = self._reconnect_task
+        if task is None or task.done():
+            self.schedule_reconnect()
+        else:
+            self._wake_event.set()
+
     async def _reconnect_loop(self) -> None:
         """Attempt reconnection with exponential backoff.
 
@@ -336,7 +352,24 @@ class ConnectionManager:
                 self._consecutive_failures + 1,
                 ", bridge" if is_bridge else "",
             )
-            await asyncio.sleep(self._backoff)
+            # A device sighting shortens a long backoff to the initial delay
+            # (never below it, so a device that is visible but failing to
+            # connect still can't be retried in a tight loop).
+            self._wake_event.clear()
+            wait_start = time.monotonic()
+            sleeper = asyncio.ensure_future(asyncio.sleep(self._backoff))
+            waker = asyncio.ensure_future(self._wake_event.wait())
+            try:
+                await asyncio.wait({sleeper, waker}, return_when=asyncio.FIRST_COMPLETED)
+            finally:
+                sleeper.cancel()
+                waker.cancel()
+            if waker.done() and not waker.cancelled() and not sleeper.done():
+                min_wait = BRIDGE_INITIAL_BACKOFF if is_bridge else INITIAL_BACKOFF
+                remaining = min_wait - (time.monotonic() - wait_start)
+                _LOGGER.debug("Device %s seen — shortening backoff wait", self._device.address)
+                if remaining > 0:
+                    await asyncio.sleep(remaining)
 
             if not self._running:
                 break

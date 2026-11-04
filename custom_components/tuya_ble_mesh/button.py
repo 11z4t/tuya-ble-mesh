@@ -39,16 +39,29 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up Tuya BLE Mesh button entities."""
-    runtime_data = entry.runtime_data
-    coordinator: TuyaBLEMeshCoordinator = runtime_data.coordinator
-    device_info: DeviceInfo = runtime_data.device_info
-
-    async_add_entities(
-        [
-            TuyaBLEMeshIdentifyButton(coordinator, entry.entry_id, device_info),
-            TuyaBLEMeshReconnectButton(coordinator, entry.entry_id, device_info),
-        ]
+    from custom_components.tuya_ble_mesh.entry_nodes import (
+        add_node_entities,
+        iter_entry_nodes,
+        network_runtime,
     )
+
+    for node in iter_entry_nodes(entry):
+        coordinator: TuyaBLEMeshCoordinator = node.runtime.coordinator
+        device_info: DeviceInfo = node.runtime.device_info
+        add_node_entities(
+            async_add_entities,
+            node,
+            [
+                TuyaBLEMeshIdentifyButton(coordinator, node.entity_key, device_info),
+                TuyaBLEMeshReconnectButton(coordinator, node.entity_key, device_info),
+            ],
+        )
+
+    net = network_runtime(entry)
+    if net is not None:
+        from custom_components.tuya_ble_mesh.network_entities import MeshSwitchProxyButton
+
+        async_add_entities([MeshSwitchProxyButton(net.manager, net.hub_device_info)])
 
 
 class TuyaBLEMeshIdentifyButton(TuyaBLEMeshEntity, ButtonEntity):
@@ -73,10 +86,11 @@ class TuyaBLEMeshIdentifyButton(TuyaBLEMeshEntity, ButtonEntity):
         if not hasattr(device, "send_power"):
             _LOGGER.warning("Device %s does not support identify", device.address)
             return
+        was_on = bool(self.coordinator.state.is_on)
         for _ in range(_IDENTIFY_FLASH_COUNT):
-            await device.send_power(False)
+            await device.send_power(not was_on)
             await asyncio.sleep(_IDENTIFY_FLASH_INTERVAL)
-            await device.send_power(True)
+            await device.send_power(was_on)
             await asyncio.sleep(_IDENTIFY_FLASH_INTERVAL)
 
 

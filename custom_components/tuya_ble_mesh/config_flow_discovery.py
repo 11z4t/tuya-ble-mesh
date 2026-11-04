@@ -25,12 +25,62 @@ from custom_components.tuya_ble_mesh.const import (
     DEFAULT_VENDOR_ID,
     DEVICE_TYPE_LIGHT,
     DEVICE_TYPE_PLUG,
+    DEVICE_TYPE_SIG_LIGHT,
     DEVICE_TYPE_SIG_PLUG,
     SIG_MESH_PROV_UUID,
     SIG_MESH_PROXY_UUID,
+    TUYA_MESH_CATEGORY_LIGHT_CLASSES,
+    TUYA_MESH_CATEGORY_OFFSET,
 )
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def sig_device_type_from_advertisement(discovery_info: Any) -> str:
+    """Classify an unprovisioned SIG Mesh device as light or plug.
+
+    Tuya SIG Mesh devices put a mesh product category in the Device UUID
+    carried in the 0x1827 service data (bytes 6-7). Lighting categories
+    (0x1xxx / 0x5xxx) map to a light; anything else (or no data) to a plug.
+
+    Args:
+        discovery_info: Bluetooth service info.
+
+    Returns:
+        DEVICE_TYPE_SIG_LIGHT or DEVICE_TYPE_SIG_PLUG.
+    """
+    service_data = getattr(discovery_info, "service_data", None) or {}
+    uuid_data = service_data.get(SIG_MESH_PROV_UUID) if isinstance(service_data, dict) else None
+    if isinstance(uuid_data, bytes | bytearray) and len(uuid_data) > TUYA_MESH_CATEGORY_OFFSET:
+        category_class = uuid_data[TUYA_MESH_CATEGORY_OFFSET] >> 4
+        if category_class in TUYA_MESH_CATEGORY_LIGHT_CLASSES:
+            return DEVICE_TYPE_SIG_LIGHT
+    return DEVICE_TYPE_SIG_PLUG
+
+
+def is_tuya_device_uuid(discovery_info: Any) -> bool:
+    """Return True if the 0x1827 Device UUID has Tuya's layout.
+
+    Tuya SIG Mesh devices start their Device UUID with their own MAC address
+    (docs/DOMAIN.md "Device UUID Structure"). The manifest matches any
+    unprovisioned SIG Mesh device, so this keeps other vendors' devices from
+    being offered.
+
+    Args:
+        discovery_info: Bluetooth service info.
+
+    Returns:
+        True when the first six UUID bytes equal the advertised MAC.
+    """
+    service_data = getattr(discovery_info, "service_data", None) or {}
+    uuid_data = service_data.get(SIG_MESH_PROV_UUID) if isinstance(service_data, dict) else None
+    if not isinstance(uuid_data, bytes | bytearray) or len(uuid_data) < 6:
+        return False
+    try:
+        mac = bytes.fromhex(str(discovery_info.address).replace(":", ""))
+    except (AttributeError, ValueError):
+        return False
+    return len(mac) == 6 and bytes(uuid_data[:6]) == mac
 
 
 async def async_step_bluetooth(
@@ -110,6 +160,19 @@ async def async_step_bluetooth(
                 service_uuids,
             )
             return flow.async_abort(reason="not_in_pairing_mode")
+        if has_prov and not has_proxy and not is_tuya_device_uuid(discovery_info):
+            # Unprovisioned SIG Mesh device of another vendor
+            _LOGGER.debug(
+                "Ignoring discovery for %s (not a Tuya Device UUID: name=%s)", address, name
+            )
+            return flow.async_abort(reason="not_supported")
+
+    # A node already on the shared network can briefly look unprovisioned
+    # (cached advert right after a migration/reset): don't offer it while it
+    # is online over the mesh. A node reset by hand (offline) can be re-added.
+    if _is_online_network_node(flow.hass, address):
+        _LOGGER.debug("Ignoring discovery for %s (online node of the mesh network)", address)
+        return flow.async_abort(reason="already_configured")
 
     #  Check if device is still advertising (stale flow protection)
     # If the device is not currently available in HA's bluetooth stack, ignore the discovery.
@@ -130,7 +193,17 @@ async def async_step_bluetooth(
     is_sig_mesh = (
         is_s17_plug or SIG_MESH_PROV_UUID in service_uuids or SIG_MESH_PROXY_UUID in service_uuids
     )
-    device_category = "Smart Plug" if is_sig_mesh else "LED Light"
+    sig_type = (
+        sig_device_type_from_advertisement(discovery_info)
+        if is_sig_mesh and not is_s17_plug
+        else DEVICE_TYPE_SIG_PLUG
+    )
+    if not is_sig_mesh:
+        device_category = "LED Light"
+    elif sig_type == DEVICE_TYPE_SIG_LIGHT:
+        device_category = "Smart Light"
+    else:
+        device_category = "Smart Plug"
     rssi = getattr(discovery_info, "rssi", None)
 
     #  Auto-detect device type based on service UUIDs or name pattern
@@ -141,8 +214,8 @@ async def async_step_bluetooth(
         auto_device_type = DEVICE_TYPE_SIG_PLUG
         _LOGGER.info("SIG Mesh plug detected via S17* name pattern: %s (%s)", name, address)
     elif is_sig_mesh:  # Match both Provisioning (0x1827) and Proxy (0x1828)
-        # SIG Mesh device -> Plug
-        auto_device_type = DEVICE_TYPE_SIG_PLUG
+        # SIG Mesh device -> light or plug, from the Tuya mesh category
+        auto_device_type = sig_type
     elif any(uuid.startswith("00010203-0405-0607-0809-0a0b0c0d") for uuid in service_uuids):
         # Telink mesh UUID prefix -> Light
         auto_device_type = DEVICE_TYPE_LIGHT
@@ -170,6 +243,12 @@ async def async_step_bluetooth(
     # 0x1827 = Provisioning Service (unprovisioned device)
     # 0x1828 = Proxy Service (already provisioned)
     # PLAT-694: Accept both — device may advertise 0x1828 after partial provisioning
+    if auto_device_type == DEVICE_TYPE_SIG_LIGHT and is_sig_mesh:
+        _LOGGER.info("SIG Mesh light in pairing mode: %s", address)
+        from custom_components.tuya_ble_mesh.config_flow_sig import async_step_sig_light
+
+        return await async_step_sig_light(flow, None)
+
     if auto_device_type == DEVICE_TYPE_SIG_PLUG and is_sig_mesh:
         _LOGGER.info("SIG Mesh device in pairing mode: %s", address)
         # Delegate to SIG plug flow (will be imported from config_flow_sig)
@@ -289,3 +368,21 @@ async def async_step_confirm_impl(flow: Any, user_input: dict[str, Any] | None) 
         },
         errors=errors,
     )
+
+
+def _is_online_network_node(hass: Any, address: str) -> bool:
+    """Return True if ``address`` is a node of the shared network and reachable."""
+    from custom_components.tuya_ble_mesh.entry_nodes import iter_entry_nodes
+    from custom_components.tuya_ble_mesh.mesh_network import network_entry
+
+    try:
+        entry = network_entry(hass)
+    except Exception:  # config entries unavailable (tests)
+        return False
+    if entry is None:
+        return False
+    for node in iter_entry_nodes(entry):
+        coordinator = node.runtime.coordinator
+        if coordinator.device.address.upper() == address.upper():
+            return bool(coordinator.state.available)
+    return False

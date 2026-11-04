@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import sys
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -287,6 +288,18 @@ class TestSIGMeshDeviceBLEDisconnect:
         dev._on_ble_disconnect(MagicMock())
 
         assert dev._client is None
+
+    @pytest.mark.asyncio
+    async def test_on_ble_disconnect_fails_pending_responses(self) -> None:
+        from tuya_ble_mesh.exceptions import DisconnectedError
+
+        dev = SIGMeshDevice("DC:23:4D:21:43:A5", 0x00AA, 0x0001, MagicMock())
+        future: asyncio.Future[bytes] = asyncio.get_running_loop().create_future()
+        dev._pending_responses[(0x803E, 1)] = future
+
+        dev._on_ble_disconnect(MagicMock())
+
+        assert isinstance(future.exception(), DisconnectedError)
 
 
 class TestSegmentReassembly:

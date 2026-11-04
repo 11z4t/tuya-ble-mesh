@@ -955,3 +955,68 @@ class TestAsyncRemoveConfigEntryDevice:
         result = await async_remove_config_entry_device(MagicMock(), entry, device_entry)
 
         assert result is True
+
+
+class TestWaitForAdvertisement:
+    """HA start races the ESPHome proxies: setup waits for the device to be seen."""
+
+    @pytest.mark.asyncio
+    async def test_already_visible_returns_immediately(self) -> None:
+        from custom_components.tuya_ble_mesh import _async_wait_for_advertisement
+
+        with (
+            patch(
+                "homeassistant.components.bluetooth.async_ble_device_from_address",
+                return_value=MagicMock(),
+            ),
+            patch(
+                "homeassistant.components.bluetooth.async_process_advertisements",
+                new=AsyncMock(),
+            ) as wait,
+        ):
+            assert await _async_wait_for_advertisement(MagicMock(), "AA:BB", 5) is True
+        wait.assert_not_awaited()
+
+    @pytest.mark.asyncio
+    async def test_waits_for_first_advertisement(self) -> None:
+        from custom_components.tuya_ble_mesh import _async_wait_for_advertisement
+
+        with (
+            patch(
+                "homeassistant.components.bluetooth.async_ble_device_from_address",
+                return_value=None,
+            ),
+            patch(
+                "homeassistant.components.bluetooth.async_process_advertisements",
+                new=AsyncMock(return_value=MagicMock()),
+            ) as wait,
+        ):
+            assert await _async_wait_for_advertisement(MagicMock(), "AA:BB", 5) is True
+        wait.assert_awaited_once()
+        assert wait.await_args.args[4] == 5
+
+    @pytest.mark.asyncio
+    async def test_timeout_returns_false(self) -> None:
+        from custom_components.tuya_ble_mesh import _async_wait_for_advertisement
+
+        with (
+            patch(
+                "homeassistant.components.bluetooth.async_ble_device_from_address",
+                return_value=None,
+            ),
+            patch(
+                "homeassistant.components.bluetooth.async_process_advertisements",
+                new=AsyncMock(side_effect=TimeoutError),
+            ),
+        ):
+            assert await _async_wait_for_advertisement(MagicMock(), "AA:BB", 5) is False
+
+    @pytest.mark.asyncio
+    async def test_bluetooth_not_set_up_returns_false(self) -> None:
+        from custom_components.tuya_ble_mesh import _async_wait_for_advertisement
+
+        with patch(
+            "homeassistant.components.bluetooth.async_ble_device_from_address",
+            side_effect=KeyError("bluetooth"),
+        ):
+            assert await _async_wait_for_advertisement(MagicMock(), "AA:BB", 5) is False

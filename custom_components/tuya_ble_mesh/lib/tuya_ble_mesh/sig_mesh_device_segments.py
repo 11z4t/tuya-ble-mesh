@@ -19,7 +19,7 @@ import time
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
 
-from tuya_ble_mesh.exceptions import MalformedPacketError
+from tuya_ble_mesh.exceptions import DisconnectedError, MalformedPacketError
 from tuya_ble_mesh.logging_context import MeshLogAdapter
 from tuya_ble_mesh.sig_mesh_protocol import (
     _OPCODE_COMPOSITION_STATUS,
@@ -31,17 +31,22 @@ from tuya_ble_mesh.sig_mesh_protocol import (
     parse_proxy_pdu,
     parse_segment_header,
     reassemble_and_decrypt_segments,
+    seq_auth_from_seq,
 )
 
 if TYPE_CHECKING:
     from bleak.backends.characteristic import BleakGATTCharacteristic
 
-    from tuya_ble_mesh.sig_mesh_protocol import MeshKeys
+    from tuya_ble_mesh.sig_mesh_protocol import MeshKeys, NetworkPDU
 
 _LOGGER = MeshLogAdapter(logging.getLogger(__name__), {})
 
 # Reassembly timeout for segmented messages (seconds)
 _REASSEMBLY_TIMEOUT = 10.0
+
+# How long a completed segmented message is remembered so sender retransmissions
+# are re-acknowledged instead of being reassembled and dispatched twice (seconds)
+_COMPLETED_SEGMENT_TTL = 15.0
 
 # Opcodes for status responses
 _OPCODE_ONOFF_STATUS = 0x8204
@@ -60,6 +65,7 @@ class _ReassemblyBuffer:
     szmic: int
     seq_zero: int
     seg_n: int
+    seq_auth: int | None = None
     segments: dict[int, bytes] = field(default_factory=dict)
     created_at: float = field(default_factory=time.monotonic)
 
@@ -88,6 +94,20 @@ class SIGMeshDeviceSegmentsMixin:
     _disconnect_callbacks: list[Any]
     _composition: CompositionData | None
     _firmware_version: str | None
+    _our_addr: int
+    _completed_segments: dict[tuple[int, int], float]
+
+    async def _send_segment_ack(self, dst: int, seq_zero: int, block_ack: int) -> None:
+        """Send a Segment Acknowledgment (implemented by the commands mixin)."""
+        raise NotImplementedError
+
+    def _handle_model_status(self, src: int, opcode: int, params: bytes) -> bool:
+        """Hook for subclasses to consume model status messages.
+
+        Called for every non-vendor access message after pending-response
+        resolution. Returns True if the message was handled.
+        """
+        return False
 
     def _log_notify_exception(self, task: asyncio.Task[None]) -> None:
         """Log exceptions from notify processing tasks.
@@ -160,6 +180,31 @@ class SIGMeshDeviceSegmentsMixin:
             _LOGGER.debug("Network PDU decryption failed or NID mismatch")
             return
 
+        await self._process_network_pdu(net_pdu)
+
+    async def _process_network_pdu(self, net_pdu: NetworkPDU) -> None:
+        """Handle a decrypted network PDU addressed to us.
+
+        Split from ``_process_notify`` so a shared ``MeshNetwork`` link can
+        decrypt the network layer once and route each PDU to the node that
+        owns its source address.
+
+        Args:
+            net_pdu: Decrypted network PDU.
+        """
+        if self._keys is None:
+            return
+
+        if net_pdu.ctl == 1:
+            # Transport control message (e.g. Segment Ack for our AppKey Add) —
+            # not an access message; we do not retransmit, so nothing to do.
+            _LOGGER.debug(
+                "Control PDU from 0x%04X (opcode=0x%02X) ignored",
+                net_pdu.src,
+                net_pdu.transport_pdu[0] & 0x7F if net_pdu.transport_pdu else 0xFF,
+            )
+            return
+
         access_msg = decrypt_access_payload(
             self._keys,
             net_pdu.src,
@@ -172,7 +217,9 @@ class SIGMeshDeviceSegmentsMixin:
             return
 
         if access_msg.seg:
-            await self._handle_segment(net_pdu.src, net_pdu.dst, net_pdu.transport_pdu)
+            await self._handle_segment(
+                net_pdu.src, net_pdu.dst, net_pdu.transport_pdu, seq=net_pdu.seq
+            )
             return
 
         if access_msg.access_payload is None:
@@ -181,7 +228,9 @@ class SIGMeshDeviceSegmentsMixin:
 
         await self._dispatch_access_payload(net_pdu.src, access_msg.access_payload)
 
-    async def _handle_segment(self, src: int, dst: int, transport_pdu: bytes) -> None:
+    async def _handle_segment(
+        self, src: int, dst: int, transport_pdu: bytes, *, seq: int | None = None
+    ) -> None:
         """Collect a segment and attempt reassembly when complete.
 
         CF-1: Protected with _segment_lock to prevent race conditions in concurrent
@@ -191,6 +240,7 @@ class SIGMeshDeviceSegmentsMixin:
             src: Source unicast address.
             dst: Destination address.
             transport_pdu: Lower transport PDU (segmented).
+            seq: Network-layer SEQ of this segment, used to derive SeqAuth.
         """
         try:
             seg_hdr = parse_segment_header(transport_pdu)
@@ -200,7 +250,23 @@ class SIGMeshDeviceSegmentsMixin:
 
         # Per BT Mesh spec: buffer key must include src, dst, seq_zero, and aid
         buf_key = (src, dst, seg_hdr.seq_zero, seg_hdr.aid)
+        seq_auth = seq_auth_from_seq(seq, seg_hdr.seq_zero) if seq is not None else None
+        full_block = (1 << (seg_hdr.seg_n + 1)) - 1
+        ack_needed = dst == getattr(self, "_our_addr", None)
 
+        completed = getattr(self, "_completed_segments", None)
+        if completed is not None and seq_auth is not None:
+            now = time.monotonic()
+            for key in [k for k, t in completed.items() if now - t > _COMPLETED_SEGMENT_TTL]:
+                del completed[key]
+            if (src, seq_auth) in completed:
+                # Retransmission of a message we already have — just re-ack
+                _LOGGER.debug("Duplicate segment from 0x%04X (seq_auth=%d)", src, seq_auth)
+                if ack_needed:
+                    await self._try_segment_ack(src, seg_hdr.seq_zero, full_block)
+                return
+
+        reassembled = False
         # CF-1: Lock ALL access to _segment_buffers to prevent race conditions
         async with self._segment_lock:
             # Get or create reassembly buffer
@@ -214,6 +280,7 @@ class SIGMeshDeviceSegmentsMixin:
                     szmic=seg_hdr.szmic,
                     seq_zero=seg_hdr.seq_zero,
                     seg_n=seg_hdr.seg_n,
+                    seq_auth=seq_auth,
                 )
                 self._segment_buffers[buf_key] = buf
 
@@ -229,10 +296,25 @@ class SIGMeshDeviceSegmentsMixin:
 
             # Check if all segments received
             if len(buf.segments) == buf.seg_n + 1:
+                if completed is not None and buf.seq_auth is not None:
+                    completed[(src, buf.seq_auth)] = time.monotonic()
                 await self._complete_reassembly(buf_key)
+                reassembled = True
 
             # Clean stale buffers
             await self._clean_stale_buffers()
+
+        if reassembled and ack_needed:
+            await self._try_segment_ack(src, seg_hdr.seq_zero, full_block)
+
+    async def _try_segment_ack(self, dst: int, seq_zero: int, block_ack: int) -> None:
+        """Send a Segment Ack, logging (not raising) on failure."""
+        try:
+            await self._send_segment_ack(dst, seq_zero, block_ack)
+        except NotImplementedError:
+            return
+        except Exception:
+            _LOGGER.debug("Segment Ack to 0x%04X failed", dst, exc_info=True)
 
     async def _complete_reassembly(self, buf_key: tuple[int, int, int, int]) -> None:
         """Decrypt a fully reassembled segmented message and dispatch.
@@ -256,6 +338,7 @@ class SIGMeshDeviceSegmentsMixin:
             buf.szmic,
             buf.seq_zero,
             buf.akf,
+            seq_auth=buf.seq_auth,
         )
 
         if access_payload is None:
@@ -341,6 +424,14 @@ class SIGMeshDeviceSegmentsMixin:
             future = self._pending_responses.pop(matched_key)
             if not future.done():
                 future.set_result(params)
+            # Awaited replies still update device state
+            if opcode == _OPCODE_COMPOSITION_STATUS:
+                self._handle_composition_data(params)
+            elif opcode <= 0xFFFF:
+                self._call_model_status_hook(src, opcode, params)
+            return
+
+        if opcode <= 0xFFFF and self._call_model_status_hook(src, opcode, params):
             return
 
         if opcode == _OPCODE_ONOFF_STATUS and params:
@@ -382,6 +473,16 @@ class SIGMeshDeviceSegmentsMixin:
                 src,
             )
 
+    def _call_model_status_hook(self, src: int, opcode: int, params: bytes) -> bool:
+        """Invoke ``_handle_model_status`` and contain subclass errors."""
+        try:
+            return self._handle_model_status(src, opcode, params)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            _LOGGER.warning("Model status handler error (opcode=0x%04X)", opcode, exc_info=True)
+            return True
+
     def _handle_composition_data(self, params: bytes) -> None:
         """Handle a Composition Data Status response.
 
@@ -401,11 +502,19 @@ class SIGMeshDeviceSegmentsMixin:
         self._firmware_version = f"CID:{comp.cid:04X} PID:{comp.pid:04X} VID:{comp.vid:04X}"
 
         _LOGGER.info(
-            "Composition Data from device: %s (CRPL=%d, features=0x%04X)",
+            "Composition Data from device: %s (CRPL=%d, features=0x%04X, elements=%d)",
             self._firmware_version,
             comp.crpl,
             comp.features,
+            len(getattr(comp, "elements", ())),
         )
+        for element in getattr(comp, "elements", ()):
+            _LOGGER.info(
+                "  element %d: SIG models=[%s] vendor models=[%s]",
+                element.index,
+                ", ".join(f"0x{m:04X}" for m in element.sig_models),
+                ", ".join(f"0x{c:04X}:0x{m:04X}" for c, m in element.vendor_models),
+            )
 
         for callback in list(self._composition_callbacks):
             try:
@@ -423,6 +532,11 @@ class SIGMeshDeviceSegmentsMixin:
         """
         _LOGGER.warning("SIG Mesh device disconnected: %s", self._address)
         self._client = None
+        # Fail in-flight requests now instead of letting each wait out its
+        # response timeout against a link that is gone.
+        for future in self._pending_responses.values():
+            if not future.done():
+                future.set_exception(DisconnectedError(f"Disconnected from {self._address}"))
         for callback in list(self._disconnect_callbacks):
             try:
                 callback()

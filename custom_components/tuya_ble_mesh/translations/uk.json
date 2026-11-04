@@ -70,6 +70,15 @@
           "bridge_host": "The IP address or hostname of your device (e.g. your Raspberry Pi).",
           "bridge_port": "Port the device is listening on. Default is 8099."
         }
+      },
+      "sig_light": {
+        "title": "Setting Up {name}",
+        "description": "We'll automatically add your light to Home Assistant and set up a secure connection to it.\n\nMake sure the light is **powered on**, **freshly reset** and **close to your Bluetooth adapter or proxy**, then click **Submit**.",
+        "data": {}
+      },
+      "create_network": {
+        "title": "Створити мережу SIG Mesh",
+        "description": "Створює одну спільну Bluetooth-mesh-мережу, щоб ваші пристрої SIG Mesh могли ретранслювати повідомлення один для одного та використовувати одне Bluetooth-з'єднання."
       }
     },
     "error": {
@@ -93,7 +102,8 @@
       "unknown_device_type": "Could not identify the device type automatically. Select the device type manually.",
       "device_type_mismatch": "This device doesn't match the selected type. Choose the correct device type or let the system detect it automatically.",
       "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again.",
-      "timeout_validation": "Перевiрку перервано (понад 30 секунд). Переконайтесь, що пристрiй увiмкнений i знаходиться поруч з Bluetooth-адаптером, та спробуйте ще раз."
+      "timeout_validation": "Перевiрку перервано (понад 30 секунд). Переконайтесь, що пристрiй увiмкнений i знаходиться поруч з Bluetooth-адаптером, та спробуйте ще раз.",
+      "configuration_failed": "The device accepted the secure connection but could not finish setup. Factory reset the device (usually by switching it off and on several times), then try again."
     },
     "abort": {
       "already_configured": "Цей пристрiй вже налаштовано в Home Assistant.",
@@ -101,7 +111,10 @@
       "device_not_available": "Пристрiй бiльше не поруч. Спробуйте додати його знову, коли вiн буде в зонi дiї.",
       "reconfigure_successful": "Settings updated. The integration will restart now.",
       "not_in_pairing_mode": "Device is not in pairing mode. Factory-reset it and try again.",
-      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again."
+      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again.",
+      "network_already_exists": "Мережа SIG Mesh уже існує. Підтримується лише одна.",
+      "added_to_network": "Додано до вашої мережі SIG Mesh. Пристрій з'явиться в записі інтеграції SIG Mesh Network.",
+      "not_supported": "Цей пристрій Bluetooth Mesh не є пристроєм Tuya."
     }
   },
   "options": {
@@ -164,11 +177,17 @@
       },
       "last_seen": {
         "name": "Останній зв'язок"
+      },
+      "active_proxy": {
+        "name": "Активний проксі"
       }
     },
     "binary_sensor": {
       "connectivity": {
         "name": "Підключення"
+      },
+      "mesh_link": {
+        "name": "Mesh-з'єднання"
       }
     },
     "button": {
@@ -177,6 +196,9 @@
       },
       "reconnect": {
         "name": "Перепідключити"
+      },
+      "switch_proxy": {
+        "name": "Змінити проксі"
       }
     },
     "update": {
@@ -215,6 +237,9 @@
     },
     "mesh_auth_failed": {
       "message": "Mesh authentication failed. The device may need to be removed and re-provisioned with the correct network credentials."
+    },
+    "mesh_switch_proxy_failed": {
+      "message": "Не вдалося змінити mesh-проксі: {error}"
     }
   },
   "services": {
@@ -277,6 +302,40 @@
     "ble_adapter_busy": {
       "title": "Bluetooth-адаптер зайнятий",
       "description": "Не вдалось підключитись до {device}: інша програма монополізує Bluetooth-адаптер. Рішення: (1) Додайте ESPHome Bluetooth Proxy або (2) встановіть другий USB Bluetooth-адаптер."
+    },
+    "legacy_sig_network": {
+      "title": "Перемістити {name} до mesh-мережі",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Перемістити {name} до mesh-мережі",
+            "description": "{name} має власну приватну мережу. У спільній mesh-мережі ваші пристрої можуть ретранслювати повідомлення один для одного та використовувати одне Bluetooth-з'єднання.\n\nHome Assistant скине пристрій через Bluetooth і налаштує його знову — вимикати живлення не потрібно. Назви сутностей, зони й автоматизації збережуться; сцени, створені в застосунку Tuya, буде втрачено. Це триває близько хвилини; тримайте пристрій увімкненим і поблизу Bluetooth-проксі."
+          }
+        },
+        "error": {
+          "not_connected": "{name} зараз не підключено. Зачекайте, поки він з'явиться в мережі, і спробуйте ще раз.",
+          "reset_failed": "{name} не скинуто, нічого не змінено. Спробуйте ще раз або скиньте його вручну (вимкніть і ввімкніть приблизно 3 рази, доки він не почне швидко блимати), а потім надішліть.",
+          "not_unprovisioned": "{name} скинуто, але він ще не готовий до налаштування. Переконайтеся, що він увімкнений і поблизу Bluetooth-проксі, і спробуйте ще раз.",
+          "timeout": "Час налаштування {name} вичерпано. Пристрій готовий до налаштування — спробуйте ще раз.",
+          "provisioning_failed": "Не вдалося налаштувати {name}. Пристрій готовий до налаштування — спробуйте ще раз.",
+          "network_unavailable": "Не вдалося запустити мережу SIG Mesh. Перевірте журнали та спробуйте ще раз.",
+          "not_legacy": "Цей пристрій не потрібно переміщувати."
+        },
+        "abort": {
+          "entry_not_found": "Запис інтеграції пристрою більше не існує."
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "node": {
+      "entry_type": "Вузол mesh",
+      "initiate_flow": {
+        "user": "Додати вузол"
+      },
+      "abort": {
+        "add_via_discovery": "Нові пристрої приєднуються до мережі, коли їх виявлено через Bluetooth. Увімкніть пристрій поблизу Bluetooth-проксі та підтвердьте виявлення."
+      }
     }
   }
 }

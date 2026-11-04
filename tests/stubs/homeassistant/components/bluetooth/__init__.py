@@ -24,3 +24,26 @@ class BluetoothServiceInfoBleak:
 
 def async_ble_device_from_address(hass: Any, address: str, connectable: bool = True) -> Any:
     return MagicMock()
+
+
+class BluetoothCallbackMatcher(dict):  # type: ignore[type-arg]
+    """Minimal stub of HA's BluetoothCallbackMatcher (a TypedDict)."""
+
+
+class BluetoothScanningMode:
+    """Minimal stub of HA's BluetoothScanningMode enum."""
+
+    PASSIVE = "passive"
+    ACTIVE = "active"
+
+
+async def async_process_advertisements(
+    hass: Any, callback: Any, match_dict: Any, mode: Any, timeout: float
+) -> Any:
+    """Stub: real HA waits for a matching advertisement; tests patch this."""
+    raise TimeoutError
+
+
+def async_last_service_info(hass: Any, address: str, connectable: bool = True) -> Any:
+    """Stub: no advertisement history; tests patch this."""
+    return None

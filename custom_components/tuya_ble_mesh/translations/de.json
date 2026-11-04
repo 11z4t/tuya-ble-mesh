@@ -70,6 +70,15 @@
           "bridge_host": "The IP address or hostname of your device (e.g. your Raspberry Pi).",
           "bridge_port": "Port the device is listening on. Default is 8099."
         }
+      },
+      "sig_light": {
+        "title": "Setting Up {name}",
+        "description": "We'll automatically add your light to Home Assistant and set up a secure connection to it.\n\nMake sure the light is **powered on**, **freshly reset** and **close to your Bluetooth adapter or proxy**, then click **Submit**.",
+        "data": {}
+      },
+      "create_network": {
+        "title": "SIG-Mesh-Netzwerk erstellen",
+        "description": "Erstellt ein gemeinsames Bluetooth-Mesh-Netzwerk, damit sich deine SIG-Mesh-Geräte gegenseitig weiterleiten und eine einzige Bluetooth-Verbindung teilen können."
       }
     },
     "error": {
@@ -93,7 +102,8 @@
       "timeout_validation": "Validierung abgebrochen (über 30 Sekunden). Stellen Sie sicher, dass das Gerät eingeschaltet und nah am Bluetooth-Adapter ist, und versuchen Sie es erneut.",
       "provisioning_appkey_failed": "Anwendungsschlüssel konnte nicht gebunden werden. Setzen Sie das Gerät auf Werkseinstellungen zurück und fügen Sie es erneut hinzu.",
       "provisioning_proxy_failed": "Proxy-Service-Schritt fehlgeschlagen. Stellen Sie sicher, dass der Proxy-Service auf dem Gerät aktiviert ist, und versuchen Sie es erneut.",
-      "provisioning_pbgatt_failed": "PB-GATT-Verbindung fehlgeschlagen. Bewegen Sie das Gerät näher an Ihren Bluetooth-Adapter und versuchen Sie es erneut."
+      "provisioning_pbgatt_failed": "PB-GATT-Verbindung fehlgeschlagen. Bewegen Sie das Gerät näher an Ihren Bluetooth-Adapter und versuchen Sie es erneut.",
+      "configuration_failed": "The device accepted the secure connection but could not finish setup. Factory reset the device (usually by switching it off and on several times), then try again."
     },
     "abort": {
       "already_configured": "Dieses Gerät ist bereits in Home Assistant eingerichtet.",
@@ -101,7 +111,10 @@
       "device_not_available": "Das Gerät ist nicht mehr in der Nähe. Versuchen Sie, es erneut hinzuzufügen, wenn es in Reichweite ist.",
       "reconfigure_successful": "Settings updated. The integration will restart now.",
       "not_in_pairing_mode": "Device is not in pairing mode. Factory-reset it and try again.",
-      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again."
+      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again.",
+      "network_already_exists": "Es gibt bereits ein SIG-Mesh-Netzwerk. Es wird nur eines unterstützt.",
+      "added_to_network": "Zu deinem SIG-Mesh-Netzwerk hinzugefügt. Es erscheint unter dem Integrationseintrag „SIG Mesh Network“.",
+      "not_supported": "Dieses Bluetooth-Mesh-Gerät ist kein Tuya-Gerät."
     }
   },
   "options": {
@@ -164,11 +177,17 @@
       },
       "last_seen": {
         "name": "Letzter Kontakt"
+      },
+      "active_proxy": {
+        "name": "Aktiver Proxy"
       }
     },
     "binary_sensor": {
       "connectivity": {
         "name": "Verbindung"
+      },
+      "mesh_link": {
+        "name": "Mesh-Verbindung"
       }
     },
     "button": {
@@ -177,6 +196,9 @@
       },
       "reconnect": {
         "name": "Neu verbinden"
+      },
+      "switch_proxy": {
+        "name": "Proxy wechseln"
       }
     },
     "update": {
@@ -215,6 +237,9 @@
     },
     "mesh_auth_failed": {
       "message": "Mesh authentication failed. The device may need to be removed and re-provisioned with the correct network credentials."
+    },
+    "mesh_switch_proxy_failed": {
+      "message": "Mesh-Proxy konnte nicht gewechselt werden: {error}"
     }
   },
   "services": {
@@ -277,6 +302,40 @@
     "ble_adapter_busy": {
       "title": "Bluetooth adapter busy",
       "description": "Could not connect to {device} because another app is monopolizing the Bluetooth adapter. Fix: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter."
+    },
+    "legacy_sig_network": {
+      "title": "{name} ins Mesh-Netzwerk verschieben",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "{name} ins Mesh-Netzwerk verschieben",
+            "description": "{name} hat ein eigenes privates Netzwerk. Im gemeinsamen Mesh-Netzwerk können sich deine Geräte gegenseitig weiterleiten und eine Bluetooth-Verbindung teilen.\n\nHome Assistant setzt das Gerät über Bluetooth zurück und richtet es neu ein — kein Aus- und Einschalten nötig. Entitätsnamen, Bereiche und Automationen bleiben erhalten; in der Tuya-App erstellte Szenen gehen verloren. Das dauert etwa eine Minute; lass das Gerät eingeschaltet und in der Nähe eines Bluetooth-Proxys."
+          }
+        },
+        "error": {
+          "not_connected": "{name} ist gerade nicht verbunden. Warte, bis es online ist, und versuche es erneut.",
+          "reset_failed": "{name} wurde nicht zurückgesetzt, es wurde nichts geändert. Versuche es erneut oder setze es von Hand zurück (etwa 3-mal aus- und einschalten, bis es schnell blinkt) und sende dann ab.",
+          "not_unprovisioned": "{name} wurde zurückgesetzt, ist aber noch nicht zur Einrichtung bereit. Achte darauf, dass es eingeschaltet und in der Nähe eines Bluetooth-Proxys ist, und versuche es erneut.",
+          "timeout": "Die Einrichtung von {name} hat zu lange gedauert. Es ist bereit zur Einrichtung — versuche es erneut.",
+          "provisioning_failed": "Die Einrichtung von {name} ist fehlgeschlagen. Es ist bereit zur Einrichtung — versuche es erneut.",
+          "network_unavailable": "Das SIG-Mesh-Netzwerk konnte nicht gestartet werden. Prüfe die Protokolle und versuche es erneut.",
+          "not_legacy": "Dieses Gerät muss nicht verschoben werden."
+        },
+        "abort": {
+          "entry_not_found": "Der Integrationseintrag des Geräts existiert nicht mehr."
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "node": {
+      "entry_type": "Mesh-Knoten",
+      "initiate_flow": {
+        "user": "Knoten hinzufügen"
+      },
+      "abort": {
+        "add_via_discovery": "Neue Geräte treten dem Netzwerk bei, wenn sie über Bluetooth erkannt werden. Schalte das Gerät in der Nähe eines Bluetooth-Proxys ein und bestätige die Erkennung."
+      }
     }
   }
 }

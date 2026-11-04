@@ -70,6 +70,15 @@
           "bridge_host": "Enhetsadress",
           "bridge_port": "Enhetsport"
         }
+      },
+      "sig_light": {
+        "title": "Setting Up {name}",
+        "description": "We'll automatically add your light to Home Assistant and set up a secure connection to it.\n\nMake sure the light is **powered on**, **freshly reset** and **close to your Bluetooth adapter or proxy**, then click **Submit**.",
+        "data": {}
+      },
+      "create_network": {
+        "title": "Skapa SIG Mesh-nätverk",
+        "description": "Skapar ett gemensamt Bluetooth-meshnätverk så att dina SIG Mesh-enheter kan vidarebefordra åt varandra och dela en enda Bluetooth-anslutning."
       }
     },
     "error": {
@@ -93,7 +102,8 @@
       "ble_adapter_busy": "Din Bluetooth-adapter är upptagen. En annan app använder den. För att lösa detta: (1) Lägg till en ESPHome Bluetooth Proxy, eller (2) Installera en andra USB Bluetooth-adapter. Se dokumentationen för mer information.",
       "provisioning_appkey_failed": "Kunde inte binda applikationsnyckeln. Prova att fabriksåterställa enheten och lägg till den igen.",
       "provisioning_proxy_failed": "Proxy Service-steget misslyckades. Kontrollera att Proxy Service är aktiverat på enheten och försök igen.",
-      "provisioning_pbgatt_failed": "PB-GATT-anslutning misslyckades. Flytta enheten närmare Bluetooth-adaptern och försök igen."
+      "provisioning_pbgatt_failed": "PB-GATT-anslutning misslyckades. Flytta enheten närmare Bluetooth-adaptern och försök igen.",
+      "configuration_failed": "The device accepted the secure connection but could not finish setup. Factory reset the device (usually by switching it off and on several times), then try again."
     },
     "abort": {
       "already_configured": "Den här enheten är redan konfigurerad i Home Assistant.",
@@ -101,7 +111,10 @@
       "device_not_available": "Enheten är inte längre i närheten. Försök lägga till den igen när den är inom räckvidd.",
       "not_in_pairing_mode": "Enheten är inte i parkopplingsläge. Återställ enheten till fabriksinställningarna och försök igen.",
       "reconfigure_successful": "Inställningarna har uppdaterats. Enheten har startats om med nya inställningar.",
-      "entry_not_found": "Konfigurationen hittades inte. Starta om Home Assistant och försök igen."
+      "entry_not_found": "Konfigurationen hittades inte. Starta om Home Assistant och försök igen.",
+      "network_already_exists": "Ett SIG Mesh-nätverk finns redan. Endast ett stöds.",
+      "added_to_network": "Tillagd i ditt SIG Mesh-nätverk. Den visas under integrationsposten SIG Mesh Network.",
+      "not_supported": "Denna Bluetooth Mesh-enhet är inte en Tuya-enhet."
     }
   },
   "options": {
@@ -164,11 +177,17 @@
       },
       "last_seen": {
         "name": "Senast kontaktad"
+      },
+      "active_proxy": {
+        "name": "Aktiv proxy"
       }
     },
     "binary_sensor": {
       "connectivity": {
         "name": "Anslutning"
+      },
+      "mesh_link": {
+        "name": "Meshanslutning"
       }
     },
     "button": {
@@ -177,6 +196,9 @@
       },
       "reconnect": {
         "name": "Återanslut"
+      },
+      "switch_proxy": {
+        "name": "Byt proxy"
       }
     },
     "update": {
@@ -215,6 +237,9 @@
     },
     "mesh_auth_failed": {
       "message": "Nätverksautentisering misslyckades. Enheten kan behöva tas bort och läggas till på nytt med rätt nätverksuppgifter."
+    },
+    "mesh_switch_proxy_failed": {
+      "message": "Kunde inte byta meshproxy: {error}"
     }
   },
   "services": {
@@ -277,6 +302,40 @@
     "ble_adapter_busy": {
       "title": "Bluetooth-adapter upptagen",
       "description": "Kunde inte ansluta till {device} eftersom en annan app blockerar Bluetooth-adaptern. Åtgärd: (1) Lägg till en ESPHome Bluetooth-proxy, eller (2) installera en andra USB-Bluetooth-adapter."
+    },
+    "legacy_sig_network": {
+      "title": "Flytta {name} till meshnätverket",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Flytta {name} till meshnätverket",
+            "description": "{name} har ett eget privat nätverk. I det gemensamma meshnätverket kan dina enheter vidarebefordra åt varandra och dela en Bluetooth-anslutning.\n\nHome Assistant återställer enheten via Bluetooth och konfigurerar den igen — ingen strömcykling behövs. Entitetsnamn, områden och automationer behålls; scener skapade i Tuya-appen går förlorade. Det tar ungefär en minut; låt enheten vara påslagen och nära en Bluetooth-proxy."
+          }
+        },
+        "error": {
+          "not_connected": "{name} är inte ansluten just nu. Vänta tills den är online och försök igen.",
+          "reset_failed": "{name} återställdes inte, inget har ändrats. Försök igen, eller återställ den för hand (slå av och på ungefär 3 gånger tills den blinkar snabbt) och skicka sedan.",
+          "not_unprovisioned": "{name} återställdes men är ännu inte redo för konfiguration. Se till att den är påslagen och nära en Bluetooth-proxy och försök igen.",
+          "timeout": "Konfigurationen av {name} tog för lång tid. Den är redo för konfiguration — försök igen.",
+          "provisioning_failed": "Konfigurationen av {name} misslyckades. Den är redo för konfiguration — försök igen.",
+          "network_unavailable": "SIG Mesh-nätverket kunde inte startas. Kontrollera loggarna och försök igen.",
+          "not_legacy": "Den här enheten behöver inte flyttas."
+        },
+        "abort": {
+          "entry_not_found": "Enhetens integrationspost finns inte längre."
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "node": {
+      "entry_type": "Meshnod",
+      "initiate_flow": {
+        "user": "Lägg till nod"
+      },
+      "abort": {
+        "add_via_discovery": "Nya enheter ansluter till nätverket när de upptäcks via Bluetooth. Slå på enheten nära en Bluetooth-proxy och bekräfta upptäckten."
+      }
     }
   }
 }

@@ -37,3 +37,44 @@ get_diagnostics:
       selector:
         device:
           integration: tuya_ble_mesh
+
+set_hsl_raw:
+  name: Set raw colour (test)
+  description: Send a colour with any lightness to a Bluetooth Mesh light. 50% is the most saturated colour; higher values blend towards white.
+  fields:
+    device_id:
+      name: Device
+      description: The Bluetooth Mesh light.
+      required: true
+      selector:
+        device:
+          integration: tuya_ble_mesh
+    lightness:
+      name: Lightness
+      description: 0-100 %. 50 = full colour, 100 = white.
+      required: true
+      default: 75
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"
+    hue:
+      name: Hue
+      description: 0-360 degrees (0 red, 120 green, 240 blue).
+      required: true
+      default: 0
+      selector:
+        number:
+          min: 0
+          max: 360
+    saturation:
+      name: Saturation
+      description: 0-100 %.
+      required: true
+      default: 100
+      selector:
+        number:
+          min: 0
+          max: 100
+          unit_of_measurement: "%"

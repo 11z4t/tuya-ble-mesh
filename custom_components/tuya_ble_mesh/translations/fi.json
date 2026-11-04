@@ -70,6 +70,15 @@
           "bridge_host": "The IP address or hostname of your device (e.g. your Raspberry Pi).",
           "bridge_port": "Port the device is listening on. Default is 8099."
         }
+      },
+      "sig_light": {
+        "title": "Setting Up {name}",
+        "description": "We'll automatically add your light to Home Assistant and set up a secure connection to it.\n\nMake sure the light is **powered on**, **freshly reset** and **close to your Bluetooth adapter or proxy**, then click **Submit**.",
+        "data": {}
+      },
+      "create_network": {
+        "title": "Luo SIG Mesh -verkko",
+        "description": "Luo yhden jaetun Bluetooth-mesh-verkon, jotta SIG Mesh -laitteesi voivat välittää viestejä toisilleen ja jakaa yhden Bluetooth-yhteyden."
       }
     },
     "error": {
@@ -93,7 +102,8 @@
       "timeout_validation": "Vahvistus aikakatkaistiin (yli 30 sekuntia). Varmista, että laite on päällä ja lähellä Bluetooth-adapteria, ja yritä uudelleen.",
       "provisioning_appkey_failed": "Sovellustunnisteen sitominen epäonnistui. Yritä tehdasasetusten palautusta ja lisää laite uudelleen.",
       "provisioning_proxy_failed": "Välityspalveluaskel epäonnistui. Varmista, että Proxy Service on käytössä laitteessa, ja yritä uudelleen.",
-      "provisioning_pbgatt_failed": "PB-GATT-yhteys epäonnistui. Siirrä laite lähemmäksi Bluetooth-sovitintasi ja yritä uudelleen."
+      "provisioning_pbgatt_failed": "PB-GATT-yhteys epäonnistui. Siirrä laite lähemmäksi Bluetooth-sovitintasi ja yritä uudelleen.",
+      "configuration_failed": "The device accepted the secure connection but could not finish setup. Factory reset the device (usually by switching it off and on several times), then try again."
     },
     "abort": {
       "already_configured": "Tämä laite on jo määritetty Home Assistantissa.",
@@ -101,7 +111,10 @@
       "device_not_available": "Laite ei ole enää lähellä. Yritä lisätä se uudelleen, kun se on kantaman sisällä.",
       "reconfigure_successful": "Settings updated. The integration will restart now.",
       "not_in_pairing_mode": "Device is not in pairing mode. Factory-reset it and try again.",
-      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again."
+      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again.",
+      "network_already_exists": "SIG Mesh -verkko on jo olemassa. Vain yksi on tuettu.",
+      "added_to_network": "Lisätty SIG Mesh -verkkoosi. Se näkyy SIG Mesh Network -integraatiomerkinnän alla.",
+      "not_supported": "Tämä Bluetooth Mesh -laite ei ole Tuya-laite."
     }
   },
   "options": {
@@ -164,11 +177,17 @@
       },
       "last_seen": {
         "name": "Viimeksi yhteydessä"
+      },
+      "active_proxy": {
+        "name": "Aktiivinen välityspalvelin"
       }
     },
     "binary_sensor": {
       "connectivity": {
         "name": "Yhteys"
+      },
+      "mesh_link": {
+        "name": "Mesh-yhteys"
       }
     },
     "button": {
@@ -177,6 +196,9 @@
       },
       "reconnect": {
         "name": "Yhdistä uudelleen"
+      },
+      "switch_proxy": {
+        "name": "Vaihda välityspalvelinta"
       }
     },
     "update": {
@@ -215,6 +237,9 @@
     },
     "mesh_auth_failed": {
       "message": "Mesh authentication failed. The device may need to be removed and re-provisioned with the correct network credentials."
+    },
+    "mesh_switch_proxy_failed": {
+      "message": "Mesh-välityspalvelimen vaihto epäonnistui: {error}"
     }
   },
   "services": {
@@ -277,6 +302,40 @@
     "ble_adapter_busy": {
       "title": "Bluetooth adapter busy",
       "description": "Could not connect to {device} because another app is monopolizing the Bluetooth adapter. Fix: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter."
+    },
+    "legacy_sig_network": {
+      "title": "Siirrä {name} mesh-verkkoon",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Siirrä {name} mesh-verkkoon",
+            "description": "Laitteella {name} on oma yksityinen verkkonsa. Jaetussa mesh-verkossa laitteesi voivat välittää viestejä toisilleen ja jakaa yhden Bluetooth-yhteyden.\n\nHome Assistant nollaa laitteen Bluetoothin kautta ja määrittää sen uudelleen — virran katkaisua ei tarvita. Entiteettien nimet, alueet ja automaatiot säilyvät; Tuya-sovelluksessa luodut tilanteet menetetään. Tämä kestää noin minuutin; pidä laite päällä ja Bluetooth-välityspalvelimen lähellä."
+          }
+        },
+        "error": {
+          "not_connected": "{name} ei ole juuri nyt yhteydessä. Odota, kunnes se on verkossa, ja yritä uudelleen.",
+          "reset_failed": "Laitetta {name} ei nollattu, mitään ei muutettu. Yritä uudelleen tai nollaa se käsin (katkaise ja kytke virta noin 3 kertaa, kunnes se vilkkuu nopeasti) ja lähetä sitten.",
+          "not_unprovisioned": "{name} nollattiin, mutta se ei ole vielä valmis määritettäväksi. Varmista, että se on päällä ja Bluetooth-välityspalvelimen lähellä, ja yritä uudelleen.",
+          "timeout": "Laitteen {name} määritys aikakatkaistiin. Se on valmis määritettäväksi — yritä uudelleen.",
+          "provisioning_failed": "Laitteen {name} määritys epäonnistui. Se on valmis määritettäväksi — yritä uudelleen.",
+          "network_unavailable": "SIG Mesh -verkkoa ei voitu käynnistää. Tarkista lokit ja yritä uudelleen.",
+          "not_legacy": "Tätä laitetta ei tarvitse siirtää."
+        },
+        "abort": {
+          "entry_not_found": "Laitteen integraatiomerkintää ei enää ole."
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "node": {
+      "entry_type": "Mesh-solmu",
+      "initiate_flow": {
+        "user": "Lisää solmu"
+      },
+      "abort": {
+        "add_via_discovery": "Uudet laitteet liittyvät verkkoon, kun ne löydetään Bluetoothin kautta. Kytke laite päälle Bluetooth-välityspalvelimen lähellä ja vahvista löytö."
+      }
     }
   }
 }

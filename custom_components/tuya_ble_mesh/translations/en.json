@@ -70,6 +70,15 @@
           "bridge_host": "Device Address",
           "bridge_port": "Device Port"
         }
+      },
+      "sig_light": {
+        "title": "Setting Up {name}",
+        "description": "We'll automatically add your light to Home Assistant and set up a secure connection to it.\n\nMake sure the light is **powered on**, **freshly reset** and **close to your Bluetooth adapter or proxy**, then click **Submit**.",
+        "data": {}
+      },
+      "create_network": {
+        "title": "Create SIG Mesh network",
+        "description": "Creates one shared Bluetooth mesh network so your SIG Mesh devices can relay for each other and share a single Bluetooth connection."
       }
     },
     "error": {
@@ -79,21 +88,22 @@
       "invalid_credential_length": "Network name and password must each be 16 characters or fewer.",
       "invalid_vendor_id": "Invalid vendor code — use 1 to 4 hex digits (e.g. 0x1001).",
       "cannot_connect": "Could not reach the device. Check that it's powered on and connected to your network.",
-      "cannot_connect_ble": "Could not connect via Bluetooth. Make sure the device is powered on and within range, then try again.",
+      "cannot_connect_ble": "Could not connect. Make sure the device is in pairing mode and close to your Bluetooth adapter.",
       "provisioning_failed": "Could not connect to the device. Make sure it's powered on and close to your Bluetooth adapter, then try again.",
-      "pairing_failed": "Pairing failed. Check that the network name and password are correct, then try again.",
-      "verify_failed": "Could not verify the device. Try again, or contact support if the problem persists.",
+      "pairing_failed": "Pairing failed. Factory reset the device and try again.",
+      "verify_failed": "The device is not responding. Please try again.",
       "timeout": "Connection timed out. Make sure the device is powered on and close by, then try again.",
       "device_not_found": "Device not found. Make sure it's powered on and within Bluetooth range, then try again.",
-      "device_type_mismatch": "This device doesn't match the selected type. Choose the correct device type or let the system detect it automatically.",
-      "unknown_device_type": "Could not identify the device type automatically. Select the device type manually.",
+      "device_type_mismatch": "The device type does not match. Check that the correct device type is selected.",
+      "unknown_device_type": "Could not identify the device type automatically. Please choose the device type manually.",
       "ble_adapter_busy": "Your Bluetooth adapter is busy. Another app is using it. To fix this: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter. See the integration documentation for details.",
       "invalid_iv_index": "Enter a number between 0 and 4,294,967,295.",
       "invalid_unicast_address": "Enter a 4-character hex address between 0001 and 7FFF (e.g. 00B0).",
       "timeout_validation": "Validation timed out (over 30 seconds). Make sure the device is powered on and close to the Bluetooth adapter, then try again.",
       "provisioning_appkey_failed": "Could not bind the application key. Try factory resetting the device, then add it again.",
       "provisioning_proxy_failed": "Proxy Service step failed. Make sure the device has Proxy Service enabled, then try again.",
-      "provisioning_pbgatt_failed": "PB-GATT connection failed. Move the device closer to your Bluetooth adapter and try again."
+      "provisioning_pbgatt_failed": "PB-GATT connection failed. Move the device closer to your Bluetooth adapter and try again.",
+      "configuration_failed": "The device accepted the secure connection but could not finish setup. Factory reset the device (usually by switching it off and on several times), then try again."
     },
     "abort": {
       "already_configured": "This device is already set up in Home Assistant.",
@@ -101,7 +111,10 @@
       "reconfigure_successful": "Settings updated. The integration will restart now.",
       "device_not_available": "Device is no longer nearby. Try adding it again when it's in range.",
       "not_in_pairing_mode": "Device is not in pairing mode. Factory-reset it and try again.",
-      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again."
+      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again.",
+      "network_already_exists": "A SIG Mesh network already exists. Only one is supported.",
+      "added_to_network": "Added to your SIG Mesh network. It appears under the SIG Mesh Network integration entry.",
+      "not_supported": "This Bluetooth Mesh device is not a Tuya device."
     }
   },
   "options": {
@@ -164,11 +177,17 @@
       },
       "last_seen": {
         "name": "Last contact"
+      },
+      "active_proxy": {
+        "name": "Active proxy"
       }
     },
     "binary_sensor": {
       "connectivity": {
         "name": "Connection"
+      },
+      "mesh_link": {
+        "name": "Mesh connection"
       }
     },
     "button": {
@@ -177,6 +196,9 @@
       },
       "reconnect": {
         "name": "Reconnect"
+      },
+      "switch_proxy": {
+        "name": "Switch proxy"
       }
     },
     "update": {
@@ -215,6 +237,9 @@
     },
     "switch_off_failed": {
       "message": "Failed to turn off switch"
+    },
+    "mesh_switch_proxy_failed": {
+      "message": "Could not switch the mesh proxy: {error}"
     }
   },
   "services": {
@@ -277,6 +302,40 @@
     "ble_adapter_busy": {
       "title": "Bluetooth adapter busy",
       "description": "Could not connect to {device} because another app is monopolizing the Bluetooth adapter. Fix: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter."
+    },
+    "legacy_sig_network": {
+      "title": "Move {name} to the mesh network",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Move {name} to the mesh network",
+            "description": "{name} has its own private network. Moving it to the shared mesh network lets your devices relay for each other and share one Bluetooth connection.\n\nHome Assistant will reset the device over Bluetooth and set it up again — no power cycling needed. Entity names, areas and automations are kept; scenes made in the Tuya app are lost. It takes about a minute; keep the device powered and near a Bluetooth proxy."
+          }
+        },
+        "error": {
+          "not_connected": "{name} is not connected right now. Wait until it is online, then try again.",
+          "reset_failed": "{name} did not reset, so nothing was changed. Try again, or reset it by hand (switch it off and on about 3 times until it blinks fast) and then submit.",
+          "not_unprovisioned": "{name} was reset but is not advertising for setup yet. Make sure it is powered and near a Bluetooth proxy, then try again.",
+          "timeout": "Setting up {name} timed out. It is ready for setup — try again.",
+          "provisioning_failed": "Setting up {name} failed. It is ready for setup — try again.",
+          "network_unavailable": "The SIG Mesh network could not be started. Check the logs and try again.",
+          "not_legacy": "This device does not need to be moved."
+        },
+        "abort": {
+          "entry_not_found": "The device's integration entry no longer exists."
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "node": {
+      "entry_type": "Mesh node",
+      "initiate_flow": {
+        "user": "Add node"
+      },
+      "abort": {
+        "add_via_discovery": "New devices join the network when they are discovered over Bluetooth. Power the device on near a Bluetooth proxy and confirm the discovery."
+      }
     }
   }
 }

@@ -70,6 +70,15 @@
           "bridge_host": "The IP address or hostname of your device (e.g. your Raspberry Pi).",
           "bridge_port": "Port the device is listening on. Default is 8099."
         }
+      },
+      "sig_light": {
+        "title": "Setting Up {name}",
+        "description": "We'll automatically add your light to Home Assistant and set up a secure connection to it.\n\nMake sure the light is **powered on**, **freshly reset** and **close to your Bluetooth adapter or proxy**, then click **Submit**.",
+        "data": {}
+      },
+      "create_network": {
+        "title": "SIG Mesh-netwerk maken",
+        "description": "Maakt één gedeeld Bluetooth-meshnetwerk zodat je SIG Mesh-apparaten berichten voor elkaar kunnen doorgeven en één Bluetooth-verbinding kunnen delen."
       }
     },
     "error": {
@@ -93,7 +102,8 @@
       "timeout_validation": "Validatie verlopen (meer dan 30 seconden). Zorg dat het apparaat aan staat en dicht bij de Bluetooth-adapter is, en probeer opnieuw.",
       "provisioning_appkey_failed": "Kan de applicatiesleutel niet binden. Probeer het apparaat te resetten naar fabrieksinstellingen en voeg het opnieuw toe.",
       "provisioning_proxy_failed": "Proxy Service-stap mislukt. Zorg dat Proxy Service is ingeschakeld op het apparaat en probeer opnieuw.",
-      "provisioning_pbgatt_failed": "PB-GATT-verbinding mislukt. Breng het apparaat dichter bij uw Bluetooth-adapter en probeer opnieuw."
+      "provisioning_pbgatt_failed": "PB-GATT-verbinding mislukt. Breng het apparaat dichter bij uw Bluetooth-adapter en probeer opnieuw.",
+      "configuration_failed": "The device accepted the secure connection but could not finish setup. Factory reset the device (usually by switching it off and on several times), then try again."
     },
     "abort": {
       "already_configured": "Dit apparaat is al ingesteld in Home Assistant.",
@@ -101,7 +111,10 @@
       "device_not_available": "Apparaat is niet meer in de buurt. Probeer het opnieuw toe te voegen wanneer het in bereik is.",
       "reconfigure_successful": "Settings updated. The integration will restart now.",
       "not_in_pairing_mode": "Device is not in pairing mode. Factory-reset it and try again.",
-      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again."
+      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again.",
+      "network_already_exists": "Er bestaat al een SIG Mesh-netwerk. Er wordt er maar één ondersteund.",
+      "added_to_network": "Toegevoegd aan je SIG Mesh-netwerk. Het verschijnt onder de integratie-invoer SIG Mesh Network.",
+      "not_supported": "Dit Bluetooth Mesh-apparaat is geen Tuya-apparaat."
     }
   },
   "options": {
@@ -164,11 +177,17 @@
       },
       "last_seen": {
         "name": "Laatste contact"
+      },
+      "active_proxy": {
+        "name": "Actieve proxy"
       }
     },
     "binary_sensor": {
       "connectivity": {
         "name": "Verbinding"
+      },
+      "mesh_link": {
+        "name": "Meshverbinding"
       }
     },
     "button": {
@@ -177,6 +196,9 @@
       },
       "reconnect": {
         "name": "Opnieuw verbinden"
+      },
+      "switch_proxy": {
+        "name": "Andere proxy kiezen"
       }
     },
     "update": {
@@ -215,6 +237,9 @@
     },
     "mesh_auth_failed": {
       "message": "Mesh authentication failed. The device may need to be removed and re-provisioned with the correct network credentials."
+    },
+    "mesh_switch_proxy_failed": {
+      "message": "Kon niet van meshproxy wisselen: {error}"
     }
   },
   "services": {
@@ -277,6 +302,40 @@
     "ble_adapter_busy": {
       "title": "Bluetooth adapter busy",
       "description": "Could not connect to {device} because another app is monopolizing the Bluetooth adapter. Fix: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter."
+    },
+    "legacy_sig_network": {
+      "title": "{name} naar het meshnetwerk verplaatsen",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "{name} naar het meshnetwerk verplaatsen",
+            "description": "{name} heeft een eigen privénetwerk. In het gedeelde meshnetwerk kunnen je apparaten berichten voor elkaar doorgeven en één Bluetooth-verbinding delen.\n\nHome Assistant reset het apparaat via Bluetooth en stelt het opnieuw in — uit- en aanzetten is niet nodig. Entiteitsnamen, ruimtes en automatiseringen blijven behouden; scènes uit de Tuya-app gaan verloren. Dit duurt ongeveer een minuut; houd het apparaat aan en in de buurt van een Bluetooth-proxy."
+          }
+        },
+        "error": {
+          "not_connected": "{name} is nu niet verbonden. Wacht tot het online is en probeer het opnieuw.",
+          "reset_failed": "{name} is niet gereset, er is niets veranderd. Probeer het opnieuw, of reset het handmatig (ongeveer 3 keer uit- en aanzetten tot het snel knippert) en verstuur dan.",
+          "not_unprovisioned": "{name} is gereset maar is nog niet klaar om in te stellen. Zorg dat het aan staat en in de buurt van een Bluetooth-proxy is en probeer het opnieuw.",
+          "timeout": "Het instellen van {name} duurde te lang. Het is klaar om in te stellen — probeer het opnieuw.",
+          "provisioning_failed": "Het instellen van {name} is mislukt. Het is klaar om in te stellen — probeer het opnieuw.",
+          "network_unavailable": "Het SIG Mesh-netwerk kon niet worden gestart. Controleer de logboeken en probeer het opnieuw.",
+          "not_legacy": "Dit apparaat hoeft niet te worden verplaatst."
+        },
+        "abort": {
+          "entry_not_found": "De integratie-invoer van het apparaat bestaat niet meer."
+        }
+      }
+    }
+  },
+  "config_subentries": {
+    "node": {
+      "entry_type": "Meshknooppunt",
+      "initiate_flow": {
+        "user": "Knooppunt toevoegen"
+      },
+      "abort": {
+        "add_via_discovery": "Nieuwe apparaten worden aan het netwerk toegevoegd wanneer ze via Bluetooth worden ontdekt. Zet het apparaat aan in de buurt van een Bluetooth-proxy en bevestig de ontdekking."
+      }
     }
   }
 }

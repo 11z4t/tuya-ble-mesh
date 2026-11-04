@@ -67,3 +67,17 @@ def mock_validate_and_connect():
         ),
     ):
         yield
+
+
+@pytest.fixture(autouse=True)
+def legacy_sig_provisioning():
+    """Existing config-flow tests exercise the legacy one-entry-per-device path.
+
+    New SIG devices join the shared network by default; tests for that path
+    (test_mesh_network_provisioning.py) patch this back to True.
+    """
+    with patch(
+        "custom_components.tuya_ble_mesh.config_flow_sig._use_shared_network",
+        return_value=False,
+    ):
+        yield

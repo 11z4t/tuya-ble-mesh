@@ -33,7 +33,7 @@ class TestServiceRegistration:
         await _async_register_services(hass)
 
         # Should register all 4 services
-        assert hass.services.async_register.call_count == 4
+        assert hass.services.async_register.call_count == 5
         service_names = [call[0][1] for call in hass.services.async_register.call_args_list]
         assert "identify" in service_names
         assert "set_log_level" in service_names
@@ -388,3 +388,32 @@ class TestReconnectService:
 
 
 # Note: _get_coordinator_for_device tests removed as they require complex HA device registry mocking
+
+
+class TestSetHslRawService:
+    """Test set_hsl_raw debug service (HSL lightness above 50%)."""
+
+    @pytest.mark.asyncio
+    async def test_scales_percent_and_degrees_to_mesh_units(self) -> None:
+        hass = MagicMock()
+        hass.services.has_service = MagicMock(return_value=False)
+        registered_services = {}
+
+        def mock_register(domain, service_name, handler, **kwargs):
+            registered_services[service_name] = handler
+
+        hass.services.async_register = mock_register
+        await _async_register_services(hass)
+
+        coordinator = MagicMock()
+        coordinator.device.send_hsl = AsyncMock()
+        call = MagicMock()
+        call.data = {"device_id": "d", "lightness": 75, "hue": 120, "saturation": 100}
+        with patch(
+            "custom_components.tuya_ble_mesh._get_coordinator_for_device",
+            return_value=coordinator,
+        ):
+            await registered_services["set_hsl_raw"](call)
+        coordinator.device.send_hsl.assert_awaited_once_with(
+            round(0.75 * 0xFFFF), round(0xFFFF / 3), 0xFFFF
+        )

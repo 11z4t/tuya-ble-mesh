@@ -483,9 +483,12 @@ class TestMidProtocolErrors:
                 "tuya_ble_mesh.sig_mesh_provisioner_exchange.PROVISIONING_CAPABILITIES_TIMEOUT",
                 0.05,
             ),
+            patch("tuya_ble_mesh.sig_mesh_provisioner_exchange._INVITE_RETRY_TIMEOUT", 0.05),
             pytest.raises(ProvisioningError, match="Timeout"),
         ):
             await asyncio.wait_for(prov._run_exchange(client), timeout=5.0)
+        # Invite was retransmitted before giving up
+        assert _wq.qsize() >= 3
 
     @pytest.mark.asyncio
     async def test_public_key_timeout(self) -> None:
@@ -794,6 +797,23 @@ class TestFullExchangeHappyPath:
         assert len(result.dev_key) == 16
         assert result.iv_index == 0
         assert result.num_elements == 1
+
+    @pytest.mark.asyncio
+    async def test_unicast_allocator_called_with_element_count(self) -> None:
+        """A shared network picks the address once Capabilities reports elements."""
+        calls: list[int] = []
+
+        def _alloc(elements: int) -> int:
+            calls.append(elements)
+            return 0x0042
+
+        prov = SIGMeshProvisioner(b"\x00" * 16, b"\x01" * 16, 0, unicast_allocator=_alloc)
+        device_priv = generate_private_key(SECP256R1())
+
+        result = await self._run_full(prov, device_priv)
+
+        assert calls == [result.num_elements]
+        assert result.unicast_addr == 0x0042
 
     @pytest.mark.asyncio
     async def test_happy_path_custom_params(self) -> None:

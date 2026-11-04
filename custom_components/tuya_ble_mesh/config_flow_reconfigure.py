@@ -29,8 +29,8 @@ from custom_components.tuya_ble_mesh.const import (
     DEFAULT_IV_INDEX,
     DEVICE_TYPE_LIGHT,
     DEVICE_TYPE_SIG_BRIDGE_PLUG,
-    DEVICE_TYPE_SIG_PLUG,
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
+    SIG_DIRECT_DEVICE_TYPES,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -70,7 +70,7 @@ async def async_step_reconfigure(flow: Any, user_input: dict[str, Any] | None = 
                 errors[CONF_BRIDGE_HOST] = host_error
             elif not await _test_bridge_with_session(flow.hass, host, port):
                 errors["base"] = "cannot_connect"
-        elif device_type == DEVICE_TYPE_SIG_PLUG:
+        elif device_type in SIG_DIRECT_DEVICE_TYPES:
             unicast_val = str(user_input.get(CONF_UNICAST_TARGET, "00B0"))
             unicast_error = _validate_unicast_address(unicast_val)
             if unicast_error:
@@ -110,7 +110,7 @@ async def async_step_reconfigure(flow: Any, user_input: dict[str, Any] | None = 
                 ): int,
             }
         )
-    elif device_type == DEVICE_TYPE_SIG_PLUG:
+    elif device_type in SIG_DIRECT_DEVICE_TYPES:
         schema = vol.Schema(
             {
                 vol.Optional(

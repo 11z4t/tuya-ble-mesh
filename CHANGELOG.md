@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **SIG Mesh lights** (`sig_light` device type, "Light (SIG Mesh)") — RGB+CCT lights using
+  the standard Bluetooth Mesh lighting models: Generic OnOff, Light Lightness, Light CTL /
+  CTL Temperature and Light HSL. Verified on a Tuya-based VOLT G4 RGBCW bulb
+  (CID 0x07D0, category 0x5115) through an ESPHome Bluetooth proxy.
+  - New `SIGMeshLight` library class (`sig_mesh_light.py`) and `TuyaBLEMeshSIGLight` entity
+    (`light_sig.py`) with `COLOR_TEMP` + `HS` colour modes and transitions (fades).
+  - Provisioning now configures the whole node (`configure_sig_node`): AppKey Add,
+    Composition Data Get, Model App Bind for every server model on every element (incl.
+    vendor models), status publication to HA, and CTL temperature range query.
+  - Bluetooth discovery matches the Mesh Provisioning service (0x1827) and classifies
+    lights vs plugs from the Tuya mesh category in the unprovisioned Device UUID.
+  - Full Composition Data Page 0 parsing (elements, SIG and vendor models).
+  - Codec: Lightness / CTL / CTL Temperature / HSL Get/Set/Status, Health Attention,
+    vendor-model App Bind, Model Publication Set, Transition Time encoding.
+  - `tuya_ble_mesh.set_hsl_raw` debug action (send HSL with any lightness).
+- Tuya quirks handled: colour temperature applied only via CTL Temperature Set and mapped
+  over the full 800–20000 K mesh range; full colour at HSL lightness 50%; on/off taken only
+  from Generic OnOff (lightness is reported while off); fades applied via Generic OnOff
+  when turning on from off.
+
+### Fixed
+- **SIG Mesh plug setup was broken**: `send_config_app_key_add` typo meant the AppKey was
+  never added (error swallowed), and `_create_sig_plug` passed an unsupported
+  `ble_connect_callback` kwarg so every `sig_plug` entry failed setup.
+- **Sequence numbers reset to 0 after provisioning** — the node's replay protection then
+  silently dropped every message. The flow now hands its final SEQ to the entry, and SEQs
+  are reserved/persisted in blocks ahead of use instead of every 10 OnOff statuses.
+- **Segmented RX used SeqZero instead of SeqAuth in the nonce** — decryption failed once
+  the sender's SEQ passed 8191. Segment Acknowledgments are now sent, and retransmitted
+  segments are re-acked instead of being dispatched twice.
+- Proxy characteristics resolved on the 0x1828 service object (fixes "Multiple
+  Characteristics with this UUID" with stale GATT caches); HA connections use
+  `bleak-retry-connector` with fresh service discovery after provisioning.
+- Provisioning: overall budget 60 → 180 s, settle delay + Invite retransmission (Tuya
+  ignores an Invite sent immediately after connect), early PDUs no longer dropped, bounded
+  cleanup so a dead proxy link can't hang the config flow ("unknown error").
+- `_dispatch_update` passed the (now synchronous) `async_set_updated_data` result to a task
+  creator (`TypeError: a coroutine was expected, got None`) on every state update.
+- Identify flashes restore the light's previous on/off state.
+- Several English UI strings were in Swedish.
+
 ---
 
 ## [0.38.0] — 2026-03-31

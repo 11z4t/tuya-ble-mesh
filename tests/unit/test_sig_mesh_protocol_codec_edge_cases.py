@@ -156,3 +156,70 @@ class TestTuyaVendorTimestampResponse:
         result = tuya_vendor_timestamp_response()
         ts = int.from_bytes(result[5:9], "big")
         assert abs(ts - int(time.time())) < 5  # Within 5 seconds
+
+    def test_tz_byte_uses_current_utc_offset(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """Offset comes from tm_gmtoff, so it is right whether or not DST is active."""
+        import time
+
+        real_localtime = time.localtime
+
+        class _FakeTm:
+            tm_gmtoff = -4 * 3600  # e.g. EDT
+
+        monkeypatch.setattr(time, "localtime", lambda *_a: _FakeTm())
+        try:
+            result = tuya_vendor_timestamp_response()
+        finally:
+            monkeypatch.setattr(time, "localtime", real_localtime)
+        assert int.from_bytes(result[9:10], "big", signed=True) == -4
+
+    def test_unknown_command_logged_with_hex(self, caplog: pytest.LogCaptureFixture) -> None:
+        import logging
+
+        with caplog.at_level(logging.INFO):
+            parse_tuya_vendor_frame(bytes([0x80, 0x05, 0x01, 0x02, 0x03, 0x04, 0x05]))
+        assert "0x80" in caplog.text
+        assert "80050102030405" in caplog.text
+
+
+class TestConfigStateCodec:
+    """Read-only Config Get/Status codec (Mesh Profile 4.3.2)."""
+
+    def test_get_encodes_two_byte_opcode(self) -> None:
+        from tuya_ble_mesh.sig_mesh_protocol_codec import OP_CONFIG_RELAY_GET, config_state_get
+
+        assert config_state_get(OP_CONFIG_RELAY_GET) == b"\x80\x26"
+
+    def test_get_rejects_non_two_byte_opcode(self) -> None:
+        from tuya_ble_mesh.exceptions import ProtocolError
+        from tuya_ble_mesh.sig_mesh_protocol_codec import config_state_get
+
+        with pytest.raises(ProtocolError):
+            config_state_get(0x02)
+
+    def test_transmit_byte(self) -> None:
+        from tuya_ble_mesh.sig_mesh_protocol_codec import parse_transmit_byte
+
+        tx = parse_transmit_byte(0x00)
+        assert (tx.transmissions, tx.interval_ms) == (1, 10)
+        tx = parse_transmit_byte(0xFF)
+        assert (tx.transmissions, tx.interval_ms) == (8, 320)
+
+    def test_relay_status(self) -> None:
+        from tuya_ble_mesh.sig_mesh_protocol_codec import parse_relay_status
+
+        st = parse_relay_status(bytes([0x01, (2 << 3) | 3]))
+        assert st.relay == 1
+        assert (st.retransmit.transmissions, st.retransmit.interval_ms) == (4, 30)
+
+    def test_short_statuses_raise(self) -> None:
+        from tuya_ble_mesh.exceptions import MalformedPacketError
+        from tuya_ble_mesh.sig_mesh_protocol_codec import (
+            parse_relay_status,
+            parse_single_byte_status,
+        )
+
+        with pytest.raises(MalformedPacketError):
+            parse_relay_status(b"\x01")
+        with pytest.raises(MalformedPacketError):
+            parse_single_byte_status(b"", "Beacon")

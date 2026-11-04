@@ -202,7 +202,9 @@ class TestProcessNotify:
         ):
             await dev._process_notify(b"\x00" * 29)
 
-        mock_handle.assert_called_once_with(0x0001, 0x0010, mock_net.transport_pdu)
+        mock_handle.assert_called_once_with(
+            0x0001, 0x0010, mock_net.transport_pdu, seq=mock_net.seq
+        )
 
     @pytest.mark.asyncio
     async def test_none_access_payload_after_unseg_returns(self) -> None:

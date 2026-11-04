@@ -36,6 +36,7 @@ from custom_components.tuya_ble_mesh.const import (
     DOMAIN,
     KNOWN_VENDOR_IDS,
     PLATFORMS,
+    STARTUP_ADVERT_TIMEOUT,
 )
 from custom_components.tuya_ble_mesh.device_factory import create_device
 from custom_components.tuya_ble_mesh.device_registry import TuyaBLEMeshDeviceRegistry
@@ -90,6 +91,13 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
 
     # PLAT-759: Routine setup logging at DEBUG level
     _LOGGER.debug("Setting up Tuya BLE Mesh entry: %s", entry.title)
+
+    from custom_components.tuya_ble_mesh.mesh_network import is_network_entry
+
+    if is_network_entry(entry):
+        from custom_components.tuya_ble_mesh.network_setup import async_setup_network_entry
+
+        return await async_setup_network_entry(hass, entry)
 
     mac_address: str = entry.data[CONF_MAC_ADDRESS]
     device_type: str = entry.data.get(CONF_DEVICE_TYPE, "")
@@ -165,6 +173,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
     # PLAT-743: Try initial connection synchronously during setup.
     # If it fails, raise ConfigEntryNotReady to let HA Core handle retry scheduling.
     # This gives HA visibility into integration health and proper retry state in UI.
+    # On HA start the ESPHome proxies connect after us; wait briefly for the
+    # device to be seen instead of burning all connect attempts on "not found".
+    if not hasattr(device, "host"):
+        await _async_wait_for_advertisement(hass, mac_address, STARTUP_ADVERT_TIMEOUT)
+
     try:
         await coordinator.async_initial_connect()
     except Exception as err:
@@ -233,7 +246,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
                     service_info.address,
                     service_info.rssi,
                 )
-                coordinator.schedule_reconnect()
+                coordinator.notify_device_seen()
 
         entry.async_on_unload(
             async_register_callback(
@@ -247,8 +260,65 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
     except ImportError:
         _LOGGER.debug("Bluetooth integration not available, skipping BLE reconnect callback")
 
+    from custom_components.tuya_ble_mesh.migration import (
+        async_create_migration_issue,
+        is_legacy_sig_entry,
+    )
+
+    if is_legacy_sig_entry(entry):
+        # Offer "Move to mesh network" (shared network, single proxy link)
+        async_create_migration_issue(hass, entry)
+
     # PLAT-759: Routine setup completion at DEBUG level
     _LOGGER.debug("Tuya BLE Mesh entry set up: %s", entry.title)
+    return True
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) -> None:
+    """Clean up repair issues of a removed entry."""
+    from custom_components.tuya_ble_mesh.migration import async_delete_migration_issue
+
+    async_delete_migration_issue(hass, entry.entry_id)
+
+
+async def _async_wait_for_advertisement(hass: HomeAssistant, address: str, timeout: float) -> bool:
+    """Wait until HA bluetooth has a connectable path to ``address``.
+
+    Returns:
+        True if the device is (or became) visible, False on timeout or when
+        the bluetooth integration is unavailable.
+    """
+    try:
+        from homeassistant.components.bluetooth import (
+            BluetoothCallbackMatcher,
+            BluetoothScanningMode,
+            async_ble_device_from_address,
+            async_process_advertisements,
+        )
+    except ImportError:
+        return False
+    try:
+        if async_ble_device_from_address(hass, address, connectable=True) is not None:
+            return True
+    except Exception:  # bluetooth not set up (e.g. tests, no adapter)
+        _LOGGER.debug("HA bluetooth unavailable while resolving %s", address, exc_info=True)
+        return False
+
+    _LOGGER.info("Waiting up to %.0fs for %s to be seen by a BLE proxy", timeout, address)
+    try:
+        await async_process_advertisements(
+            hass,
+            lambda _info: True,
+            BluetoothCallbackMatcher(address=address, connectable=True),
+            BluetoothScanningMode.ACTIVE,
+            timeout,
+        )
+    except TimeoutError:
+        _LOGGER.info("%s not seen within %.0fs — trying to connect anyway", address, timeout)
+        return False
+    except Exception:
+        _LOGGER.debug("Waiting for advertisement from %s failed", address, exc_info=True)
+        return False
     return True
 
 
@@ -280,11 +350,13 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         try:
             device = coordinator.device
             if hasattr(device, "send_power"):
-                # Flash: off/on x3, with 0.5s delay between each command
+                # Flash x3 (0.5 s steps), ending in the light's original state.
+                # Tuya SIG Mesh bulbs ack Health Attention but don't blink.
+                was_on = bool(coordinator.state.is_on)
                 for _ in range(3):
-                    await device.send_power(False)
+                    await device.send_power(not was_on)
                     await asyncio.sleep(0.5)
-                    await device.send_power(True)
+                    await device.send_power(was_on)
                     await asyncio.sleep(0.5)
         except Exception as exc:
             raise HomeAssistantError(
@@ -399,6 +471,49 @@ async def _async_register_services(hass: HomeAssistant) -> None:
         schema=vol.Schema({vol.Required("device_id"): str}),
     )
 
+    async def handle_set_hsl_raw(call: ServiceCall) -> None:
+        """Send a raw Light HSL Set (any lightness) to a SIG Mesh light.
+
+        Debug/experiment helper: the light entity caps HSL lightness at 50%
+        (full saturated colour); this allows testing 50-100% (towards white).
+
+        Args:
+            call: Service call with device_id, lightness (0-100 %), hue
+                (0-360) and saturation (0-100 %).
+        """
+        device_id: str = call.data.get("device_id", "")
+        coordinator = _get_coordinator_for_device(hass, device_id)
+        if coordinator is None:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="device_not_found",
+                translation_placeholders={"device_id": device_id},
+            )
+        device: Any = coordinator.device
+        if not hasattr(device, "send_hsl"):
+            raise HomeAssistantError(f"Device {device_id} is not a SIG Mesh light")
+        lightness = round(float(call.data["lightness"]) * 0xFFFF / 100)
+        hue = round((float(call.data["hue"]) % 360) * 0xFFFF / 360)
+        saturation = round(float(call.data["saturation"]) * 0xFFFF / 100)
+        _LOGGER.info(
+            "Raw HSL Set to %s: L=%d H=%d S=%d", device.address, lightness, hue, saturation
+        )
+        await device.send_hsl(lightness, hue, saturation)
+
+    hass.services.async_register(
+        DOMAIN,
+        "set_hsl_raw",
+        handle_set_hsl_raw,
+        schema=vol.Schema(
+            {
+                vol.Required("device_id"): str,
+                vol.Required("lightness"): vol.All(vol.Coerce(float), vol.Range(0, 100)),
+                vol.Required("hue"): vol.All(vol.Coerce(float), vol.Range(0, 360)),
+                vol.Required("saturation"): vol.All(vol.Coerce(float), vol.Range(0, 100)),
+            }
+        ),
+    )
+
 
 def _get_coordinator_for_device(
     hass: HomeAssistant, device_id: str
@@ -419,12 +534,20 @@ def _get_coordinator_for_device(
     if device is None:
         return None
 
-    # Match by config entry ID
+    from custom_components.tuya_ble_mesh.entry_nodes import iter_entry_nodes
+
+    macs = {ident[1].upper() for ident in device.identifiers if ident[0] == DOMAIN}
+    # Match by config entry ID (and, for network entries, by node MAC)
     for entry_id in device.config_entries:
         entry = hass.config_entries.async_get_entry(entry_id)
-        if entry is not None and hasattr(entry, "runtime_data"):
-            runtime: TuyaBLEMeshRuntimeData = entry.runtime_data
-            return runtime.coordinator
+        if entry is None:
+            continue
+        nodes = iter_entry_nodes(entry)
+        if len(nodes) == 1 and nodes[0].subentry_id is None:
+            return nodes[0].runtime.coordinator
+        for node in nodes:
+            if node.runtime.coordinator.device.address.upper() in macs:
+                return node.runtime.coordinator
     return None
 
 
@@ -456,6 +579,19 @@ async def async_remove_config_entry_device(
         True if the device is not currently connected (safe to remove),
         False if the device is active and should not be removed.
     """
+    from custom_components.tuya_ble_mesh.mesh_network import is_network_entry
+
+    if is_network_entry(entry):
+        # Nodes are removed by deleting their subentry (which also resets the
+        # node); the hub device goes with the entry. Allow only orphans.
+        from custom_components.tuya_ble_mesh.entry_nodes import iter_entry_nodes
+
+        macs = {ident[1].upper() for ident in device_entry.identifiers if ident[0] == DOMAIN}
+        loaded = {n.runtime.coordinator.device.address.upper() for n in iter_entry_nodes(entry)}
+        hub = getattr(getattr(entry, "runtime_data", None), "manager", None)
+        hub_id = getattr(hub, "network_uuid", None)
+        return not (macs & loaded) and (hub_id is None or hub_id.upper() not in macs)
+
     runtime: TuyaBLEMeshRuntimeData | None = getattr(entry, "runtime_data", None)
     if runtime is None:
         # Entry has no runtime data — not loaded, allow cleanup
@@ -490,6 +626,13 @@ async def async_unload_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry)
     """
     # PLAT-759: Routine unload logging at DEBUG level
     _LOGGER.debug("Unloading Tuya BLE Mesh entry: %s", entry.title)
+
+    from custom_components.tuya_ble_mesh.mesh_network import is_network_entry
+
+    if is_network_entry(entry):
+        from custom_components.tuya_ble_mesh.network_setup import async_unload_network_entry
+
+        return await async_unload_network_entry(hass, entry)
 
     runtime: TuyaBLEMeshRuntimeData | None = getattr(entry, "runtime_data", None)
     if runtime is not None:

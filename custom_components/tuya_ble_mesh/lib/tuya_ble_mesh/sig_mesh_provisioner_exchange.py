@@ -106,6 +106,13 @@ _PROV_ERROR_NAMES: dict[int, str] = {
 }
 
 
+# Delay between enabling notifications and the first Invite (seconds)
+_POST_SUBSCRIBE_SETTLE = 1.5
+# Invite retransmissions and per-try wait for Capabilities (seconds)
+_INVITE_ATTEMPTS = 3
+_INVITE_RETRY_TIMEOUT = 5.0
+
+
 @dataclass(frozen=True)
 class ProvisioningResult:
     """Result of a successful PB-GATT provisioning exchange.
@@ -203,6 +210,9 @@ class ProvisionerExchangeMixin:
         # CF-2: Use asyncio.Lock to protect rx_buffer and rx_sar_buffer from race conditions
         rx_lock = asyncio.Lock()
         rx_event: asyncio.Event = asyncio.Event()
+        # True while a complete PDU sits in rx_buffer unconsumed, so a PDU that
+        # arrives before recv_prov() starts waiting is not lost.
+        rx_pending = False
         rx_buffer: bytearray = bytearray()
         rx_sar_buffer: bytearray = bytearray()
         # Strong references to notify tasks (prevents premature GC by asyncio)
@@ -228,12 +238,13 @@ class ProvisionerExchangeMixin:
 
         async def _process_notify(data: bytes) -> None:
             """Process notification with lock protection (CF-2)."""
-            nonlocal rx_buffer, rx_sar_buffer
+            nonlocal rx_buffer, rx_sar_buffer, rx_pending
             async with rx_lock:
                 sar = (data[0] >> 6) & 0x03
                 payload = bytes(data[1:])
                 if sar == _SAR_COMPLETE:
                     rx_buffer = bytearray(payload)
+                    rx_pending = True
                     rx_event.set()
                 elif sar == _SAR_FIRST:
                     rx_sar_buffer = bytearray(payload)
@@ -243,6 +254,7 @@ class ProvisionerExchangeMixin:
                     rx_sar_buffer.extend(payload)
                     rx_buffer = rx_sar_buffer
                     rx_sar_buffer = bytearray()
+                    rx_pending = True
                     rx_event.set()
 
         async def send_prov(pdu: bytes) -> None:
@@ -272,12 +284,15 @@ class ProvisionerExchangeMixin:
             eliminating the TOCTOU window where a notification arriving between
             clear() and wait() would be silently dropped.
             """
-            nonlocal rx_event
+            nonlocal rx_event, rx_pending
             rx_event = asyncio.Event()
+            if rx_pending:
+                rx_event.set()
             try:
                 await asyncio.wait_for(rx_event.wait(), timeout=recv_timeout)
                 # CF-2: Lock access to rx_buffer to prevent race with concurrent notify
                 async with rx_lock:
+                    rx_pending = False
                     return bytes(rx_buffer)
             except TimeoutError as exc:
                 msg = (
@@ -324,20 +339,43 @@ class ProvisionerExchangeMixin:
             )
 
         await client.start_notify(PROV_DATA_OUT, _on_notify)
+        # Some firmwares (e.g. Tuya SIG Mesh bulbs) ignore an Invite that
+        # arrives immediately after connect/CCCD write; give them a moment.
+        await asyncio.sleep(_POST_SUBSCRIBE_SETTLE)
 
-        # ---- Step 1: Invite ----
-        _LOGGER.info("Provisioning: Invite (attention=%ds)", _ATTENTION_DURATION)
+        # ---- Step 1: Invite / Step 2: Capabilities ----
+        # Retransmit the Invite if no Capabilities arrive (Invite is idempotent
+        # until Capabilities have been sent).
         invite_params = bytes([_ATTENTION_DURATION])
-        await send_prov(bytes([_PROV_INVITE]) + invite_params)
-
-        # ---- Step 2: Capabilities ----
-        caps_pdu = await recv_prov(
-            recv_timeout=PROVISIONING_CAPABILITIES_TIMEOUT, step_name="Capabilities"
-        )
+        caps_pdu = b""
+        for invite_try in range(1, _INVITE_ATTEMPTS + 1):
+            _LOGGER.info(
+                "Provisioning: Invite (attention=%ds, try %d/%d)",
+                _ATTENTION_DURATION,
+                invite_try,
+                _INVITE_ATTEMPTS,
+            )
+            await send_prov(bytes([_PROV_INVITE]) + invite_params)
+            try:
+                caps_pdu = await recv_prov(
+                    recv_timeout=_INVITE_RETRY_TIMEOUT
+                    if invite_try < _INVITE_ATTEMPTS
+                    else PROVISIONING_CAPABILITIES_TIMEOUT,
+                    step_name="Capabilities",
+                )
+                break
+            except ProvisioningError:
+                if invite_try >= _INVITE_ATTEMPTS:
+                    raise
+                _LOGGER.info("No Capabilities yet; re-sending Invite")
         check_pdu(caps_pdu, _PROV_CAPABILITIES, "Capabilities")
         device_caps = caps_pdu[1:]  # 11 bytes for ConfirmationInputs
         num_elements = caps_pdu[1] if len(caps_pdu) > 1 else 1
         _LOGGER.info("Provisioning: Capabilities received (elements=%d)", num_elements)
+        allocator = getattr(self, "_unicast_allocator", None)
+        if allocator is not None:
+            self._unicast_addr = int(allocator(num_elements))
+            _LOGGER.info("Provisioning: allocated unicast 0x%04X", self._unicast_addr)
 
         # ---- Step 3: Start (No OOB) ----
         _LOGGER.info("Provisioning: Start")
