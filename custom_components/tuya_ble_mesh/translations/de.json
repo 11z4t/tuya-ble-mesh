@@ -301,6 +301,29 @@
     "ble_adapter_busy": {
       "title": "Bluetooth adapter busy",
       "description": "Could not connect to {device} because another app is monopolizing the Bluetooth adapter. Fix: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter."
+    },
+    "legacy_sig_network": {
+      "title": "{name} ins Mesh-Netzwerk verschieben",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "{name} ins Mesh-Netzwerk verschieben",
+            "description": "{name} hat ein eigenes privates Netzwerk. Im gemeinsamen Mesh-Netzwerk können sich deine Geräte gegenseitig weiterleiten und eine Bluetooth-Verbindung teilen.\n\nHome Assistant setzt das Gerät über Bluetooth zurück und richtet es neu ein — kein Aus- und Einschalten nötig. Entitätsnamen, Bereiche und Automationen bleiben erhalten; in der Tuya-App erstellte Szenen gehen verloren. Das dauert etwa eine Minute; lass das Gerät eingeschaltet und in der Nähe eines Bluetooth-Proxys."
+          }
+        },
+        "error": {
+          "not_connected": "{name} ist gerade nicht verbunden. Warte, bis es online ist, und versuche es erneut.",
+          "reset_failed": "{name} wurde nicht zurückgesetzt, es wurde nichts geändert. Versuche es erneut oder setze es von Hand zurück (etwa 3-mal aus- und einschalten, bis es schnell blinkt) und sende dann ab.",
+          "not_unprovisioned": "{name} wurde zurückgesetzt, ist aber noch nicht zur Einrichtung bereit. Achte darauf, dass es eingeschaltet und in der Nähe eines Bluetooth-Proxys ist, und versuche es erneut.",
+          "timeout": "Die Einrichtung von {name} hat zu lange gedauert. Es ist bereit zur Einrichtung — versuche es erneut.",
+          "provisioning_failed": "Die Einrichtung von {name} ist fehlgeschlagen. Es ist bereit zur Einrichtung — versuche es erneut.",
+          "network_unavailable": "Das SIG-Mesh-Netzwerk konnte nicht gestartet werden. Prüfe die Protokolle und versuche es erneut.",
+          "not_legacy": "Dieses Gerät muss nicht verschoben werden."
+        },
+        "abort": {
+          "entry_not_found": "Der Integrationseintrag des Geräts existiert nicht mehr."
+        }
+      }
     }
   },
   "config_subentries": {

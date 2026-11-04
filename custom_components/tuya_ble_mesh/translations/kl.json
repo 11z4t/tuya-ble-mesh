@@ -301,6 +301,29 @@
     "ble_adapter_busy": {
       "title": "Bluetooth adapter busy",
       "description": "Could not connect to {device} because another app is monopolizing the Bluetooth adapter. Fix: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter."
+    },
+    "legacy_sig_network": {
+      "title": "Flyt {name} til meshnetværket",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Flyt {name} til meshnetværket",
+            "description": "{name} har sit eget private netværk. I det fælles meshnetværk kan dine enheder videresende for hinanden og dele én Bluetooth-forbindelse.\n\nHome Assistant nulstiller enheden via Bluetooth og konfigurerer den igen — du behøver ikke slukke og tænde den. Entitetsnavne, områder og automatiseringer bevares; scener lavet i Tuya-appen går tabt. Det tager cirka et minut; lad enheden være tændt og tæt på en Bluetooth-proxy."
+          }
+        },
+        "error": {
+          "not_connected": "{name} er ikke forbundet lige nu. Vent, til den er online, og prøv igen.",
+          "reset_failed": "{name} blev ikke nulstillet, intet er ændret. Prøv igen, eller nulstil den manuelt (sluk og tænd cirka 3 gange, til den blinker hurtigt), og send derefter.",
+          "not_unprovisioned": "{name} blev nulstillet, men er endnu ikke klar til opsætning. Sørg for, at den er tændt og tæt på en Bluetooth-proxy, og prøv igen.",
+          "timeout": "Opsætningen af {name} tog for lang tid. Den er klar til opsætning — prøv igen.",
+          "provisioning_failed": "Opsætningen af {name} mislykkedes. Den er klar til opsætning — prøv igen.",
+          "network_unavailable": "SIG Mesh-netværket kunne ikke startes. Tjek logfilerne, og prøv igen.",
+          "not_legacy": "Denne enhed behøver ikke at blive flyttet."
+        },
+        "abort": {
+          "entry_not_found": "Enhedens integrationspost findes ikke længere."
+        }
+      }
     }
   },
   "config_subentries": {

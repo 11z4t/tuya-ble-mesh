@@ -306,6 +306,29 @@
     "ble_adapter_busy": {
       "title": "Bluetooth adapter busy — cannot connect to {device}",
       "description": "Your Bluetooth adapter is busy (error 0x0a). Another integration (likely the built-in Home Assistant Bluetooth integration) is monopolizing the adapter.\n\n**This is a hardware limitation.** To fix it, you have two options:\n\n**Option 1: ESPHome Bluetooth Proxy (Recommended)**\n1. Get an ESP32 device (e.g., ESP32-DevKit, M5Atom Lite)\n2. Flash it with ESPHome and enable `bluetooth_proxy`\n3. Add it to Home Assistant\n4. The integration will automatically use it\n\n**Option 2: Second USB Bluetooth Adapter**\n1. Buy a USB Bluetooth 4.0+ dongle\n2. Plug it into your Home Assistant host\n3. Restart Home Assistant\n4. Try adding the device again\n\n**Why this happens:** Home Assistant's built-in Bluetooth integration keeps the adapter locked for active scanning. This integration cannot share the same adapter.\n\nSee the integration documentation for detailed setup instructions."
+    },
+    "legacy_sig_network": {
+      "title": "Move {name} to the mesh network",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Move {name} to the mesh network",
+            "description": "{name} has its own private network. Moving it to the shared mesh network lets your devices relay for each other and share one Bluetooth connection.\n\nHome Assistant will reset the device over Bluetooth and set it up again — no power cycling needed. Entity names, areas and automations are kept; scenes made in the Tuya app are lost. It takes about a minute; keep the device powered and near a Bluetooth proxy."
+          }
+        },
+        "error": {
+          "not_connected": "{name} is not connected right now. Wait until it is online, then try again.",
+          "reset_failed": "{name} did not reset, so nothing was changed. Try again, or reset it by hand (switch it off and on about 3 times until it blinks fast) and then submit.",
+          "not_unprovisioned": "{name} was reset but is not advertising for setup yet. Make sure it is powered and near a Bluetooth proxy, then try again.",
+          "timeout": "Setting up {name} timed out. It is ready for setup — try again.",
+          "provisioning_failed": "Setting up {name} failed. It is ready for setup — try again.",
+          "network_unavailable": "The SIG Mesh network could not be started. Check the logs and try again.",
+          "not_legacy": "This device does not need to be moved."
+        },
+        "abort": {
+          "entry_not_found": "The device's integration entry no longer exists."
+        }
+      }
     }
   },
   "config_subentries": {

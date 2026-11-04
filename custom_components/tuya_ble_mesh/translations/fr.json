@@ -301,6 +301,29 @@
     "ble_adapter_busy": {
       "title": "Bluetooth adapter busy",
       "description": "Could not connect to {device} because another app is monopolizing the Bluetooth adapter. Fix: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter."
+    },
+    "legacy_sig_network": {
+      "title": "Déplacer {name} vers le réseau maillé",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Déplacer {name} vers le réseau maillé",
+            "description": "{name} possède son propre réseau privé. Le déplacer vers le réseau maillé partagé permet à vos appareils de se relayer et de partager une seule connexion Bluetooth.\n\nHome Assistant réinitialisera l'appareil via Bluetooth et le configurera à nouveau — inutile de l'éteindre et le rallumer. Les noms d'entités, pièces et automatisations sont conservés ; les scènes créées dans l'application Tuya sont perdues. Cela prend environ une minute ; gardez l'appareil allumé et près d'un proxy Bluetooth."
+          }
+        },
+        "error": {
+          "not_connected": "{name} n'est pas connecté pour le moment. Attendez qu'il soit en ligne, puis réessayez.",
+          "reset_failed": "{name} ne s'est pas réinitialisé, rien n'a été modifié. Réessayez, ou réinitialisez-le à la main (éteignez-le et rallumez-le environ 3 fois jusqu'à ce qu'il clignote rapidement), puis validez.",
+          "not_unprovisioned": "{name} a été réinitialisé mais n'est pas encore prêt pour la configuration. Vérifiez qu'il est allumé et près d'un proxy Bluetooth, puis réessayez.",
+          "timeout": "La configuration de {name} a expiré. Il est prêt à être configuré — réessayez.",
+          "provisioning_failed": "La configuration de {name} a échoué. Il est prêt à être configuré — réessayez.",
+          "network_unavailable": "Le réseau SIG Mesh n'a pas pu démarrer. Consultez les journaux et réessayez.",
+          "not_legacy": "Cet appareil n'a pas besoin d'être déplacé."
+        },
+        "abort": {
+          "entry_not_found": "L'entrée d'intégration de l'appareil n'existe plus."
+        }
+      }
     }
   },
   "config_subentries": {

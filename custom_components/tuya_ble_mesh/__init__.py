@@ -260,9 +260,25 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
     except ImportError:
         _LOGGER.debug("Bluetooth integration not available, skipping BLE reconnect callback")
 
+    from custom_components.tuya_ble_mesh.migration import (
+        async_create_migration_issue,
+        is_legacy_sig_entry,
+    )
+
+    if is_legacy_sig_entry(entry):
+        # Offer "Move to mesh network" (shared network, single proxy link)
+        async_create_migration_issue(hass, entry)
+
     # PLAT-759: Routine setup completion at DEBUG level
     _LOGGER.debug("Tuya BLE Mesh entry set up: %s", entry.title)
     return True
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) -> None:
+    """Clean up repair issues of a removed entry."""
+    from custom_components.tuya_ble_mesh.migration import async_delete_migration_issue
+
+    async_delete_migration_issue(hass, entry.entry_id)
 
 
 async def _async_wait_for_advertisement(hass: HomeAssistant, address: str, timeout: float) -> bool:

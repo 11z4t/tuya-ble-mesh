@@ -8,7 +8,7 @@ Issues are automatically cleared when the problem resolves.
 from __future__ import annotations
 
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.components.repairs import RepairsFlow
 from homeassistant.data_entry_flow import FlowResult
@@ -241,6 +241,44 @@ class TuyaBLEMeshRepairFlow(RepairsFlow):
         return self.async_show_form(step_id="confirm")
 
 
+class LegacyMigrationRepairFlow(RepairsFlow):
+    """ "Move to mesh network": reset a legacy SIG bulb and re-add it to the shared network."""
+
+    def __init__(self, entry_id: str) -> None:
+        super().__init__()
+        self._entry_id = entry_id
+
+    async def async_step_init(self, user_input: dict[str, str] | None = None) -> FlowResult:
+        """Start at the confirmation step."""
+        return await self.async_step_confirm()
+
+    async def async_step_confirm(self, user_input: dict[str, str] | None = None) -> FlowResult:
+        """Explain what happens; run the migration on submit."""
+        from custom_components.tuya_ble_mesh.migration import (
+            MigrationError,
+            async_migrate_legacy_entry,
+        )
+
+        hass: Any = self.hass
+        entry = hass.config_entries.async_get_entry(self._entry_id)
+        if entry is None:
+            return self.async_abort(reason="entry_not_found")
+        errors: dict[str, str] = {}
+        if user_input is not None:
+            try:
+                await async_migrate_legacy_entry(hass, entry)
+            except MigrationError as exc:
+                _LOGGER.warning("Moving %s to the mesh network failed: %s", entry.title, exc)
+                errors["base"] = exc.reason
+            else:
+                return self.async_create_entry(data={})
+        return self.async_show_form(
+            step_id="confirm",
+            errors=errors,
+            description_placeholders={"name": entry.title},
+        )
+
+
 async def async_create_fix_flow(
     hass: HomeAssistant,
     issue_id: str,
@@ -256,4 +294,8 @@ async def async_create_fix_flow(
     Returns:
         A RepairsFlow instance to guide the user through fixing the issue.
     """
+    from custom_components.tuya_ble_mesh.migration import ISSUE_LEGACY_SIG_NETWORK
+
+    if issue_id.startswith(f"{ISSUE_LEGACY_SIG_NETWORK}_") and data and data.get("entry_id"):
+        return LegacyMigrationRepairFlow(str(data["entry_id"]))
     return TuyaBLEMeshRepairFlow()

@@ -23,6 +23,7 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+from collections.abc import Callable
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any
 
@@ -164,9 +165,18 @@ async def _async_configure_with_fallback(
 
 
 async def async_add_node_to_network(
-    hass: HomeAssistant, mac: str, device_type: str, title: str
+    hass: HomeAssistant,
+    mac: str,
+    device_type: str,
+    title: str,
+    *,
+    on_added: Callable[[ConfigEntry, str], None] | None = None,
 ) -> dict[str, Any]:
     """Provision + configure ``mac`` into the shared network and add its subentry.
+
+    ``on_added(network_entry, subentry_id)`` runs synchronously right after
+    the subentry is stored — before the network entry reloads — so callers
+    can re-point existing registry entries to it (legacy migration).
 
     Returns:
         The node subentry data.
@@ -248,7 +258,9 @@ async def async_add_node_to_network(
         stop_answering()
         await device.disconnect()
 
-    _store_node_subentry(hass, entry, existing, data, title)
+    subentry_id = _store_node_subentry(hass, entry, existing, exclude, data, title)
+    if on_added is not None:
+        on_added(entry, subentry_id)
     return data
 
 
@@ -306,24 +318,28 @@ def _store_node_subentry(
     hass: HomeAssistant,
     entry: ConfigEntry,
     existing: Any,
+    existing_id: str | None,
     data: dict[str, Any],
     title: str,
-) -> None:
-    """Add (or replace the data of) the node's subentry; the entry reloads."""
+) -> str:
+    """Add (or replace the data of) the node's subentry; the entry reloads.
+
+    Returns:
+        The subentry id.
+    """
     from homeassistant.config_entries import ConfigSubentry
 
-    if existing is not None:
+    if existing is not None and existing_id is not None:
         hass.config_entries.async_update_subentry(entry, existing, data=data)
-        return
-    hass.config_entries.async_add_subentry(
-        entry,
-        ConfigSubentry(
-            data=MappingProxyType(data),
-            subentry_type=SUBENTRY_TYPE_NODE,
-            title=title,
-            unique_id=data[CONF_MAC_ADDRESS],
-        ),
+        return existing_id
+    subentry = ConfigSubentry(
+        data=MappingProxyType(data),
+        subentry_type=SUBENTRY_TYPE_NODE,
+        title=title,
+        unique_id=data[CONF_MAC_ADDRESS],
     )
+    hass.config_entries.async_add_subentry(entry, subentry)
+    return str(subentry.subentry_id)
 
 
 async def async_complete_pending_config(

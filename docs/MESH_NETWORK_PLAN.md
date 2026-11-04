@@ -1,7 +1,7 @@
 # Plan: Shared SIG Mesh Network
 
-Status (2026-11-04): **Phases 1–4 implemented** (`a4a294d`, `0e750a8`, Phase 4
-commit below). New SIG devices discovered over Bluetooth now join the shared
+Status (2026-11-04): **Phases 1–5 implemented** (`a4a294d`, `0e750a8`, `476dfef`,
+Phase 5 commit below). New SIG devices discovered over Bluetooth now join the shared
 network; the network entry is created automatically with the first one.
 
 Implementation notes / deviations from the plan below:
@@ -17,6 +17,10 @@ Implementation notes / deviations from the plan below:
   answered during configuration; a config failure leaves the node `pending` and
   it is retried every 60 s once reachable. Relay/GATT Proxy/Network Transmit Set
   were not added — Phase 0 showed both bulbs have relay + proxy on by default.
+- Phase 5: repair issue `legacy_sig_network_<entry_id>` per legacy SIG entry →
+  `migration.async_migrate_legacy_entry`. If the bulb neither acks the reset nor
+  shows up unprovisioned, the legacy entry is reloaded unchanged; a bulb that is
+  already unprovisioned (fresh 0x1827 advert) skips the reset step.
 - Node `update` entities use the subentry id in their unique ID (legacy used the
   entry id); Phase 5 migration must rename that one unique ID when re-pointing.
 Decided: D1 = config subentries, D2 = Node Reset + reprovision, D7 = keys in

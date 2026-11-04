@@ -301,6 +301,29 @@
     "ble_adapter_busy": {
       "title": "Bluetooth adapter busy",
       "description": "Could not connect to {device} because another app is monopolizing the Bluetooth adapter. Fix: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter."
+    },
+    "legacy_sig_network": {
+      "title": "Siirrä {name} mesh-verkkoon",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Siirrä {name} mesh-verkkoon",
+            "description": "Laitteella {name} on oma yksityinen verkkonsa. Jaetussa mesh-verkossa laitteesi voivat välittää viestejä toisilleen ja jakaa yhden Bluetooth-yhteyden.\n\nHome Assistant nollaa laitteen Bluetoothin kautta ja määrittää sen uudelleen — virran katkaisua ei tarvita. Entiteettien nimet, alueet ja automaatiot säilyvät; Tuya-sovelluksessa luodut tilanteet menetetään. Tämä kestää noin minuutin; pidä laite päällä ja Bluetooth-välityspalvelimen lähellä."
+          }
+        },
+        "error": {
+          "not_connected": "{name} ei ole juuri nyt yhteydessä. Odota, kunnes se on verkossa, ja yritä uudelleen.",
+          "reset_failed": "Laitetta {name} ei nollattu, mitään ei muutettu. Yritä uudelleen tai nollaa se käsin (katkaise ja kytke virta noin 3 kertaa, kunnes se vilkkuu nopeasti) ja lähetä sitten.",
+          "not_unprovisioned": "{name} nollattiin, mutta se ei ole vielä valmis määritettäväksi. Varmista, että se on päällä ja Bluetooth-välityspalvelimen lähellä, ja yritä uudelleen.",
+          "timeout": "Laitteen {name} määritys aikakatkaistiin. Se on valmis määritettäväksi — yritä uudelleen.",
+          "provisioning_failed": "Laitteen {name} määritys epäonnistui. Se on valmis määritettäväksi — yritä uudelleen.",
+          "network_unavailable": "SIG Mesh -verkkoa ei voitu käynnistää. Tarkista lokit ja yritä uudelleen.",
+          "not_legacy": "Tätä laitetta ei tarvitse siirtää."
+        },
+        "abort": {
+          "entry_not_found": "Laitteen integraatiomerkintää ei enää ole."
+        }
+      }
     }
   },
   "config_subentries": {

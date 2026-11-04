@@ -301,6 +301,29 @@
     "ble_adapter_busy": {
       "title": "Bluetooth-adapter upptagen",
       "description": "Kunde inte ansluta till {device} eftersom en annan app blockerar Bluetooth-adaptern. Åtgärd: (1) Lägg till en ESPHome Bluetooth-proxy, eller (2) installera en andra USB-Bluetooth-adapter."
+    },
+    "legacy_sig_network": {
+      "title": "Flytta {name} till meshnätverket",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Flytta {name} till meshnätverket",
+            "description": "{name} har ett eget privat nätverk. I det gemensamma meshnätverket kan dina enheter vidarebefordra åt varandra och dela en Bluetooth-anslutning.\n\nHome Assistant återställer enheten via Bluetooth och konfigurerar den igen — ingen strömcykling behövs. Entitetsnamn, områden och automationer behålls; scener skapade i Tuya-appen går förlorade. Det tar ungefär en minut; låt enheten vara påslagen och nära en Bluetooth-proxy."
+          }
+        },
+        "error": {
+          "not_connected": "{name} är inte ansluten just nu. Vänta tills den är online och försök igen.",
+          "reset_failed": "{name} återställdes inte, inget har ändrats. Försök igen, eller återställ den för hand (slå av och på ungefär 3 gånger tills den blinkar snabbt) och skicka sedan.",
+          "not_unprovisioned": "{name} återställdes men är ännu inte redo för konfiguration. Se till att den är påslagen och nära en Bluetooth-proxy och försök igen.",
+          "timeout": "Konfigurationen av {name} tog för lång tid. Den är redo för konfiguration — försök igen.",
+          "provisioning_failed": "Konfigurationen av {name} misslyckades. Den är redo för konfiguration — försök igen.",
+          "network_unavailable": "SIG Mesh-nätverket kunde inte startas. Kontrollera loggarna och försök igen.",
+          "not_legacy": "Den här enheten behöver inte flyttas."
+        },
+        "abort": {
+          "entry_not_found": "Enhetens integrationspost finns inte längre."
+        }
+      }
     }
   },
   "config_subentries": {

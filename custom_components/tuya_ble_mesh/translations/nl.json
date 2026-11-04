@@ -301,6 +301,29 @@
     "ble_adapter_busy": {
       "title": "Bluetooth adapter busy",
       "description": "Could not connect to {device} because another app is monopolizing the Bluetooth adapter. Fix: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter."
+    },
+    "legacy_sig_network": {
+      "title": "{name} naar het meshnetwerk verplaatsen",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "{name} naar het meshnetwerk verplaatsen",
+            "description": "{name} heeft een eigen privénetwerk. In het gedeelde meshnetwerk kunnen je apparaten berichten voor elkaar doorgeven en één Bluetooth-verbinding delen.\n\nHome Assistant reset het apparaat via Bluetooth en stelt het opnieuw in — uit- en aanzetten is niet nodig. Entiteitsnamen, ruimtes en automatiseringen blijven behouden; scènes uit de Tuya-app gaan verloren. Dit duurt ongeveer een minuut; houd het apparaat aan en in de buurt van een Bluetooth-proxy."
+          }
+        },
+        "error": {
+          "not_connected": "{name} is nu niet verbonden. Wacht tot het online is en probeer het opnieuw.",
+          "reset_failed": "{name} is niet gereset, er is niets veranderd. Probeer het opnieuw, of reset het handmatig (ongeveer 3 keer uit- en aanzetten tot het snel knippert) en verstuur dan.",
+          "not_unprovisioned": "{name} is gereset maar is nog niet klaar om in te stellen. Zorg dat het aan staat en in de buurt van een Bluetooth-proxy is en probeer het opnieuw.",
+          "timeout": "Het instellen van {name} duurde te lang. Het is klaar om in te stellen — probeer het opnieuw.",
+          "provisioning_failed": "Het instellen van {name} is mislukt. Het is klaar om in te stellen — probeer het opnieuw.",
+          "network_unavailable": "Het SIG Mesh-netwerk kon niet worden gestart. Controleer de logboeken en probeer het opnieuw.",
+          "not_legacy": "Dit apparaat hoeft niet te worden verplaatst."
+        },
+        "abort": {
+          "entry_not_found": "De integratie-invoer van het apparaat bestaat niet meer."
+        }
+      }
     }
   },
   "config_subentries": {
