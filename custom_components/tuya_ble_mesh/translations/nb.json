@@ -75,6 +75,10 @@
         "title": "Setting Up {name}",
         "description": "We'll automatically add your light to Home Assistant and set up a secure connection to it.\n\nMake sure the light is **powered on**, **freshly reset** and **close to your Bluetooth adapter or proxy**, then click **Submit**.",
         "data": {}
+      },
+      "create_network": {
+        "title": "Opprett SIG Mesh-nettverk",
+        "description": "Oppretter ett felles Bluetooth-meshnettverk slik at SIG Mesh-enhetene dine kan videresende for hverandre og dele én Bluetooth-tilkobling."
       }
     },
     "error": {
@@ -107,7 +111,8 @@
       "device_not_available": "Enheten er ikke lenger i nærheten. Prøv å legge den til igjen når den er innenfor rekkevidde.",
       "reconfigure_successful": "Settings updated. The integration will restart now.",
       "not_in_pairing_mode": "Device is not in pairing mode. Factory-reset it and try again.",
-      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again."
+      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again.",
+      "network_already_exists": "Et SIG Mesh-nettverk finnes allerede. Bare ett støttes."
     }
   },
   "options": {
@@ -170,11 +175,17 @@
       },
       "last_seen": {
         "name": "Sist kontaktet"
+      },
+      "active_proxy": {
+        "name": "Aktiv proxy"
       }
     },
     "binary_sensor": {
       "connectivity": {
         "name": "Tilkobling"
+      },
+      "mesh_link": {
+        "name": "Meshtilkobling"
       }
     },
     "button": {
@@ -183,6 +194,9 @@
       },
       "reconnect": {
         "name": "Koble til på nytt"
+      },
+      "switch_proxy": {
+        "name": "Bytt proxy"
       }
     },
     "update": {
@@ -221,6 +235,9 @@
     },
     "mesh_auth_failed": {
       "message": "Mesh authentication failed. The device may need to be removed and re-provisioned with the correct network credentials."
+    },
+    "mesh_switch_proxy_failed": {
+      "message": "Kunne ikke bytte meshproxy: {error}"
     }
   },
   "services": {
@@ -283,6 +300,17 @@
     "ble_adapter_busy": {
       "title": "Bluetooth adapter busy",
       "description": "Could not connect to {device} because another app is monopolizing the Bluetooth adapter. Fix: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter."
+    }
+  },
+  "config_subentries": {
+    "node": {
+      "entry_type": "Meshnode",
+      "initiate_flow": {
+        "user": "Legg til node"
+      },
+      "abort": {
+        "add_via_discovery": "Nye enheter blir med i nettverket når de oppdages via Bluetooth. Slå på enheten nær en Bluetooth-proxy og bekreft oppdagelsen."
+      }
     }
   }
 }

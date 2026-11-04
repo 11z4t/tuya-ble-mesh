@@ -95,6 +95,10 @@
         "title": "Setting Up {name}",
         "description": "We'll automatically add your light to Home Assistant and set up a secure connection to it.\n\nMake sure the light is **powered on**, **freshly reset** and **close to your Bluetooth adapter or proxy**, then click **Submit**.",
         "data": {}
+      },
+      "create_network": {
+        "title": "Create SIG Mesh network",
+        "description": "Creates one shared Bluetooth mesh network so your SIG Mesh devices can relay for each other and share a single Bluetooth connection."
       }
     },
     "error": {
@@ -126,7 +130,8 @@
       "device_not_available": "Device is no longer nearby. Try adding it again when it's in range.",
       "reconfigure_successful": "Settings updated. The integration will restart now.",
       "entry_not_found": "Integration entry not found.",
-      "not_in_pairing_mode": "Device is not in pairing mode. Reset the device to pairing mode and try again."
+      "not_in_pairing_mode": "Device is not in pairing mode. Reset the device to pairing mode and try again.",
+      "network_already_exists": "A SIG Mesh network already exists. Only one is supported."
     }
   },
   "options": {
@@ -189,11 +194,17 @@
       },
       "last_seen": {
         "name": "Last contact"
+      },
+      "active_proxy": {
+        "name": "Active proxy"
       }
     },
     "binary_sensor": {
       "connectivity": {
         "name": "Connection"
+      },
+      "mesh_link": {
+        "name": "Mesh connection"
       }
     },
     "button": {
@@ -202,6 +213,9 @@
       },
       "reconnect": {
         "name": "Reconnect"
+      },
+      "switch_proxy": {
+        "name": "Switch proxy"
       }
     },
     "update": {
@@ -234,6 +248,9 @@
     },
     "switch_off_failed": {
       "message": "Failed to turn off switch"
+    },
+    "mesh_switch_proxy_failed": {
+      "message": "Could not switch the mesh proxy: {error}"
     }
   },
   "services": {
@@ -288,6 +305,17 @@
     "ble_adapter_busy": {
       "title": "Bluetooth adapter busy — cannot connect to {device}",
       "description": "Your Bluetooth adapter is busy (error 0x0a). Another integration (likely the built-in Home Assistant Bluetooth integration) is monopolizing the adapter.\n\n**This is a hardware limitation.** To fix it, you have two options:\n\n**Option 1: ESPHome Bluetooth Proxy (Recommended)**\n1. Get an ESP32 device (e.g., ESP32-DevKit, M5Atom Lite)\n2. Flash it with ESPHome and enable `bluetooth_proxy`\n3. Add it to Home Assistant\n4. The integration will automatically use it\n\n**Option 2: Second USB Bluetooth Adapter**\n1. Buy a USB Bluetooth 4.0+ dongle\n2. Plug it into your Home Assistant host\n3. Restart Home Assistant\n4. Try adding the device again\n\n**Why this happens:** Home Assistant's built-in Bluetooth integration keeps the adapter locked for active scanning. This integration cannot share the same adapter.\n\nSee the integration documentation for detailed setup instructions."
+    }
+  },
+  "config_subentries": {
+    "node": {
+      "entry_type": "Mesh node",
+      "initiate_flow": {
+        "user": "Add node"
+      },
+      "abort": {
+        "add_via_discovery": "New devices join the network when they are discovered over Bluetooth. Power the device on near a Bluetooth proxy and confirm the discovery."
+      }
     }
   }
 }

@@ -75,6 +75,10 @@
         "title": "Setting Up {name}",
         "description": "We'll automatically add your light to Home Assistant and set up a secure connection to it.\n\nMake sure the light is **powered on**, **freshly reset** and **close to your Bluetooth adapter or proxy**, then click **Submit**.",
         "data": {}
+      },
+      "create_network": {
+        "title": "Створити мережу SIG Mesh",
+        "description": "Створює одну спільну Bluetooth-mesh-мережу, щоб ваші пристрої SIG Mesh могли ретранслювати повідомлення один для одного та використовувати одне Bluetooth-з'єднання."
       }
     },
     "error": {
@@ -107,7 +111,8 @@
       "device_not_available": "Пристрiй бiльше не поруч. Спробуйте додати його знову, коли вiн буде в зонi дiї.",
       "reconfigure_successful": "Settings updated. The integration will restart now.",
       "not_in_pairing_mode": "Device is not in pairing mode. Factory-reset it and try again.",
-      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again."
+      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again.",
+      "network_already_exists": "Мережа SIG Mesh уже існує. Підтримується лише одна."
     }
   },
   "options": {
@@ -170,11 +175,17 @@
       },
       "last_seen": {
         "name": "Останній зв'язок"
+      },
+      "active_proxy": {
+        "name": "Активний проксі"
       }
     },
     "binary_sensor": {
       "connectivity": {
         "name": "Підключення"
+      },
+      "mesh_link": {
+        "name": "Mesh-з'єднання"
       }
     },
     "button": {
@@ -183,6 +194,9 @@
       },
       "reconnect": {
         "name": "Перепідключити"
+      },
+      "switch_proxy": {
+        "name": "Змінити проксі"
       }
     },
     "update": {
@@ -221,6 +235,9 @@
     },
     "mesh_auth_failed": {
       "message": "Mesh authentication failed. The device may need to be removed and re-provisioned with the correct network credentials."
+    },
+    "mesh_switch_proxy_failed": {
+      "message": "Не вдалося змінити mesh-проксі: {error}"
     }
   },
   "services": {
@@ -283,6 +300,17 @@
     "ble_adapter_busy": {
       "title": "Bluetooth-адаптер зайнятий",
       "description": "Не вдалось підключитись до {device}: інша програма монополізує Bluetooth-адаптер. Рішення: (1) Додайте ESPHome Bluetooth Proxy або (2) встановіть другий USB Bluetooth-адаптер."
+    }
+  },
+  "config_subentries": {
+    "node": {
+      "entry_type": "Вузол mesh",
+      "initiate_flow": {
+        "user": "Додати вузол"
+      },
+      "abort": {
+        "add_via_discovery": "Нові пристрої приєднуються до мережі, коли їх виявлено через Bluetooth. Увімкніть пристрій поблизу Bluetooth-проксі та підтвердьте виявлення."
+      }
     }
   }
 }

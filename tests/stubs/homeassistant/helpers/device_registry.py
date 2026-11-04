@@ -11,3 +11,9 @@ DeviceInfo = dict[str, Any]
 def async_get(hass: Any) -> Any:
     """Return a mock device registry."""
     return MagicMock()
+
+
+class DeviceEntryType:
+    """Minimal stub of HA's DeviceEntryType enum."""
+
+    SERVICE = "service"

@@ -187,11 +187,53 @@ def _rssi_trend(history: list[tuple[float, int]]) -> str:
     return "stable"
 
 
+def _network_diagnostics(entry: Any) -> dict[str, Any]:
+    """Diagnostics for a SIG Mesh Network entry (keys and MACs redacted)."""
+    from custom_components.tuya_ble_mesh.entry_nodes import iter_entry_nodes, network_runtime
+    from custom_components.tuya_ble_mesh.mesh_network import node_subentries
+
+    diag: dict[str, Any] = {
+        "entry_id": entry.entry_id,
+        "kind": "sig_network",
+        "data": _redact_data(dict(entry.data)),
+        "subentries": {
+            sub_id: _redact_data(dict(sub.data)) for sub_id, sub in node_subentries(entry).items()
+        },
+    }
+    runtime = network_runtime(entry)
+    if runtime is None or runtime.manager.network is None:
+        return diag
+    network = runtime.manager.network
+    diag["network"] = {
+        "connected": network.is_connected,
+        "active_proxy": _redact_string(network.active_proxy or ""),
+        "nid": f"0x{network.nid:02X}",
+        "iv_index": network.iv_index,
+        "next_seq": network.get_seq(),
+        "link_rssi": network.link_rssi,
+    }
+    diag["nodes"] = [
+        {
+            "subentry_id": node.subentry_id,
+            "unicast": f"0x{getattr(node.runtime.coordinator.device, 'unicast', 0):04X}",
+            "elements": getattr(node.runtime.coordinator.device, "element_count", None),
+            "available": node.runtime.coordinator.state.available,
+            "firmware": node.runtime.coordinator.device.firmware_version,
+        }
+        for node in iter_entry_nodes(entry)
+    ]
+    return diag
+
+
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant,
     entry: TuyaBLEMeshConfigEntry,
 ) -> dict[str, Any]:
     """Return diagnostics for a config entry."""
+    from custom_components.tuya_ble_mesh.mesh_network import is_network_entry
+
+    if is_network_entry(entry):
+        return _network_diagnostics(entry)
     device_type = entry.data.get("device_type", "")
     vendor_id_raw = entry.data.get("vendor_id", "")
     diag: dict[str, Any] = {

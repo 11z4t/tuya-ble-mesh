@@ -75,6 +75,10 @@
         "title": "Setting Up {name}",
         "description": "We'll automatically add your light to Home Assistant and set up a secure connection to it.\n\nMake sure the light is **powered on**, **freshly reset** and **close to your Bluetooth adapter or proxy**, then click **Submit**.",
         "data": {}
+      },
+      "create_network": {
+        "title": "Créer un réseau SIG Mesh",
+        "description": "Crée un réseau maillé Bluetooth partagé pour que vos appareils SIG Mesh puissent se relayer et partager une seule connexion Bluetooth."
       }
     },
     "error": {
@@ -107,7 +111,8 @@
       "device_not_available": "L’appareil n’est plus à proximité. Réessayez de l’ajouter quand il est à portée.",
       "reconfigure_successful": "Settings updated. The integration will restart now.",
       "not_in_pairing_mode": "Device is not in pairing mode. Factory-reset it and try again.",
-      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again."
+      "entry_not_found": "Setup entry not found. Restart Home Assistant and try again.",
+      "network_already_exists": "Un réseau SIG Mesh existe déjà. Un seul est pris en charge."
     }
   },
   "options": {
@@ -170,11 +175,17 @@
       },
       "last_seen": {
         "name": "Dernier contact"
+      },
+      "active_proxy": {
+        "name": "Proxy actif"
       }
     },
     "binary_sensor": {
       "connectivity": {
         "name": "Connexion"
+      },
+      "mesh_link": {
+        "name": "Connexion maillée"
       }
     },
     "button": {
@@ -183,6 +194,9 @@
       },
       "reconnect": {
         "name": "Reconnecter"
+      },
+      "switch_proxy": {
+        "name": "Changer de proxy"
       }
     },
     "update": {
@@ -221,6 +235,9 @@
     },
     "mesh_auth_failed": {
       "message": "Mesh authentication failed. The device may need to be removed and re-provisioned with the correct network credentials."
+    },
+    "mesh_switch_proxy_failed": {
+      "message": "Impossible de changer de proxy maillé : {error}"
     }
   },
   "services": {
@@ -283,6 +300,17 @@
     "ble_adapter_busy": {
       "title": "Bluetooth adapter busy",
       "description": "Could not connect to {device} because another app is monopolizing the Bluetooth adapter. Fix: (1) Add an ESPHome Bluetooth Proxy, or (2) Install a second USB Bluetooth adapter."
+    }
+  },
+  "config_subentries": {
+    "node": {
+      "entry_type": "Nœud maillé",
+      "initiate_flow": {
+        "user": "Ajouter un nœud"
+      },
+      "abort": {
+        "add_via_discovery": "Les nouveaux appareils rejoignent le réseau lorsqu'ils sont découverts via Bluetooth. Allumez l'appareil près d'un proxy Bluetooth et confirmez la découverte."
+      }
     }
   }
 }

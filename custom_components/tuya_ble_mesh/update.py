@@ -34,11 +34,19 @@ async def async_setup_entry(
     async_add_entities: AddEntitiesCallback,
 ) -> None:
     """Set up update entities for a Tuya BLE Mesh config entry."""
-    runtime_data = entry.runtime_data
-    coordinator: TuyaBLEMeshCoordinator = runtime_data.coordinator
-    device_info = runtime_data.device_info
+    from custom_components.tuya_ble_mesh.entry_nodes import add_node_entities, iter_entry_nodes
 
-    async_add_entities([TuyaBLEMeshFirmwareUpdateEntity(coordinator, entry.entry_id, device_info)])
+    for node in iter_entry_nodes(entry):
+        coordinator: TuyaBLEMeshCoordinator = node.runtime.coordinator
+        add_node_entities(
+            async_add_entities,
+            node,
+            [
+                TuyaBLEMeshFirmwareUpdateEntity(
+                    coordinator, node.entity_key, node.runtime.device_info
+                )
+            ],
+        )
 
 
 class TuyaBLEMeshFirmwareUpdateEntity(TuyaBLEMeshEntity, UpdateEntity):

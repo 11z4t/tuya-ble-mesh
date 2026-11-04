@@ -163,29 +163,41 @@ async def async_setup_entry(
         entry: Config entry being set up.
         async_add_entities: Callback to register new entities.
     """
-    runtime_data = entry.runtime_data
-    coordinator: TuyaBLEMeshCoordinator = runtime_data.coordinator
-    device_info: DeviceInfo = runtime_data.device_info
+    from custom_components.tuya_ble_mesh.entry_nodes import (
+        add_node_entities,
+        iter_entry_nodes,
+        network_runtime,
+    )
 
-    # Create sensors based on descriptions
-    entities: list[SensorEntity] = []
-    for description in SENSOR_DESCRIPTIONS:
-        # Power/energy sensors require device support
-        if description.key in ("power", "energy") and not getattr(
-            coordinator.device, "supports_power_monitoring", False
-        ):
-            continue
+    for node in iter_entry_nodes(entry):
+        coordinator: TuyaBLEMeshCoordinator = node.runtime.coordinator
+        device_info: DeviceInfo = node.runtime.device_info
 
-        entities.append(
-            TuyaBLEMeshSensor(
-                coordinator=coordinator,
-                entry_id=entry.entry_id,
-                description=description,
-                device_info=device_info,
+        # Create sensors based on descriptions
+        entities: list[SensorEntity] = []
+        for description in SENSOR_DESCRIPTIONS:
+            # Power/energy sensors require device support
+            if description.key in ("power", "energy") and not getattr(
+                coordinator.device, "supports_power_monitoring", False
+            ):
+                continue
+
+            entities.append(
+                TuyaBLEMeshSensor(
+                    coordinator=coordinator,
+                    entry_id=node.entity_key,
+                    description=description,
+                    device_info=device_info,
+                )
             )
-        )
 
-    async_add_entities(entities)
+        add_node_entities(async_add_entities, node, entities)
+
+    net = network_runtime(entry)
+    if net is not None:
+        from custom_components.tuya_ble_mesh.network_entities import MeshActiveProxySensor
+
+        async_add_entities([MeshActiveProxySensor(net.manager, net.hub_device_info)])
 
 
 class TuyaBLEMeshSensor(SensorEntity):

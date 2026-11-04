@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING, Any
 
 import voluptuous as vol
 from homeassistant import config_entries
-from homeassistant.config_entries import ConfigFlow
+from homeassistant.config_entries import ConfigFlow, ConfigSubentryFlow
 
 # Import for test patching (used in config_flow_sig/config_flow_telink submodules)
 try:
@@ -75,16 +75,20 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_BRIDGE_PORT,
     CONF_DEV_KEY,
     CONF_DEVICE_TYPE,
+    CONF_ENTRY_KIND,
     CONF_IV_INDEX,
     CONF_MAC_ADDRESS,
     CONF_MESH_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
     CONF_NET_KEY,
+    CONF_NETWORK_UUID,
+    CONF_PROVISIONER_ADDR,
     CONF_UNICAST_OUR,
     CONF_UNICAST_TARGET,
     CONF_VENDOR_ID,
     DEFAULT_MESH_ADDRESS,
+    DEFAULT_NETWORK_NAME,
     DEFAULT_VENDOR_ID,
     DEVICE_TYPE_LIGHT,
     DEVICE_TYPE_PLUG,
@@ -93,6 +97,8 @@ from custom_components.tuya_ble_mesh.const import (
     DEVICE_TYPE_SIG_PLUG,
     DEVICE_TYPE_TELINK_BRIDGE_LIGHT,
     DOMAIN,
+    ENTRY_KIND_SIG_NETWORK,
+    SUBENTRY_TYPE_NODE,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -125,6 +131,37 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
     ) -> TuyaBLEMeshOptionsFlow:
         """Return the options flow handler."""
         return TuyaBLEMeshOptionsFlow(config_entry)
+
+    @classmethod
+    def async_get_supported_subentry_types(
+        cls, config_entry: config_entries.ConfigEntry
+    ) -> dict[str, type[ConfigSubentryFlow]]:
+        """Node subentries exist only on a SIG Mesh Network entry."""
+        from custom_components.tuya_ble_mesh.mesh_network import is_network_entry
+
+        if is_network_entry(config_entry):
+            return {SUBENTRY_TYPE_NODE: MeshNodeSubentryFlow}
+        return {}
+
+    async def async_step_create_network(
+        self, user_input: dict[str, Any] | None = None
+    ) -> FlowResult:
+        """Create the shared SIG Mesh Network entry (fresh NetKey/AppKey).
+
+        Started programmatically (``source="create_network"``) when the first
+        device is added to a shared network; only one network is supported.
+        """
+        from custom_components.tuya_ble_mesh.mesh_network import network_entry
+
+        if network_entry(self.hass) is not None:
+            return self.async_abort(reason="network_already_exists")
+        if user_input is None:
+            return self.async_show_form(step_id="create_network", data_schema=vol.Schema({}))
+        data = new_network_data()
+        await self.async_set_unique_id(data[CONF_NETWORK_UUID])
+        self._abort_if_unique_id_configured()
+        _LOGGER.info("Creating SIG Mesh network entry (keys [REDACTED])")
+        return self.async_create_entry(title=DEFAULT_NETWORK_NAME, data=data)
 
     def __init__(self) -> None:
         """Initialize config flow state for a new Tuya BLE Mesh entry."""
@@ -365,3 +402,30 @@ class TuyaBLEMeshConfigFlow(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg
             description_placeholders={},
             errors=errors,
         )
+
+
+def new_network_data() -> dict[str, Any]:
+    """Return config entry data for a brand-new shared network (random keys)."""
+    import os
+    import uuid
+
+    return {
+        CONF_ENTRY_KIND: ENTRY_KIND_SIG_NETWORK,
+        CONF_NETWORK_UUID: uuid.uuid4().hex,
+        CONF_NET_KEY: os.urandom(16).hex(),
+        CONF_APP_KEY: os.urandom(16).hex(),
+        CONF_IV_INDEX: 0,
+        CONF_PROVISIONER_ADDR: 0x0001,
+    }
+
+
+class MeshNodeSubentryFlow(ConfigSubentryFlow):  # type: ignore[misc]
+    """Add a node to the shared network.
+
+    Nodes are added from Bluetooth discovery (provisioning needs a direct
+    connection to the new device); there is nothing to type in here.
+    """
+
+    async def async_step_user(self, user_input: dict[str, Any] | None = None) -> Any:
+        """Point the user at discovery."""
+        return self.async_abort(reason="add_via_discovery")

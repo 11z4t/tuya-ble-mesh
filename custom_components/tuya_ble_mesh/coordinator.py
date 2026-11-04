@@ -135,10 +135,15 @@ class _ReservingSeqStore:
     """
 
     def __init__(
-        self, initial: int, on_reserve: Callable[[int], None], block: int = _SEQ_RESERVE_BLOCK
+        self,
+        initial: int,
+        on_reserve: Callable[[int], None],
+        block: int = _SEQ_RESERVE_BLOCK,
+        *,
+        reserved: int | None = None,
     ) -> None:
         self._seq = initial
-        self._reserved = initial
+        self._reserved = initial if reserved is None else max(initial, reserved)
         self._block = block
         self._on_reserve = on_reserve
 

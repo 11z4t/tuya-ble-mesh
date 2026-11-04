@@ -164,3 +164,17 @@ class ConfigFlow(metaclass=_ConfigFlowMeta):
         if data is not None and self.hass is not None:
             self.hass.config_entries.async_update_entry(entry, data=data)
         return {"type": "abort", "reason": reason}
+
+
+class ConfigSubentryFlow:
+    """Minimal stub of HA's ConfigSubentryFlow."""
+
+    hass: Any = None
+    handler: Any = None
+    context: dict[str, Any]
+
+    def __init__(self) -> None:
+        self.context = {}
+
+    def async_abort(self, reason: str) -> dict[str, Any]:
+        return {"type": "abort", "reason": reason}

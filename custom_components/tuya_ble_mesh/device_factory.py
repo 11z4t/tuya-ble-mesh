@@ -14,7 +14,10 @@ from custom_components.tuya_ble_mesh.const import (
     CONF_BRIDGE_HOST,
     CONF_BRIDGE_PORT,
     CONF_DEV_KEY,
+    CONF_DEVICE_TYPE,
+    CONF_ELEMENT_COUNT,
     CONF_IV_INDEX,
+    CONF_MAC_ADDRESS,
     CONF_MESH_ADDRESS,
     CONF_MESH_NAME,
     CONF_MESH_PASSWORD,
@@ -47,6 +50,7 @@ if TYPE_CHECKING:
     )
     from tuya_ble_mesh.sig_mesh_device import SIGMeshDevice
     from tuya_ble_mesh.sig_mesh_light import SIGMeshLight
+    from tuya_ble_mesh.sig_mesh_node import SIGMeshLightNode, SIGMeshNode
 
 # Union type alias for all mesh device types returned by device_factory
 AnyMeshDevice: TypeAlias = Union[
@@ -181,6 +185,21 @@ def _create_sig_light(
     """
     from tuya_ble_mesh.sig_mesh_light import SIGMeshLight
 
+    model_elements, temp_range = _light_options(data)
+    args, kwargs = _sig_direct_args(mac_address, data)
+    return SIGMeshLight(
+        *args,
+        **kwargs,
+        ble_device_callback=ble_device_callback,
+        model_elements=model_elements,
+        temp_range_k=temp_range,
+    )
+
+
+def _light_options(
+    data: Mapping[str, Any],
+) -> tuple[dict[int, int], tuple[int, int] | None]:
+    """Parse model->element map and device-reported CTL range from entry data."""
     raw_elements: Mapping[str, Any] = data.get(CONF_MODEL_ELEMENTS) or {}
     model_elements: dict[int, int] = {}
     for model_hex, index in raw_elements.items():
@@ -197,13 +216,43 @@ def _create_sig_light(
             int(data.get(CONF_TEMP_MIN_K, DEFAULT_SIG_TEMP_MIN_K)),
             int(data.get(CONF_TEMP_MAX_K, DEFAULT_SIG_TEMP_MAX_K)),
         )
-    args, kwargs = _sig_direct_args(mac_address, data)
-    return SIGMeshLight(
-        *args,
-        **kwargs,
-        ble_device_callback=ble_device_callback,
-        model_elements=model_elements,
-        temp_range_k=temp_range,
+    return model_elements, temp_range
+
+
+def create_network_node(
+    network: Any,
+    data: Mapping[str, Any],
+    rssi_provider: Callable[[str], int | None] | None = None,
+) -> SIGMeshNode | SIGMeshLightNode:
+    """Create a node view on a shared ``MeshNetwork`` from node subentry data.
+
+    Raises:
+        ValueError: If the subentry lacks a MAC, unicast address or device key.
+    """
+    from tuya_ble_mesh.sig_mesh_node import SIGMeshLightNode, SIGMeshNode
+
+    mac = str(data.get(CONF_MAC_ADDRESS, "")).upper()
+    dev_key = str(data.get(CONF_DEV_KEY, ""))
+    unicast_hex = data.get(CONF_UNICAST_TARGET)
+    if not mac or not dev_key or not unicast_hex:
+        msg = "Node subentry is missing mac_address, dev_key or unicast_target"
+        raise ValueError(msg)
+    unicast = int(str(unicast_hex), 16)
+    element_count = int(data.get(CONF_ELEMENT_COUNT, 1) or 1)
+    if data.get(CONF_DEVICE_TYPE) == DEVICE_TYPE_SIG_LIGHT:
+        model_elements, temp_range = _light_options(data)
+        return SIGMeshLightNode(
+            mac,
+            network,
+            unicast,
+            dev_key,
+            element_count=element_count,
+            model_elements=model_elements,
+            temp_range_k=temp_range,
+            rssi_provider=rssi_provider,
+        )
+    return SIGMeshNode(
+        mac, network, unicast, dev_key, element_count=element_count, rssi_provider=rssi_provider
     )
 
 

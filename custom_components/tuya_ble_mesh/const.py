@@ -122,3 +122,15 @@ KNOWN_VENDOR_IDS: dict[str, str] = {
     "1003": "Tuya",
     "1004": "Telink",
 }
+
+# --- Shared SIG Mesh network (config entry + node subentries) ---
+CONF_ENTRY_KIND = "entry_kind"
+ENTRY_KIND_SIG_NETWORK = "sig_network"
+SUBENTRY_TYPE_NODE = "node"
+CONF_NETWORK_UUID = "network_uuid"
+CONF_PROVISIONER_ADDR = "provisioner_addr"
+DEFAULT_NETWORK_NAME = "SIG Mesh Network"
+NETWORK_SEQ_RESERVE_BLOCK = 128
+# Seconds between the network link coming up and pushing it to every node
+NETWORK_NODE_STAGGER = 0.5
+SIGNAL_NETWORK_UPDATE = "tuya_ble_mesh_network_update_{}"
