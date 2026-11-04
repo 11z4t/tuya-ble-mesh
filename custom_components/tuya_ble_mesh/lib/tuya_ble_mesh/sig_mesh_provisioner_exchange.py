@@ -372,6 +372,10 @@ class ProvisionerExchangeMixin:
         device_caps = caps_pdu[1:]  # 11 bytes for ConfirmationInputs
         num_elements = caps_pdu[1] if len(caps_pdu) > 1 else 1
         _LOGGER.info("Provisioning: Capabilities received (elements=%d)", num_elements)
+        allocator = getattr(self, "_unicast_allocator", None)
+        if allocator is not None:
+            self._unicast_addr = int(allocator(num_elements))
+            _LOGGER.info("Provisioning: allocated unicast 0x%04X", self._unicast_addr)
 
         # ---- Step 3: Start (No OOB) ----
         _LOGGER.info("Provisioning: Start")

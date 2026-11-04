@@ -85,54 +85,11 @@ class ProvisionedNode:
         return data
 
 
-async def run_provision(
-    hass: Any, mac: str, device_type: str = DEVICE_TYPE_SIG_PLUG
-) -> ProvisionedNode:
-    """Generate keys, provision the device, then configure it for use.
-
-    Phase 1: PB-GATT provisioning (Service 0x1827).
-    Phase 2: Wait for device to reboot into Proxy Service (0x1828).
-    Phase 3: AppKey Add, Composition Data Get, bind the AppKey to every server
-        model (lights: also query the colour temperature range and enable
-        status publication to HA).
-
-    Args:
-        hass: Home Assistant instance.
-        mac: BLE MAC address of the unprovisioned device.
-        device_type: DEVICE_TYPE_SIG_PLUG or DEVICE_TYPE_SIG_LIGHT.
-
-    Returns:
-        ProvisionedNode with keys and discovered model layout.
-
-    Raises:
-        ProvisioningError: If PB-GATT provisioning fails.
-        TimeoutError: If provisioning times out.
-        NodeConfigurationError: If Phase 3 fails (device needs factory reset).
-    """
+def ha_ble_callbacks(hass: Any) -> tuple[Any, Any]:
+    """Return (ble_device_callback, ble_connect_callback) routed via HA bluetooth."""
     from bleak import BleakClient
     from bleak_retry_connector import establish_connection
     from homeassistant.components import bluetooth as ha_bluetooth
-    from tuya_ble_mesh.secrets import DictSecretsManager  # type: ignore[import-not-found]
-    from tuya_ble_mesh.sig_mesh_light import (  # type: ignore[import-not-found]
-        SIGMeshLight,
-        configure_sig_node,
-        model_elements_from_composition,
-    )
-    from tuya_ble_mesh.sig_mesh_provisioner import (
-        SIGMeshProvisioner,  # type: ignore[import-not-found]
-    )
-
-    is_light = device_type == DEVICE_TYPE_SIG_LIGHT
-
-    # Generate fresh random keys (SECURITY: never logged)
-    net_key = os.urandom(16)
-    app_key = os.urandom(16)
-    _LOGGER.info(
-        "Auto-provisioning SIG Mesh %s %s (unicast=0x%04X)",
-        "light" if is_light else "plug",
-        mac,
-        _UNICAST_DEVICE_DEFAULT,
-    )
 
     # HA Bluetooth callbacks -- use retry-connector to avoid HA warning
     # NOTE: Works with ESPHome BLE proxies. If HA has no local adapter but has
@@ -188,6 +145,57 @@ async def run_provision(
             max_attempts=5,
             use_services_cache=False,
         )
+
+    return _ble_device_cb, _ble_connect_cb
+
+
+async def run_provision(
+    hass: Any, mac: str, device_type: str = DEVICE_TYPE_SIG_PLUG
+) -> ProvisionedNode:
+    """Generate keys, provision the device, then configure it for use.
+
+    Phase 1: PB-GATT provisioning (Service 0x1827).
+    Phase 2: Wait for device to reboot into Proxy Service (0x1828).
+    Phase 3: AppKey Add, Composition Data Get, bind the AppKey to every server
+        model (lights: also query the colour temperature range and enable
+        status publication to HA).
+
+    Args:
+        hass: Home Assistant instance.
+        mac: BLE MAC address of the unprovisioned device.
+        device_type: DEVICE_TYPE_SIG_PLUG or DEVICE_TYPE_SIG_LIGHT.
+
+    Returns:
+        ProvisionedNode with keys and discovered model layout.
+
+    Raises:
+        ProvisioningError: If PB-GATT provisioning fails.
+        TimeoutError: If provisioning times out.
+        NodeConfigurationError: If Phase 3 fails (device needs factory reset).
+    """
+    from tuya_ble_mesh.secrets import DictSecretsManager
+    from tuya_ble_mesh.sig_mesh_light import (
+        SIGMeshLight,
+        configure_sig_node,
+        model_elements_from_composition,
+    )
+    from tuya_ble_mesh.sig_mesh_provisioner import (
+        SIGMeshProvisioner,
+    )
+
+    is_light = device_type == DEVICE_TYPE_SIG_LIGHT
+
+    # Generate fresh random keys (SECURITY: never logged)
+    net_key = os.urandom(16)
+    app_key = os.urandom(16)
+    _LOGGER.info(
+        "Auto-provisioning SIG Mesh %s %s (unicast=0x%04X)",
+        "light" if is_light else "plug",
+        mac,
+        _UNICAST_DEVICE_DEFAULT,
+    )
+
+    _ble_device_cb, _ble_connect_cb = ha_ble_callbacks(hass)
 
     # Phase 1: PB-GATT provisioning
     provisioner = SIGMeshProvisioner(
@@ -314,7 +322,27 @@ async def _async_step_sig_provision(
 ) -> FlowResult:
     """Shared confirm-and-provision step for SIG Mesh plugs and lights."""
     errors: dict[str, str] = {}
-    if user_input is not None and flow._discovery_info is not None:
+    if (
+        user_input is not None
+        and flow._discovery_info is not None
+        and _use_shared_network(flow.hass)
+    ):
+        from custom_components.tuya_ble_mesh.config_flow_network import (
+            async_add_node_to_network,
+        )
+
+        mac = flow._discovery_info["address"]
+        title = flow._discovery_info.get("name") or mac
+        try:
+            await async_add_node_to_network(flow.hass, mac, device_type, title)
+        except TimeoutError:
+            _LOGGER.warning("Provisioning timed out for %s", mac)
+            errors["base"] = "timeout"
+        except Exception as exc:
+            errors["base"] = _classify_provision_error(mac, exc)
+        else:
+            return flow.async_abort(reason="added_to_network")
+    elif user_input is not None and flow._discovery_info is not None:
         mac = flow._discovery_info["address"]
         try:
             node = await run_provision(flow.hass, mac, device_type)
@@ -339,10 +367,18 @@ async def _async_step_sig_provision(
     )
 
 
+def _use_shared_network(hass: Any) -> bool:
+    """New SIG Mesh devices join the shared network (one proxy link, relaying).
+
+    Kept as a function so the legacy one-entry-per-device path stays testable.
+    """
+    return True
+
+
 def _classify_provision_error(mac: str, exc: Exception) -> str:
     """Map a provisioning exception to a config flow error key (and log it)."""
     try:
-        from tuya_ble_mesh.exceptions import (  # type: ignore[import-not-found]
+        from tuya_ble_mesh.exceptions import (
             DeviceNotFoundError,
             MeshTimeoutError,
             ProvisioningError,

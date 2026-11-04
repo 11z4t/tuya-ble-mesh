@@ -94,6 +94,7 @@ class SIGMeshProvisioner(ProvisionerConnectionMixin, ProvisionerExchangeMixin): 
         ble_device_callback: Any | None = None,
         ble_connect_callback: Callable[[Any], Awaitable[BleakClient]] | None = None,
         adapter: str | None = None,
+        unicast_allocator: Callable[[int], int] | None = None,
     ) -> None:
         """Initialize the provisioner.
 
@@ -114,6 +115,10 @@ class SIGMeshProvisioner(ProvisionerConnectionMixin, ProvisionerExchangeMixin): 
             adapter: BLE adapter name (e.g. "hci0"). If set, forces scan
                 and connect via this specific adapter, bypassing HA's
                 habluetooth routing.
+            unicast_allocator: Optional ``element_count -> primary address``
+                called once the device reports its element count
+                (Capabilities); overrides ``unicast_addr`` so a shared
+                network can fit the node's whole element range.
 
         Raises:
             ProvisioningError: If key lengths are invalid.
@@ -128,6 +133,7 @@ class SIGMeshProvisioner(ProvisionerConnectionMixin, ProvisionerExchangeMixin): 
         self._net_key = net_key
         self._app_key = app_key
         self._unicast_addr = unicast_addr
+        self._unicast_allocator = unicast_allocator
         self._net_key_index = net_key_index
         self._iv_index = iv_index
         self._flags = flags

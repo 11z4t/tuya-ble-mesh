@@ -76,11 +76,15 @@ def node_subentries(entry: ConfigEntry) -> dict[str, Any]:
     }
 
 
-def used_unicast_ranges(hass: HomeAssistant, entry: ConfigEntry) -> list[tuple[int, int]]:
+def used_unicast_ranges(
+    hass: HomeAssistant, entry: ConfigEntry, *, exclude_subentry: str | None = None
+) -> list[tuple[int, int]]:
     """Return address ranges taken on this network (plus reserved ones)."""
     provisioner = int(entry.data.get(CONF_PROVISIONER_ADDR, 1))
     ranges: list[tuple[int, int]] = [(provisioner, 1)]
-    for sub in node_subentries(entry).values():
+    for sub_id, sub in node_subentries(entry).items():
+        if sub_id == exclude_subentry:
+            continue
         try:
             start = int(str(sub.data[CONF_UNICAST_TARGET]), 16)
         except (KeyError, ValueError):
@@ -97,15 +101,26 @@ def used_unicast_ranges(hass: HomeAssistant, entry: ConfigEntry) -> list[tuple[i
     return ranges
 
 
-def allocate_node_address(hass: HomeAssistant, entry: ConfigEntry, element_count: int) -> int:
+def allocate_node_address(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    element_count: int,
+    *,
+    exclude_subentry: str | None = None,
+) -> int:
     """Pick the primary unicast address for a new node on ``entry``'s network.
+
+    Args:
+        exclude_subentry: A node being re-provisioned; its old range is
+            treated as free.
 
     Raises:
         AddressSpaceExhaustedError: If no range fits.
     """
     from tuya_ble_mesh.sig_mesh_address_allocator import allocate_unicast
 
-    return int(allocate_unicast(element_count, used_unicast_ranges(hass, entry)))
+    used = used_unicast_ranges(hass, entry, exclude_subentry=exclude_subentry)
+    return int(allocate_unicast(element_count, used))
 
 
 @dataclass
@@ -187,6 +202,12 @@ class MeshNetworkManager:
             seq_start,
             len(self._node_macs),
         )
+
+    def add_candidate(self, mac: str) -> None:
+        """Consider ``mac`` as a proxy too (a node being added)."""
+        mac = mac.upper()
+        if mac not in self._node_macs:
+            self._node_macs.append(mac)
 
     def register_coordinator(self, coordinator: TuyaBLEMeshCoordinator) -> None:
         """Track a node coordinator for link-up fan-out."""

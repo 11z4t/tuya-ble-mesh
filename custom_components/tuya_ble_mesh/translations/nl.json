@@ -112,7 +112,8 @@
       "reconfigure_successful": "Settings updated. The integration will restart now.",
       "not_in_pairing_mode": "Device is not in pairing mode. Factory-reset it and try again.",
       "entry_not_found": "Setup entry not found. Restart Home Assistant and try again.",
-      "network_already_exists": "Er bestaat al een SIG Mesh-netwerk. Er wordt er maar één ondersteund."
+      "network_already_exists": "Er bestaat al een SIG Mesh-netwerk. Er wordt er maar één ondersteund.",
+      "added_to_network": "Toegevoegd aan je SIG Mesh-netwerk. Het verschijnt onder de integratie-invoer SIG Mesh Network."
     }
   },
   "options": {

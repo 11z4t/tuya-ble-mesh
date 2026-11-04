@@ -280,8 +280,8 @@ class MeshNetwork:
         ranked: list[str] = self.selector.rank(candidates)
         return ranked
 
-    async def _connect_round(self) -> None:
-        ranked = self._ranked_candidates()
+    async def _connect_round(self, only: str | None = None) -> None:
+        ranked = [only.upper()] if only is not None else self._ranked_candidates()
         if not ranked:
             msg = "No mesh proxy node in range"
             raise MeshConnectionError(msg)
@@ -341,6 +341,28 @@ class MeshNetwork:
             await link.disconnect()
             self._notify_link_state(False)
         await self.ensure_connected(self._link_timeout * MAX_CANDIDATES_PER_ROUND)
+
+    async def use_proxy(self, address: str) -> None:
+        """Carry the link through ``address`` (e.g. a node being configured).
+
+        Raises:
+            MeshConnectionError: If that node can't be connected.
+        """
+        if self.active_proxy == address.upper():
+            return
+        task = self._connect_task
+        if task is not None and not task.done():
+            with contextlib.suppress(MeshConnectionError):
+                await asyncio.shield(task)
+        link = self._link
+        if link is not None:
+            self._link = None
+            await link.disconnect()
+            self._notify_link_state(False)
+        task = asyncio.get_running_loop().create_task(self._connect_round(only=address))
+        task.add_done_callback(_consume_exception)
+        self._connect_task = task
+        await asyncio.shield(task)
 
     async def close(self) -> None:
         """Close the link for good (entry unload)."""

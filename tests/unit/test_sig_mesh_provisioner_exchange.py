@@ -799,6 +799,23 @@ class TestFullExchangeHappyPath:
         assert result.num_elements == 1
 
     @pytest.mark.asyncio
+    async def test_unicast_allocator_called_with_element_count(self) -> None:
+        """A shared network picks the address once Capabilities reports elements."""
+        calls: list[int] = []
+
+        def _alloc(elements: int) -> int:
+            calls.append(elements)
+            return 0x0042
+
+        prov = SIGMeshProvisioner(b"\x00" * 16, b"\x01" * 16, 0, unicast_allocator=_alloc)
+        device_priv = generate_private_key(SECP256R1())
+
+        result = await self._run_full(prov, device_priv)
+
+        assert calls == [result.num_elements]
+        assert result.unicast_addr == 0x0042
+
+    @pytest.mark.asyncio
     async def test_happy_path_custom_params(self) -> None:
         """Complete exchange with custom net_key_index and iv_index (lines 447-450)."""
         prov = SIGMeshProvisioner(

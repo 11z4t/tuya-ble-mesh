@@ -178,3 +178,22 @@ class ConfigSubentryFlow:
 
     def async_abort(self, reason: str) -> dict[str, Any]:
         return {"type": "abort", "reason": reason}
+
+
+class ConfigSubentry:
+    """Minimal stub of HA's ConfigSubentry."""
+
+    def __init__(
+        self,
+        *,
+        data: Any,
+        subentry_type: str,
+        title: str,
+        unique_id: str | None,
+        subentry_id: str = "new_subentry",
+    ) -> None:
+        self.data = data
+        self.subentry_type = subentry_type
+        self.title = title
+        self.unique_id = unique_id
+        self.subentry_id = subentry_id

@@ -287,3 +287,34 @@ class TestMeshNetworkEndToEnd:
         assert not net.is_connected
         with pytest.raises(MeshConnectionError):
             await net.ensure_connected()
+
+
+class TestUseProxy:
+    @pytest.mark.asyncio
+    async def test_moves_link_to_requested_node(self, air: SimAir) -> None:
+        net = _network(_candidates((MAC_A, -50), (MAC_B, -80)))
+        a = SIGMeshLightNode(MAC_A, net, 0x0002, DEV_KEY_A, element_count=2)
+        b = SIGMeshLightNode(MAC_B, net, 0x0004, DEV_KEY_B)
+        states: list[bool] = []
+        await a.connect()
+        await b.connect()
+        net.add_link_listener(states.append)
+        assert net.active_proxy == MAC_A
+
+        await net.use_proxy(MAC_B)
+        assert net.active_proxy == MAC_B
+        assert states == [False, True]
+        await net.use_proxy(MAC_B)  # already there: no-op
+        assert air.connects == [MAC_A, MAC_B]
+        # Nodes reattach on their next connect and work over the new link
+        await a.connect()
+        await a.send_onoff(True)
+        await _settle()
+        assert air.nodes[0].on is True
+
+    @pytest.mark.asyncio
+    async def test_unreachable_node_raises(self, air: SimAir) -> None:
+        air.unreachable = {MAC_B}
+        net = _network(_candidates((MAC_A, -50)))
+        with pytest.raises(MeshConnectionError):
+            await net.use_proxy(MAC_B)

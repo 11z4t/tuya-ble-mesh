@@ -1,7 +1,8 @@
 # Plan: Shared SIG Mesh Network
 
-Status (2026-11-04): **Phases 1–3 implemented** (`a4a294d`, `0e750a8`), not yet
-used in production — no network entry exists until Phase 4/5 creates one.
+Status (2026-11-04): **Phases 1–4 implemented** (`a4a294d`, `0e750a8`, Phase 4
+commit below). New SIG devices discovered over Bluetooth now join the shared
+network; the network entry is created automatically with the first one.
 
 Implementation notes / deviations from the plan below:
 - Instead of splitting `SIGMeshDevice`, node views (`sig_mesh_node.py`) subclass
@@ -11,6 +12,11 @@ Implementation notes / deviations from the plan below:
 - Deferred to Phase 6: explicit Proxy Configuration filter messages (the spec's
   automatic accept-list add of our source address is relied on), Secure Network
   Beacon / IV Update handling, SAR retransmission of unacked outgoing segments.
+- Phase 4: configuration runs over the shared link and falls back to a direct
+  link to the new node (`MeshNetwork.use_proxy`); Tuya timestamp requests are
+  answered during configuration; a config failure leaves the node `pending` and
+  it is retried every 60 s once reachable. Relay/GATT Proxy/Network Transmit Set
+  were not added — Phase 0 showed both bulbs have relay + proxy on by default.
 - Node `update` entities use the subentry id in their unique ID (legacy used the
   entry id); Phase 5 migration must rename that one unique ID when re-pointing.
 Decided: D1 = config subentries, D2 = Node Reset + reprovision, D7 = keys in

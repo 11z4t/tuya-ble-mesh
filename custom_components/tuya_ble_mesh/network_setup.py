@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import logging
 from typing import TYPE_CHECKING, Any
 
+from custom_components.tuya_ble_mesh.config_flow_network import (
+    CONF_CONFIG_STATE,
+    CONFIG_STATE_PENDING,
+)
 from custom_components.tuya_ble_mesh.const import (
     CONF_DEVICE_TYPE,
     CONF_MAC_ADDRESS,
@@ -29,6 +34,8 @@ if TYPE_CHECKING:
 _LOGGER = logging.getLogger(__name__)
 
 NODE_RESET_TIMEOUT = 5.0
+PENDING_CONFIG_ATTEMPTS = 30
+PENDING_CONFIG_RETRY_S = 60.0
 
 
 async def async_setup_network_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
@@ -88,11 +95,17 @@ async def async_setup_network_entry(hass: HomeAssistant, entry: ConfigEntry) -> 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     await _async_register_services(hass)
 
-    for node_runtime in nodes.values():
+    for sub_id, node_runtime in nodes.items():
         coord = node_runtime.coordinator
         entry.async_create_background_task(
             hass, _async_start_node(coord), f"{DOMAIN}_node_start_{coord.device.address}"
         )
+        if known[sub_id].get(CONF_CONFIG_STATE) == CONFIG_STATE_PENDING:
+            entry.async_create_background_task(
+                hass,
+                _async_finish_pending(hass, entry, sub_id, coord),
+                f"{DOMAIN}_node_config_{coord.device.address}",
+            )
 
     _register_advert_callbacks(hass, entry, manager, runtime)
     entry.async_on_unload(entry.add_update_listener(_async_network_update_listener))
@@ -106,6 +119,23 @@ async def _async_start_node(coordinator: TuyaBLEMeshCoordinator) -> None:
     except Exception as exc:
         _LOGGER.info("Node %s not reachable yet (%s) — will retry", coordinator.device.address, exc)
         coordinator.schedule_reconnect()
+
+
+async def _async_finish_pending(
+    hass: HomeAssistant, entry: ConfigEntry, subentry_id: str, coordinator: TuyaBLEMeshCoordinator
+) -> None:
+    """Retry configuration of a node stored as pending until it succeeds."""
+    from custom_components.tuya_ble_mesh.config_flow_network import (
+        async_complete_pending_config,
+    )
+
+    for _ in range(PENDING_CONFIG_ATTEMPTS):
+        if coordinator.state.available and await async_complete_pending_config(
+            hass, entry, subentry_id, coordinator.device
+        ):
+            return
+        await asyncio.sleep(PENDING_CONFIG_RETRY_S)
+    _LOGGER.warning("Giving up configuring %s for now", coordinator.device.address)
 
 
 def _register_advert_callbacks(
