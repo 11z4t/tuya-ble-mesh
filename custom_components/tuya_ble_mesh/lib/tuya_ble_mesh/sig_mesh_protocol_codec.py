@@ -66,6 +66,23 @@ OP_CONFIG_MODEL_APP_STATUS = 0x803E
 OP_CONFIG_MODEL_PUB_SET = 0x03
 OP_CONFIG_MODEL_PUB_STATUS = 0x8019
 
+# Node feature state Get/Status (Mesh Profile 4.3.4) — read-only probes
+OP_CONFIG_BEACON_GET = 0x8009
+OP_CONFIG_BEACON_STATUS = 0x800B
+OP_CONFIG_DEFAULT_TTL_GET = 0x800C
+OP_CONFIG_DEFAULT_TTL_STATUS = 0x800E
+OP_CONFIG_FRIEND_GET = 0x800F
+OP_CONFIG_FRIEND_STATUS = 0x8011
+OP_CONFIG_GATT_PROXY_GET = 0x8012
+OP_CONFIG_GATT_PROXY_STATUS = 0x8014
+OP_CONFIG_NETWORK_TRANSMIT_GET = 0x8023
+OP_CONFIG_NETWORK_TRANSMIT_STATUS = 0x8025
+OP_CONFIG_RELAY_GET = 0x8026
+OP_CONFIG_RELAY_STATUS = 0x8028
+
+# Feature state values (Mesh Profile 4.2.8 / 4.2.10-4.2.12)
+FEATURE_STATE_NAMES: dict[int, str] = {0x00: "disabled", 0x01: "enabled", 0x02: "not_supported"}
+
 # --- Generic OnOff model opcodes (Mesh Model 3.2) ---
 OP_GENERIC_ONOFF_GET = 0x8201
 OP_GENERIC_ONOFF_SET = 0x8202
@@ -232,6 +249,51 @@ def config_composition_get(page: int = 0) -> bytes:
         msg = f"Page must be 0..255, got {page}"
         raise ProtocolError(msg)
     return struct.pack(">H", OP_CONFIG_COMPOSITION_GET) + bytes([page])
+
+
+def config_state_get(opcode: int) -> bytes:
+    """Encode a parameterless Config ``* Get`` message (Beacon, TTL, Relay, …)."""
+    if not 0x8000 <= opcode <= 0xBFFF:
+        msg = f"Not a 2-byte opcode: 0x{opcode:04X}"
+        raise ProtocolError(msg)
+    return struct.pack(">H", opcode)
+
+
+@dataclass(frozen=True)
+class TransmitState:
+    """Relay Retransmit / Network Transmit state (count + interval)."""
+
+    transmissions: int  # total sends = count + 1
+    interval_ms: int  # (steps + 1) * 10 ms
+
+
+def parse_transmit_byte(value: int) -> TransmitState:
+    """Decode a packed transmit byte: count in bits 0-2, interval steps in bits 3-7."""
+    return TransmitState(transmissions=(value & 0x07) + 1, interval_ms=((value >> 3) + 1) * 10)
+
+
+@dataclass(frozen=True)
+class RelayStatus:
+    """Config Relay Status."""
+
+    relay: int
+    retransmit: TransmitState
+
+
+def parse_relay_status(params: bytes) -> RelayStatus:
+    """Parse Config Relay Status params (relay, retransmit)."""
+    if len(params) < 2:
+        msg = f"Relay Status too short: {len(params)} bytes"
+        raise MalformedPacketError(msg)
+    return RelayStatus(relay=params[0], retransmit=parse_transmit_byte(params[1]))
+
+
+def parse_single_byte_status(params: bytes, name: str) -> int:
+    """Parse a one-byte Config Status (Beacon, Default TTL, Friend, GATT Proxy)."""
+    if len(params) < 1:
+        msg = f"{name} Status empty"
+        raise MalformedPacketError(msg)
+    return params[0]
 
 
 def config_appkey_add(net_idx: int, app_idx: int, app_key: bytes) -> bytes:

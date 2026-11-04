@@ -10,7 +10,7 @@ import asyncio
 import contextlib
 import sys
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -64,6 +64,52 @@ class TestTimeSyncOnConnect:
         await asyncio.sleep(0)
 
         device.send_vendor_command.assert_not_awaited()
+
+
+class TestFeatureProbeOnConnect:
+    """Read-only relay/proxy probe runs once per coordinator lifetime."""
+
+    @pytest.mark.asyncio
+    async def test_probe_runs_once_and_logs(self, caplog: pytest.LogCaptureFixture) -> None:
+        import custom_components.tuya_ble_mesh.coordinator as coord_mod
+
+        device = make_mock_device()
+        device.probe_node_features = AsyncMock(return_value={"relay": "enabled (1x @ 10ms)"})
+        coord = TuyaBLEMeshCoordinator(device)
+
+        with patch.object(coord_mod, "_FEATURE_PROBE_DELAY", 0), caplog.at_level("INFO"):
+            coord._schedule_feature_probe()
+            coord._schedule_feature_probe()
+            for _ in range(5):
+                await asyncio.sleep(0)
+
+        device.probe_node_features.assert_awaited_once()
+        assert "relay=enabled (1x @ 10ms)" in caplog.text
+
+    @pytest.mark.asyncio
+    async def test_failed_probe_retried_on_next_connect(self) -> None:
+        import custom_components.tuya_ble_mesh.coordinator as coord_mod
+
+        device = make_mock_device()
+        device.probe_node_features = AsyncMock(side_effect=[RuntimeError("link down"), {}])
+        coord = TuyaBLEMeshCoordinator(device)
+
+        with patch.object(coord_mod, "_FEATURE_PROBE_DELAY", 0):
+            coord._schedule_feature_probe()
+            for _ in range(5):
+                await asyncio.sleep(0)
+            coord._schedule_feature_probe()
+            for _ in range(5):
+                await asyncio.sleep(0)
+
+        assert device.probe_node_features.await_count == 2
+
+    @pytest.mark.asyncio
+    async def test_no_probe_for_non_sig_device(self) -> None:
+        device = make_mock_device()  # MagicMock attribute, not a coroutine function
+        coord = TuyaBLEMeshCoordinator(device)
+        coord._schedule_feature_probe()
+        assert coord._features_probed is False
 
 
 def make_mock_device() -> MagicMock:

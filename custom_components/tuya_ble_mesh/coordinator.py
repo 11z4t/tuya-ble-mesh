@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import inspect
 import logging
 import time
 from collections.abc import Callable, Coroutine
@@ -52,6 +53,7 @@ _INITIAL_BACKOFF = 5.0  # backward-compat alias
 _DEBOUNCE_DELAY = 1.5  # PLAT-754: backward-compat alias for connection_manager.DEBOUNCE_DELAY
 _STALENESS_THRESHOLD_SECONDS = 300  # 5 minutes
 _STALENESS_CHECK_INTERVAL = 60  # Check every minute
+_FEATURE_PROBE_DELAY = 5.0  # let the post-connect state refresh finish first
 # Backward-compat aliases — sourced from connection_manager, re-exported for tests
 _BACKOFF_MULTIPLIER: float = 2.0
 _BRIDGE_INITIAL_BACKOFF: float = 3.0
@@ -188,6 +190,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):  # type: ignore[misc]
             on_state_update=self._handle_conn_state_update,
         )
         self._staleness_task: asyncio.Task[None] | None = None
+        self._features_probed = False
 
     # --- Explicit delegation to ConnectionManager (no magic methods) ---
 
@@ -724,6 +727,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):  # type: ignore[misc]
         self.start_rssi_polling()
         self._schedule_time_sync()
         self._schedule_sig_light_refresh()
+        self._schedule_feature_probe()
         self._dispatch_update()
 
     def _handle_conn_state_update(self) -> None:
@@ -922,6 +926,37 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):  # type: ignore[misc]
             return
         self._create_background_task(self._send_timestamp_response(), "timestamp_sync_push")
 
+    def _schedule_feature_probe(self) -> None:
+        """Log a SIG node's relay/proxy/friend/beacon state once per HA run.
+
+        Read-only diagnostics for the shared-mesh work (Phase 0): tells us
+        whether Tuya firmware relays out of the box.
+        """
+        probe = getattr(self._device, "probe_node_features", None)
+        if self._features_probed or not inspect.iscoroutinefunction(probe):
+            return
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return
+        self._features_probed = True
+
+        async def _probe() -> None:
+            await asyncio.sleep(_FEATURE_PROBE_DELAY)
+            try:
+                features = await probe()
+            except Exception:
+                _LOGGER.debug("SIG node feature probe failed", exc_info=True)
+                self._features_probed = False
+                return
+            _LOGGER.info(
+                "SIG node features for %s: %s",
+                self._device.address,
+                ", ".join(f"{k}={v}" for k, v in features.items()),
+            )
+
+        self._create_background_task(_probe(), "sig_feature_probe")
+
     def _schedule_sig_light_refresh(self) -> None:
         """Query a SIG light's state after (re)connecting (non-blocking)."""
         refresh = getattr(self._device, "refresh_state", None)
@@ -1100,6 +1135,7 @@ class TuyaBLEMeshCoordinator(DataUpdateCoordinator[None]):  # type: ignore[misc]
         )
         self._schedule_time_sync()
         self._schedule_sig_light_refresh()
+        self._schedule_feature_probe()
 
         # Start staleness watchdog (PLAT-746, PLAT-747)
         if self._staleness_task is None or self._staleness_task.done():

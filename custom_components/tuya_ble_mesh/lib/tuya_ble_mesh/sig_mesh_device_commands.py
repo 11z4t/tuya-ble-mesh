@@ -7,6 +7,7 @@ Provides ``SIGMeshDeviceCommandsMixin`` which handles:
 - Config Composition Data Get
 - Config AppKey Add (segmented transport)
 - Config Model App Bind
+- Read-only node feature probes (relay, proxy, friend, beacon, TTL, transmit)
 
 This mixin is not intended for standalone use — it requires attributes
 defined in ``SIGMeshDevice.__init__``.
@@ -16,6 +17,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 from tuya_ble_mesh.const import (
@@ -25,6 +27,7 @@ from tuya_ble_mesh.const import (
     STATUS_WAIT_POLL_INTERVAL,
 )
 from tuya_ble_mesh.exceptions import (
+    MalformedPacketError,
     MeshConnectionError,
     SIGMeshError,
     SIGMeshKeyError,
@@ -48,12 +51,29 @@ from tuya_ble_mesh.sig_mesh_protocol import (
     make_proxy_pdu,
 )
 from tuya_ble_mesh.sig_mesh_protocol_codec import (
+    FEATURE_STATE_NAMES,
     MODEL_HEALTH_SERVER,
+    OP_CONFIG_BEACON_GET,
+    OP_CONFIG_BEACON_STATUS,
+    OP_CONFIG_DEFAULT_TTL_GET,
+    OP_CONFIG_DEFAULT_TTL_STATUS,
+    OP_CONFIG_FRIEND_GET,
+    OP_CONFIG_FRIEND_STATUS,
+    OP_CONFIG_GATT_PROXY_GET,
+    OP_CONFIG_GATT_PROXY_STATUS,
     OP_CONFIG_MODEL_PUB_STATUS,
+    OP_CONFIG_NETWORK_TRANSMIT_GET,
+    OP_CONFIG_NETWORK_TRANSMIT_STATUS,
+    OP_CONFIG_RELAY_GET,
+    OP_CONFIG_RELAY_STATUS,
     OP_HEALTH_ATTENTION_STATUS,
     config_model_app_bind_vendor,
     config_model_pub_set,
+    config_state_get,
     health_attention_set,
+    parse_relay_status,
+    parse_single_byte_status,
+    parse_transmit_byte,
     segment_ack,
 )
 
@@ -264,6 +284,85 @@ class SIGMeshDeviceCommandsMixin:
             response_timeout=response_timeout,
         )
         return params or b""
+
+    async def probe_node_features(
+        self, *, response_timeout: float = SIG_MESH_ONOFF_RESPONSE_TIMEOUT
+    ) -> dict[str, str]:
+        """Read the node's relay/proxy/friend/beacon/TTL/transmit state.
+
+        Read-only (Config ``* Get`` only). Each probe is independent: a probe
+        that times out or fails to parse is reported as ``"no_reply"`` /
+        ``"malformed"`` rather than aborting the rest.
+
+        Returns:
+            Human-readable state per feature, e.g. ``{"relay": "enabled
+            (2x @ 20ms)", "gatt_proxy": "enabled", ...}``.
+        """
+
+        def _feature(value: int) -> str:
+            return str(FEATURE_STATE_NAMES.get(value, f"0x{value:02X}"))
+
+        def _relay(params: bytes) -> str:
+            st = parse_relay_status(params)
+            rt = st.retransmit
+            return f"{_feature(st.relay)} ({rt.transmissions}x @ {rt.interval_ms}ms)"
+
+        def _transmit(params: bytes) -> str:
+            tx = parse_transmit_byte(parse_single_byte_status(params, "Network Transmit"))
+            return f"{tx.transmissions}x @ {tx.interval_ms}ms"
+
+        probes: list[tuple[str, int, int, Callable[[bytes], str]]] = [
+            ("relay", OP_CONFIG_RELAY_GET, OP_CONFIG_RELAY_STATUS, _relay),
+            (
+                "gatt_proxy",
+                OP_CONFIG_GATT_PROXY_GET,
+                OP_CONFIG_GATT_PROXY_STATUS,
+                lambda p: _feature(parse_single_byte_status(p, "GATT Proxy")),
+            ),
+            (
+                "friend",
+                OP_CONFIG_FRIEND_GET,
+                OP_CONFIG_FRIEND_STATUS,
+                lambda p: _feature(parse_single_byte_status(p, "Friend")),
+            ),
+            (
+                "secure_beacon",
+                OP_CONFIG_BEACON_GET,
+                OP_CONFIG_BEACON_STATUS,
+                lambda p: _feature(parse_single_byte_status(p, "Beacon")),
+            ),
+            (
+                "default_ttl",
+                OP_CONFIG_DEFAULT_TTL_GET,
+                OP_CONFIG_DEFAULT_TTL_STATUS,
+                lambda p: str(parse_single_byte_status(p, "Default TTL")),
+            ),
+            (
+                "network_transmit",
+                OP_CONFIG_NETWORK_TRANSMIT_GET,
+                OP_CONFIG_NETWORK_TRANSMIT_STATUS,
+                _transmit,
+            ),
+        ]
+        result: dict[str, str] = {}
+        for name, get_op, status_op, decode in probes:
+            try:
+                params = await self._send_access(
+                    config_state_get(get_op),
+                    use_dev_key=True,
+                    expect_opcode=status_op,
+                    response_timeout=response_timeout,
+                )
+            except SIGMeshError:
+                if self._client is None:
+                    raise
+                result[name] = "no_reply"
+                continue
+            try:
+                result[name] = decode(params or b"")
+            except MalformedPacketError:
+                result[name] = "malformed"
+        return result
 
     async def send_config_model_app_bind_vendor(
         self,

@@ -3,6 +3,9 @@
 Status: **proposed** (2026-11-04). Nothing here is implemented yet.
 Decided: D1 = config subentries, D2 = Node Reset + reprovision, D7 = keys in
 HA `entry.data`, D8 = n/a (no other SIG devices in this install).
+D3–D6, D9 accepted as proposed: allocate from 0x0002 (0x00B0 reserved until
+migration), one proxy link, Node Reset on removal with address quarantine
+until confirmed, one network, groups in Phase 6.
 
 ## Why
 
@@ -223,7 +226,8 @@ power-cycle off/on ~3× until fast blinking), then the same flow continues from
 ## 8. Phases (each shippable)
 
 - **Phase 0 — hardware spikes (gate everything):** (a) dump composition +
-  features from both bulbs; (b) Node Reset + reprovision one bulb
+  features from both bulbs; *(read-only relay/proxy/friend/beacon/TTL/transmit
+  probe logged once per HA run — `probe_node_features`)*; (b) Node Reset + reprovision one bulb
   at a new address; (c) two nodes on one network — connect to A, control and
   read B, confirm relayed status arrives; is relay on by default?; (d) proxy
   filter behaviour on Tuya firmware; (e) does a non-proxy bulb still need
