@@ -36,6 +36,7 @@ from custom_components.tuya_ble_mesh.const import (
     DOMAIN,
     KNOWN_VENDOR_IDS,
     PLATFORMS,
+    STARTUP_ADVERT_TIMEOUT,
 )
 from custom_components.tuya_ble_mesh.device_factory import create_device
 from custom_components.tuya_ble_mesh.device_registry import TuyaBLEMeshDeviceRegistry
@@ -165,6 +166,11 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
     # PLAT-743: Try initial connection synchronously during setup.
     # If it fails, raise ConfigEntryNotReady to let HA Core handle retry scheduling.
     # This gives HA visibility into integration health and proper retry state in UI.
+    # On HA start the ESPHome proxies connect after us; wait briefly for the
+    # device to be seen instead of burning all connect attempts on "not found".
+    if not hasattr(device, "host"):
+        await _async_wait_for_advertisement(hass, mac_address, STARTUP_ADVERT_TIMEOUT)
+
     try:
         await coordinator.async_initial_connect()
     except Exception as err:
@@ -249,6 +255,47 @@ async def async_setup_entry(hass: HomeAssistant, entry: TuyaBLEMeshConfigEntry) 
 
     # PLAT-759: Routine setup completion at DEBUG level
     _LOGGER.debug("Tuya BLE Mesh entry set up: %s", entry.title)
+    return True
+
+
+async def _async_wait_for_advertisement(hass: HomeAssistant, address: str, timeout: float) -> bool:
+    """Wait until HA bluetooth has a connectable path to ``address``.
+
+    Returns:
+        True if the device is (or became) visible, False on timeout or when
+        the bluetooth integration is unavailable.
+    """
+    try:
+        from homeassistant.components.bluetooth import (
+            BluetoothCallbackMatcher,
+            BluetoothScanningMode,
+            async_ble_device_from_address,
+            async_process_advertisements,
+        )
+    except ImportError:
+        return False
+    try:
+        if async_ble_device_from_address(hass, address, connectable=True) is not None:
+            return True
+    except Exception:  # bluetooth not set up (e.g. tests, no adapter)
+        _LOGGER.debug("HA bluetooth unavailable while resolving %s", address, exc_info=True)
+        return False
+
+    _LOGGER.info("Waiting up to %.0fs for %s to be seen by a BLE proxy", timeout, address)
+    try:
+        await async_process_advertisements(
+            hass,
+            lambda _info: True,
+            BluetoothCallbackMatcher(address=address, connectable=True),
+            BluetoothScanningMode.ACTIVE,
+            timeout,
+        )
+    except TimeoutError:
+        _LOGGER.info("%s not seen within %.0fs — trying to connect anyway", address, timeout)
+        return False
+    except Exception:
+        _LOGGER.debug("Waiting for advertisement from %s failed", address, exc_info=True)
+        return False
     return True
 
 

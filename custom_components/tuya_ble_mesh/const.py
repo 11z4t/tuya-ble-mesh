@@ -103,6 +103,9 @@ DEVICE_COLOR_BRIGHTNESS_MAX = 255
 DEFAULT_MAX_COMMAND_RETRIES = 3
 DEFAULT_COMMAND_RETRY_BASE_DELAY = 0.5
 
+# Seconds to wait at setup for a BLE proxy to see the device (HA start races ESPHome)
+STARTUP_ADVERT_TIMEOUT = 20.0
+
 # Mesh scene/effect presets: scene_id (1-based) → display name
 MESH_SCENES: dict[int, str] = {
     1: "Warm Candlelight",
