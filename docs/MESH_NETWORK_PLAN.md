@@ -1,6 +1,18 @@
 # Plan: Shared SIG Mesh Network
 
-Status: **proposed** (2026-11-04). Nothing here is implemented yet.
+Status (2026-11-04): **Phases 1–3 implemented** (`a4a294d`, `0e750a8`), not yet
+used in production — no network entry exists until Phase 4/5 creates one.
+
+Implementation notes / deviations from the plan below:
+- Instead of splitting `SIGMeshDevice`, node views (`sig_mesh_node.py`) subclass
+  `SIGMeshDevice`/`SIGMeshLight` and override only transport (SEQ, writes, link
+  state). Each node keeps its own pending-response table and device key, which
+  gives per-src reply matching without touching the white-box-tested internals.
+- Deferred to Phase 6: explicit Proxy Configuration filter messages (the spec's
+  automatic accept-list add of our source address is relied on), Secure Network
+  Beacon / IV Update handling, SAR retransmission of unacked outgoing segments.
+- Node `update` entities use the subentry id in their unique ID (legacy used the
+  entry id); Phase 5 migration must rename that one unique ID when re-pointing.
 Decided: D1 = config subentries, D2 = Node Reset + reprovision, D7 = keys in
 HA `entry.data`, D8 = n/a (no other SIG devices in this install).
 D3–D6, D9 accepted as proposed: allocate from 0x0002 (0x00B0 reserved until
