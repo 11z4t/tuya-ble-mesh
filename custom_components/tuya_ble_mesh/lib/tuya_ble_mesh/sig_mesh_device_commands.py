@@ -64,6 +64,8 @@ from tuya_ble_mesh.sig_mesh_protocol_codec import (
     OP_CONFIG_MODEL_PUB_STATUS,
     OP_CONFIG_NETWORK_TRANSMIT_GET,
     OP_CONFIG_NETWORK_TRANSMIT_STATUS,
+    OP_CONFIG_NODE_RESET,
+    OP_CONFIG_NODE_RESET_STATUS,
     OP_CONFIG_RELAY_GET,
     OP_CONFIG_RELAY_STATUS,
     OP_HEALTH_ATTENTION_STATUS,
@@ -363,6 +365,34 @@ class SIGMeshDeviceCommandsMixin:
             except MalformedPacketError:
                 result[name] = "malformed"
         return result
+
+    async def send_config_node_reset(
+        self, *, response_timeout: float = SIG_MESH_ONOFF_RESPONSE_TIMEOUT
+    ) -> bool:
+        """Tell the node to forget its keys and become unprovisioned.
+
+        Sent with the device key. The node answers Config Node Reset Status
+        and then wipes itself, after which it advertises the Provisioning
+        service (0x1827) again.
+
+        Returns:
+            True if the node acknowledged the reset, False on no reply (the
+            reset may still have happened — check for its 0x1827 advert).
+        """
+        try:
+            await self._send_access(
+                config_state_get(OP_CONFIG_NODE_RESET),
+                use_dev_key=True,
+                expect_opcode=OP_CONFIG_NODE_RESET_STATUS,
+                response_timeout=response_timeout,
+            )
+        except SIGMeshError:
+            if self._client is None:
+                raise
+            _LOGGER.warning("No Node Reset Status from 0x%04X", self._target_addr)
+            return False
+        _LOGGER.info("Node 0x%04X acknowledged Config Node Reset", self._target_addr)
+        return True
 
     async def send_config_model_app_bind_vendor(
         self,

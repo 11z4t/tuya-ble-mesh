@@ -37,7 +37,7 @@ from tuya_ble_mesh.sig_mesh_protocol import (
 if TYPE_CHECKING:
     from bleak.backends.characteristic import BleakGATTCharacteristic
 
-    from tuya_ble_mesh.sig_mesh_protocol import MeshKeys
+    from tuya_ble_mesh.sig_mesh_protocol import MeshKeys, NetworkPDU
 
 _LOGGER = MeshLogAdapter(logging.getLogger(__name__), {})
 
@@ -178,6 +178,21 @@ class SIGMeshDeviceSegmentsMixin:
         )
         if net_pdu is None:
             _LOGGER.debug("Network PDU decryption failed or NID mismatch")
+            return
+
+        await self._process_network_pdu(net_pdu)
+
+    async def _process_network_pdu(self, net_pdu: NetworkPDU) -> None:
+        """Handle a decrypted network PDU addressed to us.
+
+        Split from ``_process_notify`` so a shared ``MeshNetwork`` link can
+        decrypt the network layer once and route each PDU to the node that
+        owns its source address.
+
+        Args:
+            net_pdu: Decrypted network PDU.
+        """
+        if self._keys is None:
             return
 
         if net_pdu.ctl == 1:
